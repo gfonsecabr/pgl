@@ -765,3 +765,113 @@ TEST_CASE("ShapeTree insert leaves no trace when bbox() throws") {
     CHECK(tree.size() == 1);
     CHECK(tree.shapes().front() == p);
 }
+
+// ---------------------------------------------------------------------------
+// Arbitrary-precision coordinates
+//
+// A tree over these answers through the floating-point filter boxes cached
+// beside its nodes and elements, which no fixed-width tree builds. Every case
+// below therefore checks the tree against a scan of the same shapes, over
+// coordinates the filter cannot settle on its own: thirds, and integers offset
+// from a magnitude no double resolves, where neighbouring coordinates share
+// one double.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+using ENumber = pgl::ERational;
+using EPoint = pgl::Point<ENumber>;
+using ESegment = pgl::Segment<EPoint>;
+using ERect = pgl::Rectangle<EPoint>;
+using ETriangle = pgl::Triangle<EPoint>;
+
+// 2^80, well past the 53 bits a double keeps.
+pgl::BigInt hugeScale() {
+    pgl::BigInt v(1);
+    for (int i = 0; i < 8; ++i) {
+        v = v * pgl::BigInt(1024);
+    }
+    return v;
+}
+
+ENumber exactCoordinate(Rng& rng, int flavour) {
+    const int k = rng.range(-12, 12);
+    if (flavour == 0) {
+        return ENumber(k);
+    }
+    if (flavour == 1) {
+        return ENumber(pgl::BigInt(k), pgl::BigInt(3));
+    }
+    return ENumber(hugeScale() * pgl::BigInt(k) + pgl::BigInt(rng.range(0, 3)));
+}
+
+EPoint exactPoint(Rng& rng, int flavour) {
+    const ENumber x = exactCoordinate(rng, flavour);
+    return EPoint(x, exactCoordinate(rng, flavour));
+}
+
+template <class Q>
+void checkAgainstScan(const pgl::ShapeTree<ESegment>& tree, const Q& q) {
+    std::size_t meets = 0;
+    std::size_t inside = 0;
+    for (const ESegment& s : tree.shapes()) {
+        if (s.intersects(q)) {
+            meets++;
+        }
+        if (q.contains(s)) {
+            inside++;
+        }
+    }
+    CHECK(tree.countIntersecting(q) == meets);
+    CHECK(tree.countContainedIn(q) == inside);
+    CHECK(tree.reportIntersecting(q).size() == meets);
+    CHECK(tree.reportContainedIn(q).size() == inside);
+    CHECK(tree.emptyIntersecting(q) == (meets == 0));
+    CHECK(tree.emptyContainedIn(q) == (inside == 0));
+}
+
+}  // namespace
+
+TEST_CASE("ShapeTree stays exact over arbitrary-precision coordinates") {
+    for (int flavour = 0; flavour < 3; ++flavour) {
+        Rng rng{static_cast<std::uint64_t>(flavour) + 11};
+        std::vector<ESegment> segments;
+        for (int i = 0; i < 40; ++i) {
+            segments.emplace_back(exactPoint(rng, flavour), exactPoint(rng, flavour));
+        }
+        const pgl::ShapeTree<ESegment> tree(segments, 3);
+
+        for (int k = 0; k < 8; ++k) {
+            checkAgainstScan(tree, ERect(exactPoint(rng, flavour), exactPoint(rng, flavour)));
+            checkAgainstScan(tree, exactPoint(rng, flavour));
+            const EPoint a = exactPoint(rng, flavour);
+            const EPoint b = exactPoint(rng, flavour);
+            const EPoint c = exactPoint(rng, flavour);
+            if (pgl::orientationSign(a, b, c) != 0) {
+                checkAgainstScan(tree, ETriangle(a, b, c));
+            }
+            // An unbounded query has no box to filter through and must still
+            // reach the exact predicate.
+            checkAgainstScan(tree, pgl::Halfplane<EPoint>(exactPoint(rng, flavour),
+                                                          exactPoint(rng, flavour)));
+        }
+    }
+}
+
+TEST_CASE("ShapeTree keeps its filter boxes in step with insert and erase") {
+    Rng rng{5};
+    std::vector<ESegment> segments;
+    for (int i = 0; i < 24; ++i) {
+        segments.emplace_back(exactPoint(rng, 1), exactPoint(rng, 1));
+    }
+    pgl::ShapeTree<ESegment> tree(segments, 2);
+
+    for (int step = 0; step < 12; ++step) {
+        if (step % 2 == 0) {
+            tree.insert(ESegment(exactPoint(rng, 1), exactPoint(rng, 1)));
+        } else {
+            CHECK(tree.erase(tree.shapes()[rng.next() % tree.size()]));
+        }
+        checkAgainstScan(tree, ERect(exactPoint(rng, 1), exactPoint(rng, 1)));
+    }
+}

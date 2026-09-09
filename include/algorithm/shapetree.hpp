@@ -15,10 +15,14 @@
  * child; elements whose bounding box straddles the split value stay at the node
  * itself, so every element is stored exactly once. Each node caches the union
  * bounding box of its whole subtree, allowing queries to prune subtrees with
- * exact integer rectangle predicates.
+ * exact integer rectangle predicates. Over an arbitrary-precision coordinate
+ * type, where that box test is itself a cross multiplication of big integers,
+ * every box is shadowed by an outward-rounded `double` one and the cheap test
+ * runs first; a shadow that misses the query proves the exact box does too.
  */
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <type_traits>
 #include <utility>
@@ -140,6 +144,95 @@ class ShapeTree {
     using const_reference = const ShapeType&;
 
   private:
+    // ----------------------------------------------------------------------
+    // Cheap box tests
+    //
+    // Every traversal below prunes with bounding boxes before it reaches an
+    // exact predicate. Over arbitrary-precision coordinates the box test is
+    // itself expensive -- comparing two rationals cross-multiplies big integers
+    // -- so each exact box is shadowed by an outward-rounded `double` one,
+    // cached beside the node or element it belongs to. A `double` box that
+    // misses the query proves the exact box does too, rounding having only
+    // grown it; anything else falls through to the exact test unchanged.
+    // Fixed-width coordinates compare in a few machine instructions and carry
+    // no shadow.
+    // ----------------------------------------------------------------------
+
+    using FilterBox = Rectangle<Point<double>>;
+
+    static constexpr bool usesFilter = detail::arbitraryPrecision<NumberType>;
+
+    // Shapes that *are* their own bounding box. A box test in front of an exact
+    // predicate against one of these would just run the same test twice.
+    template <class T>
+    static constexpr bool boxShaped = PointConcept<T> || RectangleConcept<T>;
+
+    // Query shapes whose `bbox()` is defined for every value. An unbounded
+    // convex region has no finite box (@ref HalfplaneIntersection::bbox throws
+    // for one), and a runtime @ref Shape forwards to whatever it holds, so
+    // neither is filtered.
+    template <class T>
+    static constexpr bool hasTotalBoundingBox =
+        requires(const T& t) { t.bbox(); } &&
+        !UnboundedConvexConcept<T> && !ShapeConcept<T>;
+
+    // The boxes one query is filtered through, computed once per query.
+    template <class QueryRect>
+    struct QueryBoxes {
+        QueryRect box;
+        FilterBox filter;
+    };
+
+    // Stands in for @ref QueryBoxes when the query has no box to filter
+    // through; every test then goes straight to the exact predicate.
+    struct NoQueryBoxes {};
+
+    // One coordinate of a filter box: `below` picks which end of the interval
+    // the exact value is known to lie in. That interval is the one
+    // @ref detail::approximate charges for reaching a double, so a coordinate
+    // costs one conversion and a few flops. @ref Rectangle::fbox would give a
+    // *tight* bound instead, at two long-double divisions and an exact
+    // comparison against the rational apiece -- accuracy a filter cannot spend
+    // on the box it is only trying to reject.
+    template <class Coordinate>
+    static double filterBound(const Coordinate& value, bool below) {
+        const detail::Approximate a = detail::approximate(value);
+        const double slack = a.error * detail::approximateMargin + 0x1p-1000;
+        return below ? a.value - slack : a.value + slack;
+    }
+
+    // The outward-rounded `double` box of `r`. A coordinate too large to reach
+    // a finite double leaves a NaN behind, and a NaN bound would answer
+    // "disjoint" to everything and prune a subtree that does meet the query;
+    // such a box is widened to the whole plane instead, which prunes nothing.
+    template <class OtherRect>
+    static FilterBox filterBoxOf(const OtherRect& r) {
+        const double xmin = filterBound(r.min().x(), true);
+        const double ymin = filterBound(r.min().y(), true);
+        const double xmax = filterBound(r.max().x(), false);
+        const double ymax = filterBound(r.max().y(), false);
+        if (std::isnan(xmin) || std::isnan(ymin) || std::isnan(xmax) || std::isnan(ymax)) {
+            const double lo = -detail::numeric_limits<double>::infinity();
+            const double hi = detail::numeric_limits<double>::infinity();
+            return FilterBox(lo, lo, hi, hi, true);
+        }
+        return FilterBox(xmin, ymin, xmax, ymax, true);
+    }
+
+    template <class Q>
+    static auto queryBoxesOf(const Q& q) {
+        if constexpr (hasTotalBoundingBox<Q>) {
+            auto box = q.bbox();
+            FilterBox filter{};
+            if constexpr (usesFilter) {
+                filter = filterBoxOf(box);
+            }
+            return QueryBoxes<decltype(box)>{std::move(box), filter};
+        } else {
+            return NoQueryBoxes{};
+        }
+    }
+
     struct Node {
         Rect box;  // Union bounding box of the whole subtree.
         std::ptrdiff_t left = -1, right = -1;
@@ -147,9 +240,49 @@ class ShapeTree {
         [[no_unique_address]] WeightType weightSum{};  // Sum of subtree weights.
         std::vector<std::size_t> elementIndices;  // Elements owned by this node.
 
-        template <class Q>
-        [[nodiscard]] std::size_t countIntersecting(const ShapeTree& tree, const Q& q) const {
-            if (!q.intersects(box)) {
+        // This node's index in `tree.nodes_`, which is what addresses its cached
+        // filter box. Both are elements of that one array, so the difference is
+        // exact; carrying the index down every traversal instead would put a
+        // parameter on each of them for it.
+        [[nodiscard]] std::size_t index(const ShapeTree& tree) const {
+            return static_cast<std::size_t>(this - tree.nodes_.data());
+        }
+
+        // Whether the cheap box tests alone already prove this subtree misses
+        // `q`. False means undecided, not that the subtree meets the query.
+        template <class Q, class QB>
+        [[nodiscard]] bool boxMisses(const ShapeTree& tree, const Q&, const QB& qb) const {
+            if constexpr (std::is_same_v<QB, NoQueryBoxes> || boxShaped<Q>) {
+                return false;  // The exact node test that follows *is* this test.
+            } else {
+                if constexpr (usesFilter) {
+                    if (!qb.filter.intersects(tree.nodeFilterBoxes_[index(tree)])) {
+                        return true;
+                    }
+                }
+                return !qb.box.intersects(box);
+            }
+        }
+
+        // Whether the cheap box tests alone already prove element `i` misses
+        // `q` -- and so that it neither meets `q` nor lies inside it.
+        template <class Q, class QB>
+        [[nodiscard]] bool elementBoxMisses(const ShapeTree& tree, const Q&, const QB& qb,
+                                            std::size_t i) const {
+            if constexpr (std::is_same_v<QB, NoQueryBoxes> ||
+                          (boxShaped<Q> && boxShaped<ShapeType>)) {
+                return false;  // The exact element test that follows *is* this test.
+            } else if constexpr (usesFilter) {
+                return !qb.filter.intersects(tree.filterBoxes_[i]);
+            } else {
+                return !qb.box.intersects(tree.elements_[i].bbox());
+            }
+        }
+
+        template <class Q, class QB>
+        [[nodiscard]] std::size_t countIntersecting(const ShapeTree& tree, const Q& q,
+                                                    const QB& qb) const {
+            if (boxMisses(tree, q, qb) || !q.intersects(box)) {
                 return 0;
             }
             if (q.contains(box)) {
@@ -158,22 +291,23 @@ class ShapeTree {
             }
             std::size_t ret = 0;
             for (std::size_t i : elementIndices) {
-                if (tree.elements_[i].intersects(q)) {
+                if (!elementBoxMisses(tree, q, qb, i) && tree.elements_[i].intersects(q)) {
                     ret++;
                 }
             }
             if (left != -1) {
-                ret += tree.nodes_[left].countIntersecting(tree, q);
+                ret += tree.nodes_[left].countIntersecting(tree, q, qb);
             }
             if (right != -1) {
-                ret += tree.nodes_[right].countIntersecting(tree, q);
+                ret += tree.nodes_[right].countIntersecting(tree, q, qb);
             }
             return ret;
         }
 
-        template <class Q>
-        [[nodiscard]] WeightType sumIntersecting(const ShapeTree& tree, const Q& q) const {
-            if (!q.intersects(box)) {
+        template <class Q, class QB>
+        [[nodiscard]] WeightType sumIntersecting(const ShapeTree& tree, const Q& q,
+                                                 const QB& qb) const {
+            if (boxMisses(tree, q, qb) || !q.intersects(box)) {
                 return WeightType{};
             }
             if (q.contains(box)) {
@@ -182,15 +316,15 @@ class ShapeTree {
             }
             WeightType ret{};
             for (std::size_t i : elementIndices) {
-                if (tree.elements_[i].intersects(q)) {
+                if (!elementBoxMisses(tree, q, qb, i) && tree.elements_[i].intersects(q)) {
                     ret = ret + tree.weight_(tree.elements_[i]);
                 }
             }
             if (left != -1) {
-                ret = ret + tree.nodes_[left].sumIntersecting(tree, q);
+                ret = ret + tree.nodes_[left].sumIntersecting(tree, q, qb);
             }
             if (right != -1) {
-                ret = ret + tree.nodes_[right].sumIntersecting(tree, q);
+                ret = ret + tree.nodes_[right].sumIntersecting(tree, q, qb);
             }
             return ret;
         }
@@ -208,9 +342,10 @@ class ShapeTree {
             }
         }
 
-        template <class Q>
-        void reportIntersecting(const ShapeTree& tree, const Q& q, std::vector<ShapeType>& out) const {
-            if (!q.intersects(box)) {
+        template <class Q, class QB>
+        void reportIntersecting(const ShapeTree& tree, const Q& q, const QB& qb,
+                                std::vector<ShapeType>& out) const {
+            if (boxMisses(tree, q, qb) || !q.intersects(box)) {
                 return;
             }
             if (q.contains(box)) {
@@ -219,15 +354,15 @@ class ShapeTree {
                 return;
             }
             for (std::size_t i : elementIndices) {
-                if (tree.elements_[i].intersects(q)) {
+                if (!elementBoxMisses(tree, q, qb, i) && tree.elements_[i].intersects(q)) {
                     out.push_back(tree.elements_[i]);
                 }
             }
             if (left != -1) {
-                tree.nodes_[left].reportIntersecting(tree, q, out);
+                tree.nodes_[left].reportIntersecting(tree, q, qb, out);
             }
             if (right != -1) {
-                tree.nodes_[right].reportIntersecting(tree, q, out);
+                tree.nodes_[right].reportIntersecting(tree, q, qb, out);
             }
         }
 
@@ -249,9 +384,10 @@ class ShapeTree {
             return false;
         }
 
-        template <class Q, class Fn>
-        [[nodiscard]] bool visitIntersecting(const ShapeTree& tree, const Q& q, Fn& fn) const {
-            if (!q.intersects(box)) {
+        template <class Q, class QB, class Fn>
+        [[nodiscard]] bool visitIntersecting(const ShapeTree& tree, const Q& q, const QB& qb,
+                                             Fn& fn) const {
+            if (boxMisses(tree, q, qb) || !q.intersects(box)) {
                 return false;
             }
             if (q.contains(box)) {
@@ -259,23 +395,24 @@ class ShapeTree {
                 return visitAll(tree, fn);
             }
             for (std::size_t i : elementIndices) {
-                if (tree.elements_[i].intersects(q) &&
+                if (!elementBoxMisses(tree, q, qb, i) && tree.elements_[i].intersects(q) &&
                     detail::invokeVisitor(fn, tree.elements_[i])) {
                     return true;
                 }
             }
-            if (left != -1 && tree.nodes_[left].visitIntersecting(tree, q, fn)) {
+            if (left != -1 && tree.nodes_[left].visitIntersecting(tree, q, qb, fn)) {
                 return true;
             }
-            if (right != -1 && tree.nodes_[right].visitIntersecting(tree, q, fn)) {
+            if (right != -1 && tree.nodes_[right].visitIntersecting(tree, q, qb, fn)) {
                 return true;
             }
             return false;
         }
 
-        template <class Q>
-        [[nodiscard]] bool anyIntersecting(const ShapeTree& tree, const Q& q) const {
-            if (!q.intersects(box)) {
+        template <class Q, class QB>
+        [[nodiscard]] bool anyIntersecting(const ShapeTree& tree, const Q& q,
+                                           const QB& qb) const {
+            if (boxMisses(tree, q, qb) || !q.intersects(box)) {
                 return false;
             }
             if (q.contains(box)) {
@@ -283,14 +420,14 @@ class ShapeTree {
                 return true;
             }
             for (std::size_t i : elementIndices) {
-                if (tree.elements_[i].intersects(q)) {
+                if (!elementBoxMisses(tree, q, qb, i) && tree.elements_[i].intersects(q)) {
                     return true;
                 }
             }
-            if (left != -1 && tree.nodes_[left].anyIntersecting(tree, q)) {
+            if (left != -1 && tree.nodes_[left].anyIntersecting(tree, q, qb)) {
                 return true;
             }
-            if (right != -1 && tree.nodes_[right].anyIntersecting(tree, q)) {
+            if (right != -1 && tree.nodes_[right].anyIntersecting(tree, q, qb)) {
                 return true;
             }
             return false;
@@ -298,9 +435,10 @@ class ShapeTree {
 
         // --- containment: stored element contained in the query (element ⊆ q) ---
 
-        template <class Q>
-        [[nodiscard]] std::size_t countContainedIn(const ShapeTree& tree, const Q& q) const {
-            if (!q.intersects(box)) {
+        template <class Q, class QB>
+        [[nodiscard]] std::size_t countContainedIn(const ShapeTree& tree, const Q& q,
+                                                   const QB& qb) const {
+            if (boxMisses(tree, q, qb) || !q.intersects(box)) {
                 return 0;
             }
             if (q.contains(box)) {
@@ -309,22 +447,23 @@ class ShapeTree {
             }
             std::size_t ret = 0;
             for (std::size_t i : elementIndices) {
-                if (q.contains(tree.elements_[i])) {
+                if (!elementBoxMisses(tree, q, qb, i) && q.contains(tree.elements_[i])) {
                     ret++;
                 }
             }
             if (left != -1) {
-                ret += tree.nodes_[left].countContainedIn(tree, q);
+                ret += tree.nodes_[left].countContainedIn(tree, q, qb);
             }
             if (right != -1) {
-                ret += tree.nodes_[right].countContainedIn(tree, q);
+                ret += tree.nodes_[right].countContainedIn(tree, q, qb);
             }
             return ret;
         }
 
-        template <class Q>
-        [[nodiscard]] WeightType sumContainedIn(const ShapeTree& tree, const Q& q) const {
-            if (!q.intersects(box)) {
+        template <class Q, class QB>
+        [[nodiscard]] WeightType sumContainedIn(const ShapeTree& tree, const Q& q,
+                                                const QB& qb) const {
+            if (boxMisses(tree, q, qb) || !q.intersects(box)) {
                 return WeightType{};
             }
             if (q.contains(box)) {
@@ -332,22 +471,23 @@ class ShapeTree {
             }
             WeightType ret{};
             for (std::size_t i : elementIndices) {
-                if (q.contains(tree.elements_[i])) {
+                if (!elementBoxMisses(tree, q, qb, i) && q.contains(tree.elements_[i])) {
                     ret = ret + tree.weight_(tree.elements_[i]);
                 }
             }
             if (left != -1) {
-                ret = ret + tree.nodes_[left].sumContainedIn(tree, q);
+                ret = ret + tree.nodes_[left].sumContainedIn(tree, q, qb);
             }
             if (right != -1) {
-                ret = ret + tree.nodes_[right].sumContainedIn(tree, q);
+                ret = ret + tree.nodes_[right].sumContainedIn(tree, q, qb);
             }
             return ret;
         }
 
-        template <class Q>
-        void reportContainedIn(const ShapeTree& tree, const Q& q, std::vector<ShapeType>& out) const {
-            if (!q.intersects(box)) {
+        template <class Q, class QB>
+        void reportContainedIn(const ShapeTree& tree, const Q& q, const QB& qb,
+                               std::vector<ShapeType>& out) const {
+            if (boxMisses(tree, q, qb) || !q.intersects(box)) {
                 return;
             }
             if (q.contains(box)) {
@@ -355,58 +495,60 @@ class ShapeTree {
                 return;
             }
             for (std::size_t i : elementIndices) {
-                if (q.contains(tree.elements_[i])) {
+                if (!elementBoxMisses(tree, q, qb, i) && q.contains(tree.elements_[i])) {
                     out.push_back(tree.elements_[i]);
                 }
             }
             if (left != -1) {
-                tree.nodes_[left].reportContainedIn(tree, q, out);
+                tree.nodes_[left].reportContainedIn(tree, q, qb, out);
             }
             if (right != -1) {
-                tree.nodes_[right].reportContainedIn(tree, q, out);
+                tree.nodes_[right].reportContainedIn(tree, q, qb, out);
             }
         }
 
-        template <class Q, class Fn>
-        [[nodiscard]] bool visitContainedIn(const ShapeTree& tree, const Q& q, Fn& fn) const {
-            if (!q.intersects(box)) {
+        template <class Q, class QB, class Fn>
+        [[nodiscard]] bool visitContainedIn(const ShapeTree& tree, const Q& q, const QB& qb,
+                                            Fn& fn) const {
+            if (boxMisses(tree, q, qb) || !q.intersects(box)) {
                 return false;
             }
             if (q.contains(box)) {
                 return visitAll(tree, fn);
             }
             for (std::size_t i : elementIndices) {
-                if (q.contains(tree.elements_[i]) &&
+                if (!elementBoxMisses(tree, q, qb, i) && q.contains(tree.elements_[i]) &&
                     detail::invokeVisitor(fn, tree.elements_[i])) {
                     return true;
                 }
             }
-            if (left != -1 && tree.nodes_[left].visitContainedIn(tree, q, fn)) {
+            if (left != -1 && tree.nodes_[left].visitContainedIn(tree, q, qb, fn)) {
                 return true;
             }
-            if (right != -1 && tree.nodes_[right].visitContainedIn(tree, q, fn)) {
+            if (right != -1 && tree.nodes_[right].visitContainedIn(tree, q, qb, fn)) {
                 return true;
             }
             return false;
         }
 
-        template <class Q>
-        [[nodiscard]] bool anyContainedIn(const ShapeTree& tree, const Q& q) const {
-            if (!q.intersects(box)) {
+        template <class Q, class QB>
+        [[nodiscard]] bool anyContainedIn(const ShapeTree& tree, const Q& q,
+                                          const QB& qb) const {
+            if (boxMisses(tree, q, qb) || !q.intersects(box)) {
                 return false;
             }
             if (q.contains(box)) {
                 return true;
             }
             for (std::size_t i : elementIndices) {
-                if (q.contains(tree.elements_[i])) {
+                if (!elementBoxMisses(tree, q, qb, i) && q.contains(tree.elements_[i])) {
                     return true;
                 }
             }
-            if (left != -1 && tree.nodes_[left].anyContainedIn(tree, q)) {
+            if (left != -1 && tree.nodes_[left].anyContainedIn(tree, q, qb)) {
                 return true;
             }
-            if (right != -1 && tree.nodes_[right].anyContainedIn(tree, q)) {
+            if (right != -1 && tree.nodes_[right].anyContainedIn(tree, q, qb)) {
                 return true;
             }
             return false;
@@ -538,6 +680,9 @@ class ShapeTree {
 
     std::vector<ShapeType> elements_;
     std::vector<Node> nodes_;
+    // Parallel to elements_ and to nodes_, and empty unless usesFilter.
+    std::vector<FilterBox> filterBoxes_;
+    std::vector<FilterBox> nodeFilterBoxes_;
     std::ptrdiff_t root_ = -1;
     std::size_t leafSize_ = defaultLeafSize;
     [[no_unique_address]] WeightFn weight_{};
@@ -547,7 +692,17 @@ class ShapeTree {
     std::ptrdiff_t allocNode() {
         const std::ptrdiff_t id = static_cast<std::ptrdiff_t>(nodes_.size());
         nodes_.push_back(Node{});
+        if constexpr (usesFilter) {
+            nodeFilterBoxes_.emplace_back();
+        }
         return id;
+    }
+
+    // Records the filter box of node `id`, after its box was set or changed.
+    void refreshNodeFilterBox(std::ptrdiff_t id) {
+        if constexpr (usesFilter) {
+            nodeFilterBoxes_[static_cast<std::size_t>(id)] = filterBoxOf(nodes_[id].box);
+        }
     }
 
     // The best split found on a single axis.
@@ -721,15 +876,29 @@ class ShapeTree {
     std::ptrdiff_t build(const std::vector<std::size_t>& indices, int level) {
         Rect box = Rect(elements_[indices[0]].bbox());
         WeightType weightSum = weight_(elements_[indices[0]]);
+        // The subtree's filter box is unioned from the elements' rather than
+        // converted from `box` once it is known: a union of outward boxes is
+        // outward too, and it rides the loop already running instead of paying
+        // eight directed conversions out of the exact coordinate type.
+        FilterBox filter{};
+        if constexpr (usesFilter) {
+            filter = filterBoxes_[indices[0]];
+        }
         for (std::size_t k = 1; k < indices.size(); ++k) {
             box.insert(elements_[indices[k]].bbox());
             weightSum = weightSum + weight_(elements_[indices[k]]);
+            if constexpr (usesFilter) {
+                filter.insert(filterBoxes_[indices[k]]);
+            }
         }
 
         // Reserve this node's slot now; recursion may reallocate nodes_, so the
         // node is always addressed by index, never by a dangling reference.
         const std::ptrdiff_t id = allocNode();
         nodes_[id].box = box;
+        if constexpr (usesFilter) {
+            nodeFilterBoxes_[static_cast<std::size_t>(id)] = filter;
+        }
         nodes_[id].count = indices.size();
         nodes_[id].weightSum = weightSum;
 
@@ -792,6 +961,7 @@ class ShapeTree {
     // disjoint.
     void insertInto(std::ptrdiff_t id, std::size_t i, const Rect& eb, int level) {
         nodes_[id].box.insert(eb);
+        refreshNodeFilterBox(id);
         nodes_[id].count += 1;
         nodes_[id].weightSum = nodes_[id].weightSum + weight_(elements_[i]);
 
@@ -883,6 +1053,7 @@ class ShapeTree {
         }
         const bool changed = !(newBox == node.box);
         node.box = newBox;
+        refreshNodeFilterBox(id);
         return changed;
     }
 
@@ -1015,8 +1186,15 @@ class ShapeTree {
             if (hole != last) {
                 nodes_[hole] = std::move(nodes_[last]);
                 repointNodeRef(last, hole, nodes_[hole].box);
+                if constexpr (usesFilter) {
+                    nodeFilterBoxes_[static_cast<std::size_t>(hole)] =
+                        nodeFilterBoxes_[static_cast<std::size_t>(last)];
+                }
             }
             nodes_.pop_back();
+            if constexpr (usesFilter) {
+                nodeFilterBoxes_.pop_back();
+            }
         }
     }
 
@@ -1062,6 +1240,14 @@ class ShapeTree {
     // Discards the current node structure and rebuilds it from elements_.
     void buildFromElements() {
         nodes_.clear();
+        nodeFilterBoxes_.clear();
+        if constexpr (usesFilter) {
+            filterBoxes_.clear();
+            filterBoxes_.reserve(elements_.size());
+            for (const ShapeType& e : elements_) {
+                filterBoxes_.push_back(filterBoxOf(e.bbox()));
+            }
+        }
         root_ = -1;
         if (elements_.empty()) {
             return;
@@ -1173,10 +1359,14 @@ class ShapeTree {
         const Rect eb = Rect(shape.bbox());
         const std::size_t i = elements_.size();
         elements_.push_back(shape);
+        if constexpr (usesFilter) {
+            filterBoxes_.push_back(filterBoxOf(eb));
+        }
 
         if (root_ == -1) {
             root_ = allocNode();
             nodes_[root_].box = eb;
+            refreshNodeFilterBox(root_);
             nodes_[root_].count = 1;
             nodes_[root_].weightSum = weight_(elements_[i]);
             nodes_[root_].elementIndices.push_back(i);
@@ -1244,8 +1434,14 @@ class ShapeTree {
         if (removedIdx != last) {
             elements_[removedIdx] = std::move(elements_[last]);
             remapElementIndex(last, removedIdx, Rect(elements_[removedIdx].bbox()));
+            if constexpr (usesFilter) {
+                filterBoxes_[removedIdx] = filterBoxes_[last];
+            }
         }
         elements_.pop_back();
+        if constexpr (usesFilter) {
+            filterBoxes_.pop_back();
+        }
 
         // Reclaim the detached node slots, keeping the node array compact.
         compactNodes(dead);
@@ -1264,7 +1460,10 @@ class ShapeTree {
      */
     template <class Q>
     [[nodiscard]] std::size_t countIntersecting(const Q& q) const {
-        return root_ == -1 ? 0 : nodes_[root_].countIntersecting(*this, q);
+        if (root_ == -1) {
+            return 0;
+        }
+        return nodes_[root_].countIntersecting(*this, q, queryBoxesOf(q));
     }
 
     /**
@@ -1280,7 +1479,10 @@ class ShapeTree {
      */
     template <class Q>
     [[nodiscard]] WeightType sumIntersecting(const Q& q) const {
-        return root_ == -1 ? WeightType{} : nodes_[root_].sumIntersecting(*this, q);
+        if (root_ == -1) {
+            return WeightType{};
+        }
+        return nodes_[root_].sumIntersecting(*this, q, queryBoxesOf(q));
     }
 
     /**
@@ -1297,7 +1499,7 @@ class ShapeTree {
     [[nodiscard]] std::vector<ShapeType> reportIntersecting(const Q& q) const {
         std::vector<ShapeType> out;
         if (root_ != -1) {
-            nodes_[root_].reportIntersecting(*this, q, out);
+            nodes_[root_].reportIntersecting(*this, q, queryBoxesOf(q), out);
         }
         return out;
     }
@@ -1321,7 +1523,7 @@ class ShapeTree {
      */
     template <class Q, class Fn>
     bool visitIntersecting(const Q& q, Fn fn) const {
-        return root_ == -1 ? false : nodes_[root_].visitIntersecting(*this, q, fn);
+        return root_ == -1 ? false : nodes_[root_].visitIntersecting(*this, q, queryBoxesOf(q), fn);
     }
 
     /**
@@ -1335,7 +1537,7 @@ class ShapeTree {
      */
     template <class Q>
     [[nodiscard]] bool emptyIntersecting(const Q& q) const {
-        return root_ == -1 ? true : !nodes_[root_].anyIntersecting(*this, q);
+        return root_ == -1 ? true : !nodes_[root_].anyIntersecting(*this, q, queryBoxesOf(q));
     }
 
     /**
@@ -1351,7 +1553,10 @@ class ShapeTree {
      */
     template <class Q>
     [[nodiscard]] std::size_t countContainedIn(const Q& q) const {
-        return root_ == -1 ? 0 : nodes_[root_].countContainedIn(*this, q);
+        if (root_ == -1) {
+            return 0;
+        }
+        return nodes_[root_].countContainedIn(*this, q, queryBoxesOf(q));
     }
 
     /**
@@ -1363,7 +1568,10 @@ class ShapeTree {
      */
     template <class Q>
     [[nodiscard]] WeightType sumContainedIn(const Q& q) const {
-        return root_ == -1 ? WeightType{} : nodes_[root_].sumContainedIn(*this, q);
+        if (root_ == -1) {
+            return WeightType{};
+        }
+        return nodes_[root_].sumContainedIn(*this, q, queryBoxesOf(q));
     }
 
     /**
@@ -1377,7 +1585,7 @@ class ShapeTree {
     [[nodiscard]] std::vector<ShapeType> reportContainedIn(const Q& q) const {
         std::vector<ShapeType> out;
         if (root_ != -1) {
-            nodes_[root_].reportContainedIn(*this, q, out);
+            nodes_[root_].reportContainedIn(*this, q, queryBoxesOf(q), out);
         }
         return out;
     }
@@ -1397,7 +1605,7 @@ class ShapeTree {
      */
     template <class Q, class Fn>
     bool visitContainedIn(const Q& q, Fn fn) const {
-        return root_ == -1 ? false : nodes_[root_].visitContainedIn(*this, q, fn);
+        return root_ == -1 ? false : nodes_[root_].visitContainedIn(*this, q, queryBoxesOf(q), fn);
     }
 
     /**
@@ -1411,7 +1619,7 @@ class ShapeTree {
      */
     template <class Q>
     [[nodiscard]] bool emptyContainedIn(const Q& q) const {
-        return root_ == -1 ? true : !nodes_[root_].anyContainedIn(*this, q);
+        return root_ == -1 ? true : !nodes_[root_].anyContainedIn(*this, q, queryBoxesOf(q));
     }
 
     /**
