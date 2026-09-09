@@ -102,8 +102,9 @@ The results below are sorted by `ERational` / EPECK ratio, from the cases where 
 | Segment search build | 3.5× (3.3–3.9) | 7.8× (7.4–8.1) | `ShapeTree` | `AABB_tree` |
 | kd-tree build | 3.4× (2.6–3.7) | 3.7× (3.2–4.3) | `ShapeTree` | `Kd_tree` |
 | Arrangement build | 2.9× (1.7–3.3) | — | `Arrangement` | `Arrangement_2` |
-| Triangulation point location | 2.7× (1.8–3.1) | 1.6× (1.2–2.8) | `t.locate(p)`{Triangulation} | <code>Triangulation_hierarchy_2<wbr>::locate</code> |
+| Triangulation point location | 2.7× (1.9–3.6) | 1.4× (0.88–2.6) | `t.locate(p)`{Triangulation} | <code>Triangulation_hierarchy_2<wbr>::locate</code> |
 | Regularized union, large + large | 2.7× (2.3–2.8) | — | `a.regularizedUnion(b)`{Polygon} | <code>General_polygon_set_2<wbr>::join</code> |
+| Triangulation point-location build | 1.7× (1.1–1.8) | 1.8× (1.4–2.2) | `t.buildPointLocation()`{Triangulation} | <code>Triangulation_<wbr>hierarchy_2</code> |
 | Visibility, visible vertices | 0.9× (0.62–1.1) | 0.78× (0.66–0.93) | `t.visibleVertices(p)`{Triangulation} | <code>Triangular_expansion_<wbr>visibility_2</code> |
 | Arrangement point-location build | 0.89× (0.69–1.2) | — | `a.buildPointLocation()`{Arrangement} | <code>Arr_trapezoid_ric_<wbr>point_location</code> |
 | Arrangement point location query | 0.62× (0.38–1.1) | — | `a.locateFace(p)`{Arrangement} | <code>Arr_trapezoid_ric_<wbr>point_location<wbr>::locate</code> |
