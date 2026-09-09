@@ -16,336 +16,111 @@
 
 ## Comparison with CGAL
 
-[CGAL](https://www.cgal.org/) is the reference implementation of computational
-geometry in C++: decades of work, arbitrary dimensions, many kernels, and a
-feature set pgl does not approach. It is the yardstick this page measures
-against: what each library covers, how each one is built, how fast they run on
-the problems both solve, and how much code a task takes to write.
+[CGAL](https://www.cgal.org/) is the reference implementation of computational geometry in C++: decades of work, arbitrary dimensions, many kernels, and a feature set pgl does not approach. It is the yardstick this page measures against: what each library covers (see [Scope](#scope)), how fast they run on the problems both solve (see [Speed](#speed)), and how much code a task takes to write (see [Interface](#interface)).
 
 ### Scope
 
-CGAL does far more than pgl, in more dimensions and over more kinds of
-geometry. The overlap is the classical plane toolkit, and it is what the
-[speed](#speed) tables measure.
+CGAL does far more than pgl, in more dimensions and over more kinds of geometry. The overlap is the classical plane toolkit.
 
 #### What both have
 
-Both libraries are header-only, templated on the number type, and exact when
-that type is.
+Both libraries are header-only, templated on the number type, and exact when that type is.
 
-- **Primitives**: points, segments, lines, rays, triangles, axis-aligned
-  rectangles, circles or disks, simple polygons, polygons with holes, and sets
-  of regions.
-- **Predicates and measurements** on them: the orientation and in-circle signs,
-  point in polygon, simplicity, convexity, area, centroid, distances.
+- **Primitives**: points, segments, lines, rays, triangles, axis-aligned rectangles, circles or disks, simple polygons, polygons with holes, and sets of regions.
+- **Predicates and measurements** on them: the orientation and in-circle signs, point in polygon, simplicity, convexity, area, centroid, distances.
 - **Convex hull** — `convexHull` / `convex_hull_2`.
-- **Delaunay and constrained Delaunay triangulation**, with point location —
-  `Triangulation` / `Delaunay_triangulation_2`,
-  `Constrained_Delaunay_triangulation_2`.
+- **Delaunay and constrained Delaunay triangulation**, with point location — `Triangulation` / `Delaunay_triangulation_2`, `Constrained_Delaunay_triangulation_2`.
 - **Voronoi diagram of a point set** — `voronoiDiagram` / `Voronoi_diagram_2`.
-- **Segment intersection by sweep, and the arrangement it builds**, with point
-  location — `findIntersections` and `Arrangement` / `compute_intersection_points`
-  and `Arrangement_2`.
-- **Regularized Boolean operations on polygonal regions** — `regularizedUnion`
-  and its siblings / `General_polygon_set_2`.
+- **Segment intersection by sweep, and the arrangement it builds**, with point location — `findIntersections` and `Arrangement` / `compute_intersection_points` and `Arrangement_2`.
+- **Regularized Boolean operations on polygonal regions** — `regularizedUnion` and its siblings / `General_polygon_set_2`.
 - **Minkowski sum of polygons** — `minkowskiSum` / `minkowski_sum_2`.
-- **Visibility by triangular expansion** — `regularizedVisiblePolygon` /
-  `Triangular_expansion_visibility_2`.
-- **Convex partition of a polygon** — `convexPartition`, within a factor of
-  four of the fewest pieces / `Partition_2`, which also has the optimal and the
-  y-monotone partitions.
-- **Smallest enclosing disk, rectangle and slab** — `smallestEnclosingDisk`,
-  `c.smallestEnclosingRectangle()`{Convex} and `c.smallestEnclosingSlab()`{Convex} /
-  `Min_circle_2`, `min_rectangle_2` and `min_strip_2`.
-- **Spatial search structures** — `ShapeTree` and `IntervalTree` / `Kd_tree`,
-  `AABB_tree`, `Range_tree_2` and `Segment_tree`.
+- **Visibility by triangular expansion** — `regularizedVisiblePolygon` / `Triangular_expansion_visibility_2`.
+- **Convex partition of a polygon** — `convexPartition`, within a factor of four of the fewest pieces / `Partition_2`, which also has the optimal and the y-monotone partitions.
+- **Smallest enclosing disk, rectangle and slab** — `smallestEnclosingDisk`, `c.smallestEnclosingRectangle()`{Convex} and `c.smallestEnclosingSlab()`{Convex} / `Min_circle_2`, `min_rectangle_2` and `min_strip_2`.
+- **Spatial search structures** — `ShapeTree` and `IntervalTree` / `Kd_tree`, `AABB_tree`, `Range_tree_2` and `Segment_tree`.
 
 #### What CGAL has and pgl has not
 
-- **Dimensions.** pgl is a plane library and nothing else. CGAL has 3D and
-  arbitrary-dimensional kernels, triangulations, convex hulls, meshes,
-  polyhedra and Boolean operations on them.
-- **Curved geometry.** CGAL's circular kernel, `Arr_circle_segment_traits_2`,
-  `Arr_conic_traits_2`, `Arr_Bezier_curve_traits_2` and
-  `Arr_algebraic_segment_traits_2` put circular arcs, conics, Bézier curves and
-  algebraic curves into arrangements and Boolean set operations. pgl's only
-  curved shape is `Disk`, which takes part in predicates, distances and
-  Minkowski sums, but never in an arrangement or a Boolean operation.
-- **Meshing and refinement.** `Mesh_2` refines a constrained Delaunay
-  triangulation to a shape and size criterion, with 3D mesh generation and
-  remeshing beside it. pgl triangulates and never refines.
-- **Diagrams beyond the point Voronoi diagram.** Segment Delaunay graphs,
-  Apollonius (additively weighted) diagrams, alpha shapes, lower and upper
-  envelopes, periodic and hyperbolic triangulations.
-- **Straight skeletons and offsets**, exact or to a requested error, which is
-  what polygon rounding and inward offsetting go through.
-- **Optimization.** Minimum enclosing ellipse, annulus and parallelogram, a QP
-  solver, PCA, optimal bounding boxes. pgl stops at the disk, the rectangle and
-  the slab above.
-- **Point-set and shape processing.** Polyline simplification, snap rounding,
-  polygon repair, Fréchet distance, natural-neighbor interpolation, barycentric
-  coordinates, shape detection, classification, surface reconstruction.
-- **Kernel engineering.** Filtered kernels with interval arithmetic, homogeneous
-  kernels, algebraic number types, `Sqrt_extension`, and the freedom to plug a
-  number type into a kernel and keep every algorithm. pgl's number types are a
-  fixed short list and there is no filtering layer.
-- **File formats.** WKT, DXF, OFF, STL, PLY, VTK and more, plus `CGAL::draw`
-  viewers.
+- **Dimensions higher than 2.**
+- **Curved geometry.**
+- **Diagrams beyond the point Voronoi diagram.** Segment Delaunay graphs, Apollonius (additively weighted) diagrams, alpha shapes, lower and upper envelopes, periodic and hyperbolic triangulations.
+- **Straight skeletons and offsets**, exact or to a requested error, which is what polygon rounding and inward offsetting go through.
+- **Optimization.** Minimum enclosing ellipse, annulus and parallelogram, a QP solver, PCA, optimal bounding boxes. pgl stops at the disk, the rectangle and the slab above.
+- **Point-set and shape processing.** Polyline simplification, snap rounding, polygon repair, Fréchet distance, natural-neighbor interpolation, barycentric coordinates, shape detection, classification, surface reconstruction.
+- **Kernel engineering.** Filtered kernels with interval arithmetic, homogeneous kernels, algebraic number types, `Sqrt_extension`, and the freedom to plug a number type into a kernel and keep every algorithm. pgl's number types are a fixed short list and there is no filtering layer.
+- **File formats.** WKT, DXF, OFF, STL, PLY, VTK and more, plus `CGAL::draw` viewers.
 
 #### What pgl has and CGAL has not
 
-Much shorter, and most of it is about how the plane case is packaged rather
-than about reach.
-
-- **One predicate vocabulary over every shape pair.** `contains`,
-  `boundaryContains`, `interiorContains`, `intersects`, `interiorsIntersect`,
-  `separates` and `crosses` are defined pair by pair across the seventeen shape
-  types, with a documented set-theoretic meaning each. CGAL has `do_intersect`
-  over kernel objects, `bounded_side` and `oriented_side` on `Polygon_2` for
-  *points*, and `Boolean_set_operations_2` for 2D regions; there is no single
-  containment-and-crossing vocabulary spanning shapes of mixed dimension.
-- **`Shape`, a runtime-polymorphic shape** that stores any alternative and
-  answers the same predicates on it.
-- **Labels carried by default.** Any point or shape can carry a label that
-  survives through the algorithms that select shapes. CGAL does this per
-  structure, with `Triangulation_vertex_base_with_info_2` and its relatives.
-- **Minkowski erosion** by an arbitrary shape, `a.minkowskiErosion(b)`{Polygon}, dual to
-  the sum and defined for the same pairs. CGAL has the Minkowski sum; shrinking
-  a polygon there goes through the straight skeleton, which is a different
-  operation.
-- **Visibility graphs.** `visibilityGraph`, `clearVisibilityGraph` and
-  `reducedVisibilityGraph` on a polygon, a region or a triangulation. CGAL's
-  `Visibility_2` computes visibility *regions*; its visibility graph lives
-  inside `Partition_2` and is not part of the documented API.
-- **`HalfplaneIntersection` as a shape**, so an unbounded convex region — a
-  half-plane, a slab, a cone, the whole plane, the empty set — is a value that
-  the predicates, the intersections and the Minkowski operations accept.
-- **Graph algorithms in the library.** `Graph` is keyed by whatever the
-  geometry produced — points, vertex handles — and carries `spanningTree`
-  (Prim), `shortestPath` (Dijkstra and A*), connected and biconnected
-  components. `Triangulation`, `Arrangement` and the visibility graphs hand one
-  back directly. CGAL adapts its structures to Boost.Graph instead, and the
-  algorithms come from there.
-- **Integer-lattice work.** `latticePoints`, `BitMatrix` rasterization, and a
-  `polyominoes` generator.
-- **`Canvas`**, which composes shapes of any types into one figure and writes it
-  as SVG, PDF or Ipe with no GUI toolkit in the build.
-- **`int` coordinates as the exact default**, with the promotion rules and
-  overflow bounds documented in [types](types.md). CGAL reaches exact integer
-  geometry through `Homogeneous<Exact_integer>` or a filtered kernel, and its
-  filtered kernels get there faster than pgl does; what differs is which one you
-  land on by writing nothing.
+- **One predicate vocabulary over every shape pair.** `contains`, `boundaryContains`, `interiorContains`, `intersects`, `interiorsIntersect`, `separates` and `crosses` are defined pair by pair across the seventeen shape types, with a documented set-theoretic meaning each. CGAL has `do_intersect` over kernel objects, `bounded_side` and `oriented_side` on `Polygon_2` for *points*, and `Boolean_set_operations_2` for 2D regions; there is no single containment-and-crossing vocabulary spanning shapes of mixed dimension.
+- **`Shape`, a runtime-polymorphic shape** that stores any alternative and answers the same predicates on it.
+- **Labels carried by default.** Any point or shape can carry a label that survives through the algorithms that select shapes. CGAL does this per structure, with `Triangulation_vertex_base_with_info_2` and its relatives.
+- **Minkowski erosion** by an arbitrary shape, `a.minkowskiErosion(b)`{Polygon}, dual to the sum and defined for the same pairs. CGAL has the Minkowski sum; shrinking a polygon there goes through the straight skeleton, which is a different operation.
+- **Visibility graphs.** `visibilityGraph`, `clearVisibilityGraph` and `reducedVisibilityGraph` on a polygon, a region or a triangulation. CGAL's `Visibility_2` computes visibility *regions*; its visibility graph lives inside `Partition_2` and is not part of the documented API.
+- **`HalfplaneIntersection` as a shape**, so an unbounded convex region — a half-plane, a slab, a cone, the whole plane, the empty set — is a value that the predicates, the intersections and the Minkowski operations accept.
+- **Graph algorithms in the library.** `Graph` is keyed by whatever the geometry produced — points, vertex handles — and carries `spanningTree` (Prim), `shortestPath` (Dijkstra and A*), connected and biconnected components. `Triangulation`, `Arrangement` and the visibility graphs hand one back directly. CGAL adapts its structures to Boost.Graph instead, and the algorithms come from there.
+- **Integer-lattice work.** `latticePoints`, `BitMatrix` rasterization, and a `polyominoes` generator.
+- **`Canvas`**, which composes shapes of any types into one figure and writes it as SVG, PDF or Ipe with no GUI toolkit in the build.
 
 ### Design differences
 
-Neither library is a rearrangement of the other. The choices below run through
-everything above.
+Neither library is a rearrangement of the other. The choices below run through everything above.
 
-- **Shapes are geometric concepts, not representations.** A pgl `Triangle` is
-  the same triangle whatever order its vertices arrive in, and most shapes are
-  unoriented; `OrientedSegment` and `OrientedLine` are the opt-in. CGAL's
-  objects carry their orientation as part of the value.
-- **Two points instead of an equation.** pgl stores a line, a ray or a
-  half-plane as two points, and a `Disk` as three boundary points, so anything
-  through integer points is exact in `int` with no rational coefficients.
-  Equality and hashing canonicalize, so two lines defined by different pairs of
-  points compare equal. CGAL stores the coefficients, which is what its exact
-  constructions and its filtered kernels are for.
-- **Number types per shape, and converted implicitly.** A shape carries its own
-  number type and mixes with another in one expression, which is what makes it
-  practical to reach for `ERational` only where it is needed. CGAL fixes the
-  number type in the kernel, and the conversion between two kernels is the
-  user's to write.
-- **One `Point`.** pgl does not distinguish points from vectors and directions;
-  CGAL's `Point_2`, `Vector_2` and `Direction_2` keep the affine distinction in
-  the type system.
-- **Predicates answer yes or no.** Where CGAL returns one of three sides from
-  `bounded_side` or `oriented_side`, pgl gives the boundary and the interior
-  their own named predicates and each returns a `bool`.
-- **Values, not handles.** Every shape is comparable and hashable and goes
-  straight into a `std::set` or `std::unordered_set`, and a `Triangulation` is
-  addressed by the points themselves rather than by handles into it. CGAL is
-  navigated with handles and circulators throughout.
-- **Monolithic, not modular.** One header and one set of conventions, against
-  dozens of packages each with its own traits and concepts: less to learn, and
-  much less to swap out.
+- **Shapes are geometric concepts, not representations.** A pgl `Triangle` is the same triangle whatever order its vertices arrive in, and most shapes are unoriented; `OrientedSegment` and `OrientedLine` are the opt-in. CGAL's objects carry their orientation as part of the value.
+- **Two points instead of an equation.** pgl stores a line, a ray or a half-plane as two points, and a `Disk` as three boundary points, so anything through integer points is exact in `int` with no rational coefficients. Equality and hashing canonicalize, so two lines defined by different pairs of points compare equal. CGAL stores the coefficients, which is what its exact constructions and its filtered kernels are for.
+- **Number types per shape, and converted implicitly.** A shape carries its own number type and mixes with another in one expression, which is what makes it practical to reach for `ERational` only where it is needed. CGAL fixes the number type in the kernel, and the conversion between two kernels is the user's to write.
+- **One `Point`.** pgl does not distinguish points from vectors and directions; CGAL's `Point_2`, `Vector_2` and `Direction_2` keep the affine distinction in the type system.
+- **Predicates answer yes or no.** Where CGAL returns one of three sides from `bounded_side` or `oriented_side`, pgl gives the boundary and the interior their own named predicates and each returns a `bool`.
+- **Values, not handles.** Every shape is comparable and hashable and goes straight into a `std::set` or `std::unordered_set`, and a `Triangulation` is addressed by the points themselves rather than by handles into it. CGAL is navigated with handles and circulators throughout.
+- **Monolithic, not modular.** One header and one set of conventions, against dozens of packages each with its own traits and concepts: less to learn, and much less to swap out.
 
-### Practical differences
-
-| | pgl | CGAL |
-| --- | --- | --- |
-| Dependencies | none | Boost headers; most builds also link GMP and MPFR |
-| Building | `-Iinclude/` | header-only, usually driven through CMake |
-| Standard | C++20 | C++17 |
-| License | MIT | LGPLv3+ for the kernel and support packages, GPLv3+ for most algorithm packages, commercial licenses from GeometryFactory |
-| Maturity | work in progress, with bugs and gaps | decades of releases, an editorial board, a large test suite and a user community |
-| Bindings | [`pypgl`](https://github.com/gfonsecabr/pypgl) for Python, `ERational` constructions only | `cgal-swig-bindings` for Python and Java, over a subset of the packages |
-
-Neither column is the better one in the abstract. A GPLv3+ package is free
-software and a commercial license exists for those who need it; a dependency on
-Boost and GMP is what buys CGAL its filtered exact arithmetic.
 
 ### Speed
 
-The numbers come from the [asymptotic
-benchmarks](https://gfonsecabr.github.io/pgl/benchmarks/asymptotic.html), where
-the curves behind every ratio can be read directly. CGAL is the faster of the
-two on most of the comparisons below, under either number type.
+The numbers come from the [asymptotic benchmarks](https://gfonsecabr.github.io/pgl/benchmarks/asymptotic.html), where the curves behind every ratio can be read directly. Pgl's `ERational` is measured against EPECK, and pgl `int` against EPICK. CGAL is the faster of the two on most of the comparisons below, under either number type.
 
-#### How the comparison is set up
+#### Methodology
 
-- Both libraries are handed the identical input: the benchmark generates every
-  dataset once, with `int` coordinates, and converts. The CGAL drivers live in
-  `tests/benchmark/asymptotic/baseline/` beside the pgl ones.
-- Each ratio is pgl time divided by CGAL time, taking the best algorithm each
-  library offers at that size. **Below 1 means pgl is faster.**. The tables give
-  the median over the 32 sizes of the sweep and, in parentheses, the full range
-  — a single size can sit well outside the median, and where a ratio moves
-  steadily with size that is called out under the table. A row covering more
-  than one dataset averages the per-dataset medians, and its range spans them
-  all.
-- One run, one machine (Ryzen 9 9900X, `c++ -std=c++23 -O2 -DNDEBUG`, CGAL
-  6.1.2), three repetitions per point. Treat a median under about 1.3 as a tie.
-- Each pgl number type is measured against the CGAL kernel that matches it.
-  Both of CGAL's are *filtered*: on integer input the interval arithmetic
-  almost always settles a sign, so a predicate runs at close to `double` speed
-  and falls back only when it must. What separates them is constructions.
-  - `ERational` is measured against EPECK, exact predicates **and** exact
-    constructions. That is the like-for-like pairing: both keep every
-    constructed coordinate exact.
-  - `int` is measured against EPICK, exact predicates with constructions
-    rounded to `double`, wherever CGAL's side of the problem never constructs a
-    point it later *tests* — convex hulls, Delaunay triangulations, kd-trees,
-    AABB trees, and triangular-expansion visibility, whose window endpoints
-    leave in the returned region but never re-enter a predicate. On this dataset
-    EPICK decides every one of those predicates exactly (coordinates are
-    integers under 10⁴, so the determinants stay far inside `double`'s exact
-    range), so it is the same answer for less work, and it is the kernel a CGAL
-    user would actually reach for. Measuring pgl's `int` tree against EPECK's
-    `Lazy_exact_nt` coordinates — an interval and a DAG node per point — was
-    charging CGAL for exactness the row never asked for.
-  - Where a constructed point *does* feed back into CGAL's own decisions —
-    arrangements and the segment sweep, which re-insert their intersection
-    points, and Minkowski sums and Boolean unions, which arrange constructed
-    curves — EPICK is not an option: it makes the algorithm inconsistent with
-    itself. Measured, not assumed: run under EPICK the segment sweep disagrees
-    with its own exact answer on 23 of the 96 cells of that category, by up to
-    129 points in 63,338. EPECK is the baseline for both pgl columns there.
-  - The claim is checked rather than trusted. The two kernels are separate cells
-    of the benchmark cube and must report identical result signatures at
-    identical sizes, so a category classified wrongly says so as soon as it is
-    recorded.
+- Both libraries are handed the identical input: the benchmark generates every dataset once, with `int` coordinates, and converts. The CGAL drivers live in `tests/benchmark/asymptotic/baseline/` beside the pgl ones.
+- Each ratio is pgl time divided by CGAL time, taking the best algorithm each library offers at that size. **Below 1 means pgl is faster.**. The table gives the median over the 32 sizes of the sweep and, in parentheses, the full range — a single size can sit well outside the median, and where a ratio moves steadily with size that is called out under the table. A row covering more than one dataset averages the per-dataset medians, and its range spans them all.
+- The two ratio columns are independent measurements, not one scaled by the other: each races a pgl number type against the CGAL kernel of the same strength. They disagree in both directions, so read the row, not one column.
+- Where two pgl structures are named, the row is split between them: each column's winner, in column order.
+- Rows are ordered by the like-for-like `ERational` column, the one every row has, from CGAL's widest lead to pgl's.
+- One run, one machine, `g++ -std=c++23 -O2 -DNDEBUG`, CGAL 6.1.2).
 
-  Neither pairing is perfect even so: pgl has no filter, so `ERational` pays for
-  exact arithmetic unconditionally where EPECK usually avoids it, and `int`
-  skips it because the coordinates make it unnecessary. Both comparisons are
-  below.
+#### Results
 
-#### Same arithmetic: `ERational` against EPECK
+The results below are sorted by `ERational` / EPECK ratio, from the cases where CGAL is faster to the ones where CGAL is slower. On `ERational` / EPECK ratio the range goes from CGAL being 39× faster to pgl being 4× faster. On `int` / EPICK, the ratio goes from CGAL being 4.2× faster to pgl being 3× faster.
 
-This is the like-for-like pairing, and CGAL wins most of it.
-
-CGAL ahead:
-
-| Problem | pgl / CGAL | pgl | CGAL |
-| --- | --- | --- | --- |
-| Segment search, count in Rectangle | 40× (30–44) | `IntervalTree` | `AABB_tree` |
-| Segment search, count in Triangle | 24× (14–24) | `ShapeTree` | `AABB_tree` |
-| Segment intersection | 9.8× (3.9–18) | `findIntersections(v)` | `compute_intersection_points` |
-| Delaunay triangulation | 8.1× (6.6–9.2) | `Triangulation` | `Delaunay_triangulation_2` |
-| Minkowski sum | 5.4× (2.2–14) | `a.minkowskiSum(b)`{Polygon} | `minkowski_sum_by_reduced_convolution_2` |
-| Convex hull | 5.2× (4.2–5.3) | `convexHull(v)` | `convex_hull_2` |
-| Point search, count in Triangle | 4.8× (4.4–5.3) | `ShapeTree` | `Kd_tree::search` |
-| kd-tree build | 3.4× (2.5–3.8) | `ShapeTree` | `Kd_tree` |
-| Arrangement build | 2.9× (2.2–3.3) | `Arrangement` | `Arrangement_2` |
-| Triangulation point location | 2.8× (1.7–3.1) | `t.locate(p)`{Triangulation} | `Triangulation_hierarchy_2::locate` |
-| Regularized union, large + large | 2.7× (2.4–2.8) | `a.regularizedUnion(b)`{Polygon} | `General_polygon_set_2::join` |
-
-Roughly level:
-
-| Problem | pgl / CGAL | pgl | CGAL |
-| --- | --- | --- | --- |
-| Segment search build | 1.1× (0.86–1.2) | `IntervalTree` | `AABB_tree` |
-| Visibility, visible vertices | 0.9× (0.71–1.1) | `t.visibleVertices(p)`{Triangulation} | `Triangular_expansion_visibility_2` |
-| Arrangement point-location build | 0.88× (0.7–1.2) | `a.buildPointLocation()`{Arrangement} | `Arr_trapezoid_ric_point_location` |
-
-pgl ahead:
-
-| Problem | pgl / CGAL | pgl | CGAL |
-| --- | --- | --- | --- |
-| Arrangement point location query | 0.65× (0.38–1.1) | `a.locateFace(p)`{Arrangement} | `Arr_trapezoid_ric_point_location::locate` |
-| Nearest neighbor query | 0.55× (0.48–0.58) | `t.nearestNeighbor(p)`{ShapeTree} | `Orthogonal_k_neighbor_search` |
-| Regularized union, triangles | 0.24× (0.22–0.75) | `regularizedUnionOf(v)` | `General_polygon_set_2::join` |
-
-
-#### pgl's default: `int` coordinates, against EPICK
-
-pgl's predicates are exact for `int` — the orientation test and everything
-built on it evaluate a determinant that fits, with no rounding and no fallback
-— so integer input gives up nothing. Where the driver runs an `int` sweep, that
-is the configuration a pgl user would actually reach for, and it costs roughly
-5–10× less than `ERational`. Six of the categories have one; the Arrangement,
-Minkowski sum and Regularized union categories do not, because their output is
-constructed points that are not integers.
-
-Dropping to `int` therefore buys pgl most of an order of magnitude — but it buys
-CGAL a comparable amount, because the kernel this column is measured against
-drops with it. EPICK stores plain `double` coordinates where EPECK stores a lazy
-exact number per coordinate, and on the structures that only ever compare and
-never construct, that is worth 12× on a kd-tree or an AABB tree build and over
-40× on a nearest-neighbour query. So the gap narrows against EPECK's numbers
-without reversing: CGAL is still ahead on most of these rows.
-
-Two rows below are measured against EPECK rather than EPICK, and so are
-unchanged from the pairing above — Segment intersection and Visibility, whose
-CGAL side constructs geometry and so has no EPICK variant to offer. They are
-the two places where pgl's `int` column races the exact kernel because there is
-nothing else to race.
-
-CGAL ahead:
-
-| Problem | pgl / CGAL | pgl | CGAL |
-| --- | --- | --- | --- |
-| Delaunay triangulation | 4.3× (2.6–4.5) | `Triangulation` | `Delaunay_triangulation_2` |
-| kd-tree build | 3.7× (3.2–4.1) | `ShapeTree` | `Kd_tree` |
-| Segment search build | 1.8× (1.5–2) | `IntervalTree` | `AABB_tree` |
-| Convex hull | 1.7× (1.5–1.7) | `convexHull(v)` | `convex_hull_2` |
-| Segment intersection | 1.6× (1.2–2.1) | `findIntersections(v)` | `compute_intersection_points` |
-| Triangulation point location | 1.5× (1.2–2.1) | `t.locate(p)`{Triangulation} | `Triangulation_hierarchy_2::locate` |
-| Nearest neighbor query | 1.5× (1.2–1.5) | `t.nearestNeighbor(p)`{ShapeTree} | `Orthogonal_k_neighbor_search` |
-
-Roughly level:
-
-| Problem | pgl / CGAL | pgl | CGAL |
-| --- | --- | --- | --- |
-| Segment search, count in Rectangle | 1.3× (0.83–1.4) | `ShapeTree` | `AABB_tree` |
-| Segment search, count in Triangle | 0.81× (0.53–0.86) | `ShapeTree` | `AABB_tree` |
-
-pgl ahead:
-
-| Problem | pgl / CGAL | pgl | CGAL |
-| --- | --- | --- | --- |
-| Visibility, visible vertices | 0.34× (0.23–0.42) | `t.visibleVertices(p)`{Triangulation} | `Triangular_expansion_visibility_2` |
-| Point search, count in Triangle | 0.32× (0.27–0.35) | `ShapeTree` | `Kd_tree::search` |
+| Problem | `ERational` / EPECK | `int` / EPICK | pgl | CGAL |
+| --- | --- | --- | --- | --- |
+| Segment search, count in Rectangle | 39× (29–42) | 1.3× (0.72–1.4) | `IntervalTree`, `ShapeTree` | `AABB_tree` |
+| Segment search, count in Triangle | 24× (14–24) | 0.81× (0.52–0.86) | `ShapeTree` | `AABB_tree` |
+| Segment intersection | 9.8× (3.9–18) | — | `findIntersections(v)` | <code>compute_<wbr>intersection_points</code> |
+| Delaunay triangulation | 8.1× (6.7–9.2) | 4.2× (3.8–4.5) | `Triangulation` | `Delaunay_triangulation_2` |
+| Minkowski sum | 5.4× (2.3–14) | — | `a.minkowskiSum(b)`{Polygon} | <code>minkowski_sum_by_<wbr>reduced_convolution_2</code> |
+| Convex hull | 5.2× (4.2–5.2) | 1.7× (1.5–1.7) | `convexHull(v)` | `convex_hull_2` |
+| Point search, count in Triangle | 4.8× (4.4–5.3) | 0.32× (0.28–0.36) | `ShapeTree` | `Kd_tree::search` |
+| kd-tree build | 3.4× (2.6–3.7) | 3.7× (3.2–4.3) | `ShapeTree` | `Kd_tree` |
+| Arrangement build | 2.9× (1.7–3.3) | — | `Arrangement` | `Arrangement_2` |
+| Triangulation point location | 2.7× (1.8–3.1) | 1.6× (1.2–2.8) | `t.locate(p)`{Triangulation} | <code>Triangulation_hierarchy_2<wbr>::locate</code> |
+| Regularized union, large + large | 2.7× (2.3–2.8) | — | `a.regularizedUnion(b)`{Polygon} | <code>General_polygon_set_2<wbr>::join</code> |
+| Segment search build | 1.1× (0.85–1.2) | 1.9× (1.5–2) | `IntervalTree` | `AABB_tree` |
+| Visibility, visible vertices | 0.9× (0.62–1.1) | 0.78× (0.66–0.93) | `t.visibleVertices(p)`{Triangulation} | <code>Triangular_expansion_<wbr>visibility_2</code> |
+| Arrangement point-location build | 0.89× (0.69–1.2) | — | `a.buildPointLocation()`{Arrangement} | <code>Arr_trapezoid_ric_<wbr>point_location</code> |
+| Arrangement point location query | 0.62× (0.38–1.1) | — | `a.locateFace(p)`{Arrangement} | <code>Arr_trapezoid_ric_<wbr>point_location<wbr>::locate</code> |
+| Nearest neighbor query | 0.55× (0.48–0.58) | 1.5× (1.2–1.6) | `t.nearestNeighbor(p)`{ShapeTree} | <code>Orthogonal_k_<wbr>neighbor_search</code> |
+| Regularized union, triangles | 0.24× (0.22–0.75) | — | `regularizedUnionOf(v)` | <code>General_polygon_set_2<wbr>::join</code> |
 
 #### What the numbers do not say
 
-- **A pgl win over a specialized structure is usually specialization.** pgl's
-  `ShapeTree` is a 2D `int` tree; CGAL's `Kd_tree` is dimension-generic over an
-  arbitrary kernel, and `AABB_tree` is built for arbitrary primitives in 2D and
-  3D. They are not attempting the same thing.
-- **Some comparisons favor pgl by construction.** CGAL ships no triangle query
-  item for `Kd_tree`, so the baseline wrote one — the "count in Triangle" rows
-  race pgl against benchmark code driving CGAL, not against a CGAL facility.
-- **Orthogonal range counting over points is deliberately absent.** pgl looks
-  very good on it, but CGAL ships `Range_tree_2` for exactly that query and the
-  benchmark does not run it; racing a kd-tree instead would prove nothing.
+- **A pgl win over a specialized structure is usually specialization.** pgl's `ShapeTree` is a 2D `int` tree; CGAL's `Kd_tree` is dimension-generic over an arbitrary kernel, and `AABB_tree` is built for arbitrary primitives in 2D and 3D. They are not attempting the same thing.
+- **Some comparisons favor pgl by construction.** CGAL ships no triangle query item for `Kd_tree`, so the baseline wrote one — the "count in Triangle" rows race pgl against benchmark code driving CGAL, not against a CGAL facility, and that is the row where pgl's `int` column looks best.
+- **Orthogonal range counting over points is deliberately absent.** pgl looks very good on it, but CGAL ships `Range_tree_2` for exactly that query and the benchmark does not run it; racing a kd-tree instead would prove nothing.
 
-### How much code a task takes
+### Interface
 
-Two libraries can both answer a question and still ask very different amounts of
-code for it. The examples below are complete and were compiled and run against
-pgl and CGAL 6.1.2; they cut in both directions.
+Two libraries can both answer a question and still ask very different amounts of code for it. The examples below are complete and were compiled and run against pgl and CGAL 6.1.2; they cut in both directions.
 
 #### Is a segment inside a polygon?
 
@@ -362,12 +137,7 @@ int main() {
 }
 ```
 
-CGAL has every piece needed for the same answer, and each piece is exact and
-more general than pgl's, but the predicate itself is not among them:
-`Polygon_2` tests *points* against its boundary, and
-`Boolean_set_operations_2` works on regions, which a segment is not. So the
-test is assembled — cut the segment where the boundary crosses it, then ask
-which side each piece is on:
+CGAL has every piece needed for the same answer, and each piece is exact and more general than pgl's, but the predicate itself is not among them: `Polygon_2` tests *points* against its boundary, and `Boolean_set_operations_2` works on regions, which a segment is not. So the test is assembled — cut the segment where the boundary crosses it, then ask which side each piece is on:
 
 ```c++
 #include <CGAL/Exact_predicates_exact_constructions_kernel.h>
@@ -415,21 +185,11 @@ int main() {
 }
 ```
 
-The two agree on every case tried — the shared edge, the segment along a
-boundary edge, the touched reflex vertex and the chord across the notch
-included. The difference is not correctness or exactness — EPECK is exact
-throughout — but that the CGAL user writes the overlap branch, the ordering
-along the segment and the duplicate removal, and owns the edge cases in them.
-The same holds for the neighboring questions: `room.crosses(s)`{Polygon},
-`room.interiorContains(s)`{Polygon}, `room.intersection(s)`{Polygon},
-`room.squaredDistance(s)`{Polygon} and `room.contains(disk)`{Polygon} are single
-calls in pgl, each its own assembly job in CGAL — `CGAL::intersection` has no
-overload for a segment against a polygon either.
+The two agree on every case tried — the shared edge, the segment along a boundary edge, the touched reflex vertex and the chord across the notch included. The difference is not correctness or exactness — EPECK is exact throughout — but that the CGAL user writes the overlap branch, the ordering along the segment and the duplicate removal, and owns the edge cases in them. The same holds for the neighboring questions: `room.crosses(s)`{Polygon}, `room.interiorContains(s)`{Polygon}, `room.intersection(s)`{Polygon}, `room.squaredDistance(s)`{Polygon} and `room.contains(disk)`{Polygon} are single calls in pgl, each its own assembly job in CGAL — `CGAL::intersection` has no overload for a segment against a polygon either.
 
 #### Rounding a polygon's corners
 
-Here the sizes reverse. CGAL offsets a polygon by a radius, with a guaranteed
-error bound, as a library call:
+Here the sizes reverse. CGAL offsets a polygon by a radius, with a guaranteed error bound, as a library call:
 
 ```c++
 #include <CGAL/Lazy_exact_nt.h>
@@ -450,10 +210,7 @@ int main() {
 }
 ```
 
-`CGAL::offset_polygon_2` gives the same region exactly, as a general polygon
-whose edges are genuine circular arcs. pgl has neither. The nearest thing is a
-Minkowski sum with a polygon the caller draws in place of the disk, which
-leaves the approximation and its error to the caller:
+`CGAL::offset_polygon_2` gives the same region exactly, as a general polygon whose edges are genuine circular arcs. pgl has neither. The nearest thing is a Minkowski sum with a polygon the caller draws in place of the disk, which leaves the approximation and its error to the caller:
 
 ```c++
 #include "pgl.hpp"
@@ -471,13 +228,11 @@ int main() {
 }
 ```
 
-Anything genuinely curved reads this way: pgl can approximate, and the
-approximation is the caller's to justify.
+Anything genuinely curved reads this way: pgl can approximate, and the approximation is the caller's to justify.
 
 #### Getting a picture out
 
-Debug output is one call in pgl, takes as many shapes as the figure needs
-whatever their types, and needs no toolkit:
+Debug output is one call in pgl, takes as many shapes as the figure needs whatever their types, and needs no toolkit:
 
 ```c++
 pgl::Canvas canvas;
@@ -487,19 +242,7 @@ canvas.writeSVG("room.svg");
 canvas.writeIPE("room.ipe");
 ```
 
-CGAL's `CGAL::draw(obj)` shows one object in an interactive Qt6 window. Putting
-several in the same picture goes through a `CGAL::Graphics_scene`:
-`add_to_graphics_scene` for each object whose package defines the overload —
-polygons, polygon sets, triangulations, arrangements, Voronoi diagrams, meshes,
-point sets, and about a dozen more — then `draw_graphics_scene`. The
-kernel primitives are not among them, so a segment or a triangle is added to
-the scene element by element with `add_point`, `add_segment`, `add_ray`,
-`add_line` or a `face_begin`/`face_end` block, and a disk has no primitive at
-all to add. It is also a window rather than a file, and it needs the Qt6
-package: without `CGAL_USE_BASIC_VIEWER` every draw call compiles to a line on
-`stderr` saying it cannot draw. Writing a figure instead means a separate tool
-or an Ipelet.
+CGAL's `CGAL::draw(obj)` shows one object in an interactive Qt6 window. Putting several in the same picture goes through a `CGAL::Graphics_scene`: `add_to_graphics_scene` for each object whose package defines the overload — polygons, polygon sets, triangulations, arrangements, Voronoi diagrams, meshes, point sets, and about a dozen more — then `draw_graphics_scene`. The kernel primitives are not among them, so a segment or a triangle is added to the scene element by element with `add_point`, `add_segment`, `add_ray`, `add_line` or a `face_begin`/`face_end` block, and a disk has no primitive at all to add. It is also a window rather than a file, and it needs the Qt6 package: without `CGAL_USE_BASIC_VIEWER` every draw call compiles to a line on `stderr` saying it cannot draw. Writing a figure instead means a separate tool or an Ipelet.
 
-Against that, CGAL reads and writes WKT, DXF, OFF, STL, PLY and VTK, where pgl
-parses no geometry at all and writes those three vector formats.
+Against that, CGAL reads and writes WKT, DXF, OFF, STL, PLY and VTK, where pgl parses no geometry at all and writes those three vector formats.
 
