@@ -1177,12 +1177,12 @@ function asymFilterBar(name, category, state, machineData) {
 // `int` column against a lazy-exact kernel measured CGAL paying for exactness
 // the row never asked for.
 //
-// Only the categories whose CGAL side never constructs geometry record both.
-// One that does — an arrangement, a sweep, a Minkowski sum, a Boolean union, a
-// visibility region — has no honest EPICK curve to record, because rounding a
-// constructed point there can make CGAL's own decisions inconsistent (see
-// baseline/cgal.hpp). Such a key offers EPECK alone, and keeps it whatever the
-// selected type: it is still how CGAL solves that problem at all.
+// Only the categories whose CGAL side never constructs a point it later tests
+// record both. One that does — an arrangement, a sweep, a Minkowski sum, a
+// Boolean union — has no honest EPICK curve to record, because rounding a
+// constructed point that feeds back in makes CGAL's own decisions inconsistent
+// (see baseline/cgal.hpp). Such a key offers EPECK alone, and keeps it whatever
+// the selected type: it is still how CGAL solves that problem at all.
 function baselineForType(found, type) {
   const wanted = type === "int" ? "EPICK" : "EPECK";
   const byAlgorithm = new Map();

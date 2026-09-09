@@ -14,6 +14,20 @@
 // vertices of the input polygon, which is exactly pgl's answer — so the counts
 // are comparable, while the times are not quite: CGAL's row includes building
 // the region that pgl never materializes.
+//
+// Swept under both kernels, which is not obvious for an algorithm that
+// constructs points and deserves saying why. The window endpoints it builds go
+// *outward*, into the region it returns; they are never fed back into a
+// predicate. Everything the expansion decides on -- which triangle to cross,
+// which vertex blocks the view -- is an orientation of the query point against
+// two input vertices, because the triangulation it walks holds input vertices
+// only: CGAL declares that structure with
+// `No_constraint_intersection_requiring_constructions_tag`, which is the
+// library saying in its own code that no vertex here is constructed. So EPICK
+// decides every one of those predicates exactly on integer input, and it is the
+// reference for pgl's `int` column. Measured over the checked-in sweep, the two
+// kernels agree on every query -- both the visible-vertex count and the whole
+// region's size -- at all 32 sizes.
 #include "cgal.hpp"
 #include "../sizes.hpp"
 
@@ -26,30 +40,28 @@
 
 namespace {
 
-using Traits      = CGAL::Arr_segment_traits_2<bench::cgal::Kernel>;
-using Arrangement = CGAL::Arrangement_2<Traits>;
-using Visibility  = CGAL::Triangular_expansion_visibility_2<Arrangement>;
+template <class K>
+void run(const bench::Options& opt) {
+    if (!bench::cgal::selected<K>(opt)) return;
+    const char* number = bench::cgal::numberName<K>;
 
-}  // namespace
-
-int main(int argc, char** argv) {
-    const auto opt = bench::parseOptions(argc, argv);
-    bench::header();
-    if (!bench::matches(opt.dataset, "polygon")) return 0;
-    if (!bench::matches(opt.problem, "visible vertices")) return 0;
+    using Point       = typename K::Point_2;
+    using Traits      = CGAL::Arr_segment_traits_2<K>;
+    using Arrangement = CGAL::Arrangement_2<Traits>;
+    using Visibility  = CGAL::Triangular_expansion_visibility_2<Arrangement>;
 
     for (const int n : bench::sweep(bench::kVisibility, opt)) {
         const auto polygon = bench::randomPolygon(n);
-        const auto queries = bench::cgal::points(
+        const auto queries = bench::cgal::points<K>(
             bench::interiorPoints(polygon, bench::kVisibilityQueries));
 
         // Setup, untimed on both sides: the boundary as an arrangement, and the
         // set of its own vertices for the signature below.
-        std::vector<Traits::X_monotone_curve_2> edges;
-        std::set<bench::cgal::Point> corners;
+        std::vector<typename Traits::X_monotone_curve_2> edges;
+        std::set<Point> corners;
         for (const auto& e : polygon.edges()) {
-            const auto a = bench::cgal::point(e[0]);
-            const auto b = bench::cgal::point(e[1]);
+            const auto a = bench::cgal::point<K>(e[0]);
+            const auto b = bench::cgal::point<K>(e[1]);
             edges.emplace_back(a, b);
             corners.insert(a);
             corners.insert(b);
@@ -72,8 +84,8 @@ int main(int argc, char** argv) {
             std::size_t total = 0;
             for (const auto& q : queries) {
                 Arrangement region;
-                visibility.compute_visibility(q, Arrangement::Face_const_handle(interior),
-                                              region);
+                visibility.compute_visibility(
+                    q, typename Arrangement::Face_const_handle(interior), region);
                 for (auto v = region.vertices_begin(); v != region.vertices_end(); ++v) {
                     total += corners.count(v->point());
                 }
@@ -81,8 +93,19 @@ int main(int argc, char** argv) {
             return total;
         });
         bench::emit("Visibility", "polygon", "visible vertices",
-                    "CGAL::Triangular_expansion_visibility_2", bench::cgal::kNumber,
+                    "CGAL::Triangular_expansion_visibility_2", number,
                     n, result, us / bench::kVisibilityQueries);
     }
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+    const auto opt = bench::parseOptions(argc, argv);
+    bench::header();
+    if (!bench::matches(opt.dataset, "polygon")) return 0;
+    if (!bench::matches(opt.problem, "visible vertices")) return 0;
+    run<bench::cgal::Inexact>(opt);
+    run<bench::cgal::Kernel>(opt);
     return 0;
 }

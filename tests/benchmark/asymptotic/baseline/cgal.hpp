@@ -31,25 +31,38 @@
 // So the baseline offers both of CGAL's, and the rule for which a driver may
 // use is the rule CGAL itself states.
 //
+// The line is not "does this algorithm construct points" but "does it construct
+// a point and then *test* it". A construction that only ever leaves through the
+// return value cannot make the algorithm decide anything differently.
+//
 // EPECK — exact predicates, exact constructions — is the analogue of pgl's
-// ERational, and it is *required*, not merely safer, wherever CGAL constructs
-// new geometry and then feeds it back into a predicate: the intersection points
-// of an arrangement or a sweep, the boundary of a Minkowski sum or a Boolean
-// union, the window endpoints of a visibility region. Rounding those to double
-// can make the algorithm's own decisions inconsistent, so those drivers use
-// EPECK for every column, `int` included.
+// ERational, and it is *required*, not merely safer, wherever a constructed
+// point does feed back in: the intersection points of an arrangement or a
+// sweep, which are re-inserted into the event structure and compared against
+// what follows, and the boundaries of a Minkowski sum or a Boolean union, which
+// are built by arranging constructed curves. Rounding those makes the
+// algorithm's own decisions inconsistent — measurably so, not in theory: run
+// under EPICK, CGAL's surface sweep disagrees with itself on 23 of the 96 cells
+// of the Segment intersections sweep, by as much as 129 points out of 63,338.
+// Those drivers use EPECK for every column, `int` included.
 //
 // EPICK — exact predicates, inexact constructions — is the analogue of pgl's
 // `int`, and is CGAL's canonical kernel for the predicate-only structures:
-// convex hulls, Delaunay triangulations, kd-trees, AABB trees. Nothing there
-// constructs a point that is later tested; every decision is an orientation,
-// an in-circle, a coordinate comparison or a squared distance evaluated on the
-// input coordinates themselves. Those are exact under EPICK's filters whenever
-// the operands are exactly representable as doubles, which the datasets are by
-// construction: ../../randomshapes.hpp draws integer coordinates in
-// [-10000, 10000], so an orientation determinant stays under 10^9 and a squared
-// distance under 10^9 — both far inside double's exact range, so the filter
-// never even has to fall back.
+// convex hulls, Delaunay triangulations, kd-trees, AABB trees, and — less
+// obviously, see visibility.cpp — triangular-expansion visibility. Nothing
+// there constructs a point that is later tested; every decision is an
+// orientation, an in-circle, a coordinate comparison or a squared distance
+// evaluated on the input coordinates themselves. Those are exact under EPICK's
+// filters whenever the operands are exactly representable as doubles, which the
+// datasets are by construction: ../../randomshapes.hpp draws integer
+// coordinates in [-10000, 10000], so an orientation determinant stays under
+// 10^9 and a squared distance under 10^9 — both far inside double's exact
+// range, so the filter never even has to fall back.
+//
+// Every dual-kernel driver is held to that claim by its own result signatures:
+// the two kernels are separate cells of the cube and must report identical
+// results at identical sizes, so a category that did not belong here would say
+// so the first time it was recorded.
 //
 // The difference the choice makes is not a few percent of predicate cost. An
 // EPECK `Search_traits_2` or `AABB_traits_2` stores `Lazy_exact_nt`

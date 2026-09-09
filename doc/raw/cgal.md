@@ -190,8 +190,7 @@ Boost and GMP is what buys CGAL its filtered exact arithmetic.
 The numbers come from the [asymptotic
 benchmarks](https://gfonsecabr.github.io/pgl/benchmarks/asymptotic.html), where
 the curves behind every ratio can be read directly. CGAL is the faster of the
-two on most of the like-for-like comparisons below; with pgl's default `int`
-coordinates the balance tips the other way.
+two on most of the comparisons below, under either number type.
 
 #### How the comparison is set up
 
@@ -199,7 +198,7 @@ coordinates the balance tips the other way.
   dataset once, with `int` coordinates, and converts. The CGAL drivers live in
   `tests/benchmark/asymptotic/baseline/` beside the pgl ones.
 - Each ratio is pgl time divided by CGAL time, taking the best algorithm each
-  library offers at that size. **Below 1 means pgl is faster.** The tables give
+  library offers at that size. **Below 1 means pgl is faster.**. The tables give
   the median over the 32 sizes of the sweep and, in parentheses, the full range
   — a single size can sit well outside the median, and where a ratio moves
   steadily with size that is called out under the table. A row covering more
@@ -216,18 +215,26 @@ coordinates the balance tips the other way.
     constructed coordinate exact.
   - `int` is measured against EPICK, exact predicates with constructions
     rounded to `double`, wherever CGAL's side of the problem never constructs a
-    point it later tests — convex hulls, Delaunay triangulations, kd-trees, AABB
-    trees. On this dataset EPICK decides every one of those predicates exactly
-    (coordinates are integers under 10⁴, so the determinants stay far inside
-    `double`'s exact range), so it is the same answer for less work, and it is
-    the kernel a CGAL user would actually reach for. Measuring pgl's `int` tree
-    against EPECK's `Lazy_exact_nt` coordinates — an interval and a DAG node per
-    point — was charging CGAL for exactness the row never asked for.
-  - Where CGAL *does* construct geometry and feed it back into a predicate —
-    arrangements, the segment sweep, Minkowski sums, Boolean unions, visibility
-    regions — EPICK is not an option at all: rounding those points can make
-    CGAL's own decisions inconsistent, so EPECK is the baseline for both pgl
-    columns there.
+    point it later *tests* — convex hulls, Delaunay triangulations, kd-trees,
+    AABB trees, and triangular-expansion visibility, whose window endpoints
+    leave in the returned region but never re-enter a predicate. On this dataset
+    EPICK decides every one of those predicates exactly (coordinates are
+    integers under 10⁴, so the determinants stay far inside `double`'s exact
+    range), so it is the same answer for less work, and it is the kernel a CGAL
+    user would actually reach for. Measuring pgl's `int` tree against EPECK's
+    `Lazy_exact_nt` coordinates — an interval and a DAG node per point — was
+    charging CGAL for exactness the row never asked for.
+  - Where a constructed point *does* feed back into CGAL's own decisions —
+    arrangements and the segment sweep, which re-insert their intersection
+    points, and Minkowski sums and Boolean unions, which arrange constructed
+    curves — EPICK is not an option: it makes the algorithm inconsistent with
+    itself. Measured, not assumed: run under EPICK the segment sweep disagrees
+    with its own exact answer on 23 of the 96 cells of that category, by up to
+    129 points in 63,338. EPECK is the baseline for both pgl columns there.
+  - The claim is checked rather than trusted. The two kernels are separate cells
+    of the benchmark cube and must report identical result signatures at
+    identical sizes, so a category classified wrongly says so as soon as it is
+    recorded.
 
   Neither pairing is perfect even so: pgl has no filter, so `ERational` pays for
   exact arithmetic unconditionally where EPECK usually avoids it, and `int`
@@ -242,36 +249,36 @@ CGAL ahead:
 
 | Problem | pgl / CGAL | pgl | CGAL |
 | --- | --- | --- | --- |
-| Segment search, count in Rectangle | 41× (30–44) | `IntervalTree` | `AABB_tree` |
-| Segment search, count in Triangle | 23× (14–24) | `ShapeTree` | `AABB_tree` |
-| Segment intersection | 9.5× (3.7–17) | `findIntersections(v)` | `compute_intersection_points` |
-| Delaunay triangulation | 7.7× (6.2–8.3) | `Triangulation` | `Delaunay_triangulation_2` |
-| Minkowski sum | 5.1× (2.1–13) | `a.minkowskiSum(b)`{Polygon} | `minkowski_sum_by_reduced_convolution_2` |
-| Convex hull | 5.1× (4.1–5.2) | `convexHull(v)` | `convex_hull_2` |
-| Point search, count in Triangle | 4.3× (3.8–4.7) | `ShapeTree` | `Kd_tree::search` |
+| Segment search, count in Rectangle | 40× (30–44) | `IntervalTree` | `AABB_tree` |
+| Segment search, count in Triangle | 24× (14–24) | `ShapeTree` | `AABB_tree` |
+| Segment intersection | 9.8× (3.9–18) | `findIntersections(v)` | `compute_intersection_points` |
+| Delaunay triangulation | 8.1× (6.6–9.2) | `Triangulation` | `Delaunay_triangulation_2` |
+| Minkowski sum | 5.4× (2.2–14) | `a.minkowskiSum(b)`{Polygon} | `minkowski_sum_by_reduced_convolution_2` |
+| Convex hull | 5.2× (4.2–5.3) | `convexHull(v)` | `convex_hull_2` |
+| Point search, count in Triangle | 4.8× (4.4–5.3) | `ShapeTree` | `Kd_tree::search` |
 | kd-tree build | 3.4× (2.5–3.8) | `ShapeTree` | `Kd_tree` |
-| Arrangement build | 2.9× (2.2–3.4) | `Arrangement` | `Arrangement_2` |
-| Triangulation point location | 2.8× (1.7–3.2) | `t.locate(p)`{Triangulation} | `Triangulation_hierarchy_2::locate` |
-| Regularized union, large + large | 2.6× (2.3–2.8) | `a.regularizedUnion(b)`{Polygon} | `General_polygon_set_2::join` |
+| Arrangement build | 2.9× (2.2–3.3) | `Arrangement` | `Arrangement_2` |
+| Triangulation point location | 2.8× (1.7–3.1) | `t.locate(p)`{Triangulation} | `Triangulation_hierarchy_2::locate` |
+| Regularized union, large + large | 2.7× (2.4–2.8) | `a.regularizedUnion(b)`{Polygon} | `General_polygon_set_2::join` |
 
 Roughly level:
 
 | Problem | pgl / CGAL | pgl | CGAL |
 | --- | --- | --- | --- |
-| Segment search build | 1.1× (0.84–1.2) | `IntervalTree` | `AABB_tree` |
-| Arrangement point-location build | 0.88× (0.72–1.2) | `a.buildPointLocation()`{Arrangement} | `Arr_trapezoid_ric_point_location` |
-| Visibility, visible vertices | 0.87× (0.68–1.1) | `t.visibleVertices(p)`{Triangulation} | `Triangular_expansion_visibility_2` |
+| Segment search build | 1.1× (0.86–1.2) | `IntervalTree` | `AABB_tree` |
+| Visibility, visible vertices | 0.9× (0.71–1.1) | `t.visibleVertices(p)`{Triangulation} | `Triangular_expansion_visibility_2` |
+| Arrangement point-location build | 0.88× (0.7–1.2) | `a.buildPointLocation()`{Arrangement} | `Arr_trapezoid_ric_point_location` |
 
 pgl ahead:
 
 | Problem | pgl / CGAL | pgl | CGAL |
 | --- | --- | --- | --- |
-| Arrangement point location query | 0.61× (0.38–1.0) | `a.locateFace(p)`{Arrangement} | `Arr_trapezoid_ric_point_location::locate` |
-| Nearest neighbor query | 0.56× (0.48–0.62) | `t.nearestNeighbor(p)`{ShapeTree} | `Orthogonal_k_neighbor_search` |
-| Regularized union, triangles | 0.25× (0.23–0.78) | `regularizedUnionOf(v)` | `General_polygon_set_2::join` |
+| Arrangement point location query | 0.65× (0.38–1.1) | `a.locateFace(p)`{Arrangement} | `Arr_trapezoid_ric_point_location::locate` |
+| Nearest neighbor query | 0.55× (0.48–0.58) | `t.nearestNeighbor(p)`{ShapeTree} | `Orthogonal_k_neighbor_search` |
+| Regularized union, triangles | 0.24× (0.22–0.75) | `regularizedUnionOf(v)` | `General_polygon_set_2::join` |
 
 
-#### pgl's default: `int` coordinates, still exact
+#### pgl's default: `int` coordinates, against EPICK
 
 pgl's predicates are exact for `int` — the orientation test and everything
 built on it evaluate a determinant that fits, with no rounding and no fallback
@@ -281,35 +288,45 @@ is the configuration a pgl user would actually reach for, and it costs roughly
 Minkowski sum and Regularized union categories do not, because their output is
 constructed points that are not integers.
 
-> **These tables predate the EPICK baseline and are being re-measured.** Every
-> ratio below was recorded against EPECK, including the four categories that now
-> have an EPICK reference — Point constructions, Point search, Segment search
-> and Triangulation. Those ratios understate CGAL, in places by a lot — a spot
-> check on other hardware put the kd-tree build around 13× and the
-> nearest-neighbour query around 36× faster under EPICK. The Segment
-> intersection and Visibility rows are unaffected, since their CGAL side
-> constructs geometry and stays on EPECK.
+Dropping to `int` therefore buys pgl most of an order of magnitude — but it buys
+CGAL a comparable amount, because the kernel this column is measured against
+drops with it. EPICK stores plain `double` coordinates where EPECK stores a lazy
+exact number per coordinate, and on the structures that only ever compare and
+never construct, that is worth 12× on a kd-tree or an AABB tree build and over
+40× on a nearest-neighbour query. So the gap narrows against EPECK's numbers
+without reversing: CGAL is still ahead on most of these rows.
+
+Two rows below are measured against EPECK rather than EPICK, and so are
+unchanged from the pairing above — Segment intersection and Visibility, whose
+CGAL side constructs geometry and so has no EPICK variant to offer. They are
+the two places where pgl's `int` column races the exact kernel because there is
+nothing else to race.
+
+CGAL ahead:
+
+| Problem | pgl / CGAL | pgl | CGAL |
+| --- | --- | --- | --- |
+| Delaunay triangulation | 4.3× (2.6–4.5) | `Triangulation` | `Delaunay_triangulation_2` |
+| kd-tree build | 3.7× (3.2–4.1) | `ShapeTree` | `Kd_tree` |
+| Segment search build | 1.8× (1.5–2) | `IntervalTree` | `AABB_tree` |
+| Convex hull | 1.7× (1.5–1.7) | `convexHull(v)` | `convex_hull_2` |
+| Segment intersection | 1.6× (1.2–2.1) | `findIntersections(v)` | `compute_intersection_points` |
+| Triangulation point location | 1.5× (1.2–2.1) | `t.locate(p)`{Triangulation} | `Triangulation_hierarchy_2::locate` |
+| Nearest neighbor query | 1.5× (1.2–1.5) | `t.nearestNeighbor(p)`{ShapeTree} | `Orthogonal_k_neighbor_search` |
+
+Roughly level:
+
+| Problem | pgl / CGAL | pgl | CGAL |
+| --- | --- | --- | --- |
+| Segment search, count in Rectangle | 1.3× (0.83–1.4) | `ShapeTree` | `AABB_tree` |
+| Segment search, count in Triangle | 0.81× (0.53–0.86) | `ShapeTree` | `AABB_tree` |
 
 pgl ahead:
 
 | Problem | pgl / CGAL | pgl | CGAL |
 | --- | --- | --- | --- |
-| Nearest neighbor query | 0.03× (0.03–0.04) | `t.nearestNeighbor(p)`{ShapeTree} | `Orthogonal_k_neighbor_search` |
-| Segment search build | 0.15× (0.13–0.16) | `IntervalTree` | `AABB_tree` |
-| Point search, count in Triangle | 0.18× (0.13–0.20) | `ShapeTree` | `Kd_tree::search` |
-| kd-tree build | 0.31× (0.26–0.34) | `ShapeTree` | `Kd_tree` |
-| Visibility, visible vertices | 0.33× (0.22–0.41) | `t.visibleVertices(p)`{Triangulation} | `Triangular_expansion_visibility_2` |
-| Convex hull | 0.74× (0.72–0.76) | `convexHull(v)` | `convex_hull_2` |
-| Segment search, count in Triangle | 0.75× (0.52–0.78) | `ShapeTree` | `AABB_tree` |
-
-Level, and two CGAL wins:
-
-| Problem | pgl / CGAL | pgl | CGAL |
-| --- | --- | --- | --- |
-| Segment search, count in Rectangle | 1.1× (0.83–1.2) | `ShapeTree` | `AABB_tree` |
-| Triangulation point location | 1.0× (0.77–1.4) | `t.locate(p)`{Triangulation} | `Triangulation_hierarchy_2::locate` |
-| Segment intersection | 1.6× (1.2–2.1) | `findIntersections(v)` | `compute_intersection_points` |
-| Delaunay triangulation | 2.5× (2.3–2.6) | `Triangulation` | `Delaunay_triangulation_2` |
+| Visibility, visible vertices | 0.34× (0.23–0.42) | `t.visibleVertices(p)`{Triangulation} | `Triangular_expansion_visibility_2` |
+| Point search, count in Triangle | 0.32× (0.27–0.35) | `ShapeTree` | `Kd_tree::search` |
 
 #### What the numbers do not say
 
