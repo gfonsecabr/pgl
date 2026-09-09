@@ -115,7 +115,7 @@ The results below are sorted by `ERational` / EPECK ratio, from the cases where 
 
 #### What the numbers do not say
 
-- **A pgl win over a specialized structure is usually specialization.** pgl's [`ShapeTree`](https://gfonsecabr.github.io/pgl/classpgl_1_1ShapeTree.html "Static shape tree of bounded shapes.") is a 2D `int` tree; CGAL's `Kd_tree` is dimension-generic over an arbitrary kernel, and `AABB_tree` is built for arbitrary primitives in 2D and 3D. They are not attempting the same thing.
+- **Pgl is optimized for this benchmark.** When we want to improve pgl's performance, we often use this benchmark as the measuring stick, for example to tune certain internal parameters, so the comparison favors pgl.
 - **Some comparisons favor pgl by construction.** CGAL ships no triangle query item for `Kd_tree`, so the baseline wrote one — the "count in Triangle" rows race pgl against benchmark code driving CGAL, not against a CGAL facility, and that is the row where pgl's `int` column looks best.
 - **Orthogonal range counting over points is deliberately absent.** pgl looks very good on it, but CGAL ships `Range_tree_2` for exactly that query and the benchmark does not run it; racing a kd-tree instead would prove nothing.
 
