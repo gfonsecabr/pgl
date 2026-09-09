@@ -40,11 +40,11 @@
 
 #include <algorithm>
 #include <array>
-#include <bit>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <limits>
 #include <map>
 #include <memory>
 #include <optional>
@@ -884,59 +884,51 @@ struct Triangulation {
     [[nodiscard]] Arrangement<PointType, TriId> asArrangement() const;
 
     /**
-     * @brief Builds an arrangement-backed point-location index.
+     * @brief Builds the point-location index: a Kirkpatrick hierarchy over this
+     *        mesh.
      *
-     * The index is an arrangement of a *coarsening* of this mesh — the
-     * triangulation of a random sample of its vertices, one sampled per
-     * `bit_width(V)` of them — carrying a randomized trapezoidal search
-     * structure. A query descends it to the cell it falls
-     * in, which names a triangle of that cell's interior, and the stochastic
-     * visibility walk starts there instead of at the previous query's answer:
-     * the descent is over a structure a constant factor smaller than the mesh,
-     * and the walk has one cell to cross rather than the whole mesh.
+     * The mesh is enclosed in a box and the ring between the box and the convex
+     * hull is triangulated, so that every vertex but the four box corners is
+     * interior. An independent set of low-degree vertices is then removed and
+     * the hole each star leaves is retriangulated, and again over the result,
+     * until only the box is left: some thirty levels for a mesh of 100,000
+     * vertices, each holding about seven tenths of the triangles below it. Every
+     * triangle records the ones it covers, so a query placed in the box descends
+     * one triangle per level and arrives at the mesh triangle holding it.
      *
-     * Indexing the mesh itself would answer without a walk, but a trapezoidal
-     * search is a chain of random accesses, and what it costs is set by how
-     * much memory it reaches over rather than by how many comparisons it makes.
-     * The coarsening is what keeps that reach small.
+     * Until it is called, @ref locate and @ref locateId walk the mesh from the
+     * last query's answer, which is fast for queries that follow one another and
+     * linear for queries that do not. Afterwards a query whose coordinates
+     * convert losslessly to this triangulation's @ref PointType descends the
+     * hierarchy instead. What a query may return does not change: a point
+     * strictly inside a triangle gets that triangle indexed or not, and one on
+     * an edge or a vertex gets an incident triangle, which of them being as
+     * unspecified as it is for the bare walk.
      *
-     * Until it is called, @ref locate and @ref locateId walk from the last
-     * query's answer; afterwards queries whose coordinates convert losslessly
-     * to this triangulation's @ref PointType walk from the index's seed. The
-     * walk is what answers either way, so the index changes how long a query
-     * takes and not what it may return: a point strictly inside a triangle gets
-     * that triangle indexed or not, and one on an edge or a vertex gets an
-     * incident triangle, which of them being as unspecified as it is for the
-     * bare walk.
-     *
-     * **The index outlives every edit.** Because it only chooses where the walk
-     * starts, an index built before an @ref insert or a @ref flip stays correct
-     * across it — a seed is a triangle of this mesh whatever has happened to
-     * the mesh since, and the walk goes on to answer from there. What an edit
-     * costs is seed *quality*: the coarsening does not know the vertices added
-     * since it was drawn, so the walk out of a cell lengthens as the mesh grows
-     * away from it. Rebuilding is therefore the owner's call and never the
-     * triangulation's — call this again to redraw the index against the mesh as
-     * it now stands (it does nothing if nothing has changed since), or
+     * **The index outlives every edit.** A hierarchy built before an @ref insert
+     * or a @ref flip stays usable across it: what it lands on is a triangle of
+     * this mesh whatever has happened to the mesh since, and the walk resumes
+     * from there rather than answering outright. What an edit costs is that
+     * resumption — the hierarchy does not know the vertices added since it was
+     * drawn, so the walk out of its answer lengthens as the mesh grows away from
+     * it. Rebuilding is therefore the owner's call and never the
+     * triangulation's — call this again to redraw the hierarchy against the mesh
+     * as it now stands (it does nothing if nothing has changed since), or
      * @ref clearPointLocation to give it up and go back to walking from the
      * previous query's answer.
      *
-     * @complexity Expected `O(V log V)` time, which the cell size holds at
-     *             roughly the cost of building the mesh itself, and
-     *             `O(V / log V)` space.
+     * @complexity Expected `O(V)` time and space, both a small multiple of what
+     *             the mesh itself takes; `O(log V)` per query.
      */
     void buildPointLocation();
 
     /**
-     * @brief Releases the arrangement-backed point-location index.
+     * @brief Releases the point-location index.
      *
      * The only thing that does: no edit releases it. @ref locate and
      * @ref locateId go back to walking from the previous query's answer.
      */
-    void clearPointLocation() noexcept {
-        pointLocation_.reset();
-        pointLocationLookup_ = nullptr;
-    }
+    void clearPointLocation() noexcept { pointLocation_.reset(); }
 
     /** @brief True if @ref locate and @ref locateId currently use the point-location index. */
     [[nodiscard]] bool hasPointLocation() const noexcept {
@@ -947,9 +939,10 @@ struct Triangulation {
      * @brief True if the index is in place and was drawn against the mesh as it
      *        now stands.
      *
-     * False once an edit has moved the mesh on from the index, which costs the
-     * walk its seed quality and nothing else — see @ref buildPointLocation,
-     * which this is the test of whether calling would do any work.
+     * False once an edit has moved the mesh on from the index, which costs a
+     * query the index's answer — the walk resumes from it instead — and nothing
+     * else. See @ref buildPointLocation, which this is the test of whether
+     * calling would do any work.
      */
     [[nodiscard]] bool hasCurrentPointLocation() const noexcept {
         return pointLocation_ && pointLocationRevision_ == revision_;
@@ -1022,9 +1015,9 @@ struct Triangulation {
      * hash-free way into the handle world for a point that is not a vertex —
      * `getId(*locate(p))` would locate the triangle and then look it up again.
      *
-     * @ref buildPointLocation makes the walk start beside the query instead of
-     * at the previous one's answer, which is what a query pays for; it does not
-     * change what the walk returns.
+     * @ref buildPointLocation replaces the walk by a descent of the
+     * point-location hierarchy, which is what a query pays for; it does not
+     * change what a query may return.
      *
      * @param p Query point; may use a different point type than the triangulation.
      * @return The handle of the containing triangle, or the invalid handle if
@@ -1032,7 +1025,16 @@ struct Triangulation {
      *         empty).
      */
     [[nodiscard]] TriId locateId(const PointType& p) const {
-        const TriIndex id = locateIndex(p, pointLocationSeed(p));
+        // The hierarchy lands on the triangle itself rather than beside it, so
+        // where it does the walk has nothing left to do and is not run: what it
+        // would return is a triangle whose closure holds p, which this is.
+        bool answered = false;
+        const TriIndex seed = pointLocationSeed(p, answered);
+        if (answered) {
+            hint_ = seed;
+            return triHandle(inDomain(seed) ? seed : NO_TRI);
+        }
+        const TriIndex id = locateIndex(p, seed);
         return triHandle(inDomain(id) ? id : NO_TRI);
     }
 
@@ -2974,7 +2976,9 @@ struct Triangulation {
      *
      * Uses a stochastic (randomized) visibility walk, which terminates with
      * probability one on any valid triangulation, not just Delaunay ones; a
-     * generous step cap remains only as a defensive bound.
+     * generous step cap remains only as a defensive bound. After
+     * @ref buildPointLocation a query descends the point-location hierarchy
+     * instead, for the same answer in logarithmic time.
      *
      * @param p Query point; may use a different point type than the triangulation.
      * @return The containing triangle, or `std::nullopt` if @p p lies outside
@@ -3893,29 +3897,71 @@ struct Triangulation {
     std::size_t domainTriangleCount_ = 0;  // in-domain real triangles (<= firstGhost_)
     mutable TriIndex hint_ = NO_TRI;      // last located triangle (walk seed)
     mutable std::mt19937 rng_;         // drives the stochastic walk in locateIndex
-    // The arrangement is immutable once built, so copies can share it just as
-    // Arrangement copies share their own point-location index. Its definition
-    // arrives later, from arrangement.hpp, so keep only its forward-declared
-    // type here.
+    // The Kirkpatrick hierarchy: a stack of triangulations of the same box, the
+    // finest being the mesh (plus the ring filling the box around it) and each
+    // coarser one obtained by removing an independent set of vertices and
+    // retriangulating the holes. A query descends it one cell per level.
     //
-    // The index is an arrangement of triangulation edges, which meet only at
-    // shared endpoints: it never computes a crossing, so its vertices are the
-    // triangulation's own points and an exact coordinate type carries them
-    // unchanged. Coordinates that are not exact integers -- fixed-width
-    // rationals above all, whose products overflow -- are widened to ERational
-    // instead, which holds any of them. Carrying `int` points as 160-byte
-    // rationals is what the widening used to cost every query: the index is
-    // walked at random, so its size in bytes is what a query pays for.
-    static constexpr bool nativePointLocation =
-        detail::extended_integral<NumberType> || std::same_as<NumberType, BigInt> ||
-        std::same_as<NumberType, ERational>;
-    using PointLocationPoint =
-        std::conditional_t<nativePointLocation, PointType, Point<ERational>>;
-    using PointLocation = Arrangement<PointLocationPoint, TriId>;
-    std::shared_ptr<const PointLocation> pointLocation_;
-    using PointLocationLookup = TriId (*)(const void*, const PointType&);
-    PointLocationLookup pointLocationLookup_ = nullptr;
-    static TriId seedFromPointLocation(const void* location, const PointType& point);
+    // Every cell above level 0 is a triangle of the retriangulation of one
+    // removed vertex's star, so the cells below it are consecutive triangles of
+    // that star's fan, and which of them holds a point already known to be in
+    // the parent is decided by where the point falls in the fan — one sign per
+    // fan edge crossed, and none at all where the parent has a single child.
+    // That is what a cell stores: the removed vertex, and the run of fan edges
+    // and cells between them. It needs no triangle of its own; only the top
+    // level, whose cells a query is not yet known to be inside, keeps one.
+    struct Kirkpatrick {
+        // Set in runCount when the run closes the whole fan, which happens for
+        // the one triangle of a retriangulation that holds the removed vertex:
+        // the run then spans a full turn instead of an arc, so a query cannot
+        // assume it starts inside it. On a cell with no children — where there
+        // is no run to mark — the same bit says the cell is one of those
+        // filling the box rather than a mesh triangle, so what it carries only
+        // starts the walk instead of answering it.
+        static constexpr std::uint32_t FULL_TURN = 0x80000000u;
+        struct Cell {
+            std::uint32_t apex = 0;      // the removed vertex the fan turns around
+            std::uint32_t runBegin = 0;  // where the run starts, or a leaf's seed
+            std::uint32_t runCount = 0;  // children, 0 for a leaf, plus FULL_TURN
+        };
+        std::vector<Cell> cells;
+        // The fan runs, one per cell with children: the vertices bounding the
+        // fan triangles, interleaved with the cells between them, as
+        // `link, cell, link, cell, ..., link` — one more vertex than cells.
+        std::vector<std::uint32_t> run;
+        std::vector<std::uint32_t> roots;                    // the top level
+        std::vector<std::array<VertexIndex, 3>> rootShape;   // and its triangles
+        // The four box corners, addressed by vertex indices vertices_.size() + i.
+        std::vector<PointType> extra;
+        std::vector<detail::ApproximatePoint> extraApprox;
+    };
+    // Immutable once built, so copies share it rather than redrawing it.
+    std::shared_ptr<const Kirkpatrick> pointLocation_;
+
+    // Whether the descent's signs are exact, and its answer therefore final. An
+    // integer coordinate's are — the promotion holds every product the
+    // orientation forms — and so are a coordinate type carrying its own exact
+    // arithmetic. Everything else, a fixed-width rational (whose products
+    // overflow) as much as a floating-point coordinate, can put the descent in
+    // a triangle beside the right one, and there the walk finishes the query
+    // exactly as it does for a mesh the hierarchy has fallen behind.
+    static constexpr bool exactDescent =
+        detail::extended_integral<NumberType> || detail::arbitraryPrecision<NumberType>;
+
+    // The largest star a level takes off. A Delaunay vertex has six triangles
+    // around it on average and all but a handful have ten or fewer, so a bound
+    // here only turns away the rare crowded vertex — which its own neighbours
+    // would usually have blocked anyway. Query time measures the same over
+    // 6..20 at 100,000 vertices, and from 12 up the hierarchy comes out
+    // identical; ten sits in the middle of that plateau.
+    static constexpr std::size_t pointLocationMaxStar = 10;
+
+    // Where the hierarchy stops growing. Its top level is scanned triangle by
+    // triangle, so it has to stay small; anything from 2 to 16 measures the
+    // same, the levels that would replace the scan costing about what the scan
+    // does, and above that the scan starts to show (64 triangles cost a tenth
+    // of the query).
+    static constexpr std::size_t pointLocationTopSize = 8;
 
     // Counts the structural edits — the ones that move vertices or connectivity
     // on from what the index was drawn against. Nothing invalidates the index,
@@ -3926,45 +3972,102 @@ struct Triangulation {
     std::size_t revision_ = 0;
     std::size_t pointLocationRevision_ = 0;
 
-    // How many mesh triangles one cell of the point-location subdivision
-    // covers. The index locates the cell in O(log) and the walk crosses the
-    // cell, so a query costs a descent over an index this factor smaller than
-    // the mesh, plus O(sqrt(k)) walk steps for a cell of k triangles.
-    // See buildPointLocation for how the subdivision is drawn.
-    //
-    // Cells grow with the logarithm of the mesh rather than staying a fixed
-    // size, which is what keeps the index proportionate to what it indexes. A
-    // fixed cell size makes the index a fixed fraction of the mesh, and since
-    // building it costs more per element than building the mesh does, that
-    // fraction's *cost* creeps up with n: measured against the Delaunay build
-    // it indexes, a cell size of 16 goes from 0.65x at 1,000 vertices to 1.17x
-    // at 250,000. Solving for the cell size that holds that ratio at one gives
-    // 0.66 + 0.93*log2(n) over the same range -- which is bit_width to within
-    // half a cell, so that is what this is. Query time is flat across the whole
-    // neighbourhood of the fit, so nothing is spent buying the exact constant.
-    //
-    // The walk pays sqrt(log n) steps for it, against a descent of log n, and
-    // the index becomes Theta(V / log V) rather than Theta(V).
-    static constexpr std::size_t pointLocationCellSize(std::size_t vertices) {
-        return std::max<std::size_t>(1, std::bit_width(vertices));
-    }
-
-    // Smallest subdivision worth drawing: below it the mesh is indexed whole,
-    // since a coarser one would only trade a descent for a walk of the same
-    // length.
-    static constexpr std::size_t pointLocationMinimumCells = 64;
-
-    // The walk's start triangle, from the index. The cell the query falls in
-    // carries a triangle of its own interior, so the walk starts within the
-    // cell it must cross. Absent index, a query outside the subdivision, or a
-    // cell no triangle of the domain witnessed: no seed, and the walk starts
-    // where it would have without an index.
-    [[nodiscard]] TriIndex pointLocationSeed(const PointType& p) const {
-        if (!pointLocation_ || pointLocationLookup_ == nullptr) {
+    // Where the query lands in the hierarchy: the mesh triangle holding it, and
+    // whether that is the answer or only where the walk should start. It is the
+    // answer when the descent settled the query — it reached the triangle
+    // itself, or left the box altogether — and was exact and drawn against the
+    // mesh as it now stands. Otherwise the triangle is still one of this mesh,
+    // and still beside the query, so the walk goes on from there; and where
+    // there is neither index nor triangle, the walk starts where it would have
+    // without one.
+    [[nodiscard]] TriIndex pointLocationSeed(const PointType& p, bool& answered) const {
+        answered = false;
+        if (!pointLocation_) {
             return NO_TRI;
         }
-        const TriIndex seed = indexOf(pointLocationLookup_(pointLocation_.get(), p));
+        bool settled = false;
+        const TriIndex seed = kirkpatrickSeed(p, settled);
+        answered = settled && exactDescent && pointLocationRevision_ == revision_;
         return realTriangle(seed) ? seed : NO_TRI;
+    }
+
+    // A hierarchy vertex, filtered: the mesh's own vertices keep the stored
+    // approximation, the four box corners the hierarchy's own.
+    [[nodiscard]] auto kirkpatrickVertex(const Kirkpatrick& kp, VertexIndex v) const {
+        const std::size_t i = static_cast<std::size_t>(v);
+        const std::size_t meshVertices = vertices_.size();
+        return i < meshVertices
+                   ? filteredVertex(v)
+                   : detail::filtered<VertexCoordinate>(kp.extra[i - meshVertices],
+                                                        kp.extraApprox, i - meshVertices);
+    }
+
+    // Where the descent lands: one cell per level, ending on the level-0 cell
+    // whose closure holds the query. @p settled says the descent decided the
+    // query rather than only narrowing it — it ended on a mesh triangle, or off
+    // the box, which the hull is strictly inside of — as against ending on a
+    // triangle filling the box, whose closure holds a point of the hull's
+    // boundary too, and whose answer is therefore the neighbouring mesh
+    // triangle it seeds the walk with.
+    template <class QueryPoint>
+    [[nodiscard]] TriIndex kirkpatrickSeed(const QueryPoint& p, bool& settled) const {
+        const Kirkpatrick& kp = *pointLocation_;
+        settled = false;
+        // The descent tests p against several fan edges per level, so p is
+        // converted once here rather than once per sign.
+        const auto q = filteredPoint(p);
+        // The fan scan turns about one vertex, so that one is converted once per
+        // cell and only the edge's far end is fetched per sign.
+        const auto leftOfFrom = [&](const auto& a, VertexIndex b) {
+            return !(detail::orientationSignOf(a, kirkpatrickVertex(kp, b), q).value() < 0);
+        };
+        const auto leftOf = [&](VertexIndex a, VertexIndex b) {
+            return leftOfFrom(kirkpatrickVertex(kp, a), b);
+        };
+
+        // The top level is the only one a query has to be placed in rather than
+        // handed down into, so it is the only one whose triangles are tested.
+        std::uint32_t cell = ~0u;
+        for (std::size_t i = 0; i < kp.roots.size(); ++i) {
+            const auto& corners = kp.rootShape[i];
+            if (leftOf(corners[0], corners[1]) && leftOf(corners[1], corners[2]) &&
+                leftOf(corners[2], corners[0])) {
+                cell = kp.roots[i];
+                break;
+            }
+        }
+        if (cell == ~0u) {
+            settled = true;
+            return NO_TRI;  // outside the box, so outside the mesh
+        }
+
+        for (;;) {
+            const auto& current = kp.cells[cell];
+            const std::uint32_t count = current.runCount & ~Kirkpatrick::FULL_TURN;
+            if (count == 0) {
+                settled = current.runCount == 0;
+                return static_cast<TriIndex>(current.runBegin);
+            }
+            const std::uint32_t* const fan = kp.run.data() + current.runBegin;
+            cell = fan[2 * count - 1];  // the last child, where the scan runs out
+            if (count > 1) {
+                const auto apex =
+                    kirkpatrickVertex(kp, static_cast<VertexIndex>(current.apex));
+                // p is already known to be past the run's first edge — the
+                // parent starts there — unless the run is a whole turn, which
+                // starts nowhere in particular.
+                bool inside = (current.runCount & Kirkpatrick::FULL_TURN) == 0 ||
+                              leftOfFrom(apex, static_cast<VertexIndex>(fan[0]));
+                for (std::uint32_t m = 1; m < count; ++m) {
+                    const bool beyond = leftOfFrom(apex, static_cast<VertexIndex>(fan[2 * m]));
+                    if (inside && !beyond) {
+                        cell = fan[2 * m - 1];
+                        break;
+                    }
+                    inside = beyond;
+                }
+            }
+        }
     }
 
     // ---- small helpers ---------------------------------------------------
@@ -6030,6 +6133,545 @@ struct Triangulation {
         assert(ghostEdges.empty() && "Triangulation: open boundary (input is not a triangulation)");
     }
 };
+
+// The Kirkpatrick hierarchy. Level 0 is the mesh, extended by a ring of
+// triangles filling an enclosing box, so that every vertex but the four box
+// corners is interior and can be removed. Each further level removes an
+// independent set of low-degree vertices and retriangulates the hole each star
+// leaves; the new triangles record the ones they cover, which is what a query
+// descends. The four corners survive every level, so the top is the box itself
+// as a couple of triangles.
+template <TriangleConcept TriangleType, SegmentConcept SegmentType>
+void Triangulation<TriangleType, SegmentType>::buildPointLocation() {
+    if (hasCurrentPointLocation()) {
+        return;  // already drawn against this mesh; redrawing would find nothing
+    }
+    pointLocation_.reset();
+    const std::size_t meshCells = static_cast<std::size_t>(firstGhost_);
+    if (meshCells == 0 || triangles_.size() <= meshCells) {
+        return;  // no triangle to index, or no ghost ring to read the hull off
+    }
+    auto kp = std::make_shared<Kirkpatrick>();
+    using Cell = typename Kirkpatrick::Cell;
+    // The triangle of every cell. A finished hierarchy keeps only the top
+    // level's, a query below it being handed down rather than placed, but the
+    // construction reads all of them.
+    std::vector<std::array<VertexIndex, 3>> shape;
+
+    // ---- level 0, first half: the mesh triangles, at their own indices ----
+    kp->cells.resize(meshCells);
+    shape.resize(meshCells);
+    for (std::size_t t = 0; t < meshCells; ++t) {
+        shape[t] = triangles_[t].v;
+        kp->cells[t].runBegin = static_cast<std::uint32_t>(t);
+    }
+
+    // ---- the hull, read off the ghost ring -------------------------------
+    // ring[i] -> ring[i + 1] is a boundary edge with the mesh on its left, and
+    // ringTri[i] is the mesh triangle there.
+    std::vector<VertexIndex> ring;
+    std::vector<TriIndex> ringTri;
+    {
+        const TriIndex first = firstGhost_;
+        TriIndex g = first;
+        do {
+            const Tri& ghost = triangles_[static_cast<std::size_t>(g)];
+            ring.push_back(ghost.v[0]);
+            ringTri.push_back(ghost.nbr[2]);
+            g = ghost.nbr[0];  // the ghost across {ghost.v[1], GHOST}
+        } while (g != first && ring.size() <= triangles_.size());
+        if (g != first || ring.size() < 3) {
+            return;
+        }
+    }
+    const std::uint32_t hullSize = static_cast<std::uint32_t>(ring.size());
+
+    // ---- the enclosing box -----------------------------------------------
+    NumberType xlo = vertices_[static_cast<std::size_t>(ring[0])].x();
+    NumberType xhi = xlo;
+    NumberType ylo = vertices_[static_cast<std::size_t>(ring[0])].y();
+    NumberType yhi = ylo;
+    for (const VertexIndex v : ring) {
+        const PointType& p = vertices_[static_cast<std::size_t>(v)];
+        if (p.x() < xlo) xlo = p.x();
+        if (xhi < p.x()) xhi = p.x();
+        if (p.y() < ylo) ylo = p.y();
+        if (yhi < p.y()) yhi = p.y();
+    }
+    if constexpr (std::numeric_limits<NumberType>::is_specialized &&
+                  std::numeric_limits<NumberType>::is_integer &&
+                  std::numeric_limits<NumberType>::is_bounded) {
+        // Stepping the box out would wrap: leave the mesh unindexed rather than
+        // fold the outside onto the inside.
+        if (xlo == std::numeric_limits<NumberType>::lowest() ||
+            ylo == std::numeric_limits<NumberType>::lowest() ||
+            xhi == std::numeric_limits<NumberType>::max() ||
+            yhi == std::numeric_limits<NumberType>::max()) {
+            return;
+        }
+    }
+    const NumberType unit(1);
+    const NumberType bxlo = xlo - unit;
+    const NumberType bylo = ylo - unit;
+    const NumberType bxhi = xhi + unit;
+    const NumberType byhi = yhi + unit;
+    if (!(bxlo < xlo) || !(bylo < ylo) || !(xhi < bxhi) || !(yhi < byhi)) {
+        return;  // coordinates too large to step away from (inexact types)
+    }
+    kp->extra = {PointType(bxlo, bylo), PointType(bxhi, bylo), PointType(bxhi, byhi),
+                 PointType(bxlo, byhi)};
+    if constexpr (detail::filtersSign<VertexCoordinate>) {
+        kp->extraApprox.reserve(kp->extra.size());
+        for (const PointType& corner : kp->extra) {
+            kp->extraApprox.push_back(detail::approximatePoint(corner));
+        }
+    }
+    const auto cornerVertex = [&](std::size_t j) {
+        return static_cast<VertexIndex>(vertices_.size() + j);
+    };
+
+    // ---- the geometry the construction runs on ---------------------------
+    const auto orient = [&](VertexIndex a, VertexIndex b, VertexIndex c) {
+        return detail::orientationSignOf(kirkpatrickVertex(*kp, a), kirkpatrickVertex(*kp, b),
+                                         kirkpatrickVertex(*kp, c))
+            .value();
+    };
+    const auto holds = [&](VertexIndex a, VertexIndex b, VertexIndex c, VertexIndex p) {
+        return !(orient(a, b, p) < 0) && !(orient(b, c, p) < 0) && !(orient(c, a, p) < 0);
+    };
+    const auto addLeaf = [&](VertexIndex a, VertexIndex b, VertexIndex c, TriIndex seed) {
+        Cell cell;
+        cell.runBegin = static_cast<std::uint32_t>(seed);
+        cell.runCount = Kirkpatrick::FULL_TURN;  // fills the box; seeds, never answers
+        kp->cells.push_back(cell);
+        shape.push_back({a, b, c});
+    };
+
+    // Ear clipping of a simple counterclockwise polygon, reporting each ear as
+    // the triple of *positions* it cut, in clipping order. Only a strictly
+    // convex corner is cut, so every corner of the polygon survives in some
+    // triangle: a collinear one dropped instead would leave the vertex on an
+    // edge of the retriangulation without being a corner of it, which no later
+    // level could then remove. @p mountain says the polygon is a monotone
+    // mountain over its first edge: its two base corners are never cut, and
+    // every convex corner is then an ear, which is what lets the pass skip
+    // testing a corner against the rest of the polygon.
+    std::vector<std::array<std::uint32_t, 3>> ears;
+    std::vector<std::uint32_t> prevAt;
+    std::vector<std::uint32_t> nextAt;
+    std::vector<std::int8_t> turnAt;
+    const auto earClip = [&](const std::vector<VertexIndex>& poly, bool mountain) {
+        ears.clear();
+        const std::uint32_t m = static_cast<std::uint32_t>(poly.size());
+        if (m < 3) {
+            return false;
+        }
+        prevAt.resize(m);
+        nextAt.resize(m);
+        turnAt.resize(m);
+        for (std::uint32_t i = 0; i < m; ++i) {
+            prevAt[i] = (i + m - 1) % m;
+            nextAt[i] = (i + 1) % m;
+        }
+        const auto turn = [&](std::uint32_t i) -> std::int8_t {
+            const auto side = orient(poly[prevAt[i]], poly[i], poly[nextAt[i]]);
+            return side > 0 ? std::int8_t{1} : (side < 0 ? std::int8_t{-1} : std::int8_t{0});
+        };
+        std::uint32_t blockingCount = 0;  // corners that can sit inside an ear
+        for (std::uint32_t i = 0; i < m; ++i) {
+            turnAt[i] = turn(i);
+            blockingCount += turnAt[i] <= 0 ? 1u : 0u;
+        }
+        std::uint32_t remaining = m;
+        std::uint32_t cursor = mountain ? 2 : 0;
+        std::uint32_t skipped = 0;
+        while (remaining > 3) {
+            if (skipped > remaining) {
+                return false;  // a whole turn with no ear: not a simple polygon
+            }
+            const std::uint32_t i = cursor;
+            cursor = nextAt[cursor];
+            if (turnAt[i] <= 0 || (mountain && i < 2)) {
+                ++skipped;
+                continue;
+            }
+            const std::uint32_t p = prevAt[i];
+            const std::uint32_t n = nextAt[i];
+            if (!mountain && blockingCount != 0) {
+                bool clean = true;
+                for (std::uint32_t k = nextAt[n]; k != p; k = nextAt[k]) {
+                    if (turnAt[k] <= 0 && holds(poly[p], poly[i], poly[n], poly[k])) {
+                        clean = false;
+                        break;
+                    }
+                }
+                if (!clean) {
+                    ++skipped;
+                    continue;
+                }
+            }
+            ears.push_back({p, i, n});
+            nextAt[p] = n;
+            prevAt[n] = p;
+            --remaining;
+            for (const std::uint32_t z : {p, n}) {
+                const std::int8_t was = turnAt[z];
+                turnAt[z] = turn(z);
+                blockingCount += (turnAt[z] <= 0 ? 1u : 0u) - (was <= 0 ? 1u : 0u);
+            }
+            cursor = p;
+            skipped = 0;
+        }
+        const std::uint32_t a = cursor;
+        const std::uint32_t b = nextAt[a];
+        ears.push_back({a, b, nextAt[b]});
+        return true;
+    };
+
+    // ---- level 0, second half: the ring filling the box ------------------
+    // The hull vertex extreme in a diagonal direction anchors a spoke to the box
+    // corner facing it: the supporting line separates the two, so the spoke runs
+    // outside the hull. The four spokes cut the ring into monotone mountains —
+    // a box side as base, a monotone chain above it — which ear clipping
+    // triangulates in one pass.
+    std::array<std::uint32_t, 4> anchor{0, 0, 0, 0};
+    {
+        using Wide = detail::promoted_number_t<NumberType>;
+        const auto wx = [&](std::uint32_t i) {
+            return detail::asNumber<Wide>(vertices_[static_cast<std::size_t>(ring[i])].x());
+        };
+        const auto wy = [&](std::uint32_t i) {
+            return detail::asNumber<Wide>(vertices_[static_cast<std::size_t>(ring[i])].y());
+        };
+        Wide leastSum = wx(0) + wy(0);
+        Wide mostSum = leastSum;
+        for (std::uint32_t i = 1; i < hullSize; ++i) {
+            const Wide sum = wx(i) + wy(i);
+            if (sum < leastSum) {
+                leastSum = sum;
+                anchor[0] = i;
+            }
+            if (mostSum < sum) {
+                mostSum = sum;
+                anchor[2] = i;
+            }
+            // The extremes of x - y, compared without forming a difference.
+            if (wx(anchor[1]) + wy(i) < wx(i) + wy(anchor[1])) {
+                anchor[1] = i;
+            }
+            if (wx(i) + wy(anchor[3]) < wx(anchor[3]) + wy(i)) {
+                anchor[3] = i;
+            }
+        }
+    }
+    {
+        std::vector<VertexIndex> poly;
+        std::vector<TriIndex> edgeSeed;
+        for (std::size_t j = 0; j < 4; ++j) {
+            poly.clear();
+            edgeSeed.clear();
+            poly.push_back(cornerVertex(j));
+            edgeSeed.push_back(NO_TRI);
+            poly.push_back(cornerVertex((j + 1) % 4));
+            edgeSeed.push_back(NO_TRI);
+            // The hull walked backwards, from the next corner's anchor to this
+            // one's: the filling runs counterclockwise where the hull runs
+            // clockwise, since it lies on the hull's other side.
+            for (std::uint32_t k = anchor[(j + 1) % 4];; k = (k + hullSize - 1) % hullSize) {
+                poly.push_back(ring[k]);
+                const bool last = k == anchor[j];
+                edgeSeed.push_back(last ? NO_TRI : ringTri[(k + hullSize - 1) % hullSize]);
+                if (last) {
+                    break;
+                }
+            }
+            if (!earClip(poly, /*mountain=*/true)) {
+                return;
+            }
+            for (const auto& ear : ears) {
+                // The seed a query landing in this triangle walks from: the mesh
+                // triangle across whichever of its edges lies on the hull, which
+                // the diagonal it leaves behind then carries to its neighbors.
+                TriIndex seed = edgeSeed[ear[0]];
+                if (seed == NO_TRI) seed = edgeSeed[ear[1]];
+                if (seed == NO_TRI) seed = edgeSeed[ear[2]];
+                addLeaf(poly[ear[0]], poly[ear[1]], poly[ear[2]], seed);
+                edgeSeed[ear[0]] = seed;
+            }
+        }
+    }
+
+    // ---- the levels above ------------------------------------------------
+    std::vector<std::uint32_t> active(kp->cells.size());
+    for (std::uint32_t i = 0; i < static_cast<std::uint32_t>(active.size()); ++i) {
+        active[i] = i;
+    }
+
+    std::vector<std::int32_t> slotOf(vertices_.size() + kp->extra.size(), -1);
+    std::vector<VertexIndex> used;
+    std::vector<std::uint32_t> starBegin;
+    std::vector<std::uint32_t> starFill;
+    std::vector<std::uint32_t> starCells;
+    std::vector<VertexIndex> starFrom;
+    std::vector<VertexIndex> starTo;
+    std::vector<std::uint8_t> blocked;
+    std::vector<std::uint32_t> order;
+    std::vector<std::uint8_t> replaced;
+    std::vector<std::uint32_t> fan;
+    std::vector<VertexIndex> link;
+    std::vector<std::uint32_t> fresh;
+    std::vector<std::uint32_t> kept;
+    std::size_t degreeLimit = pointLocationMaxStar;
+
+    while (active.size() > pointLocationTopSize) {
+        // The vertices this level still has, and the cells around each of them.
+        used.clear();
+        for (const std::uint32_t c : active) {
+            for (const VertexIndex v : shape[c]) {
+                if (slotOf[static_cast<std::size_t>(v)] < 0) {
+                    slotOf[static_cast<std::size_t>(v)] = static_cast<std::int32_t>(used.size());
+                    used.push_back(v);
+                }
+            }
+        }
+        const std::uint32_t vertexCount = static_cast<std::uint32_t>(used.size());
+        starBegin.assign(vertexCount + 1, 0);
+        for (const std::uint32_t c : active) {
+            for (const VertexIndex v : shape[c]) {
+                ++starBegin[static_cast<std::size_t>(slotOf[static_cast<std::size_t>(v)]) + 1];
+            }
+        }
+        for (std::uint32_t s = 0; s < vertexCount; ++s) {
+            starBegin[s + 1] += starBegin[s];
+        }
+        starFill = starBegin;
+        starCells.resize(starBegin[vertexCount]);
+        for (const std::uint32_t c : active) {
+            for (const VertexIndex v : shape[c]) {
+                starCells[starFill[static_cast<std::size_t>(
+                    slotOf[static_cast<std::size_t>(v)])]++] = c;
+            }
+        }
+
+        // Candidates, smallest star first: a small star makes few triangles and
+        // blocks few other candidates, so taking those first leaves more room.
+        // This, rather than either constant above, is what decides how far a
+        // level gets — taking the candidates in storage order instead costs 16%
+        // more cells, two more levels and 28% of the query time at 100,000
+        // vertices, a maximal independent set being that much smaller when a
+        // crowded vertex blocks its neighbours first.
+        order.clear();
+        {
+            std::vector<std::uint32_t> tally(degreeLimit + 2, 0);
+            for (std::uint32_t s = 0; s < vertexCount; ++s) {
+                const std::size_t degree = starBegin[s + 1] - starBegin[s];
+                if (degree >= 3 && degree <= degreeLimit) {
+                    ++tally[degree + 1];
+                }
+            }
+            for (std::size_t d = 1; d < tally.size(); ++d) {
+                tally[d] += tally[d - 1];
+            }
+            order.resize(tally.back());
+            for (std::uint32_t s = 0; s < vertexCount; ++s) {
+                const std::size_t degree = starBegin[s + 1] - starBegin[s];
+                if (degree >= 3 && degree <= degreeLimit) {
+                    order[tally[degree]++] = s;
+                }
+            }
+        }
+
+        blocked.assign(vertexCount, 0);
+        replaced.assign(kp->cells.size(), 0);
+        fresh.clear();
+        for (const std::uint32_t slot : order) {
+            if (blocked[slot]) {
+                continue;
+            }
+            const VertexIndex v = used[slot];
+            const std::uint32_t begin = starBegin[slot];
+            const std::uint32_t degree = starBegin[slot + 1] - begin;
+
+            // Walk the star into a fan: cell m of it is (v, link[m], link[m+1]).
+            // A vertex whose cells do not close into a single turn — a box
+            // corner, or one a neighboring cell only touches — is not one this
+            // can remove, and the walk finding no successor is how it says so.
+            starFrom.resize(degree);
+            starTo.resize(degree);
+            bool closes = true;
+            for (std::uint32_t k = 0; k < degree && closes; ++k) {
+                const auto& corners = shape[starCells[begin + k]];
+                std::uint32_t position = 0;
+                while (position < 3 && corners[position] != v) {
+                    ++position;
+                }
+                closes = position < 3;
+                if (closes) {
+                    starFrom[k] = corners[(position + 1) % 3];
+                    starTo[k] = corners[(position + 2) % 3];
+                }
+            }
+            fan.clear();
+            link.clear();
+            for (std::uint32_t step = 0, at = 0; closes && step < degree; ++step) {
+                fan.push_back(starCells[begin + at]);
+                link.push_back(starFrom[at]);
+                const VertexIndex after = starTo[at];
+                if (step + 1 == degree) {
+                    closes = after == link[0];
+                    break;
+                }
+                std::uint32_t following = degree;
+                for (std::uint32_t k = 0; k < degree; ++k) {
+                    if (starFrom[k] == after) {
+                        following = k;
+                        break;
+                    }
+                }
+                closes = following < degree;
+                at = closes ? following : 0;
+            }
+            if (!closes || link.size() != degree || !earClip(link, /*mountain=*/false)) {
+                blocked[slot] = 1;  // not removable; its neighbors stay free
+                continue;
+            }
+
+            for (const auto& ear : ears) {
+                // The fan cells this triangle covers. Consecutive link vertices
+                // turn around v, so a triangle that does not hold v spans one
+                // arc of them — the two gaps other than the one wider than half
+                // a turn — and it covers exactly the cells in that arc.
+                std::uint32_t from = 0;
+                std::uint32_t count = degree;
+                int outward = -1;
+                bool decided = true;
+                for (int g = 0; g < 3 && decided; ++g) {
+                    const auto side =
+                        orient(v, link[ear[static_cast<std::size_t>(g)]],
+                               link[ear[static_cast<std::size_t>((g + 1) % 3)]]);
+                    if (side == 0) {
+                        decided = false;
+                    } else if (side < 0) {
+                        decided = outward < 0;
+                        outward = g;
+                    }
+                }
+                if (decided && outward >= 0) {
+                    from = ear[static_cast<std::size_t>((outward + 1) % 3)];
+                    const std::uint32_t stop = ear[static_cast<std::size_t>(outward)];
+                    count = (stop + degree - from) % degree;
+                    if (count == 0) {
+                        count = degree;
+                    }
+                }
+                Cell cell;
+                cell.apex = static_cast<std::uint32_t>(v);
+                cell.runBegin = static_cast<std::uint32_t>(kp->run.size());
+                cell.runCount = count | (count == degree ? Kirkpatrick::FULL_TURN : 0u);
+                for (std::uint32_t k = 0; k < count; ++k) {
+                    kp->run.push_back(static_cast<std::uint32_t>(link[(from + k) % degree]));
+                    kp->run.push_back(fan[(from + k) % degree]);
+                }
+                kp->run.push_back(static_cast<std::uint32_t>(link[(from + count) % degree]));
+                fresh.push_back(static_cast<std::uint32_t>(kp->cells.size()));
+                kp->cells.push_back(cell);
+                shape.push_back({link[ear[0]], link[ear[1]], link[ear[2]]});
+            }
+
+            blocked[slot] = 1;
+            for (const VertexIndex u : link) {
+                blocked[static_cast<std::size_t>(slotOf[static_cast<std::size_t>(u)])] = 1;
+            }
+            for (const std::uint32_t cell : fan) {
+                replaced[cell] = 1;
+            }
+        }
+
+        for (const VertexIndex v : used) {
+            slotOf[static_cast<std::size_t>(v)] = -1;
+        }
+
+        if (fresh.empty()) {
+            // Nothing came off at this degree: let the next pass reach further,
+            // and give up once even a generous star finds nothing.
+            if (degreeLimit >= 64) {
+                break;
+            }
+            degreeLimit += 4;
+            continue;
+        }
+        kept.clear();
+        kept.reserve(active.size());
+        for (const std::uint32_t c : active) {
+            if (!replaced[c]) {
+                kept.push_back(c);
+            }
+        }
+        kept.insert(kept.end(), fresh.begin(), fresh.end());
+        active.swap(kept);
+        degreeLimit = pointLocationMaxStar;
+    }
+
+    // ---- lay the cells out along the descent -----------------------------
+    // A query reads one cell per level, and the cells it reads are scattered
+    // over the order they were made in — which follows the removal order,
+    // itself sorted by star size. Renumbering them depth first from the top
+    // instead puts a cell beside the child it hands the query to, so a descent
+    // walks memory forwards rather than jumping over the whole hierarchy.
+    {
+        // The top level keeps its triangles, being the one a query has to be
+        // placed in; the rest go now, before the relaid arrays double what the
+        // hierarchy holds.
+        kp->roots.reserve(active.size());
+        kp->rootShape.reserve(active.size());
+        for (const std::uint32_t c : active) {
+            kp->rootShape.push_back(shape[c]);
+        }
+        shape.clear();
+        shape.shrink_to_fit();
+
+        const std::uint32_t cellCount = static_cast<std::uint32_t>(kp->cells.size());
+        std::vector<std::uint32_t> relabel(cellCount, ~0u);
+        std::vector<Cell> laid;
+        laid.reserve(cellCount);
+        std::vector<std::uint32_t> laidRun;
+        laidRun.reserve(kp->run.size());
+        std::vector<std::uint32_t> stack(active.rbegin(), active.rend());
+        while (!stack.empty()) {
+            const std::uint32_t c = stack.back();
+            stack.pop_back();
+            if (relabel[c] != ~0u) {
+                continue;
+            }
+            relabel[c] = static_cast<std::uint32_t>(laid.size());
+            laid.push_back(kp->cells[c]);
+            const Cell& cell = kp->cells[c];
+            for (std::uint32_t k = cell.runCount & ~Kirkpatrick::FULL_TURN; k-- > 0;) {
+                stack.push_back(kp->run[cell.runBegin + 2 * k + 1]);
+            }
+        }
+        for (Cell& cell : laid) {
+            const std::uint32_t count = cell.runCount & ~Kirkpatrick::FULL_TURN;
+            if (count == 0) {
+                continue;  // runBegin is this leaf's seed, not a run
+            }
+            const std::uint32_t from = cell.runBegin;
+            cell.runBegin = static_cast<std::uint32_t>(laidRun.size());
+            for (std::uint32_t k = 0; k < count; ++k) {
+                laidRun.push_back(kp->run[from + 2 * k]);
+                laidRun.push_back(relabel[kp->run[from + 2 * k + 1]]);
+            }
+            laidRun.push_back(kp->run[from + 2 * count]);
+        }
+        for (const std::uint32_t c : active) {
+            kp->roots.push_back(relabel[c]);
+        }
+        kp->cells.swap(laid);
+        kp->run.swap(laidRun);
+    }
+    pointLocation_ = std::move(kp);
+    pointLocationRevision_ = revision_;
+}
 
 namespace detail {
 

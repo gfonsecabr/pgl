@@ -153,7 +153,7 @@ Pangolin includes [fundamental algorithms](doc/algorithms.md):
 
 - **Kd-tree** for points and a generalization for other bounded shapes.
 - **Interval tree** to use 1-dimensional queries on projections.
-- **Triangulation** including **Delaunay** and **constrained Delaunay** triangulations for points and polygons.
+- **Triangulation** including **Delaunay** and **constrained Delaunay** triangulations for points and polygons, with a **Kirkpatrick hierarchy** for fast point location.
 - **Arrangement** of lines, line segments, and rays with a **trapezoidal map** for fast point location.
 - Graph class for combinatorial algorithms like **Dijkstra** and **Prim** that can be used to compute Euclidean minimum spanning trees and shortest paths among obstacles.
 

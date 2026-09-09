@@ -2454,11 +2454,11 @@ TEST_CASE("asArrangement has the mesh edges and triangle face IDs") {
     }
 }
 
-// A mesh large enough that buildPointLocation indexes a strict sample of the
-// vertices rather than all of them, with one query strictly inside every
-// triangle. Coordinates are multiples of three, which makes each triangle's
-// centroid a point of the coordinate type itself -- so the queries reach the
-// index, which only serves a query in the mesh's own number type.
+// A mesh large enough that the point-location hierarchy is many levels deep,
+// with one query strictly inside every triangle. Coordinates are multiples of
+// three, which makes each triangle's centroid a point of the coordinate type
+// itself — so the queries reach the index, which only serves a query in the
+// mesh's own number type.
 template <class Point>
 std::vector<Point> sampledIndexMesh(int count) {
     using Number = std::remove_cvref_t<decltype(std::declval<Point>().x())>;
@@ -2483,8 +2483,8 @@ TEST_CASE_TEMPLATE("The point-location index answers as the bare walk does",
     using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;
     using Number = std::remove_cvref_t<decltype(std::declval<Point>().x())>;
 
-    // 400 vertices against an index of at most 64 cells: the walk finishes
-    // what the index starts, over cells of several triangles each.
+    // 400 vertices, which the hierarchy takes down to a handful of triangles
+    // over a dozen or so levels.
     Mesh mesh(sampledIndexMesh<Point>(400));
     REQUIRE(mesh.numTriangles() > 64);
 
@@ -2513,14 +2513,124 @@ TEST_CASE_TEMPLATE("The point-location index answers as the bare walk does",
     CHECK(mesh.has(mesh.locateId(vertex)));
 }
 
+TEST_CASE_TEMPLATE("The point-location index takes a hull with collinear vertices", Point,
+                   pgl::Point<int>, pgl::EPoint) {
+    using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;
+    using Number = std::remove_cvref_t<decltype(std::declval<Point>().x())>;
+
+    // A lattice: every side of the hull carries nineteen vertices in a row, so
+    // the ring the index draws between the mesh and its box is full of corners
+    // collinear with their neighbours — corners that are never ears. Cutting
+    // one anyway would leave its vertex on an edge of the ring without being a
+    // corner of it, and no level could then remove it: the hierarchy would stop
+    // at the hull instead of coming down to the box.
+    std::vector<Point> points;
+    for (int x = 0; x <= 20; ++x) {
+        for (int y = 0; y <= 20; ++y) {
+            points.push_back(P<Point>(x * 3, y * 3));
+        }
+    }
+    Mesh mesh(points);
+    Mesh bare(points);
+    mesh.buildPointLocation();
+    REQUIRE(mesh.hasPointLocation());
+
+    for (const auto& triangle : mesh.triangles()) {
+        const Point query = (triangle.a() + triangle.b() + triangle.c()) / Number(3);
+        CHECK(mesh.locateId(query) == bare.locateId(query));
+    }
+    for (int x = -6; x <= 66; x += 3) {
+        for (int y = -6; y <= 66; y += 3) {
+            const Point query = P<Point>(x, y);
+            CHECK(mesh.locateId(query).valid() == bare.locateId(query).valid());
+        }
+    }
+}
+
+TEST_CASE_TEMPLATE("The point-location index places every vertex and misses everything far away",
+                   Point, pgl::Point<int>, pgl::EPoint) {
+    using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;
+
+    Mesh mesh(sampledIndexMesh<Point>(300));
+    mesh.buildPointLocation();
+    REQUIRE(mesh.hasPointLocation());
+
+    // A vertex lies in the closure of several triangles and any of them is an
+    // answer, but it is never outside the mesh.
+    for (const auto vertex : mesh.vertexIds()) {
+        CHECK(mesh.has(mesh.locateId(mesh[vertex])));
+    }
+    // Well outside the box the index covers, where the descent places nothing.
+    for (const Point& query : {P<Point>(-100000, 7), P<Point>(7, -100000),
+                               P<Point>(100000, 7), P<Point>(7, 100000)}) {
+        CHECK_FALSE(mesh.locateId(query).valid());
+    }
+}
+
+TEST_CASE_TEMPLATE("A copy shares the point-location index", Point, pgl::Point<int>,
+                   pgl::EPoint) {
+    using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;
+    using Number = std::remove_cvref_t<decltype(std::declval<Point>().x())>;
+
+    Mesh mesh(sampledIndexMesh<Point>(200));
+    mesh.buildPointLocation();
+    const Mesh copy = mesh;
+    CHECK(copy.hasPointLocation());
+    CHECK(copy.hasCurrentPointLocation());
+    for (const auto& triangle : copy.triangles()) {
+        const Point query = (triangle.a() + triangle.b() + triangle.c()) / Number(3);
+        CHECK(copy.locateId(query) == mesh.locateId(query));
+    }
+}
+
+TEST_CASE_TEMPLATE("The point-location index respects a non-convex domain", Point,
+                   pgl::Point<int>, pgl::EPoint) {
+    using PolygonShape = pgl::Polygon<Point>;
+    using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;
+    using Number = std::remove_cvref_t<decltype(std::declval<Point>().x())>;
+
+    // A comb: the teeth leave deep notches between the domain and its hull, so
+    // most of what the hierarchy indexes is triangles the domain carved away.
+    std::vector<Point> ring{P<Point>(0, 0)};
+    for (int i = 0; i < 5; ++i) {
+        const int x = 60 * i;
+        ring.push_back(P<Point>(x + 12, 0));
+        ring.push_back(P<Point>(x + 12, 90));
+        ring.push_back(P<Point>(x + 36, 90));
+        ring.push_back(P<Point>(x + 36, 0));
+    }
+    ring.push_back(P<Point>(300, 0));
+    ring.push_back(P<Point>(300, 120));
+    ring.push_back(P<Point>(0, 120));
+    const PolygonShape comb(ring);
+    Mesh mesh(comb);
+    Mesh bare(comb);
+    mesh.buildPointLocation();
+    REQUIRE(mesh.hasPointLocation());
+
+    for (const auto& triangle : mesh.triangles()) {
+        const Point query = (triangle.a() + triangle.b() + triangle.c()) / Number(3);
+        CHECK(mesh.locateId(query) == bare.locateId(query));
+    }
+    // Odd multiples of three, so that no query lands on the domain's boundary,
+    // where an incident triangle either side of it is an answer and the two
+    // ways of finding one need not agree on which.
+    for (int x = -3; x <= 303; x += 6) {
+        for (int y = -3; y <= 123; y += 6) {
+            const Point query = P<Point>(x, y);
+            CHECK(mesh.locateId(query).valid() == bare.locateId(query).valid());
+        }
+    }
+}
+
 TEST_CASE_TEMPLATE("A stale point-location index answers exactly as none does",
                    Point, pgl::Point<int>, pgl::EPoint) {
     using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;
     using Number = std::remove_cvref_t<decltype(std::declval<Point>().x())>;
 
     // Index a 400-vertex mesh, then grow it by half as much again without
-    // rebuilding: the coarsening now knows two thirds of the vertices, and
-    // every cell's seed was chosen against a mesh that no longer exists.
+    // rebuilding: the hierarchy now knows two thirds of the vertices, and every
+    // triangle it lands on was a triangle of a mesh that no longer exists.
     //
     // The corners of the generator's range go in first, so every later point
     // falls inside the hull and the insertions exercise splitting rather than
@@ -2560,15 +2670,16 @@ TEST_CASE_TEMPLATE("A stale point-location index answers exactly as none does",
     }
 }
 
-TEST_CASE("The point-location index respects a domain with holes") {
-    using Point = pgl::Point<int>;
+TEST_CASE_TEMPLATE("The point-location index respects a domain with holes", Point,
+                   pgl::Point<int>, pgl::EPoint) {
     using PolygonShape = pgl::Polygon<Point>;
     using Region = pgl::PolygonWithHoles<Point>;
     using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;
+    using Number = std::remove_cvref_t<decltype(std::declval<Point>().x())>;
 
-    // The sample the index is drawn on is a triangulation of the vertices
-    // alone, so its cells cross the holes; a query in a hole must still come
-    // back empty, which is the walk's answer and not the index's. Every
+    // The hierarchy is drawn on the whole convex-hull triangulation, the
+    // triangles a hole carved away included, so a query in a hole lands on one
+    // of those and must come back empty just as the bare walk leaves it. Every
     // coordinate here is a multiple of three, the holes' included, so that a
     // triangle's centroid stays a point of the mesh's own number type.
     const Region region(PolygonShape({0, 0, 600, 0, 600, 600, 0, 600}),
@@ -2583,11 +2694,11 @@ TEST_CASE("The point-location index respects a domain with holes") {
     Mesh mesh(region, interior);
     REQUIRE(mesh.numVertices() > 64);
 
-    std::vector<Point> queries{Point(150, 150), Point(450, 450),  // the two holes
-                               Point(50, 550),  Point(300, 50),   // material
-                               Point(-20, 300)};                  // outside
+    std::vector<Point> queries{P<Point>(150, 150), P<Point>(450, 450),  // the two holes
+                               P<Point>(50, 550),  P<Point>(300, 50),   // material
+                               P<Point>(-20, 300)};                 // outside
     for (const auto& triangle : mesh.triangles()) {
-        queries.push_back((triangle.a() + triangle.b() + triangle.c()) / 3);
+        queries.push_back((triangle.a() + triangle.b() + triangle.c()) / Number(3));
     }
 
     std::vector<typename Mesh::TriId> walked;
@@ -2607,7 +2718,7 @@ TEST_CASE("The point-location index respects a domain with holes") {
     }
 }
 
-TEST_CASE("Triangulation uses and invalidates its arrangement point location") {
+TEST_CASE("Triangulation uses and outlives its point-location index") {
     using Point = pgl::EPoint;
     using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;
 
@@ -2638,8 +2749,8 @@ TEST_CASE("Triangulation uses and invalidates its arrangement point location") {
     CHECK(mesh.hasCurrentPointLocation());
 
     // An edit does move the mesh on from the index, and the index survives it:
-    // a seed is a triangle of this mesh however the mesh has changed, and the
-    // walk answers from there.
+    // where a descent lands is a triangle of this mesh however the mesh has
+    // changed, and the walk answers from there.
     REQUIRE(mesh.insertDelaunay(P<Point>(1, 2)));
     CHECK(mesh.hasPointLocation());
     CHECK_FALSE(mesh.hasCurrentPointLocation());

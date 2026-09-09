@@ -65,8 +65,8 @@ void run(const bench::Options& opt) {
             triangulation->buildPointLocation();
         }
 
-        // After it: the same queries through the trapezoidal search DAG. The
-        // hit count is the same signature as the walk's, so the two rows
+        // After it: the same queries down the Kirkpatrick hierarchy. The hit
+        // count is the same signature as the walk's, so the two rows
         // cross-check each other at every size.
         bench::require(triangulation->hasPointLocation(),
                        "the point-location index is not in place");
