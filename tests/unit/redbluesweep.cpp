@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <random>
 #include <vector>
 
@@ -46,7 +47,7 @@ PolygonShape star(std::mt19937 &rgen, int n, int span, Point centre) {
     std::uniform_int_distribution<int> radius(1, span);
     std::vector<Point> ring;
     for (int i = 0; i < n; ++i) {
-        const double angle = 2 * M_PI * i / n;
+        const double angle = 2 * std::numbers::pi * i / n;
         const int r = radius(rgen);
         const Point v((int)std::llround(r * std::cos(angle)),
                       (int)std::llround(r * std::sin(angle)));
