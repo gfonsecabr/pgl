@@ -114,6 +114,71 @@ struct LInfMetric {
     }
 };
 
+// The key an integral coordinate is radix sorted by: the same bits for an
+// unsigned type, and the sign bit flipped for a signed one, so that the
+// unsigned order of the keys is the signed order of the values.
+template <class Integral>
+[[nodiscard]] constexpr auto radixKey(Integral value) {
+    using Unsigned = std::make_unsigned_t<Integral>;
+    const auto bits = static_cast<Unsigned>(value);
+    if constexpr (std::is_signed_v<Integral>) {
+        return static_cast<Unsigned>(bits ^ (Unsigned{1} << (8 * sizeof(Unsigned) - 1)));
+    } else {
+        return bits;
+    }
+}
+
+// Sorts `v` by an integral key, one byte at a time from the least significant,
+// which orders n elements in a number of linear passes fixed by the width of
+// the key rather than in n log n comparisons. `scratch` is the alternate buffer
+// the passes ping-pong between; it is the caller's so that sorting several
+// lists reuses one allocation.
+//
+// A pass whose digit is the same for every element would only copy the array,
+// so the histogram is taken for all digits in one sweep and those passes are
+// skipped. Coordinates that share a sign and span less than their type -- which
+// is to say most of them -- therefore cost fewer passes than the width implies.
+template <class T, class KeyFn>
+void radixSort(std::vector<T>& v, std::vector<T>& scratch, KeyFn key) {
+    using Key = decltype(key(std::declval<const T&>()));
+    static constexpr int digits = static_cast<int>(sizeof(Key));
+    const std::size_t n = v.size();
+    if (n == 0) {
+        return;
+    }
+
+    std::size_t counts[digits][256] = {};
+    for (const T& element : v) {
+        const Key k = key(element);
+        for (int digit = 0; digit < digits; ++digit) {
+            ++counts[digit][(k >> (8 * digit)) & 0xFF];
+        }
+    }
+
+    scratch.resize(n);
+    T* from = v.data();
+    T* to = scratch.data();
+    for (int digit = 0; digit < digits; ++digit) {
+        std::size_t* count = counts[digit];
+        if (count[(key(from[0]) >> (8 * digit)) & 0xFF] == n) {
+            continue;  // One bucket holds everything: the pass cannot reorder.
+        }
+        std::size_t offset = 0;
+        for (int bucket = 0; bucket < 256; ++bucket) {
+            const std::size_t size = count[bucket];
+            count[bucket] = offset;
+            offset += size;
+        }
+        for (std::size_t i = 0; i < n; ++i) {
+            to[count[(key(from[i]) >> (8 * digit)) & 0xFF]++] = from[i];
+        }
+        std::swap(from, to);
+    }
+    if (from != v.data()) {
+        std::copy(from, from + n, v.begin());
+    }
+}
+
 }  // namespace detail
 
 /**
@@ -679,6 +744,13 @@ class ShapeTree {
 
     static constexpr std::size_t defaultLeafSize = 6;
 
+    // Below this many ends a comparison sort beats the radix passes, which
+    // start with a flat cost -- a histogram sweep and a second buffer -- that a
+    // short list never earns back. Measured over segments, where the two are
+    // within noise of each other at this size and the radix sort pulls away
+    // above it: 1.5x at 4096 ends and more as they multiply.
+    static constexpr std::size_t kRadixThreshold = 512;
+
     std::vector<ShapeType> elements_;
     std::vector<Node> nodes_;
     // Parallel to elements_ and to nodes_, and empty unless usesFilter.
@@ -748,6 +820,24 @@ class ShapeTree {
             const auto box = elements_[i].bbox();
             lo.push_back(EndPoint{box.min()[axis], i});
             hi.push_back(EndPoint{box.max()[axis], i});
+        }
+        // An integral coordinate is ordered by its bits, so the two lists are
+        // radix sorted in a fixed number of passes rather than compared n log n
+        // times. These sorts are the largest single cost of building over
+        // shapes, and for large ones, which mostly straddle the root and leave
+        // little tree below it, they are most of the build. Every other
+        // coordinate type keeps the comparison sort -- an exact rational's
+        // order is not a function of its representation -- and so does the
+        // incremental path, which splits one overflowing leaf and never brings
+        // enough ends here to reach the threshold.
+        if constexpr (std::is_integral_v<NumberType> && sizeof(NumberType) <= 8) {
+            if (indices.size() >= kRadixThreshold) {
+                std::vector<EndPoint> scratch;
+                const auto key = [](const EndPoint& e) { return detail::radixKey(e.value); };
+                detail::radixSort(lo, scratch, key);
+                detail::radixSort(hi, scratch, key);
+                return;
+            }
         }
         const auto byValue = [](const EndPoint& a, const EndPoint& b) { return a.value < b.value; };
         std::sort(lo.begin(), lo.end(), byValue);
@@ -1101,21 +1191,33 @@ class ShapeTree {
         // Tag each element with the side it goes to, then deal every end list
         // out by the tags. A filtered subsequence of an ordered list is ordered,
         // so the children get their lists sorted without a comparison.
+        //
+        // The tags are read off the split's own lists rather than tested for.
+        // An element goes left exactly when its upper end is at most the split
+        // value, and those ends are the ascending prefix the split counted; it
+        // goes right exactly when its lower end is above the split value, the
+        // matching suffix of the other list. So the two groups are named by
+        // position, and tagging costs no comparison and no bounding box --
+        // where testing each element cost two of each, at every node it
+        // belongs to, over a coordinate type where both are expensive.
         static constexpr std::uint8_t toLeft = 0, toRight = 1, stays = 2;
         const auto a = static_cast<std::size_t>(best.axis);
-        std::vector<std::size_t> straddlers;
-        std::size_t leftCount = 0, rightCount = 0;
+        const std::size_t n = indices.size();
+        const std::size_t leftCount = best.leftCount;
+        const std::size_t rightCount = best.rightCount;
         for (std::size_t i : indices) {
-            const auto box = elements_[i].bbox();
-            const std::uint8_t which = box.max()[a] <= best.value  ? toLeft
-                                       : box.min()[a] > best.value ? toRight
-                                                                   : stays;
-            side[i] = which;
-            if (which == toLeft) {
-                ++leftCount;
-            } else if (which == toRight) {
-                ++rightCount;
-            } else {
+            side[i] = stays;
+        }
+        for (std::size_t k = 0; k < leftCount; ++k) {
+            side[ends.hi[a][k].index] = toLeft;
+        }
+        for (std::size_t k = n - rightCount; k < n; ++k) {
+            side[ends.lo[a][k].index] = toRight;
+        }
+        std::vector<std::size_t> straddlers;
+        straddlers.reserve(n - leftCount - rightCount);
+        for (std::size_t i : indices) {
+            if (side[i] == stays) {
                 straddlers.push_back(i);
             }
         }

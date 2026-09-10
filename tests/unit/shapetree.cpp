@@ -875,3 +875,69 @@ TEST_CASE("ShapeTree keeps its filter boxes in step with insert and erase") {
         checkAgainstScan(tree, ERect(exactPoint(rng, 1), exactPoint(rng, 1)));
     }
 }
+
+TEST_CASE("ShapeTree builds over enough shapes to sort its box ends by radix") {
+    // Over an integral coordinate the build orders its box ends by their bits
+    // rather than by comparing them, once there are enough of them to pay for
+    // the passes; below that it compares, which every other case here covers.
+    // These families cross that threshold and differ in what the passes see: a
+    // range narrow enough that most of them have nothing to do, one that
+    // straddles zero so the ordering rests on the flipped sign bit, and one
+    // wide enough that every byte of the coordinate varies.
+    using PglSegment = pgl::Segment<Point>;
+    struct Family {
+        const char* name;
+        int lo, hi;
+    };
+    const Family families[] = {
+        {"narrow", 0, 50},
+        {"signed", -600, 600},
+        {"wide", -1000000, 1000000},
+    };
+
+    for (const Family& family : families) {
+        CAPTURE(family.lo);
+        CAPTURE(family.hi);
+        Rng rng{0xd1ce5 ^ static_cast<std::uint64_t>(family.hi)};
+        std::vector<PglSegment> segments;
+        for (int i = 0; i < 600; ++i) {
+            const int x = rng.range(family.lo, family.hi);
+            const int y = rng.range(family.lo, family.hi);
+            const int span = (family.hi - family.lo) / 20 + 1;
+            segments.emplace_back(Point(x, y),
+                                  Point(x + rng.range(-span, span), y + rng.range(-span, span)));
+        }
+        const pgl::ShapeTree<PglSegment> tree(segments);
+        CHECK(tree.size() == segments.size());
+
+        // Every shape is stored exactly once: a sort that dropped or duplicated
+        // an end would leave the tree short or double-count it.
+        for (const PglSegment& s : segments) {
+            CHECK(tree.has(s));
+        }
+        const Rect everything(family.lo - 2000000, family.lo - 2000000,
+                              family.hi + 2000000, family.hi + 2000000);
+        CHECK(tree.countIntersecting(everything) == segments.size());
+        CHECK(tree.countContainedIn(everything) == segments.size());
+
+        // And the queries still agree with a scan. A mis-sorted end list makes
+        // a node claim a subtree it does not hold, which a range query answers
+        // by missing shapes rather than by losing them.
+        for (int i = 0; i < 40; ++i) {
+            const int x = rng.range(family.lo, family.hi);
+            const int y = rng.range(family.lo, family.hi);
+            const int s = (family.hi - family.lo) / 8 + 3;
+            const Rect q(x, y, x + s, y + s);
+            CHECK(tree.countIntersecting(q) == bruteCountIntersecting(segments, q));
+            CHECK(tree.countContainedIn(q) == bruteCountContained(segments, q));
+        }
+
+        // Exact rationals, not a fixed-width one: over the widest family a
+        // squared distance to a segment overruns 64 bits on its own.
+        for (int i = 0; i < 20; ++i) {
+            const Point q(rng.range(family.lo, family.hi), rng.range(family.lo, family.hi));
+            CHECK(q.squaredDistance<pgl::ERational>(tree.nearestNeighbor<pgl::ERational>(q)) ==
+                  bruteNearestDistance<pgl::ERational>(segments, q));
+        }
+    }
+}
