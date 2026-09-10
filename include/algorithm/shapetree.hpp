@@ -1506,6 +1506,30 @@ class ShapeTree {
     void buildFromElements() {
         nodes_.clear();
         nodeFilterBoxes_.clear();
+        // Points arrive in the caller's order, which is usually no order at
+        // all, and the build then reaches them through index lists that scatter
+        // over the whole array at every level of the recursion. Ordering them
+        // first makes each node's elements an ascending run -- a partition
+        // keeps the relative order of what it hands on, so an ordered list
+        // stays ordered all the way down -- and every pass over them reads
+        // forward instead of hopping. It cannot change the tree: a split is
+        // chosen by coordinate value, and the order of the elements a node
+        // holds is unspecified in any case.
+        //
+        // Every fixed-width coordinate gains by it, whether it orders by its
+        // bits or by comparison. An arbitrary-precision one pays for its
+        // ordering in exact comparisons and has less to win back, its build
+        // being held up by arithmetic rather than by memory, and comes out a
+        // few percent behind -- not enough to be worth building two different
+        // trees. Shapes are left where they are, their build already reading
+        // its ends from lists it keeps in order.
+        //
+        // This runs before the filter boxes below, which are indexed in
+        // parallel with the elements and would otherwise be left describing
+        // whoever now sits at their index.
+        if constexpr (PointConcept<ShapeType>) {
+            sortPoints(elements_);
+        }
         if constexpr (usesFilter) {
             filterBoxes_.clear();
             filterBoxes_.reserve(elements_.size());
