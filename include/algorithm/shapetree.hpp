@@ -918,38 +918,63 @@ class ShapeTree {
         }
     }
 
-    // Appends the node covering `indices`, with its bounding box, its element
-    // count and its weight sum, and returns its index. Whether it keeps them as
-    // a leaf or splits them further is the caller's to decide.
-    std::ptrdiff_t makeNode(const std::vector<std::size_t>& indices) {
-        Rect box = Rect(elements_[indices[0]].bbox());
-        WeightType weightSum = weight_(elements_[indices[0]]);
-        // The subtree's filter box is unioned from the elements' rather than
-        // converted from `box` once it is known: a union of outward boxes is
-        // outward too, and it rides the loop already running instead of paying
-        // eight directed conversions out of the exact coordinate type.
+    // Sets node `id`'s bounding box, element count and weight sum from the
+    // elements it owns and from what its children already aggregated, so it is
+    // called on the way back up with both children finished. Reading a child's
+    // total instead of its elements is what keeps the whole build to one visit
+    // per element rather than one per level of the tree above it.
+    void aggregate(std::ptrdiff_t id) {
+        Rect box;
+        WeightType weightSum{};
+        // The subtree's filter box is unioned from the elements' and the
+        // children's rather than converted from `box` once it is known: a union
+        // of outward boxes is outward too, and it rides the loop already
+        // running instead of paying eight directed conversions out of the exact
+        // coordinate type.
         FilterBox filter{};
-        if constexpr (usesFilter) {
-            filter = filterBoxes_[indices[0]];
-        }
-        for (std::size_t k = 1; k < indices.size(); ++k) {
-            box.insert(elements_[indices[k]].bbox());
-            weightSum = weightSum + weight_(elements_[indices[k]]);
-            if constexpr (usesFilter) {
-                filter.insert(filterBoxes_[indices[k]]);
+        // A `Rect` has no empty value to start a union from, and neither has a
+        // `FilterBox`; both take their first contributor by assignment. Every
+        // node has at least one, since a subtree is never built empty.
+        bool started = false;
+        // `boxes` is the array the contributor's filter box lives in: the
+        // per-element one for an element, the per-node one for a child.
+        const auto absorb = [&](const Rect& r, const std::vector<FilterBox>& boxes,
+                                std::size_t at) {
+            if (!started) {
+                box = r;
+                if constexpr (usesFilter) {
+                    filter = boxes[at];
+                }
+                started = true;
+            } else {
+                box.insert(r);
+                if constexpr (usesFilter) {
+                    filter.insert(boxes[at]);
+                }
             }
+        };
+
+        std::size_t count = nodes_[id].elementIndices.size();
+        for (std::size_t i : nodes_[id].elementIndices) {
+            absorb(elements_[i].bbox(), filterBoxes_, i);
+            weightSum = weightSum + weight_(elements_[i]);
+        }
+        for (const std::ptrdiff_t child : {nodes_[id].left, nodes_[id].right}) {
+            if (child == -1) {
+                continue;
+            }
+            const std::size_t c = static_cast<std::size_t>(child);
+            absorb(nodes_[c].box, nodeFilterBoxes_, c);
+            weightSum = weightSum + nodes_[c].weightSum;
+            count += nodes_[c].count;
         }
 
-        // Reserve this node's slot now; recursion may reallocate nodes_, so the
-        // node is always addressed by index, never by a dangling reference.
-        const std::ptrdiff_t id = allocNode();
         nodes_[id].box = box;
         if constexpr (usesFilter) {
             nodeFilterBoxes_[static_cast<std::size_t>(id)] = filter;
         }
-        nodes_[id].count = indices.size();
+        nodes_[id].count = count;
         nodes_[id].weightSum = weightSum;
-        return id;
     }
 
     // Builds a subtree from the given element indices and returns its node index.
@@ -957,10 +982,14 @@ class ShapeTree {
     // the split direction alternates (e.g. for points, where both axes always
     // score the same).
     std::ptrdiff_t build(const std::vector<std::size_t>& indices, int level) {
-        const std::ptrdiff_t id = makeNode(indices);
+        // Reserve this node's slot now, before the children take theirs, so the
+        // nodes stay in pre-order; recursion may reallocate nodes_, so the node
+        // is always addressed by index, never by a dangling reference.
+        const std::ptrdiff_t id = allocNode();
 
         if (indices.size() <= leafSize_) {
             nodes_[id].elementIndices = indices;
+            aggregate(id);
             return id;
         }
 
@@ -969,6 +998,7 @@ class ShapeTree {
             // No axis can separate the elements (e.g. many identical boxes):
             // keep them all here as a leaf.
             nodes_[id].elementIndices = indices;
+            aggregate(id);
             return id;
         }
 
@@ -980,6 +1010,7 @@ class ShapeTree {
         nodes_[id].left = leftChild;
         nodes_[id].right = rightChild;
         nodes_[id].elementIndices = std::move(straddlers);
+        aggregate(id);
         return id;
     }
 
@@ -1000,16 +1031,18 @@ class ShapeTree {
             indices.push_back(end.index);
         }
 
-        const std::ptrdiff_t id = makeNode(indices);
+        const std::ptrdiff_t id = allocNode();
 
         if (indices.size() <= leafSize_) {
             nodes_[id].elementIndices = std::move(indices);
+            aggregate(id);
             return id;
         }
 
         const Split best = chooseSplit(ends, level);
         if (!best.found) {
             nodes_[id].elementIndices = std::move(indices);
+            aggregate(id);
             return id;
         }
 
@@ -1065,6 +1098,7 @@ class ShapeTree {
         nodes_[id].left = leftChild;
         nodes_[id].right = rightChild;
         nodes_[id].elementIndices = std::move(straddlers);
+        aggregate(id);
         return id;
     }
 
