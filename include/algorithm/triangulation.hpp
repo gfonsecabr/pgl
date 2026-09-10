@@ -332,8 +332,8 @@ struct Triangulation {
         // Carry each input segment's label onto its edge record.
         if constexpr (detail::has_label_v<SegmentLabel>) {
             for (const auto& s : segs) {
-                auto it = segToEdge_.find(s);
-                if (it != segToEdge_.end()) {
+                auto it = segmentMap().find(s);
+                if (it != segmentMap().end()) {
                     it->second.segLabel = detail::copyLabel<SegmentLabel>(s);
                 }
             }
@@ -432,8 +432,8 @@ struct Triangulation {
         // edges exist (constrained edges are never flipped away).
         if constexpr (detail::has_label_v<SegmentLabel>) {
             for (const auto& s : segments) {
-                auto it = segToEdge_.find(SegmentType(PointType(s[0]), PointType(s[1])));
-                if (it != segToEdge_.end()) {
+                auto it = segmentMap().find(SegmentType(PointType(s[0]), PointType(s[1])));
+                if (it != segmentMap().end()) {
                     it->second.segLabel = detail::copyLabel<SegmentLabel>(s);
                 }
             }
@@ -671,11 +671,21 @@ struct Triangulation {
 
     /** @brief Number of undirected edges incident to the visible triangulation. */
     [[nodiscard]] std::size_t numEdges() const {
+        // Counted off the triangles rather than off the segment map, which
+        // holds exactly these edges but which a triangulation asked only for a
+        // count should not have to fill. An edge between two real triangles is
+        // reached from both and counted from the lower-numbered one; every
+        // other edge has one real side and is reached once.
         std::size_t count = 0;
-        for (const auto& [seg, e] : segToEdge_) {
-            (void)seg;
-            if (edgeInDomain(e)) {
-                ++count;
+        for (TriIndex t = 0; t < firstGhost_; ++t) {
+            for (std::int8_t s = 0; s < 3; ++s) {
+                const TriIndex other = triangles_[t].nbr[s];
+                if (other != NO_TRI && other < firstGhost_ && other < t) {
+                    continue;
+                }
+                if (edgeInDomain(Edge{t, s})) {
+                    ++count;
+                }
             }
         }
         return count;
@@ -691,8 +701,8 @@ struct Triangulation {
 
     /** @brief True if @p s is an edge incident to the visible triangulation. */
     [[nodiscard]] bool has(const SegmentType& s) const {
-        auto se = segToEdge_.find(s);
-        return se != segToEdge_.end() && edgeInDomain(se->second);
+        auto se = segmentMap().find(s);
+        return se != segmentMap().end() && edgeInDomain(se->second);
     }
 
     // ---- navigation ------------------------------------------------------
@@ -707,8 +717,8 @@ struct Triangulation {
      */
     [[nodiscard]] std::optional<TriangleType> otherTriangle(const TriangleType& t,
                                                        const SegmentType& shared) const {
-        auto se = segToEdge_.find(shared);
-        if (se == segToEdge_.end()) {
+        auto se = segmentMap().find(shared);
+        if (se == segmentMap().end()) {
             return std::nullopt;
         }
         const TriIndex given = idOf(t);
@@ -748,8 +758,8 @@ struct Triangulation {
     /** @brief The (up to two) triangles incident to edge @p s. */
     [[nodiscard]] std::vector<TriangleType> incidentTriangles(const SegmentType& s) const {
         std::vector<TriangleType> out;
-        auto se = segToEdge_.find(s);
-        if (se == segToEdge_.end()) {
+        auto se = segmentMap().find(s);
+        if (se == segmentMap().end()) {
             return out;
         }
         const Edge e = se->second;
@@ -811,7 +821,7 @@ struct Triangulation {
      */
     template <class Fn>
     bool visitEdges(Fn fn) const {
-        for (const auto& [seg, e] : segToEdge_) {
+        for (const auto& [seg, e] : segmentMap()) {
             (void)seg;
             if (!edgeInDomain(e)) {
                 continue;
@@ -2795,8 +2805,8 @@ struct Triangulation {
                 // built from the endpoints already is the value to report.
                 SegmentType seg(edge[0], edge[1]);
                 if constexpr (detail::has_label_v<SegmentLabel>) {
-                    auto se = segToEdge_.find(seg);
-                    if (se == segToEdge_.end()) {
+                    auto se = segmentMap().find(seg);
+                    if (se == segmentMap().end()) {
                         continue;  // not a stored edge (should not happen)
                     }
                     seg = edgeSegment(se->second);
@@ -3485,14 +3495,14 @@ struct Triangulation {
 
     /** @brief True if edge @p s is flagged as constrained. */
     [[nodiscard]] bool isConstrained(const SegmentType& s) const {
-        auto se = segToEdge_.find(s);
-        return se != segToEdge_.end() && bit(triangles_[se->second.tri].constrainedMask, se->second.side);
+        auto se = segmentMap().find(s);
+        return se != segmentMap().end() && bit(triangles_[se->second.tri].constrainedMask, se->second.side);
     }
 
     /** @brief Flags (or clears) edge @p s as constrained on both incident sides. */
     void setConstrained(const SegmentType& s, bool value = true) {
-        auto se = segToEdge_.find(s);
-        if (se == segToEdge_.end()) {
+        auto se = segmentMap().find(s);
+        if (se == segmentMap().end()) {
             return;
         }
         const Edge e = se->second;
@@ -3549,8 +3559,8 @@ struct Triangulation {
     template <class L = SegmentLabel>
         requires(detail::has_label_v<L>)
     [[nodiscard]] L& label(const SegmentType& s) {
-        auto se = segToEdge_.find(s);
-        assert(se != segToEdge_.end() && "label(): segment is not an edge of the triangulation");
+        auto se = segmentMap().find(s);
+        assert(se != segmentMap().end() && "label(): segment is not an edge of the triangulation");
         return se->second.segLabel;
     }
 
@@ -3558,8 +3568,8 @@ struct Triangulation {
     template <class L = SegmentLabel>
         requires(detail::has_label_v<L>)
     [[nodiscard]] const L& label(const SegmentType& s) const {
-        auto se = segToEdge_.find(s);
-        assert(se != segToEdge_.end() && "label(): segment is not an edge of the triangulation");
+        auto se = segmentMap().find(s);
+        assert(se != segmentMap().end() && "label(): segment is not an edge of the triangulation");
         return se->second.segLabel;
     }
 
@@ -3567,8 +3577,8 @@ struct Triangulation {
 
     /** @brief True if edge @p s can be flipped (unconstrained, interior, convex quad). */
     [[nodiscard]] bool flippable(const SegmentType& s) const {
-        auto se = segToEdge_.find(s);
-        return se != segToEdge_.end() && flippableEdge(se->second);
+        auto se = segmentMap().find(s);
+        return se != segmentMap().end() && flippableEdge(se->second);
     }
 
     /**
@@ -3582,8 +3592,8 @@ struct Triangulation {
      *         @ref flippable.
      */
     std::optional<SegmentType> flip(const SegmentType& s) {
-        auto se = segToEdge_.find(s);
-        if (se == segToEdge_.end()) {
+        auto se = segmentMap().find(s);
+        if (se == segmentMap().end()) {
             return std::nullopt;
         }
         const Edge e = se->second;
@@ -3596,7 +3606,7 @@ struct Triangulation {
         // The shared edge is gone; re-register the six sides of the two
         // rewritten triangles (the four surrounding edges get fresh handles and
         // the new diagonal is added).
-        segToEdge_.erase(s);
+        segmentMap().erase(s);
         registerSides(t);
         registerSides(t2);
         ++revision_;
@@ -3620,8 +3630,8 @@ struct Triangulation {
     [[nodiscard]] bool flippable(const EdgeRange& edges) const {
         std::unordered_set<TriIndex> claimed;  // triangles already covered by some quad
         for (const auto& s : edges) {
-            const auto se = segToEdge_.find(SegmentType(s[0], s[1]));
-            if (se == segToEdge_.end() || !flippableEdge(se->second)) {
+            const auto se = segmentMap().find(SegmentType(s[0], s[1]));
+            if (se == segmentMap().end() || !flippableEdge(se->second)) {
                 return false;
             }
             const Edge e = se->second;
@@ -3881,7 +3891,11 @@ struct Triangulation {
     // vertices_ by syncVertexApproximations and appendVertex.
     std::vector<detail::ApproximatePoint> vertexApproximations_;
     std::vector<Tri> triangles_;       // real triangles [0,firstGhost_), then ghost triangles
-    std::unordered_map<SegmentType, Edge> segToEdge_;  // outside edge -> internal handle
+    // Outside edge -> internal handle, reached through @ref segmentMap. Mutable
+    // and paired with `mapStale_` because a bulk build leaves it unfilled: see
+    // @ref materializeSegmentMap.
+    mutable std::unordered_map<SegmentType, Edge> segToEdge_;
+    mutable bool mapStale_ = false;
     // One triangle inside each hole of a region domain, empty otherwise. A
     // closed boundary drawn inside such a domain can enclose a hole, which the
     // boundary alone never reveals, so the region queries consult these.
@@ -4318,8 +4332,8 @@ struct Triangulation {
     [[nodiscard]] bool anyEdgeOf(const TriangleType& t, Fn f) const {
         for (const auto& edge : t.edges()) {
             const SegmentType seg(edge[0], edge[1]);
-            const auto se = segToEdge_.find(seg);
-            if (se != segToEdge_.end() && f(seg, se->second)) {
+            const auto se = segmentMap().find(seg);
+            if (se != segmentMap().end() && f(seg, se->second)) {
                 return true;
             }
         }
@@ -4412,8 +4426,8 @@ struct Triangulation {
     // counterclockwise and side s spans v[s+1] -> v[s+2], so the triangle
     // carrying the edge in that direction is the one on its left.
     [[nodiscard]] TriIndex triangleLeftOf(VertexIndex a, VertexIndex b) const {
-        const auto it = segToEdge_.find(SegmentType(vertices_[a], vertices_[b]));
-        if (it == segToEdge_.end()) {
+        const auto it = segmentMap().find(SegmentType(vertices_[a], vertices_[b]));
+        if (it == segmentMap().end()) {
             return NO_TRI;
         }
         for (const Edge& e : {it->second, mirror(it->second)}) {
@@ -4476,8 +4490,8 @@ struct Triangulation {
     // up one of its edges, then pick the incident side whose apex matches t.
     [[nodiscard]] TriIndex idOf(const TriangleType& t) const {
         const auto edges = t.edges();
-        auto se = segToEdge_.find(edges[0]);
-        if (se == segToEdge_.end()) {
+        auto se = segmentMap().find(edges[0]);
+        if (se == segmentMap().end()) {
             return NO_TRI;
         }
         const PointType apex = apexOf(t, edges[0]);
@@ -4743,7 +4757,7 @@ struct Triangulation {
     // at least one of them.
     void registerSides(TriIndex t) {
         for (std::int8_t s = 0; s < 3; ++s) {
-            segToEdge_[edgeSegment(Edge{t, s})] = Edge{t, s};
+            segmentMap()[edgeSegment(Edge{t, s})] = Edge{t, s};
         }
         noteVertexIncidence(t);
     }
@@ -4780,11 +4794,39 @@ struct Triangulation {
         return (v[0] == w || v[1] == w || v[2] == w) ? t : NO_TRI;
     }
 
-    // Builds the segment-to-edge map over all real triangles.
-    void buildMap() {
+    // Fills the segment-to-edge map from the mesh, over all real triangles.
+    //
+    // A bulk build leaves the map unfilled and comes here on the first lookup
+    // instead. Registering an edge costs a hash insert keyed by a segment --
+    // two exact points copied and hashed -- three per triangle, and a
+    // triangulation that is only ever asked about triangles, points or
+    // neighbours never reads one of them. What the build cannot defer is the
+    // per-triangle vertex-incidence hint, which the walks do read; that is why
+    // the two are registered apart.
+    //
+    // Only the edge handles are recovered here. An edge's segment label is set
+    // on the record afterwards, by whoever had the labelled segment, and every
+    // site that does so goes through the accessor first.
+    void materializeSegmentMap() const {
+        segToEdge_.clear();
+        // Three sides a triangle, each shared by at most two of them: the map
+        // ends up between one and a half and three entries per triangle, and
+        // sizing it once beats rehashing it as it fills.
+        segToEdge_.reserve(static_cast<std::size_t>(std::max(firstGhost_, TriIndex(0))) * 2);
         for (TriIndex t = 0; t < firstGhost_; ++t) {
-            registerSides(t);
+            for (std::int8_t s = 0; s < 3; ++s) {
+                segToEdge_[edgeSegment(Edge{t, s})] = Edge{t, s};
+            }
         }
+        mapStale_ = false;
+    }
+
+    // The segment-to-edge map, filled first if a bulk build left it deferred.
+    [[nodiscard]] std::unordered_map<SegmentType, Edge>& segmentMap() const {
+        if (mapStale_) {
+            materializeSegmentMap();
+        }
+        return segToEdge_;
     }
 
     // Returns a function that maps a point to its vertex id, appending it to
@@ -5106,12 +5148,12 @@ struct Triangulation {
 
     // The current internal handle of edge {p,q}, or an invalid edge if absent.
     [[nodiscard]] Edge edgeHandle(VertexIndex p, VertexIndex q) const {
-        auto se = segToEdge_.find(SegmentType(vertices_[p], vertices_[q]));
-        return se == segToEdge_.end() ? Edge{NO_TRI, 0} : se->second;
+        auto se = segmentMap().find(SegmentType(vertices_[p], vertices_[q]));
+        return se == segmentMap().end() ? Edge{NO_TRI, 0} : se->second;
     }
 
     [[nodiscard]] bool edgeExists(VertexIndex p, VertexIndex q) const {
-        return segToEdge_.contains(SegmentType(vertices_[p], vertices_[q]));
+        return segmentMap().contains(SegmentType(vertices_[p], vertices_[q]));
     }
 
     // The interior edges that the open segment va->vb crosses, as vertex pairs,
@@ -5251,8 +5293,8 @@ struct Triangulation {
     // tested since, so none can be assumed legal.
     void restoreConstrainedDelaunay() {
         std::vector<SegmentType> suspect;
-        suspect.reserve(segToEdge_.size());
-        for (const auto& [seg, handle] : segToEdge_) {
+        suspect.reserve(segmentMap().size());
+        for (const auto& [seg, handle] : segmentMap()) {
             (void)handle;
             suspect.push_back(seg);
         }
@@ -5466,8 +5508,8 @@ struct Triangulation {
         // segment-range constructor.
         if constexpr (detail::has_label_v<SegmentLabel>) {
             for (const auto& s : constraintSegments) {
-                auto it = segToEdge_.find(SegmentType(PointType(s[0]), PointType(s[1])));
-                if (it != segToEdge_.end()) {
+                auto it = segmentMap().find(SegmentType(PointType(s[0]), PointType(s[1])));
+                if (it != segmentMap().end()) {
                     it->second.segLabel = detail::copyLabel<SegmentLabel>(s);
                 }
             }
@@ -5497,7 +5539,10 @@ struct Triangulation {
         firstGhost_ = static_cast<TriIndex>(triangles_.size());
         domainTriangleCount_ = static_cast<std::size_t>(firstGhost_);
         buildAdjacency();
-        buildMap();
+        for (TriIndex t = 0; t < firstGhost_; ++t) {
+            noteVertexIncidence(t);
+        }
+        mapStale_ = true;  // materialized on the first lookup that needs it
         assert(checkInvariants());
     }
 
@@ -5587,9 +5632,9 @@ struct Triangulation {
     void reRegisterSides(TriIndex t) {
         for (std::int8_t s = 0; s < 3; ++s) {
             const SegmentType key = edgeSegment(Edge{t, s});
-            auto it = segToEdge_.find(key);
-            if (it == segToEdge_.end()) {
-                segToEdge_.emplace(key, Edge{t, s});
+            auto it = segmentMap().find(key);
+            if (it == segmentMap().end()) {
+                segmentMap().emplace(key, Edge{t, s});
             } else {
                 it->second.tri = t;
                 it->second.side = s;
@@ -5754,10 +5799,10 @@ struct Triangulation {
         // now and the halves are registered (then labeled) below.
         SegmentLabel halfLabel{};
         {
-            const auto it = segToEdge_.find(SegmentType(vertices_[u], vertices_[w]));
-            assert(it != segToEdge_.end());
+            const auto it = segmentMap().find(SegmentType(vertices_[u], vertices_[w]));
+            assert(it != segmentMap().end());
             halfLabel = it->second.segLabel;
-            segToEdge_.erase(it);
+            segmentMap().erase(it);
         }
 
         if (!ghostSide) {
@@ -5830,8 +5875,8 @@ struct Triangulation {
             }
         }
         if constexpr (detail::has_label_v<SegmentLabel>) {
-            segToEdge_.at(SegmentType(vertices_[u], vertices_[vp])).segLabel = halfLabel;
-            segToEdge_.at(SegmentType(vertices_[vp], vertices_[w])).segLabel = halfLabel;
+            segmentMap().at(SegmentType(vertices_[u], vertices_[vp])).segLabel = halfLabel;
+            segmentMap().at(SegmentType(vertices_[vp], vertices_[w])).segLabel = halfLabel;
         }
         hint_ = t;
         // assert(checkInvariants() && checkEdgeMap());  // O(n): uncomment when debugging
@@ -5979,8 +6024,8 @@ struct Triangulation {
         while (!suspect.empty() && ++guard < cap) {
             const SegmentType s = suspect.back();
             suspect.pop_back();
-            const auto se = segToEdge_.find(s);
-            if (se == segToEdge_.end() || !flippableEdge(se->second)) {
+            const auto se = segmentMap().find(s);
+            if (se == segmentMap().end() || !flippableEdge(se->second)) {
                 continue;  // edge gone, constrained, or quad not convex
             }
             const Edge e = se->second;
@@ -6014,12 +6059,12 @@ struct Triangulation {
     [[nodiscard]] bool checkEdgeMap() const {
         for (TriIndex t = 0; t < firstGhost_; ++t) {
             for (std::int8_t s = 0; s < 3; ++s) {
-                if (!segToEdge_.contains(edgeSegment(Edge{t, s}))) {
+                if (!segmentMap().contains(edgeSegment(Edge{t, s}))) {
                     return false;
                 }
             }
         }
-        for (const auto& [seg, e] : segToEdge_) {
+        for (const auto& [seg, e] : segmentMap()) {
             if (e.tri < 0 || e.tri >= firstGhost_) {
                 return false;
             }
@@ -6089,28 +6134,47 @@ struct Triangulation {
             return u < w ? std::pair<VertexIndex, VertexIndex>{u, w} : std::pair<VertexIndex, VertexIndex>{w, u};
         };
 
-        std::map<std::pair<VertexIndex, VertexIndex>, std::pair<TriIndex, int>> edges;
+        // Every side of every triangle, sorted by its edge key, so the two
+        // sides of an interior edge land next to each other and a boundary
+        // edge's single side lands alone. Sorting an array beats matching them
+        // through a search tree, which allocates a node per edge and revisits
+        // it to erase.
+        struct Side {
+            std::pair<VertexIndex, VertexIndex> edge;
+            TriIndex tri;
+            int side;
+        };
+        std::vector<Side> sides;
+        sides.reserve(static_cast<std::size_t>(std::max(firstGhost_, TriIndex(0))) * 3);
         for (TriIndex t = 0; t < firstGhost_; ++t) {
             for (int i = 0; i < 3; ++i) {
-                const VertexIndex a = triangles_[t].v[(i + 1) % 3];
-                const VertexIndex b = triangles_[t].v[(i + 2) % 3];
-                auto k = key(a, b);
-                auto it = edges.find(k);
-                if (it == edges.end()) {
-                    edges.emplace(k, std::pair<TriIndex, int>{t, i});
-                } else {
-                    auto [t2, jj] = it->second;
-                    triangles_[t].nbr[i] = t2;
-                    triangles_[t2].nbr[jj] = t;
-                    edges.erase(it);
-                }
+                sides.push_back(Side{key(triangles_[t].v[(i + 1) % 3],
+                                         triangles_[t].v[(i + 2) % 3]),
+                                     t, i});
+            }
+        }
+        std::sort(sides.begin(), sides.end(),
+                  [](const Side& a, const Side& b) { return a.edge < b.edge; });
+
+        // The still-unmatched sides, which are the boundary ones.
+        std::vector<Side> edges;
+        for (std::size_t i = 0; i < sides.size();) {
+            if (i + 1 < sides.size() && sides[i].edge == sides[i + 1].edge) {
+                const Side& one = sides[i];
+                const Side& other = sides[i + 1];
+                triangles_[one.tri].nbr[one.side] = other.tri;
+                triangles_[other.tri].nbr[other.side] = one.tri;
+                i += 2;
+            } else {
+                edges.push_back(sides[i]);
+                ++i;
             }
         }
 
         std::map<VertexIndex, std::pair<TriIndex, int>> ghostEdges;
-        for (const auto& [k, val] : edges) {
-            (void)k;
-            const auto [t, i] = val;
+        for (const Side& unmatched : edges) {
+            const TriIndex t = unmatched.tri;
+            const int i = unmatched.side;
             const VertexIndex a = triangles_[t].v[(i + 1) % 3];
             const VertexIndex b = triangles_[t].v[(i + 2) % 3];
             const TriIndex g = static_cast<TriIndex>(triangles_.size());
