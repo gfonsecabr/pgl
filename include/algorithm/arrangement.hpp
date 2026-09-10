@@ -2957,12 +2957,13 @@ private:
         });
 
         std::vector<HalfedgeId> answer(queries.size());
-        using Status = std::set<std::uint32_t, SweepOrder>;
+        using Status = detail::RedBlackTree<std::uint32_t, SweepOrder>;
+        using Seat = typename Status::Handle;
         Status line(SweepOrder{this, &position});
         // Erasing by key would compare an edge that ends on the line against the
         // edges still crossing it, and an edge that has reached its top no longer
         // has a side of it to be on. Every edge remembers where it sits instead.
-        std::vector<typename Status::iterator> seat(origin_.size() / 2);
+        std::vector<Seat> seat(origin_.size() / 2, nullptr);
         for (const Event& event : events) {
             if (event.phase == leaves) {
                 line.erase(seat[event.subject / 2]);
@@ -2971,9 +2972,10 @@ private:
                 assert(placed.second);
                 seat[event.subject / 2] = placed.first;
             } else {
-                const auto above = line.lower_bound(points_[queries[event.subject]]);
-                if (above != line.begin()) {
-                    answer[event.subject] = HalfedgeId(*std::prev(above));
+                const Seat above = line.lowerBound(points_[queries[event.subject]]);
+                const Seat below = above ? Status::prev(above) : line.last();
+                if (below) {
+                    answer[event.subject] = HalfedgeId(below->value);
                 }
             }
         }

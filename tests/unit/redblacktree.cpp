@@ -507,3 +507,29 @@ TEST_CASE("Segments in sweep order") {
         CHECK(reversed[i] == Segment(0, 7 - i, 10, 7 - i));
     }
 }
+
+TEST_CASE("Searching with a key that is not an element") {
+    // A comparator that orders elements against each other and against a key of
+    // another type entirely, the way a sweep line's status orders edges among
+    // themselves and against a point.
+    struct ByTens {
+        bool operator()(int a, int b) const { return a < b; }
+        bool operator()(int a, const std::string &b) const { return std::to_string(a) < b; }
+        bool operator()(const std::string &a, int b) const { return a < std::to_string(b); }
+    };
+    RedBlackTree<int, ByTens> tree;
+    for (int k : {100, 200, 300, 400}) {
+        tree.insert(k);
+    }
+    CHECK(tree.lowerBound(std::string("200"))->value == 200);
+    CHECK(tree.lowerBound(std::string("250"))->value == 300);
+    CHECK(tree.lowerBound(std::string("500")) == nullptr);
+    CHECK(tree.upperBound(std::string("200"))->value == 300);
+    CHECK(tree.find(std::string("300"))->value == 300);
+    CHECK(tree.find(std::string("350")) == nullptr);
+
+    // The element-typed calls still resolve, and to the same answers.
+    CHECK(tree.lowerBound(250)->value == 300);
+    CHECK(tree.find(300)->value == 300);
+    CHECK(tree.find(350) == nullptr);
+}

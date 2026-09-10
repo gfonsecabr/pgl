@@ -137,17 +137,27 @@ public:
 
     // ── Searching ───────────────────────────────────────────────────────────
 
-    /// The node holding an element equivalent to @p v, or null if there is none.
-    Handle find(const T &v) const {
-        Handle h = lowerBound(v);
-        return h && !comp(v, h->value) ? h : nullptr;
+    // The three searches take anything the comparator can order against an
+    // element, not only an element — the transparent lookup @c std::set spells
+    // `is_transparent`, and here simply what compiles. A sweep line's status
+    // holds edges and is asked where a point falls in it, and building an edge
+    // to stand for that point is both awkward and slower than the comparison it
+    // saves.
+
+    /// The node holding an element equivalent to @p key, or null if none is.
+    template <class Key>
+    Handle find(const Key &key) const {
+        Handle h = lowerBound(key);
+        return h && !comp(key, h->value) ? h : nullptr;
     }
 
-    /// The first node whose element does not compare less than @p v, or null.
-    Handle lowerBound(const T &v) const { return bound(v, false); }
+    /// The first node whose element does not compare less than @p key, or null.
+    template <class Key>
+    Handle lowerBound(const Key &key) const { return bound(key, false); }
 
-    /// The first node whose element compares greater than @p v, or null.
-    Handle upperBound(const T &v) const { return bound(v, true); }
+    /// The first node whose element compares greater than @p key, or null.
+    template <class Key>
+    Handle upperBound(const Key &key) const { return bound(key, true); }
 
     // ── Inserting ───────────────────────────────────────────────────────────
 
@@ -434,12 +444,13 @@ private:
         return h->up;
     }
 
-    Handle bound(const T &v, bool strict) const {
+    template <class Key>
+    Handle bound(const Key &key, bool strict) const {
         Handle found = nullptr;
         for (Handle h = root; h;) {
             // Going left keeps the node as the best candidate so far; going
             // right rules it and everything left of it out.
-            const bool goLeft = strict ? comp(v, h->value) : !comp(h->value, v);
+            const bool goLeft = strict ? comp(key, h->value) : !comp(h->value, key);
             if (goLeft) {
                 found = h;
                 h = h->down[0];

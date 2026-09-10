@@ -125,8 +125,8 @@ class RedBlueSweeper {
      * index, which keeps the relation a strict total order.
      *
      * Because the answer does not depend on the sweep position, the order of
-     * stored elements never silently changes underneath `std::set`, and an
-     * erase always finds the element where the insert left it.
+     * stored elements never silently changes underneath the status structure,
+     * and an edge is still where it was put when it comes to leave.
      */
     struct Below {
         const std::vector<Edge>* edges = nullptr;
@@ -174,7 +174,18 @@ class RedBlueSweeper {
 
     std::vector<Edge> edges_;
     std::vector<Event> events_;
-    std::set<std::size_t, Below> status_;
+    // Addressable by node, so an edge leaving the status is found where it was
+    // put rather than searched for; see @ref pgl::detail::RedBlackTree. The
+    // order never changes under the sweep, so nothing here reorders — what the
+    // tree is for is @ref seats_.
+    using Status = pgl::detail::RedBlackTree<std::size_t, Below>;
+    using Seat = typename Status::Handle;
+    Status status_;
+    // Where each edge sits in the status, or null while it is not in it. An
+    // edge's Right event would otherwise locate it by the status order, which
+    // is a logarithmic run of orientation predicates to rediscover a place the
+    // Left event already knew.
+    std::vector<Seat> seats_;
     bool touching_ = false;
 
     /// Axis-aligned extent of one colour, used only to discard hopeless edges.
@@ -244,8 +255,8 @@ class RedBlueSweeper {
     bool scanUpright(std::size_t index) {
         const Edge& upright = edges_[index];
         const SweepSegment bar = upright.segment();
-        for (auto it = status_.lower_bound(upright.lo); it != status_.end(); ++it) {
-            const Edge& other = edges_[*it];
+        for (Seat it = status_.lowerBound(upright.lo); it; it = Status::next(it)) {
+            const Edge& other = edges_[it->value];
             if (signOf(orientationSign(other.lo, other.hi, upright.hi)) < 0) {
                 break;  // past the top of the vertical
             }
@@ -330,18 +341,15 @@ class RedBlueSweeper {
             if (events_[k].kind != Kind::Right) {
                 continue;
             }
-            const auto it = status_.find(events_[k].edge);
-            if (it == status_.end()) {
+            const Seat seat = seats_[events_[k].edge];
+            if (!seat) {
                 continue;
             }
-            const bool hasBelow = it != status_.begin();
-            auto below = it;
-            if (hasBelow) {
-                --below;
-            }
-            const auto above = std::next(it);
-            status_.erase(it);
-            if (hasBelow && above != status_.end() && adjacent(*below, *above)) {
+            const Seat below = Status::prev(seat);
+            const Seat above = Status::next(seat);
+            seats_[events_[k].edge] = nullptr;
+            status_.erase(seat);
+            if (below && above && adjacent(below->value, above->value)) {
                 return true;
             }
         }
@@ -350,15 +358,17 @@ class RedBlueSweeper {
             if (events_[k].kind != Kind::Left) {
                 continue;
             }
-            const auto [it, fresh] = status_.insert(events_[k].edge);
+            const auto [seat, fresh] = status_.insert(events_[k].edge);
             if (!fresh) {
                 continue;
             }
-            if (it != status_.begin() && adjacent(*std::prev(it), *it)) {
+            seats_[events_[k].edge] = seat;
+            const Seat below = Status::prev(seat);
+            if (below && adjacent(below->value, seat->value)) {
                 return true;
             }
-            const auto above = std::next(it);
-            if (above != status_.end() && adjacent(*it, *above)) {
+            const Seat above = Status::next(seat);
+            if (above && adjacent(seat->value, above->value)) {
                 return true;
             }
         }
@@ -393,6 +403,7 @@ class RedBlueSweeper {
             }
         }
         edges_ = std::move(kept);
+        seats_.assign(edges_.size(), nullptr);
 
         events_.reserve(2 * edges_.size());
         for (std::size_t i = 0; i < edges_.size(); ++i) {
@@ -538,7 +549,7 @@ SweepContact boundaryContactBits(const RedRange& red, const BlueRange& blue) {
  *     orders of magnitude on a 4096-vertex star.
  *
  * Absolute size matters as much as the ratio does. The sweep allocates edge and
- * event vectors and drives a `std::set`; on a pair of 32-gons that fixed
+ * event vectors and drives a balanced tree; on a pair of 32-gons that fixed
  * overhead swamps the handful of orientation tests either method needs, and the
  * chain test wins however jagged the two are. The crossover therefore moves with
  * how expensive one orientation test is: for @ref BigInt or a rational built on
@@ -576,10 +587,10 @@ constexpr std::size_t boundaryEdgeCount(const Shape& shape) {
 /**
  * @brief The size floor half of the dispatch rule; see @ref preferSweep.
  *
- * Below this many edges the sweep's setup — two vectors, a sort and a
- * `std::set` — costs more than everything the chain test does, at any chain
- * count, so nothing past this check needs the chain counts at all. The floor
- * measured at 128 edges for native coordinates.
+ * Below this many edges the sweep's setup — two vectors, a sort and a status
+ * tree — costs more than everything the chain test does, at any chain count, so
+ * nothing past this check needs the chain counts at all. The floor measured at
+ * 128 edges for native coordinates.
  *
  * It is a fixed count, not scaled down for `Rational`/`BigInt` coordinates: an
  * earlier version of this rule did scale it down, on the reasoning that an
