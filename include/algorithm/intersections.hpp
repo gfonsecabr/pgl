@@ -264,22 +264,47 @@ class BentleyOttmann {
     // decide anything. That case, and nothing else, touches the abscissa.
 
     /**
+     * @brief The two segments' four endpoints, each with its approximation.
+     *
+     * The height sign and everything it defers to read these rather than the
+     * points, so the conversion behind the filter happens once per endpoint per
+     * comparison instead of once per predicate that reads it.
+     */
+    using FilteredEnd = decltype(pgl::detail::filtered<Coordinate>(std::declval<const Point&>()));
+    struct Endpoints {
+        FilteredEnd aLo, aHi, bLo, bHi;
+    };
+
+    /**
      * @brief Sign of `b`'s height minus `a`'s height at the sweep line.
      *
      * Both segments must be non-vertical, and both must straddle the sweep
      * abscissa — which is what every segment in the status tree does.
      */
     int heightSign(const Segment &a, const Segment &b, const Abscissa &at) const {
+        // Four endpoints, each approximated once. Every sign below reads the
+        // same four, and an approximation of an exact coordinate is not cheap:
+        // letting each predicate convert its own operands would do the same
+        // conversion up to five times over one call.
+        const Endpoints ends{pgl::detail::filtered<Coordinate>(a.min()),
+                             pgl::detail::filtered<Coordinate>(a.max()),
+                             pgl::detail::filtered<Coordinate>(b.min()),
+                             pgl::detail::filtered<Coordinate>(b.max())};
+
         // The height difference at each end of the shared x-range. Whichever
         // segment contributes the end, its endpoint is tested against the other
         // segment, and the sign flips when the endpoint is a's, since the
         // difference is measured b minus a.
         const int atLeft = a.min().x() < b.min().x()
-            ? pgl::detail::signOf(pgl::orientationSign(a.min(), a.max(), b.min()))
-            : -pgl::detail::signOf(pgl::orientationSign(b.min(), b.max(), a.min()));
+            ? pgl::detail::signOf(
+                  pgl::detail::orientationSignOf(ends.aLo, ends.aHi, ends.bLo).value())
+            : -pgl::detail::signOf(
+                  pgl::detail::orientationSignOf(ends.bLo, ends.bHi, ends.aLo).value());
         const int atRight = b.max().x() < a.max().x()
-            ? pgl::detail::signOf(pgl::orientationSign(a.min(), a.max(), b.max()))
-            : -pgl::detail::signOf(pgl::orientationSign(b.min(), b.max(), a.max()));
+            ? pgl::detail::signOf(
+                  pgl::detail::orientationSignOf(ends.aLo, ends.aHi, ends.bHi).value())
+            : -pgl::detail::signOf(
+                  pgl::detail::orientationSignOf(ends.bLo, ends.bHi, ends.aHi).value());
 
         if (atLeft == atRight) {
             // Same sign at both ends: one segment runs clear of the other
@@ -297,7 +322,7 @@ class BentleyOttmann {
         if (atRight == 0) {
             return at.x < std::min(a.max().x(), b.max().x()) ? atLeft : 0;
         }
-        return crossedHeightSign(a, b, at);
+        return crossedHeightSign(a, b, at, ends);
     }
 
     /**
@@ -337,7 +362,51 @@ class BentleyOttmann {
      * abscissa's denominator — all three positive — clears every division out
      * of it and leaves one integer expression whose sign is the answer.
      */
-    int crossedHeightSign(const Segment &a, const Segment &b, const Abscissa &at) const {
+    /**
+     * @brief The height expression's sign in bounded `double` arithmetic, or
+     * `unordered` where the bound does not separate it from zero.
+     *
+     * The coefficients of @ref heightCoefficients, formed from approximations
+     * of the eight endpoint coordinates instead of exactly, each operation
+     * widening the bound by what it rounds.
+     */
+    static std::partial_ordering approximateHeightSign(const Endpoints &ends,
+                                                       const Abscissa &at) {
+        const pgl::detail::ApproximatePoint aMin = pgl::detail::approximationOf(ends.aLo);
+        const pgl::detail::ApproximatePoint aMax = pgl::detail::approximationOf(ends.aHi);
+        const pgl::detail::ApproximatePoint bMin = pgl::detail::approximationOf(ends.bLo);
+        const pgl::detail::ApproximatePoint bMax = pgl::detail::approximationOf(ends.bHi);
+        const auto axMin = aMin.x;
+        const auto ayMin = aMin.y;
+        const auto bxMin = bMin.x;
+        const auto byMin = bMin.y;
+        const auto dax = aMax.x - axMin;
+        const auto day = aMax.y - ayMin;
+        const auto dbx = bMax.x - bxMin;
+        const auto dby = bMax.y - byMin;
+
+        const auto slope = dax * dby - dbx * day;
+        const auto offset = dax * dbx * (byMin - ayMin) - dax * dby * bxMin + dbx * day * axMin;
+        return pgl::detail::approximateSign(slope * at.approx + offset);
+    }
+
+    int crossedHeightSign(const Segment &a, const Segment &b, const Abscissa &at,
+                          const Endpoints &ends) const {
+        if constexpr (pgl::detail::filtersSign<Wide>) {
+            // Where a coefficient is an arbitrary-precision fraction, forming
+            // the two of them exactly is itself most of what this costs, and
+            // the filter has to come before them rather than after: the whole
+            // expression is evaluated in bounded double arithmetic, and only a
+            // sign those bounds cannot settle pays for the exact coefficients
+            // below. Over machine-integer coefficients the trade goes the other
+            // way — forming them is a few multiplications — and the tighter
+            // filter over the exact pair is the one that runs.
+            const std::partial_ordering approximated = approximateHeightSign(ends, at);
+            if (approximated != std::partial_ordering::unordered) {
+                return pgl::detail::signOf(approximated);
+            }
+        }
+
         const auto [slope, offset] = heightCoefficients(a, b);
 
         if constexpr (pgl::detail::filtersSign<Exact>) {
