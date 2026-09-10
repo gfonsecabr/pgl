@@ -63,13 +63,18 @@ void run(const bench::Options& opt) {
             const double us = bench::timeOnce(result, [&] {
                 double sum = 0;
                 for (const auto& q : queries) {
-                    sum += static_cast<double>(tree->nearestNeighbor(q).x());
+                    sum += static_cast<double>(
+                        q.squaredDistance(tree->nearestNeighbor(q)));
                 }
                 return sum;
             });
-            // The signature is a checksum over the answers; a nearest
-            // neighbour is one point however large the tree is, so the output
-            // column reports the tree the queries searched.
+            // The signature is a checksum over the answers' *distances*, not
+            // over the answers: a query equidistant from two points has two
+            // correct answers, and two implementations need not pick the same
+            // one, but the distance they are both at is the same number. So
+            // this row has to match to the digit like every other one. A
+            // nearest neighbour is one point however large the tree is, so the
+            // output column reports the tree the queries searched.
             bench::emit(kCategory, kDataset, "nearest neighbor", kAlgorithm,
                         number, n, result, static_cast<long long>(tree->size()),
                         us / bench::kQueryBatch);

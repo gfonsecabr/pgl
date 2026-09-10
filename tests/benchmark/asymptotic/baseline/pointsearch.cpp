@@ -22,8 +22,8 @@
 // against, so rounding it changes which points land in which cell and never
 // which points the query returns; the per-point containment test that settles
 // the answer reads the input coordinates. Nearest neighbour is exact too --
-// the squared distances it orders stay under 10^9 on this dataset -- so it
-// keeps the tie caveat below and gains no other.
+// the squared distances it orders stay under 10^9 on this dataset, and they
+// are what the row's signature sums.
 #include "cgal.hpp"
 #include "../sizes.hpp"
 
@@ -191,22 +191,23 @@ void run(const bench::Options& opt) {
                 double sum = 0;
                 for (const auto& q : queries) {
                     Search search(tree, q, 1);
-                    sum += CGAL::to_double(search.begin()->first.x());
+                    sum += CGAL::to_double(search.begin()->second);
                 }
                 return sum;
             });
-            // The same checksum over the answers the pgl driver takes, and the
-            // same output column: a nearest neighbour is one point however
-            // large the tree is, so these rows report the tree they searched.
+            // The same checksum over the answers' distances the pgl driver
+            // takes, and the same output column: a nearest neighbour is one
+            // point however large the tree is, so these rows report the tree
+            // they searched.
             //
-            // This is the one signature in the baseline that does not have to
-            // match to the digit. A query equidistant from two points has two
-            // correct answers, and the two libraries need not pick the same
-            // one. Measured over the checked-in sweep, that happens to at most
-            // two queries of the thousand at any size, and every time it does
-            // the two answers are the same distance away -- so a small
-            // disagreement here is a tie, while a large one, or one on any
-            // other row, is not.
+            // Summing the distance rather than the point is what makes this
+            // row match to the digit like every other one. A query equidistant
+            // from two points has two correct answers and the two libraries
+            // need not pick the same one -- over the checked-in sweep that
+            // happens to a query or two of the thousand at any size -- but
+            // both answers are the same distance from the query, and that is
+            // the number being summed. The search already computed it, so
+            // reading it costs the baseline nothing.
             bench::emit("Point search", "points", "nearest neighbor",
                         "CGAL::Orthogonal_k_neighbor_search", number,
                         n, result, static_cast<long long>(tree.size()),
