@@ -311,6 +311,58 @@ TEST_CASE("MonotoneChain insert") {
     }
 }
 
+// From a few hundred points on, construction and bulk insertion radix sort the
+// vertices rather than compare them, which the small chains above never reach.
+// A coordinate range straddling zero puts the order on the flipped sign bit and
+// makes duplicates common.
+TEST_CASE("MonotoneChain sorts a large input into the canonical chain") {
+    using Point = pgl::Point<int>;
+    using Chain = pgl::MonotoneChain<Point>;
+
+    std::mt19937 rgen(11);
+    std::uniform_int_distribution<int> coordinate(-150, 150);
+    std::vector<Point> points;
+    for (int i = 0; i < 900; ++i) {
+        points.emplace_back(coordinate(rgen), coordinate(rgen));
+    }
+    std::vector<Point> expected = points;
+    std::sort(expected.begin(), expected.end());
+    expected.erase(std::unique(expected.begin(), expected.end()), expected.end());
+    const auto matches = [&](const Chain& chain, const Point& shift) {
+        REQUIRE(chain.size() == expected.size());
+        for (std::size_t i = 0; i < expected.size(); ++i) {
+            REQUIRE(chain[i] == expected[i] + shift);
+        }
+    };
+
+    SUBCASE("construction") {
+        matches(Chain(points), Point(0, 0));
+    }
+
+    SUBCASE("bulk insertion into a chain") {
+        Chain chain(std::vector<Point>(points.begin(), points.begin() + 300));
+        chain.insert(std::vector<Point>(points.begin() + 300, points.end()));
+        matches(chain, Point(0, 0));
+    }
+
+    SUBCASE("bulk insertion into a translated chain") {
+        const Point shift(1000, -1000);
+        std::vector<Point> shifted;
+        for (const Point& p : points) {
+            shifted.push_back(p + shift);
+        }
+        Chain chain = Chain(std::vector<Point>(points.begin(), points.begin() + 300)) + shift;
+        chain.insert(std::vector<Point>(shifted.begin() + 300, shifted.end()));
+        matches(chain, shift);
+    }
+
+    SUBCASE("input already in order") {
+        matches(Chain(expected), Point(0, 0));
+        std::vector<Point> reversed(expected.rbegin(), expected.rend());
+        matches(Chain(reversed), Point(0, 0));
+    }
+}
+
 TEST_CASE("MonotoneChain erase") {
     using Point = pgl::Point<int>;
     using Chain = pgl::MonotoneChain<Point>;

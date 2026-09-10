@@ -381,6 +381,27 @@ class RedBlueSweeper {
         return false;
     }
 
+    // Puts the events in the order Event::operator< describes. An integral
+    // coordinate is ordered by its bits, as in sortPoints: the events arrive in
+    // edge order, so stable passes on the kind, then y, then x leave them
+    // ordered by point, kind and edge. An event carries an edge index besides
+    // its point, so each pass moves more than sortPoints' do, and below this
+    // many events the comparisons still win.
+    void sortEvents() {
+        constexpr std::size_t radixThreshold = 1024;
+        if constexpr (RadixSortable<Event, Number>) {
+            if (events_.size() >= radixThreshold) {
+                std::vector<Event> scratch;
+                radixSort(events_, scratch,
+                          [](const Event& e) { return static_cast<unsigned char>(e.kind); });
+                radixSort(events_, scratch, [](const Event& e) { return radixKey(e.at.y()); });
+                radixSort(events_, scratch, [](const Event& e) { return radixKey(e.at.x()); });
+                return;
+            }
+        }
+        std::sort(events_.begin(), events_.end());
+    }
+
   public:
     template <class RedRange, class BlueRange>
     RedBlueSweeper(const RedRange& red, const BlueRange& blue) : status_(Below{&edges_}) {
@@ -419,7 +440,7 @@ class RedBlueSweeper {
     }
 
     BoundaryContact run() {
-        std::sort(events_.begin(), events_.end());
+        sortEvents();
         std::size_t i = 0;
         while (i < events_.size()) {
             std::size_t j = i;

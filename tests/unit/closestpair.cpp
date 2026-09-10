@@ -155,6 +155,25 @@ TEST_CASE("closestPair matches brute force on random integer points") {
     }
 }
 
+// The input is radix sorted from a few hundred points on, which the test above
+// never reaches. Three coordinate ranges the sort treats differently: one narrow
+// enough that most passes are skipped, one straddling zero where the order rests
+// on the flipped sign bit, and one wide enough that every byte varies.
+TEST_CASE("closestPair matches brute force past the radix sort threshold") {
+    Rng rng{1729};
+    const std::pair<int, int> ranges[] = {{0, 150}, {-150, 150}, {-1000000000, 1000000000}};
+    for (const auto& [lo, hi] : ranges) {
+        for (int trial = 0; trial < 3; ++trial) {
+            const int count = rng.range(256, 600);
+            std::vector<IntPoint> points;
+            for (int i = 0; i < count; ++i) {
+                points.emplace_back(rng.range(lo, hi), rng.range(lo, hi));
+            }
+            checkAgainstBruteForce(points);
+        }
+    }
+}
+
 TEST_CASE("closestPair matches brute force on random double points") {
     Rng rng{99};
     for (int trial = 0; trial < 20; ++trial) {

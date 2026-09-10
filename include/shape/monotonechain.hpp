@@ -725,7 +725,7 @@ struct MonotoneChain {
         if (points_.size() == oldSize) {
             return;
         }
-        std::sort(points_.begin() + static_cast<std::ptrdiff_t>(oldSize), points_.end());
+        sortFrom(oldSize);
         std::inplace_merge(points_.begin(), points_.begin() + static_cast<std::ptrdiff_t>(oldSize), points_.end());
         points_.erase(std::unique(points_.begin(), points_.end()), points_.end());
         resetCache();
@@ -2566,8 +2566,35 @@ struct MonotoneChain {
      * lexicographically with duplicates removed.
      */
     constexpr void normalize() {
-        std::sort(points_.begin(), points_.end());
+        sortFrom(0);
         points_.erase(std::unique(points_.begin(), points_.end()), points_.end());
+    }
+
+    // Sorts the stored vertices lexicographically from index `first` on. Points
+    // that sortPoints radix sorts go through it, and as it takes a whole vector
+    // a tail is sorted in a copy of its own; any other point, storage, or a
+    // constant evaluation is compared where it stands. Input already in order
+    // is common -- scaled by a positive factor, or built from another chain's
+    // vertices -- and the radix passes are not cheaper there than one scan.
+    constexpr void sortFrom(std::size_t first) {
+        const auto begin = points_.begin() + static_cast<std::ptrdiff_t>(first);
+        if (std::is_sorted(begin, points_.end())) {
+            return;
+        }
+        if constexpr (std::same_as<Storage, std::vector<PointType>> &&
+                      detail::RadixSortable<PointType, NumberType>) {
+            if (!std::is_constant_evaluated()) {
+                if (first == 0) {
+                    sortPoints(points_);
+                } else {
+                    std::vector<PointType> tail(begin, points_.end());
+                    sortPoints(tail);
+                    std::copy(tail.begin(), tail.end(), begin);
+                }
+                return;
+            }
+        }
+        std::sort(begin, points_.end());
     }
 
     class Iterator {

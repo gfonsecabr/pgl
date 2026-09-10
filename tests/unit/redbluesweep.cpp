@@ -143,3 +143,87 @@ TEST_CASE("Sweep agrees with brute force over overlapping random boundaries") {
     CHECK(touching > 20);
     CHECK(crossing > 200);
 }
+
+namespace {
+
+// Two combs with their teeth pointing at each other and every tip on the one
+// vertical line x = 50: the tips are vertical edges of both colours sharing an
+// abscissa and interleaved in height, and each tooth's corners put events of
+// different kinds at one point. A blue tooth in `touch` is lowered onto the red
+// tooth below it, so their tips overlap along the line; one in `cross` is also
+// pushed five units past the line, so that it crosses the red tip. The combs
+// are scaled by `scale` and moved by `shift`, which the verdict cannot notice.
+template <class Number>
+std::pair<pgl::Polygon<pgl::Point<Number>>, pgl::Polygon<pgl::Point<Number>>>
+facingCombs(int teeth, const std::vector<bool>& touch, const std::vector<bool>& cross,
+            int scale, Point shift) {
+    const int tip = 50;
+    const int spine = 100;
+    const auto at = [&](int x, int y) {
+        return pgl::Point<Number>(Number(x * scale + shift.x()), Number(y * scale + shift.y()));
+    };
+    std::vector<pgl::Point<Number>> red{at(0, 0), at(1, 0)};
+    for (int i = 0; i < teeth; ++i) {
+        red.push_back(at(1, 40 * i + 2));
+        red.push_back(at(tip, 40 * i + 2));
+        red.push_back(at(tip, 40 * i + 18));
+        red.push_back(at(1, 40 * i + 18));
+    }
+    red.push_back(at(1, 40 * teeth));
+    red.push_back(at(0, 40 * teeth));
+
+    std::vector<pgl::Point<Number>> blue{at(spine - 1, 0), at(spine, 0), at(spine, 40 * teeth),
+                                         at(spine - 1, 40 * teeth)};
+    for (int j = teeth - 1; j >= 0; --j) {
+        const bool lowered = touch[j] || cross[j];
+        const int lo = 40 * j + (lowered ? 10 : 22);
+        const int hi = 40 * j + (lowered ? 30 : 38);
+        const int reach = cross[j] ? tip - 5 : tip;
+        blue.push_back(at(spine - 1, hi));
+        blue.push_back(at(reach, hi));
+        blue.push_back(at(reach, lo));
+        blue.push_back(at(spine - 1, lo));
+    }
+    return {pgl::Polygon<pgl::Point<Number>>(red), pgl::Polygon<pgl::Point<Number>>(blue)};
+}
+
+}  // namespace
+
+// The events are radix sorted from about a thousand on, which the small
+// boundaries above never reach. 120 teeth a side keep some 1400 events past the
+// box filter. Integer coordinates take the radix sort and double ones the
+// comparison sort, so the two must give the same verdict, and the right one --
+// in three coordinate ranges the radix sort treats differently: narrow enough
+// that most passes are skipped, straddling zero, and wide enough that every
+// byte varies.
+TEST_CASE("Sweep over many events at a shared abscissa") {
+    const int teeth = 120;
+    std::mt19937 rgen(5);
+    std::bernoulli_distribution sometimes(0.05);
+    const std::pair<int, Point> placements[] = {
+        {1, Point(0, 0)}, {1, Point(-50, -2400)}, {200000, Point(-10000000, -480000000)}};
+
+    for (const auto& [scale, shift] : placements) {
+        for (int mode = 0; mode < 3; ++mode) {
+            std::vector<bool> touch(teeth, false);
+            std::vector<bool> cross(teeth, false);
+            for (int j = 0; j < teeth; ++j) {
+                touch[j] = mode >= 1 && sometimes(rgen);
+                cross[j] = mode == 2 && sometimes(rgen);
+            }
+            touch[teeth / 2] = mode >= 1;
+            cross[teeth / 3] = mode == 2;
+
+            const auto [red, blue] = facingCombs<int>(teeth, touch, cross, scale, shift);
+            const auto verdict = pgl::redBlueSweep(red.edgesView(), blue.edgesView());
+            const auto [redDouble, blueDouble] =
+                facingCombs<double>(teeth, touch, cross, scale, shift);
+            CHECK(pgl::redBlueSweep(redDouble.edgesView(), blueDouble.edgesView()) == verdict);
+
+            const pgl::BoundaryContact expected[] = {pgl::BoundaryContact::Disjoint,
+                                                     pgl::BoundaryContact::Touching,
+                                                     pgl::BoundaryContact::Crossing};
+            CHECK(verdict == expected[mode]);
+        }
+    }
+}

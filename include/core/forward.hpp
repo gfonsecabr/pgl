@@ -62,6 +62,10 @@ constexpr bool collinear(
     const Point<BNumber, BLabel>& b,
     const Point<CNumber, CLabel>& c);
 
+/** @brief Sorts points in place, lexicographically by `(x, y)`. */
+template <class Number, class Label>
+void sortPoints(std::vector<Point<Number, Label>>& points);
+
 /** @brief Unoriented closed segment between two endpoints plus optional segment label. */
 template <class PointType, class Label = NoLabel>
 struct Segment;

@@ -289,7 +289,7 @@ closestPairDriver(const Container& input) {
     std::vector<InputPoint> points(std::begin(input), std::end(input));
     assert(points.size() >= 2);
 
-    std::sort(points.begin(), points.end());
+    sortPoints(points);
     std::vector<InputPoint> scratch(points.size());
 
     ClosestPairCandidate<InputPoint> best{
