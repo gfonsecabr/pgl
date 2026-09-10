@@ -89,27 +89,27 @@ The numbers come from the [asymptotic benchmarks](https://gfonsecabr.github.io/p
 
 #### Results
 
-The results below are sorted by `ERational` / EPECK ratio, from the cases where CGAL is faster to the ones where CGAL is slower. On `ERational` / EPECK ratio the range goes from CGAL being 6.7× faster to pgl being 4.4× faster. On `int` / EPICK, the ratio goes from CGAL being 3.7× faster to pgl being 5.8× faster.
+The results below are sorted by `ERational` / EPECK ratio, from the cases where CGAL is faster to the ones where CGAL is slower. On `ERational` / EPECK ratio the range goes from CGAL being 6.7× faster to pgl being 4.4× faster. On `int` / EPICK, the ratio goes from CGAL being 3.4× faster to pgl being 5.8× faster.
 
 | Problem | `ERational` / EPECK | `int` / EPICK | pgl | CGAL |
 | --- | --- | --- | --- | --- |
 | Segment intersection | 6.7× (3.5–9.8) | — | `findIntersections(v)` | <code>compute_<wbr>intersection_points</code> |
 | Minkowski sum | 5.4× (2.3–14) | — | `a.minkowskiSum(b)`{Polygon} | <code>minkowski_sum_by_<wbr>reduced_convolution_2</code> |
-| Delaunay triangulation | 5.4× (4.5–6.1) | 2.8× (2.6–3.0) | `Triangulation` | `Delaunay_triangulation_2` |
-| kd-tree build | 3.4× (2.5–3.8) | 3.7× (3.2–4.1) | `ShapeTree` | `Kd_tree` |
 | Arrangement build | 2.9× (1.6–3.4) | — | `Arrangement` | `Arrangement_2` |
 | Regularized union, large + large | 2.6× (2.3–2.8) | — | `a.regularizedUnion(b)`{Polygon} | <code>General_polygon_set_2<wbr>::join</code> |
-| Triangulation point location | 1.9× (1.7–2.3) | 0.92× (0.85–1.1) | `t.locate(p)`{Triangulation} | <code>Triangulation_hierarchy_2<wbr>::locate</code> |
-| Segment search build | 1.9× (1.8–2.0) | 3.3× (3.0–4.1) | `ShapeTree` | `AABB_tree` |
-| Convex hull | 1.7× (1.6–2.4) | 0.84× (0.77–0.87) | `convexHull(v)` | `convex_hull_2` |
+| Delaunay triangulation | 2.6× (2.3–2.9) | 1.6× (1.5–1.7) | `Triangulation` | `Delaunay_triangulation_2` |
+| Triangulation point location | 2.0× (1.7–2.4) | 0.97× (0.90–1.3) | `t.locate(p)`{Triangulation} | <code>Triangulation_hierarchy_2<wbr>::locate</code> |
+| Convex hull | 1.7× (1.6–2.5) | 0.83× (0.73–0.86) | `convexHull(v)` | `convex_hull_2` |
 | Point search, count in Triangle | 1.6× (1.2–1.8) | 0.17× (0.13–0.19) | `ShapeTree` | `Kd_tree::search` |
-| Segment search, count in Triangle | 1.2× (1.1–1.3) | 0.27× (0.18–0.30) | `ShapeTree` | `AABB_tree` |
-| Triangulation point-location build | 1.1× (1.0–1.1) | 1.3× (1.2–1.5) | `t.buildPointLocation()`{Triangulation} | <code>Triangulation_<wbr>hierarchy_2</code> |
-| Segment search, count in Rectangle | 0.97× (0.65–1.1) | 0.46× (0.26–0.52) | `ShapeTree` | `AABB_tree` |
+| kd-tree build | 1.4× (1.1–1.5) | 3.4× (2.9–3.8) | `ShapeTree` | `Kd_tree` |
+| Segment search, count in Triangle | 1.2× (1.1–1.3) | 0.26× (0.17–0.29) | `ShapeTree` | `AABB_tree` |
+| Segment search build | 1.2× (1.1–1.2) | 3.1× (2.8–3.7) | `ShapeTree` | `AABB_tree` |
+| Triangulation point-location build | 1.1× (1.1–1.2) | 1.4× (1.3–1.6) | `t.buildPointLocation()`{Triangulation} | <code>Triangulation_<wbr>hierarchy_2</code> |
+| Segment search, count in Rectangle | 0.97× (0.65–1.1) | 0.47× (0.27–0.53) | `ShapeTree` | `AABB_tree` |
 | Arrangement point-location build | 0.89× (0.69–1.2) | — | `a.buildPointLocation()`{Arrangement} | <code>Arr_trapezoid_ric_<wbr>point_location</code> |
 | Visibility, visible vertices | 0.81× (0.55–0.98) | 0.77× (0.67–0.93) | `t.visibleVertices(p)`{Triangulation} | <code>Triangular_expansion_<wbr>visibility_2</code> |
 | Arrangement point location query | 0.61× (0.38–1.1) | — | `a.locateFace(p)`{Arrangement} | <code>Arr_trapezoid_ric_<wbr>point_location<wbr>::locate</code> |
-| Nearest neighbor query | 0.55× (0.46–0.56) | 1.4× (1.2–1.5) | `t.nearestNeighbor(p)`{ShapeTree} | <code>Orthogonal_k_<wbr>neighbor_search</code> |
+| Nearest neighbor query | 0.57× (0.50–0.60) | 1.4× (1.2–1.5) | `t.nearestNeighbor(p)`{ShapeTree} | <code>Orthogonal_k_<wbr>neighbor_search</code> |
 | Regularized union, triangles | 0.23× (0.21–0.72) | — | `regularizedUnionOf(v)` | <code>General_polygon_set_2<wbr>::join</code> |
 
 #### What the numbers do not say
