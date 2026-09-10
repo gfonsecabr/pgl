@@ -71,9 +71,13 @@ void run(const bench::Options& opt) {
                      return copy.front() == copy.back() ? 1 : 0;
                  },
                  inputSize);
+    // numTriangles(), not triangles().size(), for the reason the Triangulation
+    // category's build row gives: the CGAL row this is compared against signs
+    // itself with number_of_faces(), and materializing a sorted vector of every
+    // triangle on only one side of that comparison times the vector.
     forEach("Delaunay", "incremental", bench::kDelaunayBuild,
             [](const std::vector<Point>& points) {
-                return pgl::Triangulation<pgl::Triangle<Point>>(points).triangles().size();
+                return pgl::Triangulation<pgl::Triangle<Point>>(points).numTriangles();
             });
     forEach("kd-tree", "ShapeTree", bench::kPointTree,
             [](const std::vector<Point>& points) {

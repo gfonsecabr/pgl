@@ -26,10 +26,18 @@ void run(const bench::Options& opt) {
 
         // The build is measured and kept: every other problem in this category
         // queries this same triangulation.
+        //
+        // The signature is numTriangles(), not triangles().size(): the two
+        // report the same number, but the latter materializes and sorts a
+        // vector of every triangle, which at the top size costs a sixth of the
+        // build again — and the CGAL row this is compared against signs itself
+        // with number_of_faces(), which is a read of a counter. Timing a
+        // conversion to a sorted vector on one side of that comparison and not
+        // the other measures the conversion, not the build.
         std::optional<pgl::Triangulation<pgl::Triangle<Point>>> triangulation;
         const double buildUs = bench::timeOnce(result, [&] {
             triangulation.emplace(points);
-            return triangulation->triangles().size();
+            return triangulation->numTriangles();
         });
         if (bench::matches(opt.problem, "build")) {
             bench::emit(kCategory, kDataset, "build", "incremental", number, n, result, buildUs);
