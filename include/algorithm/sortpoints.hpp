@@ -1,21 +1,81 @@
 #pragma once
 
-#include "algorithm/xysweep.hpp"
+#include "algorithm/redbluesweep.hpp"
 
 /**
  * @file sortpoints.hpp
- * @brief Angular sorting of points around a center.
+ * @brief Reorderings of a list of points: lexicographic, angular, spatial.
  *
  * Algorithm headers sit above the shape API and express reusable geometry
  * procedures in terms of the public primitives.
  */
 
 #include <algorithm>
+#include <cstddef>
 #include <type_traits>
 #include <vector>
 
 
 namespace pgl {
+
+/**
+ * @brief Sorts points in place, lexicographically by `(x, y)`.
+ *
+ * Points sharing both coordinates are interchangeable to this order, and which
+ * of them ends up first is unspecified -- it may differ between coordinate
+ * types, and labels do not break the tie.
+ *
+ * An integral coordinate is ordered by its bits rather than by comparisons: a
+ * radix sort on `y` and then a stable one on `x` leaves the lexicographic
+ * order, in a number of linear passes fixed by the width of the coordinate.
+ * Over a few hundred points and up this is several times faster than comparing
+ * them, and it is what makes @ref convexHull's sort a fifth of its cost rather
+ * than most of it. Every other coordinate type is compared: an exact
+ * rational's order is not a function of its representation.
+ *
+ * @tparam Number Coordinate type of the points being sorted.
+ * @tparam Label Label type of the points being sorted.
+ * @param points Points to reorder in place.
+ */
+template <class Number, class Label>
+void sortPoints(std::vector<Point<Number, Label>>& points) {
+    using PointType = Point<Number, Label>;
+    // Below this many points the radix passes cost more than they save: they
+    // open with a histogram sweep and a second buffer that a short list never
+    // earns back. Measured against a comparison sort that is not handed the
+    // same input twice -- repeat a small sort and the branch predictor learns
+    // it outright, which flatters the comparisons several times over and puts
+    // this threshold an order of magnitude too high.
+    constexpr std::size_t radixThreshold = 256;
+    if constexpr (detail::RadixSortable<PointType, Number>) {
+        if (points.size() >= radixThreshold) {
+            std::vector<PointType> scratch;
+            detail::radixSort(points, scratch,
+                              [](const PointType& q) { return detail::radixKey(q.y()); });
+            detail::radixSort(points, scratch,
+                              [](const PointType& q) { return detail::radixKey(q.x()); });
+            return;
+        }
+    }
+    std::sort(points.begin(), points.end());
+}
+
+/**
+ * @brief Sorts points in place lexicographically and drops the duplicates.
+ *
+ * As @ref sortPoints, then erasing every point whose coordinates repeat the one
+ * before it, so the survivors are distinct. Which of a run of coincident points
+ * survives is unspecified, and with it which label survives.
+ *
+ * @tparam Number Coordinate type of the points being sorted.
+ * @tparam Label Label type of the points being sorted.
+ * @param points Points to reorder and deduplicate in place.
+ */
+template <class Number, class Label>
+void sortDistinctPoints(std::vector<Point<Number, Label>>& points) {
+    sortPoints(points);
+    points.erase(std::unique(points.begin(), points.end()), points.end());
+}
 
 /**
  * @brief Sorts points counterclockwise around a center point.

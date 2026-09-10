@@ -114,71 +114,6 @@ struct LInfMetric {
     }
 };
 
-// The key an integral coordinate is radix sorted by: the same bits for an
-// unsigned type, and the sign bit flipped for a signed one, so that the
-// unsigned order of the keys is the signed order of the values.
-template <class Integral>
-[[nodiscard]] constexpr auto radixKey(Integral value) {
-    using Unsigned = std::make_unsigned_t<Integral>;
-    const auto bits = static_cast<Unsigned>(value);
-    if constexpr (std::is_signed_v<Integral>) {
-        return static_cast<Unsigned>(bits ^ (Unsigned{1} << (8 * sizeof(Unsigned) - 1)));
-    } else {
-        return bits;
-    }
-}
-
-// Sorts `v` by an integral key, one byte at a time from the least significant,
-// which orders n elements in a number of linear passes fixed by the width of
-// the key rather than in n log n comparisons. `scratch` is the alternate buffer
-// the passes ping-pong between; it is the caller's so that sorting several
-// lists reuses one allocation.
-//
-// A pass whose digit is the same for every element would only copy the array,
-// so the histogram is taken for all digits in one sweep and those passes are
-// skipped. Coordinates that share a sign and span less than their type -- which
-// is to say most of them -- therefore cost fewer passes than the width implies.
-template <class T, class KeyFn>
-void radixSort(std::vector<T>& v, std::vector<T>& scratch, KeyFn key) {
-    using Key = decltype(key(std::declval<const T&>()));
-    static constexpr int digits = static_cast<int>(sizeof(Key));
-    const std::size_t n = v.size();
-    if (n == 0) {
-        return;
-    }
-
-    std::size_t counts[digits][256] = {};
-    for (const T& element : v) {
-        const Key k = key(element);
-        for (int digit = 0; digit < digits; ++digit) {
-            ++counts[digit][(k >> (8 * digit)) & 0xFF];
-        }
-    }
-
-    scratch.resize(n);
-    T* from = v.data();
-    T* to = scratch.data();
-    for (int digit = 0; digit < digits; ++digit) {
-        std::size_t* count = counts[digit];
-        if (count[(key(from[0]) >> (8 * digit)) & 0xFF] == n) {
-            continue;  // One bucket holds everything: the pass cannot reorder.
-        }
-        std::size_t offset = 0;
-        for (int bucket = 0; bucket < 256; ++bucket) {
-            const std::size_t size = count[bucket];
-            count[bucket] = offset;
-            offset += size;
-        }
-        for (std::size_t i = 0; i < n; ++i) {
-            to[count[(key(from[i]) >> (8 * digit)) & 0xFF]++] = from[i];
-        }
-        std::swap(from, to);
-    }
-    if (from != v.data()) {
-        std::copy(from, from + n, v.begin());
-    }
-}
-
 }  // namespace detail
 
 /**
@@ -830,7 +765,7 @@ class ShapeTree {
         // order is not a function of its representation -- and so does the
         // incremental path, which splits one overflowing leaf and never brings
         // enough ends here to reach the threshold.
-        if constexpr (std::is_integral_v<NumberType> && sizeof(NumberType) <= 8) {
+        if constexpr (detail::RadixSortable<EndPoint, NumberType>) {
             if (indices.size() >= kRadixThreshold) {
                 std::vector<EndPoint> scratch;
                 const auto key = [](const EndPoint& e) { return detail::radixKey(e.value); };

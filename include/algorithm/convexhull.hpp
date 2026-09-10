@@ -1,6 +1,6 @@
 #pragma once
 
-#include "algorithm/redbluesweep.hpp"
+#include "algorithm/sortpoints.hpp"
 
 /**
  * @file convexhull.hpp
@@ -177,10 +177,9 @@ template<class Container>
 auto grahamScan(const Container &points_) {
     std::vector points = detail::hullCandidates(points_);
 
-    std::sort(points.begin(), points.end());
-    // Drop duplicate points: coincident inputs are never hull vertices and would
-    // otherwise survive as degenerate (zero-length) hull edges.
-    points.erase(std::unique(points.begin(), points.end()), points.end());
+    // Coincident inputs are never hull vertices and would otherwise survive as
+    // degenerate (zero-length) hull edges, so they go before the scan, not in it.
+    sortDistinctPoints(points);
 
     return detail::grahamScanOf(points, false);
 }
@@ -199,10 +198,9 @@ template<class Container>
 auto grahamScanExtended(const Container &points_) {
     std::vector points = detail::hullCandidates(points_);
 
-    std::sort(points.begin(), points.end());
-    // Drop duplicate points: coincident inputs are never hull vertices and would
-    // otherwise survive as degenerate (zero-length) hull edges.
-    points.erase(std::unique(points.begin(), points.end()), points.end());
+    // Coincident inputs are never hull vertices and would otherwise survive as
+    // degenerate (zero-length) hull edges, so they go before the scan, not in it.
+    sortDistinctPoints(points);
 
     return detail::grahamScanOf(points, true);
 }

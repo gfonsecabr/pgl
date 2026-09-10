@@ -60,6 +60,10 @@ These functions use the same predicate conventions documented in
 
 ### Sorting points
 
+- `sortPoints(points)` reorders `points` in place lexicographically by $(x, y)$. Points sharing both coordinates tie, and which comes first is unspecified; labels do not break the tie. An integral coordinate is radix sorted on its bits instead of compared, which over a few hundred points and up is several times faster; every other coordinate type is compared. Complexity $O(n \log n)$ for $n$ points, $O(n)$ on the radix path.
+
+- `sortDistinctPoints(points)` is `sortPoints(points)` followed by dropping the points whose coordinates repeat the one before, leaving the survivors distinct. Which of a run of coincident points survives, and with it which label, is unspecified.
+
 - `sortAround(points, p)` reorders `points` in place counterclockwise around the center `p`, starting from the lexicographically smallest point and breaking ties by putting farther points first. Points equal to `p` have no direction to sort by and end up last. Connecting the result in order traces a simple star-shaped polygon whose kernel contains `p`. Relies only on exact orientation and squared-distance comparisons. Splitting the points by the horizontal line through `p` leaves each part inside half a turn, where the orientation sign alone orders them, so one orientation predicate per comparison suffices. Complexity $O(n \log n)$ for $n$ points.
 
 - `hilbertSort(points)` reorders `points` in place along a Hilbert space-filling curve, so points close in the plane stay close in the sequence — a useful preprocessing step for incremental algorithms. Uses only coordinate comparisons (exact for integer coordinates). Complexity $O(n \log n)$ for $n$ points.
