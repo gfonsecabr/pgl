@@ -232,3 +232,95 @@ TEST_CASE("Find{Crossings,Intersections} accept labelled points and keep the lab
         CHECK_FALSE(s.min().label().empty());
     }
 }
+
+// The status tree keeps the segments crossing at one point as a run, and turns
+// that run over in place when the sweep passes the point. Everything about that
+// is decided by how many segments meet, whether any of them are collinear, and
+// what sits just past the run's two ends -- so the inputs that exercise it are
+// the degenerate ones, and they have to be generated rather than written out.
+namespace stress {
+
+using Point = pgl::Point<int>;
+using Segment = pgl::Segment<Point>;
+
+// A tiny coordinate grid makes concurrent crossings, collinear overlaps and
+// shared endpoints the common case rather than the exception.
+std::vector<Segment> grid(std::mt19937 &rgen, int span, int n) {
+    std::uniform_int_distribution<int> coord(-span, span);
+    std::set<Segment> uniq;
+    while ((int)uniq.size() < n) {
+        Point p(coord(rgen), coord(rgen)), q(coord(rgen), coord(rgen));
+        if (p != q) {
+            uniq.emplace(p, q);
+        }
+    }
+    return {uniq.begin(), uniq.end()};
+}
+
+// Several segments through each of a few common points: runs many segments long.
+std::vector<Segment> pencils(std::mt19937 &rgen, int centers, int perCenter) {
+    std::uniform_int_distribution<int> coord(-12, 12);
+    std::uniform_int_distribution<int> offset(-8, 8);
+    std::set<Segment> uniq;
+    for (int i = 0; i < centers; ++i) {
+        const Point o(coord(rgen), coord(rgen));
+        for (int j = 0; j < perCenter; ++j) {
+            const Point v(offset(rgen), offset(rgen));
+            if (v != Point(0, 0)) {
+                uniq.emplace(o - v, o + v);
+            }
+        }
+    }
+    return {uniq.begin(), uniq.end()};
+}
+
+// Segments drawn from a handful of lines, so collinear overlapping pairs are
+// everywhere and a run holds several of them at once.
+std::vector<Segment> collinear(std::mt19937 &rgen, int lines, int perLine) {
+    std::uniform_int_distribution<int> slope(-2, 2);
+    std::uniform_int_distribution<int> shift(-6, 6);
+    std::uniform_int_distribution<int> at(-9, 9);
+    std::set<Segment> uniq;
+    for (int i = 0; i < lines; ++i) {
+        const int m = slope(rgen), b = shift(rgen);
+        for (int j = 0; j < perLine; ++j) {
+            const int x1 = at(rgen), x2 = at(rgen);
+            if (x1 != x2) {
+                uniq.emplace(Point(x1, m * x1 + b), Point(x2, m * x2 + b));
+            }
+        }
+    }
+    return {uniq.begin(), uniq.end()};
+}
+
+}  // namespace stress
+
+TEST_CASE("Sweep agrees with brute force over degenerate random inputs") {
+    auto sorted = [](auto v) { std::sort(v.begin(), v.end()); return v; };
+
+    std::size_t crossingsSeen = 0, intersectionsSeen = 0;
+    for (unsigned seed = 0; seed < 400; ++seed) {
+        std::mt19937 rgen(seed);
+        std::vector<stress::Segment> segs;
+        switch (seed % 4) {
+        case 0: segs = stress::pencils(rgen, 3, 7); break;
+        case 1: segs = stress::grid(rgen, 6, 12 + (int)(seed % 25)); break;
+        case 2: segs = stress::grid(rgen, 14, 12 + (int)(seed % 25)); break;
+        default: segs = stress::collinear(rgen, 5, 5); break;
+        }
+
+        const auto crossings = sorted(pgl::bruteForceCrossings(segs));
+        const auto intersections = sorted(pgl::bruteForceIntersections(segs));
+        crossingsSeen += crossings.size();
+        intersectionsSeen += intersections.size();
+
+        REQUIRE(sorted(pgl::findCrossings(segs)) == crossings);
+        REQUIRE(sorted(pgl::findIntersections(segs)) == intersections);
+        REQUIRE(pgl::detectCrossings(segs) == !crossings.empty());
+        REQUIRE(pgl::detectIntersections(segs) == !intersections.empty());
+    }
+    // Guards the generators: an input set that stopped producing degeneracies
+    // would still pass every check above.
+    CHECK(crossingsSeen > 20000);
+    CHECK(intersectionsSeen > 25000);
+}

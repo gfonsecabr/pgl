@@ -1,6 +1,6 @@
 #pragma once
 
-#include "algorithm/graph.hpp"
+#include "algorithm/redblacktree.hpp"
 
 /**
  * @file intersections.hpp
@@ -10,6 +10,7 @@
  * the public helpers that expose it through the Pangolin API.
  */
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <functional>
@@ -17,6 +18,7 @@
 #include <queue>
 #include <set>
 #include <type_traits>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 
@@ -136,8 +138,8 @@ class BentleyOttmann {
     };
 
     // Where the sweep stands. The status tree's order is the order *at this
-    // abscissa*, so it is only ever moved between emptying the tree of the
-    // segments the move reorders and putting them back.
+    // abscissa*, so moving it and putting the segments it reorders back in
+    // order are one step: nothing may search the tree in between.
     Abscissa line;
 
     // A plain function object rather than a std::function: the tree calls this
@@ -149,11 +151,31 @@ class BentleyOttmann {
             return sweep->CompareAlongLine(a, b);
         }
     };
-    using Tree = std::set<Segment, AlongLine>;
+    // A tree the sweep can address by node rather than by value; see
+    // @ref pgl::detail::RedBlackTree. The sweep knows where almost everything
+    // it touches already is, and every comparison it avoids asking for is a
+    // geometric predicate over exact arithmetic that does not run.
+    using Tree = pgl::detail::RedBlackTree<Segment, AlongLine>;
+    using Node = typename Tree::Handle;
     Tree tree;
+
+    // Where each segment of the status is. The status order locates a segment
+    // in O(log n) of those predicates; this locates it in a hash lookup, which
+    // is what a RIGHT event and the start of a crossing's run both need. It
+    // survives a crossing untouched: turning a crossing over exchanges the
+    // nodes' places, never their segments.
+    std::unordered_map<Segment, Node> nodeOf;
 
     // This step's events, split by kind; see @ref getEvents.
     std::array<std::vector<Event>, 4> events;
+
+    // Scratch reused across steps, for the same reason @ref events is: a sweep
+    // takes a step per event, and these are small enough that allocating them
+    // afresh costs more than what they hold. @ref collected marks the segments
+    // already gathered into a run this step; @ref runOrder is one run's nodes
+    // in the order the crossing leaves them in.
+    std::unordered_set<Segment> collected;
+    std::vector<Node> runOrder;
 
     /**
      * @brief One crossing's worth of the status tree: the segments meeting the
@@ -161,12 +183,14 @@ class BentleyOttmann {
      *
      * They occupy consecutive positions — two segments at the same height are
      * neighbours, and every segment between two of them is at that height too —
-     * which is what lets @ref node stand for the whole run. It is where the run
-     * starts before the crossing is processed and some position inside it
-     * after, so neither end of the run ever has to be searched for.
+     * so the run is exactly a stretch of the tree, and holding its nodes says
+     * where both of its ends are without either being searched for.
      */
     struct Run {
-        typename Tree::iterator node;
+        // The run's nodes and their segments, both in tree order. After
+        // @ref reorderRun the nodes are in the run's new order, which is the
+        // same set of positions, so the run's two ends are still its two ends.
+        std::vector<Node> nodes;
         std::vector<Segment> segments;
     };
 
@@ -523,15 +547,35 @@ class BentleyOttmann {
 
     void initTree() {
         tree = Tree(AlongLine{this});
-        tree.emplace(bbox.edges()[0]); // Bottom edge as sentinel
-        tree.emplace(bbox.edges()[2]); // Top edge as sentinel
+        nodeOf.clear();
+        addToTree(bbox.edges()[0]); // Bottom edge as sentinel
+        addToTree(bbox.edges()[2]); // Top edge as sentinel
+    }
+
+    // Inserts `s` into the status and records where it went.
+    Node addToTree(const Segment &s) {
+        const Node node = tree.insert(s).first;
+        nodeOf[s] = node;
+        return node;
+    }
+
+    // Removes the node `n` from the status and forgets where it was.
+    void removeFromTree(Node n) {
+        nodeOf.erase(n->value);
+        tree.erase(n);
+    }
+
+    // The node holding `s`, or null when the status does not hold it.
+    Node nodeFor(const Segment &s) const {
+        const auto found = nodeOf.find(s);
+        return found == nodeOf.end() ? nullptr : found->second;
     }
 
     void printTree() const {
         std::cout << "Tree: ";
-        Segment previous = *tree.begin();
+        Segment previous = tree.first()->value;
         for(Segment s : tree) {
-            if (s != *tree.begin()) {
+            if (s != tree.first()->value) {
                 if (CompareAlongLine(previous,s)) {
                     std::cout << " < ";
                 } else if (CompareAlongLine(s,previous)) {
@@ -582,8 +626,9 @@ class BentleyOttmann {
         } while (!queue.empty() && queue.top().x == currentX);
     }
 
-    void possibleCrossing(Tree::iterator ita, Tree::iterator itb) {
-        Segment sa = *ita, sb = *itb;
+    void possibleCrossing(Node ita, Node itb) {
+        assert(ita && itb && "the bbox sentinels bound every neighbour walk");
+        Segment sa = ita->value, sb = itb->value;
 
         CrossingPair pair{sa,sb};
         if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
@@ -600,23 +645,21 @@ class BentleyOttmann {
 
     void processRIGHT(const std::vector<Event> &evts) {
         for (Event ev : evts) {
-            auto it1 = tree.find(ev.s1);
-            // The segment is located by the status order, so a comparator that
-            // has gone inconsistent with the tree's shape surfaces here as a
-            // miss on a segment the tree still physically holds. Erasing end()
-            // then frees the set's own header node, which turns a wrong order
-            // into heap corruption several steps away from its cause. Dropping
-            // the event loses whatever crossings it would have reported —
-            // wrong, but bounded and diagnosable.
-            assert(it1 != tree.end() && "RIGHT event for a segment not in the status");
-            if (it1 == tree.end()) {
+            const Node it1 = nodeFor(ev.s1);
+            // A RIGHT event names a segment the sweep put in the status at its
+            // LEFT event and has not taken out since, so a miss here is the
+            // sweep having lost track of it. Dropping the event loses whatever
+            // crossings it would have reported — wrong, but bounded and
+            // diagnosable, where erasing a node that is not there is not.
+            assert(it1 && "RIGHT event for a segment not in the status");
+            if (!it1) {
                 continue;
             }
             // Both bbox sentinels sit in the tree, so a real segment always has
             // a neighbour on either side of it.
-            auto it0 = it1; --it0;
-            auto it2 = it1; ++it2;
-            tree.erase(it1);
+            const Node it0 = Tree::prev(it1);
+            const Node it2 = Tree::next(it1);
+            removeFromTree(it1);
 
             possibleCrossing(it0, it2);
         }
@@ -637,13 +680,13 @@ class BentleyOttmann {
     // tree is still ordered where `s` sits in it — which is not necessarily
     // `at`: the run about to collapse onto one point at `at` is found while the
     // tree still holds the order that keeps it contiguous.
-    auto findFirst(const Segment &s, const Abscissa &at) {
-        auto it = tree.find(s);
-        while (it != tree.begin() && sameHeight(*it, s, at)) {
-            --it;
+    Node findFirst(const Segment &s, const Abscissa &at) {
+        Node it = nodeFor(s);
+        assert(it && "the run's segments are the ones the status holds");
+        while (Tree::prev(it) && sameHeight(it->value, s, at)) {
+            it = Tree::prev(it);
         }
-        ++it;
-        return it;
+        return Tree::next(it);
     }
 
     // The segments of the status tree that meet at each of this step's crossing
@@ -656,17 +699,20 @@ class BentleyOttmann {
     // line at the same point exactly when they are one run.
     std::vector<Run> getCrossingSegments(const std::vector<Event> &evts, const Abscissa &at) {
         std::vector<Run> ret;
-        std::set<Segment> done;
+        // @ref collected, cleared rather than built: there is a step per event,
+        // and a fresh hash table each time would allocate its buckets each time.
+        collected.clear();
 
         for (const Event &ev : evts) {
-            if (done.contains(ev.s1)) {
+            if (collected.contains(ev.s1)) {
                 continue;  // already collected as part of an earlier run
             }
             Run run;
-            run.node = findFirst(ev.s1, at);
-            for (auto it = run.node; it != tree.end() && sameHeight(*it, ev.s1, at); ++it) {
-                run.segments.push_back(*it);
-                done.insert(*it);
+            for (Node it = findFirst(ev.s1, at); it && sameHeight(it->value, ev.s1, at);
+                 it = Tree::next(it)) {
+                run.nodes.push_back(it);
+                run.segments.push_back(it->value);
+                collected.insert(it->value);
             }
             if (!run.segments.empty()) {
                 ret.push_back(std::move(run));
@@ -676,66 +722,92 @@ class BentleyOttmann {
         return ret;
     }
 
+    /**
+     * @brief Puts a crossing's run into the order it has just past the crossing,
+     * by exchanging the places of the nodes already holding it.
+     *
+     * Every segment of the run meets the sweep line at the same point, so the
+     * order among them is decided by which of them leaves that point above
+     * which — a comparison the sweep's own comparator makes at the crossing
+     * abscissa. Sorting the run costs that comparison k log k times for a run
+     * of k segments, against the k searches of the whole tree that reinserting
+     * them costs, and a run is nearly always two segments long.
+     *
+     * Leaves `run.nodes` in the run's new order, which is the same stretch of
+     * the tree it occupied before.
+     */
+    void reorderRun(Run &run) {
+        const std::size_t size = run.nodes.size();
+        if (size < 2) {
+            return;
+        }
+        runOrder.assign(run.nodes.begin(), run.nodes.end());
+        std::sort(runOrder.begin(), runOrder.end(), [this](Node a, Node b) {
+            return CompareAlongLine(a->value, b->value);
+        });
+
+        // `run.nodes[i]` is the node at the run's i-th position as the exchanges
+        // go on, and ends up being the run's new order. Each step puts the right
+        // node in the next position and sends whatever was there to where that
+        // node came from, so one pass over the run settles it. The inner scan is
+        // over a run, not over the tree.
+        for (std::size_t i = 0; i < size; ++i) {
+            if (run.nodes[i] == runOrder[i]) {
+                continue;
+            }
+            std::size_t from = i + 1;
+            while (from < size && run.nodes[from] != runOrder[i]) {
+                ++from;
+            }
+            assert(from < size && "the run's nodes are a permutation of themselves");
+            tree.swap(run.nodes[i], run.nodes[from]);
+            run.nodes[from] = run.nodes[i];
+            run.nodes[i] = runOrder[i];
+        }
+    }
+
     void processCROSS(std::vector<Event> &evts, const Rational &currentX) {
         // 3) Check possible new cross events
         getNewCrossEvents(evts, currentX);
 
-        // Where the crossings are, split once for the whole step. Built before
-        // the tree is touched but installed as the sweep's own only at 5): the
-        // tree is still ordered at the previous abscissa, and erasing under a
-        // changed order would not find the nodes it is asked for.
+        // Where the crossings are, split once for the whole step. Found before
+        // the abscissa becomes the sweep's own at 4): a run is contiguous under
+        // the order the tree is still holding, which is the previous abscissa's,
+        // and it is that order the walk out from each event follows.
         const Abscissa crossing = abscissa(currentX);
 
         std::vector<Run> crossingAt = getCrossingSegments(evts, crossing);
 
-        // 4) Do all CROSS removals from tree.
-        //    By iterator, walking the run: erasing a node the tree has already
-        //    handed us costs no comparison, where erasing by value searches for
-        //    it first — and this is one of the two searches per crossing that
-        //    used to dominate what a crossing costs.
-        for (const Run &run : crossingAt) {
-            auto it = run.node;
-            for (std::size_t i = 0; i < run.segments.size(); ++i) {
-                it = tree.erase(it);
-            }
-        }
-
-        // 5) Move the line to currentX
+        // 4) Move the line to currentX
         line = crossing;
 
-        // 6) Do all CROSS insertions to tree
+        // 5) Turn each crossing over.
+        //    Past the crossing the run's segments occupy the same stretch of
+        //    the tree in a different order, and that is all that changes: the
+        //    tree's shape, and every node in it, stay as they are. So the run
+        //    is sorted among itself and its nodes exchange places, which the
+        //    tree does without a comparison. Taking the run out and putting it
+        //    back is what this replaces, and that charged a full search of the
+        //    tree — a logarithmic run of height predicates — per segment, twice
+        //    over, to rediscover an order the run already fixes.
         for (Run &run : crossingAt) {
-            for (const Segment &s : run.segments) {
-                run.node = tree.insert(s).first;
-            }
+            reorderRun(run);
         }
 
-        // 7) Create all CROSS new events
+        // 6) Create all CROSS new events
         for (const Run &run : crossingAt) {
-            // The run is back in the tree, reordered but occupying the same
-            // consecutive positions, and 6) kept one of them. Walking out from
-            // there costs the length of the run; finding it again would cost
-            // the other of the two searches.
-            auto it1 = run.node;
-            while (it1 != tree.begin() &&
-                   sameHeight(*std::prev(it1), run.segments.front(), line)) {
-                --it1;
-            }
-            auto it2 = run.node;
-            while (std::next(it2) != tree.end() &&
-                   sameHeight(*std::next(it2), run.segments.front(), line)) {
-                ++it2;
-            }
-
-            auto it0 = it1; --it0;
-            auto it3 = it2; ++it3;
+            // The run's own ends. Nothing outside it meets the sweep line where
+            // it does, or it would have been collected into it, so the segments
+            // that could newly become neighbours are the two just past them.
+            const Node it1 = run.nodes.front();
+            const Node it2 = run.nodes.back();
 
             // Possible new crossings
-            possibleCrossing(it0, it1);
-            possibleCrossing(it2, it3);
+            possibleCrossing(Tree::prev(it1), it1);
+            possibleCrossing(it2, Tree::next(it2));
         }
 
-        // 8) Add crossings to set
+        // 7) Add crossings to set
         for (const Run &run : crossingAt) {
             const std::vector<Segment> &segs = run.segments;
             for (size_t i = 0; i+1 < segs.size(); i++) {
@@ -758,16 +830,16 @@ class BentleyOttmann {
             // Find top segment intersecting ev.s1 on line
             // Use fake vertical segment
             Segment sv(ev.s1.max().x(), ev.s1.max().y(), ev.s1.max().x(), ev.s1.max().y()+1);
-            auto it = tree.lower_bound(sv);
+            Node it = tree.lowerBound(sv);
 
-            for (; it != tree.begin() && it->contains(ev.s1.max()); --it) {
+            for (; it && Tree::prev(it) && it->value.contains(ev.s1.max()); it = Tree::prev(it)) {
             }
-            if (it != tree.end()) {
-                ++it;
+            if (it) {
+                it = Tree::next(it);
             }
 
-            for (; it != tree.end() && it->contains(ev.s1.max()); ++it) {
-                CrossingPair pair{ev.s1,*it};
+            for (; it && it->value.contains(ev.s1.max()); it = Tree::next(it)) {
+                CrossingPair pair{ev.s1,it->value};
                 if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
                 if (addIntersection(pair)) {
                     return;
@@ -778,19 +850,19 @@ class BentleyOttmann {
 
     void processVERTICAL(const std::vector<Event> &evts) {
         for (Event ev : evts) {
-            for (auto it = tree.lower_bound(ev.s1); it != tree.end(); ++it) {
-                if (!ev.s1.intersects(*it))
+            for (Node it = tree.lowerBound(ev.s1); it; it = Tree::next(it)) {
+                if (!ev.s1.intersects(it->value))
                     break;
                 if (onlyCrossings) {
-                    if (ev.s1.crosses(*it)) {
-                        CrossingPair pair{ev.s1, *it};
+                    if (ev.s1.crosses(it->value)) {
+                        CrossingPair pair{ev.s1, it->value};
                         if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
                         addCrossing(pair);
                     }
                 }
                 else {
-                    if (ev.s1.intersects(*it)) {
-                        CrossingPair pair{ev.s1, *it};
+                    if (ev.s1.intersects(it->value)) {
+                        CrossingPair pair{ev.s1, it->value};
                         if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
                         addCrossing(pair);
                     }
@@ -830,26 +902,26 @@ class BentleyOttmann {
 
     void processLEFT(const std::vector<Event> &evts) {
         for (Event ev : evts) {
-            auto [it1,_] = tree.insert(ev.s1);
-            auto it0 = it1; --it0;
-            auto it2 = it1; ++it2;
+            const Node it1 = addToTree(ev.s1);
+            Node it0 = Tree::prev(it1);
+            Node it2 = Tree::next(it1);
 
             queue.emplace(static_cast<Rational>(ev.s1.max().x()), EventEnum::RIGHT, ev.s1);
             possibleCrossing(it0, it1);
             possibleCrossing(it1, it2);
 
             if (!onlyCrossings) {
-                while (it0->contains(ev.s1.min())) {
-                    CrossingPair pair{*it0, ev.s1};
+                while (it0 && it0->value.contains(ev.s1.min())) {
+                    CrossingPair pair{it0->value, ev.s1};
                     if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
                     addIntersection(pair);
-                    --it0;
+                    it0 = Tree::prev(it0);
                 }
-                while (it2->contains(ev.s1.min())) {
-                    CrossingPair pair{*it2, ev.s1};
+                while (it2 && it2->value.contains(ev.s1.min())) {
+                    CrossingPair pair{it2->value, ev.s1};
                     if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
                     addIntersection(pair);
-                    ++it2;
+                    it2 = Tree::next(it2);
                 }
                 if (stopNow) {
                     break;

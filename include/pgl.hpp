@@ -66,6 +66,7 @@
 #include "core/hash.hpp"
 #include "implementation/lattice.hpp"
 #include "algorithm/graph.hpp"
+#include "algorithm/redblacktree.hpp"
 #include "algorithm/intersections.hpp"
 #include "algorithm/redbluesweep.hpp"
 #include "algorithm/convexhull.hpp"
