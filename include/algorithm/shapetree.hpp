@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -715,17 +716,96 @@ class ShapeTree {
         std::size_t score = 0;  // maxChild + straddlers; lower is better.
     };
 
+    // One end of one element's bounding box on one axis, carrying the element
+    // it came from. The scan below wants these in ascending order and wants
+    // them contiguous, which is why the coordinate is copied here rather than
+    // reached through the element every time.
+    struct EndPoint {
+        NumberType value;
+        std::size_t index;
+    };
+
+    // A subtree's box ends: per axis, every element's lower end and every
+    // element's upper end, each list ascending. Splitting a node preserves the
+    // relative order of whatever it hands to a child, so a child's lists are
+    // its parent's with the elements that went elsewhere dropped -- one linear
+    // pass, no comparison. Inheriting them is what keeps the whole build to one
+    // sort per axis instead of one per node.
+    struct SortedEnds {
+        std::vector<EndPoint> lo[2], hi[2];
+    };
+
+    // Fills `lo` and `hi` with the elements' box ends on `axis`, ascending.
+    void sortEndsOnAxis(const std::vector<std::size_t>& indices, std::size_t axis,
+                        std::vector<EndPoint>& lo, std::vector<EndPoint>& hi) const {
+        lo.reserve(indices.size());
+        hi.reserve(indices.size());
+        for (std::size_t i : indices) {
+            const auto box = elements_[i].bbox();
+            lo.push_back(EndPoint{box.min()[axis], i});
+            hi.push_back(EndPoint{box.max()[axis], i});
+        }
+        const auto byValue = [](const EndPoint& a, const EndPoint& b) { return a.value < b.value; };
+        std::sort(lo.begin(), lo.end(), byValue);
+        std::sort(hi.begin(), hi.end(), byValue);
+    }
+
     // Finds the split on `axis` minimizing maxChild + straddlers, which balances
     // the children while keeping few elements stuck at the node; ties are broken
-    // toward fewer straddlers.
-    Split bestSplitOnAxis(const std::vector<std::size_t>& indices, std::size_t axis) const {
-        const std::size_t n = indices.size();
+    // toward fewer straddlers. The two lists are that axis's box ends, ascending.
+    Split bestSplitOnEnds(const std::vector<EndPoint>& los, const std::vector<EndPoint>& his,
+                          std::size_t axis) const {
+        const std::size_t n = los.size();
+        Split best;
+        best.axis = static_cast<int>(axis);
+        std::size_t loPos = 0;
+        std::size_t hiPos = 0;
+        while (loPos < n || hiPos < n) {
+            // Merge the distinct lo/hi coordinates in order. Advancing both
+            // cursors through v gives the two side counts directly, avoiding a
+            // third sort and two binary searches per candidate coordinate.
+            const NumberType& v =
+                hiPos == n || (loPos < n && los[loPos].value < his[hiPos].value)
+                    ? los[loPos].value
+                    : his[hiPos].value;
+            while (loPos < n && !(v < los[loPos].value)) {
+                ++loPos;
+            }
+            while (hiPos < n && !(v < his[hiPos].value)) {
+                ++hiPos;
+            }
 
+            // left: boxes entirely <= v (hi <= v); right: entirely > v (lo > v).
+            const std::size_t leftCount = hiPos;
+            const std::size_t rightCount = n - loPos;
+            if (leftCount >= n || rightCount >= n || leftCount + rightCount == 0) {
+                continue;  // No progress: a child would hold every element.
+            }
+            const std::size_t straddlers = n - leftCount - rightCount;
+            const std::size_t maxChild = std::max(leftCount, rightCount);
+            const std::size_t score = maxChild + straddlers;
+            if (!best.found || score < best.score ||
+                (score == best.score && straddlers < best.straddlers)) {
+                best.found = true;
+                best.value = v;
+                best.straddlers = straddlers;
+                best.maxChild = maxChild;
+                best.score = score;
+            }
+        }
+        return best;
+    }
+
+    // @ref bestSplitOnEnds for a node whose ends were not inherited: the
+    // incremental path splits one overflowing leaf, whose elements are few, so
+    // it sorts them here rather than carrying lists through every insertion.
+    Split bestSplitOnAxis(const std::vector<std::size_t>& indices, std::size_t axis) const {
         // Points have no straddlers: an optimum is attained immediately before
         // or after the coordinate group containing the median. Selecting that
         // group is linear on average and avoids the endpoint sorts needed for
         // shapes with non-degenerate bounding boxes.
         if constexpr (PointConcept<ShapeType>) {
+            const std::size_t n = indices.size();
             std::vector<std::size_t> ordered = indices;
             const auto middle = ordered.begin() + static_cast<std::ptrdiff_t>(n / 2);
             std::nth_element(
@@ -774,64 +854,20 @@ class ShapeTree {
             return best;
         }
 
-        // Sorted box extents on the axis: lo = bbox min coord, hi = max coord.
-        std::vector<NumberType> los, his;
-        los.reserve(n);
-        his.reserve(n);
-        for (std::size_t i : indices) {
-            los.push_back(elements_[i].bbox().min()[axis]);
-            his.push_back(elements_[i].bbox().max()[axis]);
-        }
-        std::sort(los.begin(), los.end());
-        std::sort(his.begin(), his.end());
-
-        Split best;
-        best.axis = static_cast<int>(axis);
-        std::size_t loPos = 0;
-        std::size_t hiPos = 0;
-        while (loPos < n || hiPos < n) {
-            // Merge the distinct lo/hi coordinates in order. Advancing both
-            // cursors through v gives the two side counts directly, avoiding a
-            // third sort and two binary searches per candidate coordinate.
-            const NumberType& v =
-                hiPos == n || (loPos < n && los[loPos] < his[hiPos])
-                    ? los[loPos]
-                    : his[hiPos];
-            while (loPos < n && !(v < los[loPos])) {
-                ++loPos;
-            }
-            while (hiPos < n && !(v < his[hiPos])) {
-                ++hiPos;
-            }
-
-            // left: boxes entirely <= v (hi <= v); right: entirely > v (lo > v).
-            const std::size_t leftCount = hiPos;
-            const std::size_t rightCount = n - loPos;
-            if (leftCount >= n || rightCount >= n || leftCount + rightCount == 0) {
-                continue;  // No progress: a child would hold every element.
-            }
-            const std::size_t straddlers = n - leftCount - rightCount;
-            const std::size_t maxChild = std::max(leftCount, rightCount);
-            const std::size_t score = maxChild + straddlers;
-            if (!best.found || score < best.score ||
-                (score == best.score && straddlers < best.straddlers)) {
-                best.found = true;
-                best.value = v;
-                best.straddlers = straddlers;
-                best.maxChild = maxChild;
-                best.score = score;
-            }
-        }
-        return best;
+        std::vector<EndPoint> los, his;
+        sortEndsOnAxis(indices, axis, los, his);
+        return bestSplitOnEnds(los, his, axis);
     }
 
-    // Chooses the best split over `indices`, trying the depth-parity axis first
-    // so equal-scoring splits alternate direction.
-    Split chooseSplit(const std::vector<std::size_t>& indices, int level) const {
+    // Chooses the best split over `n` elements, trying the depth-parity axis
+    // first so equal-scoring splits alternate direction. `splitOnAxis` answers
+    // for one axis; where it reads the coordinates from is the caller's.
+    template <class SplitOnAxis>
+    static Split chooseSplitOverAxes(std::size_t n, int level, SplitOnAxis&& splitOnAxis) {
         Split best;
         for (int k = 0; k < 2; ++k) {
             const std::size_t axis = static_cast<std::size_t>((level + k) % 2);
-            const Split candidate = bestSplitOnAxis(indices, axis);
+            const Split candidate = splitOnAxis(axis);
             if (!candidate.found) {
                 continue;
             }
@@ -841,12 +877,25 @@ class ShapeTree {
             }
             // This is the absolute lower bound: the elements are split evenly
             // and none stays at the node, so the other axis cannot improve it.
-            if (candidate.straddlers == 0 &&
-                candidate.score == (indices.size() + 1) / 2) {
+            if (candidate.straddlers == 0 && candidate.score == (n + 1) / 2) {
                 return candidate;
             }
         }
         return best;
+    }
+
+    // Chooses the best split over `indices`, sorting each axis's ends here.
+    Split chooseSplit(const std::vector<std::size_t>& indices, int level) const {
+        return chooseSplitOverAxes(indices.size(), level, [&](std::size_t axis) {
+            return bestSplitOnAxis(indices, axis);
+        });
+    }
+
+    // Chooses the best split over a node whose ends came down from its parent.
+    Split chooseSplit(const SortedEnds& ends, int level) const {
+        return chooseSplitOverAxes(ends.lo[0].size(), level, [&](std::size_t axis) {
+            return bestSplitOnEnds(ends.lo[axis], ends.hi[axis], axis);
+        });
     }
 
     // Partitions indices by a split: strictly-left (hi <= value), strictly-right
@@ -869,11 +918,10 @@ class ShapeTree {
         }
     }
 
-    // Builds a subtree from the given element indices and returns its node index.
-    // `level` is the depth, used only to break ties between equally good axes so
-    // the split direction alternates (e.g. for points, where both axes always
-    // score the same).
-    std::ptrdiff_t build(const std::vector<std::size_t>& indices, int level) {
+    // Appends the node covering `indices`, with its bounding box, its element
+    // count and its weight sum, and returns its index. Whether it keeps them as
+    // a leaf or splits them further is the caller's to decide.
+    std::ptrdiff_t makeNode(const std::vector<std::size_t>& indices) {
         Rect box = Rect(elements_[indices[0]].bbox());
         WeightType weightSum = weight_(elements_[indices[0]]);
         // The subtree's filter box is unioned from the elements' rather than
@@ -901,6 +949,15 @@ class ShapeTree {
         }
         nodes_[id].count = indices.size();
         nodes_[id].weightSum = weightSum;
+        return id;
+    }
+
+    // Builds a subtree from the given element indices and returns its node index.
+    // `level` is the depth, used only to break ties between equally good axes so
+    // the split direction alternates (e.g. for points, where both axes always
+    // score the same).
+    std::ptrdiff_t build(const std::vector<std::size_t>& indices, int level) {
+        const std::ptrdiff_t id = makeNode(indices);
 
         if (indices.size() <= leafSize_) {
             nodes_[id].elementIndices = indices;
@@ -920,6 +977,91 @@ class ShapeTree {
 
         const std::ptrdiff_t leftChild = leftIndices.empty() ? -1 : build(leftIndices, level + 1);
         const std::ptrdiff_t rightChild = rightIndices.empty() ? -1 : build(rightIndices, level + 1);
+        nodes_[id].left = leftChild;
+        nodes_[id].right = rightChild;
+        nodes_[id].elementIndices = std::move(straddlers);
+        return id;
+    }
+
+    // @ref build for a node whose box ends came down from its parent already in
+    // order. It picks the same split the sorting path would and so produces the
+    // same tree; what it saves is the sort, which the other path pays at every
+    // node and on both axes. `side` is scratch indexed by element, sized once
+    // by the caller and reused down the whole recursion.
+    std::ptrdiff_t buildFromEnds(SortedEnds& ends, int level, std::vector<std::uint8_t>& side) {
+        // The elements this subtree holds, in the order the first axis's lower
+        // ends put them. A node's own list is read in whatever order it is
+        // stored, and nothing depends on which order that is: it decides only
+        // which of several equally good answers a query gives back -- which
+        // stored shape is returned when two are the same distance away.
+        std::vector<std::size_t> indices;
+        indices.reserve(ends.lo[0].size());
+        for (const EndPoint& end : ends.lo[0]) {
+            indices.push_back(end.index);
+        }
+
+        const std::ptrdiff_t id = makeNode(indices);
+
+        if (indices.size() <= leafSize_) {
+            nodes_[id].elementIndices = std::move(indices);
+            return id;
+        }
+
+        const Split best = chooseSplit(ends, level);
+        if (!best.found) {
+            nodes_[id].elementIndices = std::move(indices);
+            return id;
+        }
+
+        // Tag each element with the side it goes to, then deal every end list
+        // out by the tags. A filtered subsequence of an ordered list is ordered,
+        // so the children get their lists sorted without a comparison.
+        static constexpr std::uint8_t toLeft = 0, toRight = 1, stays = 2;
+        const auto a = static_cast<std::size_t>(best.axis);
+        std::vector<std::size_t> straddlers;
+        std::size_t leftCount = 0, rightCount = 0;
+        for (std::size_t i : indices) {
+            const auto box = elements_[i].bbox();
+            const std::uint8_t which = box.max()[a] <= best.value  ? toLeft
+                                       : box.min()[a] > best.value ? toRight
+                                                                   : stays;
+            side[i] = which;
+            if (which == toLeft) {
+                ++leftCount;
+            } else if (which == toRight) {
+                ++rightCount;
+            } else {
+                straddlers.push_back(i);
+            }
+        }
+
+        SortedEnds left, right;
+        const auto deal = [&](std::vector<EndPoint>& source, std::vector<EndPoint>& toTheLeft,
+                              std::vector<EndPoint>& toTheRight) {
+            toTheLeft.reserve(leftCount);
+            toTheRight.reserve(rightCount);
+            for (const EndPoint& end : source) {
+                if (side[end.index] == toLeft) {
+                    toTheLeft.push_back(end);
+                } else if (side[end.index] == toRight) {
+                    toTheRight.push_back(end);
+                }
+            }
+            // The parent's copy is dead the moment its children have theirs;
+            // releasing it here is what keeps the live lists linear in total
+            // rather than linear per level of the recursion.
+            source.clear();
+            source.shrink_to_fit();
+        };
+        for (int axis = 0; axis < 2; ++axis) {
+            deal(ends.lo[axis], left.lo[axis], right.lo[axis]);
+            deal(ends.hi[axis], left.hi[axis], right.hi[axis]);
+        }
+
+        const std::ptrdiff_t leftChild =
+            leftCount == 0 ? -1 : buildFromEnds(left, level + 1, side);
+        const std::ptrdiff_t rightChild =
+            rightCount == 0 ? -1 : buildFromEnds(right, level + 1, side);
         nodes_[id].left = leftChild;
         nodes_[id].right = rightChild;
         nodes_[id].elementIndices = std::move(straddlers);
@@ -1257,7 +1399,19 @@ class ShapeTree {
             indices[i] = i;
         }
         nodes_.reserve(2 * elements_.size() / leafSize_ + 1);
-        root_ = build(indices, 0);
+        if constexpr (PointConcept<ShapeType>) {
+            // A point's split needs no ordered ends: the median it splits at is
+            // selected in linear time, so there is nothing to inherit.
+            root_ = build(indices, 0);
+        } else {
+            SortedEnds ends;
+            for (int axis = 0; axis < 2; ++axis) {
+                sortEndsOnAxis(indices, static_cast<std::size_t>(axis), ends.lo[axis],
+                               ends.hi[axis]);
+            }
+            std::vector<std::uint8_t> side(elements_.size());
+            root_ = buildFromEnds(ends, 0, side);
+        }
     }
 
     // Appends the subtree bounding boxes to `out` in pre-order.
