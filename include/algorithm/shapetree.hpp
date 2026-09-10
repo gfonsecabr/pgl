@@ -711,6 +711,10 @@ class ShapeTree {
         bool found = false;
         int axis = 0;
         NumberType value{};
+        // The three groups the split makes, counted while it was chosen, so
+        // partitioning by it sizes its lists once instead of growing them.
+        std::size_t leftCount = 0;
+        std::size_t rightCount = 0;
         std::size_t straddlers = 0;
         std::size_t maxChild = 0;
         std::size_t score = 0;  // maxChild + straddlers; lower is better.
@@ -788,6 +792,8 @@ class ShapeTree {
                 (score == best.score && straddlers < best.straddlers)) {
                 best.found = true;
                 best.value = v;
+                best.leftCount = leftCount;
+                best.rightCount = rightCount;
                 best.straddlers = straddlers;
                 best.maxChild = maxChild;
                 best.score = score;
@@ -805,27 +811,53 @@ class ShapeTree {
         // group is linear on average and avoids the endpoint sorts needed for
         // shapes with non-degenerate bounding boxes.
         if constexpr (PointConcept<ShapeType>) {
+            // Both candidates for the split are coordinate values -- the median
+            // and the value just below it -- so the selection runs on the
+            // coordinates themselves rather than on the indices, and picks the
+            // very split selecting the indices would. What it spares is a load
+            // through `elements_` on each of the selection's comparisons, of
+            // which there are a small multiple of n at every node of the tree.
+            // A coordinate is gathered by value where copying one is trivial
+            // and by address where it is not, so an exact coordinate type pays
+            // one indirection per comparison instead of a big-integer copy per
+            // element.
+            static constexpr bool gatherByValue = std::is_trivially_copyable_v<NumberType>;
+            using Coordinate =
+                std::conditional_t<gatherByValue, NumberType, const NumberType*>;
+            const auto valueOf = [](const Coordinate& c) -> const NumberType& {
+                if constexpr (gatherByValue) {
+                    return c;
+                } else {
+                    return *c;
+                }
+            };
+
             const std::size_t n = indices.size();
-            std::vector<std::size_t> ordered = indices;
-            const auto middle = ordered.begin() + static_cast<std::ptrdiff_t>(n / 2);
-            std::nth_element(
-                ordered.begin(), middle, ordered.end(),
-                [&](std::size_t a, std::size_t b) {
-                    return elements_[a][axis] < elements_[b][axis];
-                });
-            const NumberType& median = elements_[*middle][axis];
+            std::vector<Coordinate> coordinates;
+            coordinates.reserve(n);
+            for (std::size_t i : indices) {
+                if constexpr (gatherByValue) {
+                    coordinates.push_back(elements_[i][axis]);
+                } else {
+                    coordinates.push_back(&elements_[i][axis]);
+                }
+            }
+            const auto byCoordinate = [&](const Coordinate& a, const Coordinate& b) {
+                return valueOf(a) < valueOf(b);
+            };
+            const auto middle = coordinates.begin() + static_cast<std::ptrdiff_t>(n / 2);
+            std::nth_element(coordinates.begin(), middle, coordinates.end(), byCoordinate);
+            const NumberType& median = valueOf(*middle);
 
             std::size_t less = 0;
             std::size_t equal = 0;
-            std::size_t predecessor = 0;
-            bool hasPredecessor = false;
-            for (std::size_t i : indices) {
-                const NumberType& coordinate = elements_[i][axis];
+            const NumberType* predecessor = nullptr;
+            for (const Coordinate& c : coordinates) {
+                const NumberType& coordinate = valueOf(c);
                 if (coordinate < median) {
                     ++less;
-                    if (!hasPredecessor || elements_[predecessor][axis] < coordinate) {
-                        predecessor = i;
-                        hasPredecessor = true;
+                    if (predecessor == nullptr || *predecessor < coordinate) {
+                        predecessor = &coordinate;
                     }
                 } else if (!(median < coordinate)) {
                     ++equal;
@@ -843,12 +875,14 @@ class ShapeTree {
                 if (!best.found || score < best.score) {
                     best.found = true;
                     best.value = value;
+                    best.leftCount = leftCount;
+                    best.rightCount = rightCount;
                     best.maxChild = score;
                     best.score = score;
                 }
             };
-            if (hasPredecessor) {
-                consider(elements_[predecessor][axis], less);
+            if (predecessor != nullptr) {
+                consider(*predecessor, less);
             }
             consider(median, less + equal);
             return best;
@@ -905,9 +939,27 @@ class ShapeTree {
                           std::vector<std::size_t>& rightIndices,
                           std::vector<std::size_t>& straddlers) const {
         const auto a = static_cast<std::size_t>(split.axis);
+        leftIndices.reserve(split.leftCount);
+        rightIndices.reserve(split.rightCount);
+        straddlers.reserve(split.straddlers);
+        if constexpr (PointConcept<ShapeType>) {
+            // A point is its own bounding box, so it falls on one side or the
+            // other and never straddles: the coordinate decides it directly,
+            // where the general test below would build two boxes to compare
+            // the same number against itself.
+            for (std::size_t i : indices) {
+                if (split.value < elements_[i][a]) {
+                    rightIndices.push_back(i);
+                } else {
+                    leftIndices.push_back(i);
+                }
+            }
+            return;
+        }
         for (std::size_t i : indices) {
-            const NumberType lo = elements_[i].bbox().min()[a];
-            const NumberType hi = elements_[i].bbox().max()[a];
+            const auto box = elements_[i].bbox();
+            const NumberType& lo = box.min()[a];
+            const NumberType& hi = box.max()[a];
             if (hi <= split.value) {
                 leftIndices.push_back(i);
             } else if (lo > split.value) {
