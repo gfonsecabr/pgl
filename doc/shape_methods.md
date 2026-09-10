@@ -14,7 +14,7 @@
 
 <br/>
 
-> ⚠️ **Work in Progress**: This library is still under construction and contains **bugs and missing features**. Use in production environments is not recommended.
+> ℹ️ **Pre-release**: pgl is extensively tested, but it has not had a stable release yet and its API may still change.
 
 ## Methods Common to Most Shapes
 
