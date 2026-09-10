@@ -368,8 +368,9 @@ struct Triangulation {
         // Vertex order is purely internal, so this is transparent downstream.
         hilbertSort(vertices_);
         syncVertexApproximations();
-        auto triples = delaunayTriples(vertices_, vertexApproximations_);
-        buildFromTriples(triples, std::vector<TriangleLabel>(triples.size()));
+        DelaunayAdjacency adjacency;
+        auto triples = delaunayTriples(vertices_, vertexApproximations_, &adjacency);
+        buildFromTriples(triples, std::vector<TriangleLabel>(triples.size()), &adjacency);
     }
 
     /**
@@ -408,8 +409,9 @@ struct Triangulation {
         // Keep vertices_ in Hilbert order (see the point-set constructor).
         hilbertSort(vertices_);
         syncVertexApproximations();
-        auto triples = delaunayTriples(vertices_, vertexApproximations_);
-        buildFromTriples(triples, std::vector<TriangleLabel>(triples.size()));
+        DelaunayAdjacency adjacency;
+        auto triples = delaunayTriples(vertices_, vertexApproximations_, &adjacency);
+        buildFromTriples(triples, std::vector<TriangleLabel>(triples.size()), &adjacency);
 
         // Resolve the constraint endpoints against the final ids — the
         // interner's are stale after the reorder and the ghost prepend (see
@@ -4844,6 +4846,18 @@ struct Triangulation {
         };
     }
 
+    // The neighbour links delaunayTriples already maintains, handed to
+    // buildFromTriples in the numbering it will use: real triangle k is index k
+    // and ghost j is index triples.size() + j, so nothing has to be matched up
+    // again. Sides follow the usual convention — entry i faces the edge
+    // opposite vertex i — and a ghost is stored the way buildAdjacency stores
+    // one: {a, b, GHOST} for the hull edge a->b that has the mesh on its left.
+    struct DelaunayAdjacency {
+        std::vector<std::array<TriIndex, 3>> realNbr;
+        std::vector<std::array<VertexIndex, 2>> ghostEdge;  // {a, b}, 0-based into `pts`
+        std::vector<std::array<TriIndex, 3>> ghostNbr;
+    };
+
     // Exact Delaunay triangle triples (CCW, vertex indices into `pts`) via
     // incremental Bowyer–Watson insertion. A single symbolic "vertex at infinity"
     // (INF) closes the convex hull instead of a containing super-triangle: every
@@ -4865,7 +4879,8 @@ struct Triangulation {
     // every triangle against every point.
     static std::vector<std::array<VertexIndex, 3>>
     delaunayTriples(const std::vector<PointType>& pts,
-                    const std::vector<detail::ApproximatePoint>& approximations) {
+                    const std::vector<detail::ApproximatePoint>& approximations,
+                    DelaunayAdjacency* adjacency = nullptr) {
         const VertexIndex n = static_cast<VertexIndex>(pts.size());
         std::vector<std::array<VertexIndex, 3>> out;
         if (n < 3) {
@@ -5118,14 +5133,62 @@ struct Triangulation {
             }
         }
 
+        // Number the survivors the way buildFromTriples will — reals in
+        // emission order, then the ghosts — so the links below are already in
+        // its numbering. The build maintained them the whole way; re-deriving
+        // them from the bare triples would mean sorting three sides per
+        // triangle to match each edge against its twin, which for a large
+        // point set costs about as much as the insertion loop itself.
+        std::vector<TriIndex> slot(tri.size(), NO_TRI);
+        std::vector<int> ghosts;
         for (int t = 0; t < static_cast<int>(tri.size()); ++t) {
             if (tri[t].dead) {
                 continue;
             }
             const auto& q = tri[t].v;
             if (q[0] != INF && q[1] != INF && q[2] != INF) {
+                slot[static_cast<std::size_t>(t)] = static_cast<TriIndex>(out.size());
                 out.push_back({q[0], q[1], q[2]});
+            } else if (adjacency != nullptr) {
+                ghosts.push_back(t);
             }
+        }
+        if (adjacency == nullptr) {
+            return out;
+        }
+        for (std::size_t j = 0; j < ghosts.size(); ++j) {
+            slot[static_cast<std::size_t>(ghosts[j])] =
+                static_cast<TriIndex>(out.size() + j);
+        }
+        const auto linked = [&](int t, int s) {
+            const int nb = tri[static_cast<std::size_t>(t)].nbr[static_cast<std::size_t>(s)];
+            return nb < 0 ? NO_TRI : slot[static_cast<std::size_t>(nb)];
+        };
+
+        adjacency->realNbr.resize(out.size());
+        adjacency->ghostEdge.resize(ghosts.size());
+        adjacency->ghostNbr.resize(ghosts.size());
+        for (int t = 0; t < static_cast<int>(tri.size()); ++t) {
+            if (tri[t].dead || tri[t].v[0] == INF || tri[t].v[1] == INF || tri[t].v[2] == INF) {
+                continue;
+            }
+            adjacency->realNbr[static_cast<std::size_t>(slot[static_cast<std::size_t>(t)])] = {
+                linked(t, 0), linked(t, 1), linked(t, 2)};
+        }
+        // A ghost {u, w, INF} traverses its finite edge against the real
+        // triangle behind it, so the hull edge with the mesh on its left is
+        // w->u; rotating INF out of the way turns its links into the ring
+        // predecessor (sharing a), successor (sharing b) and inner triangle
+        // that Triangulation's ghosts carry in slots 1, 0 and 2.
+        for (std::size_t j = 0; j < ghosts.size(); ++j) {
+            const int t = ghosts[j];
+            const auto& q = tri[static_cast<std::size_t>(t)].v;
+            const int k = q[0] == INF ? 0 : (q[1] == INF ? 1 : 2);
+            const int uSide = (k + 1) % 3;
+            const int wSide = (k + 2) % 3;
+            adjacency->ghostEdge[j] = {q[static_cast<std::size_t>(wSide)],
+                                       q[static_cast<std::size_t>(uSide)]};
+            adjacency->ghostNbr[j] = {linked(t, wSide), linked(t, uSide), linked(t, k)};
         }
         return out;
     }
@@ -5411,8 +5474,9 @@ struct Triangulation {
         // Keep vertices_ in Hilbert order (see the point-set constructor).
         hilbertSort(vertices_);
         syncVertexApproximations();
-        auto triples = delaunayTriples(vertices_, vertexApproximations_);
-        buildFromTriples(triples, std::vector<TriangleLabel>(triples.size()));
+        DelaunayAdjacency adjacency;
+        auto triples = delaunayTriples(vertices_, vertexApproximations_, &adjacency);
+        buildFromTriples(triples, std::vector<TriangleLabel>(triples.size()), &adjacency);
 
         // The interner's ids went stale twice — the Hilbert reorder and the
         // ghost vertex buildFromTriples prepended — so resolve the boundary
@@ -5523,22 +5587,36 @@ struct Triangulation {
     // vertices are the contiguous range [1, vertices_.size()) and insertions
     // can append real vertices without disturbing it.
     void buildFromTriples(std::vector<std::array<VertexIndex, 3>>& triples,
-                          const std::vector<TriangleLabel>& triLabels) {
+                          const std::vector<TriangleLabel>& triLabels,
+                          const DelaunayAdjacency* adjacency = nullptr) {
         vertices_.insert(vertices_.begin(), PointType{});  // ghost (GHOST); coordinates unused
         syncVertexApproximations();
 
         for (std::size_t k = 0; k < triples.size(); ++k) {
             VertexIndex x = triples[k][0] + 1, y = triples[k][1] + 1, z = triples[k][2] + 1;
+            std::array<TriIndex, 3> nbr{NO_TRI, NO_TRI, NO_TRI};
+            if (adjacency != nullptr) {
+                nbr = adjacency->realNbr[k];
+            }
             if (orientationSign(vertices_[x], vertices_[y], vertices_[z]) < 0) {
                 std::swap(y, z);
+                std::swap(nbr[1], nbr[2]);  // a side is named by the vertex it faces
             }
             assert(orientationSign(vertices_[x], vertices_[y], vertices_[z]) > 0 &&
                    "Triangulation: degenerate triangle");
-            triangles_.push_back(Tri{{x, y, z}, {NO_TRI, NO_TRI, NO_TRI}, 0, 0, 0, triLabels[k]});
+            triangles_.push_back(Tri{{x, y, z}, nbr, 0, 0, 0, triLabels[k]});
         }
         firstGhost_ = static_cast<TriIndex>(triangles_.size());
         domainTriangleCount_ = static_cast<std::size_t>(firstGhost_);
-        buildAdjacency();
+        if (adjacency != nullptr) {
+            for (std::size_t j = 0; j < adjacency->ghostEdge.size(); ++j) {
+                triangles_.push_back(Tri{{adjacency->ghostEdge[j][0] + 1,
+                                          adjacency->ghostEdge[j][1] + 1, GHOST},
+                                         adjacency->ghostNbr[j], 0});
+            }
+        } else {
+            buildAdjacency();
+        }
         for (TriIndex t = 0; t < firstGhost_; ++t) {
             noteVertexIncidence(t);
         }
