@@ -492,16 +492,31 @@ public:
 
     /// @brief Convert to float
     explicit constexpr operator float() const {
+        if (den == Int(1)) {
+            return static_cast<float>(num);
+        }
         return static_cast<float>(num) / static_cast<float>(den);
     }
 
     /// @brief Convert to double
+    ///
+    /// An integral value -- which is what a coordinate read out of integer
+    /// input is, and what the sign filters convert over and over -- takes the
+    /// numerator's conversion alone. Dividing it by a converted 1 would give
+    /// the same double, one conversion and one division later; over a wide
+    /// `Int` neither is cheap.
     explicit constexpr operator double() const {
+        if (den == Int(1)) {
+            return static_cast<double>(num);
+        }
         return static_cast<double>(num) / static_cast<double>(den);
     }
 
     /// @brief Convert to long double
     explicit constexpr operator long double() const {
+        if (den == Int(1)) {
+            return static_cast<long double>(num);
+        }
         return static_cast<long double>(num) / static_cast<long double>(den);
     }
 
