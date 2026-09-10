@@ -87,7 +87,7 @@ The numbers come from the [asymptotic benchmarks](https://gfonsecabr.github.io/p
 - Each ratio is pgl time divided by CGAL time, taking the best algorithm each library offers at that size, except that pgl searches with [`ShapeTree`](https://gfonsecabr.github.io/pgl/classpgl_1_1ShapeTree.html "Static shape tree of bounded shapes.") throughout. **Below 1 means pgl is faster.**. The table gives the median over the 32 sizes of the sweep and, in parentheses, the full range — a single size can sit well outside the median, and where a ratio moves steadily with size that is called out under the table. A row covering more than one dataset averages the per-dataset medians, and its range spans them all.
 - The two ratio columns are independent measurements, not one scaled by the other: each races a pgl number type against the CGAL kernel of the same strength. They disagree in both directions, so read the row, not one column.
 - Rows are ordered by the like-for-like `ERational` column, the one every row has, from CGAL's widest lead to pgl's.
-- `tests/benchmark/cgal_ratios.py` recomputes every row from the recorded history, each at the latest run of its own benchmark, so the rows need not share a run. One machine, `g++ -std=c++23 -O2 -DNDEBUG`, CGAL 6.1.2.
+- One run, one machine, `g++ -std=c++23 -O2 -DNDEBUG`, CGAL 6.1.2).
 
 #### Results
 
