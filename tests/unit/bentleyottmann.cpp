@@ -324,3 +324,105 @@ TEST_CASE("Sweep agrees with brute force over degenerate random inputs") {
     CHECK(crossingsSeen > 20000);
     CHECK(intersectionsSeen > 25000);
 }
+
+// Regression: a zero-length segment's two ends are one point, and the pass
+// pairing segments that share an endpoint listed it there twice, so a single
+// point came back as intersecting itself and detectIntersections answered true
+// for inputs where no two segments meet.
+TEST_CASE("A zero-length segment does not intersect itself") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+
+    const std::vector<Segment> lone = {Segment(Point(1, 3), Point(1, 3))};
+    CHECK(pgl::findIntersections(lone).empty());
+    CHECK_FALSE(pgl::detectIntersections(lone));
+
+    const std::vector<Segment> apart = {Segment(Point(1, 3), Point(1, 3)),
+                                        Segment(Point(4, 0), Point(9, 2))};
+    CHECK(pgl::findIntersections(apart).empty());
+    CHECK_FALSE(pgl::detectIntersections(apart));
+
+    // A point on a segment still meets it, at an end or inside it.
+    const std::vector<Segment> touching = {Segment(Point(4, 0), Point(9, 2)),
+                                           Segment(Point(4, 0), Point(4, 0)),
+                                           Segment(Point(0, 0), Point(10, 10)),
+                                           Segment(Point(5, 5), Point(5, 5)),
+                                           Segment(Point(10, 10), Point(10, 10))};
+    CHECK(pgl::findIntersections(touching).size() == 3);
+    CHECK(pgl::detectIntersections(touching));
+    CHECK(pgl::findCrossings(touching).empty());
+}
+
+// A segment given k times is k segments of the input, as it is to the
+// brute-force scan: a pair for every two of its copies, and every pair it makes
+// with another segment made by each copy -- each coming back as itself.
+TEST_CASE("Repeated segments are reported once per copy, labels included") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point, std::string>;
+
+    const std::vector<Segment> segs = {
+        Segment(Point(0, 0), Point(10, 10), "a1"),
+        Segment(Point(0, 10), Point(10, 0), "b"),
+        Segment(Point(0, 0), Point(10, 10), "a2"),
+        Segment(Point(20, 0), Point(30, 0), "far"),
+        Segment(Point(0, 0), Point(10, 10), "a3"),
+    };
+    const auto labels = [](const auto &pairs) {
+        std::multiset<std::string> out;
+        for (const auto &pair : pairs) {
+            out.insert(pair[0].label() < pair[1].label()
+                           ? pair[0].label() + "|" + pair[1].label()
+                           : pair[1].label() + "|" + pair[0].label());
+        }
+        return out;
+    };
+
+    const std::multiset<std::string> crossings = {"a1|b", "a2|b", "a3|b"};
+    CHECK(labels(pgl::findCrossings(segs)) == crossings);
+    CHECK(labels(pgl::xyCrossings(segs)) == crossings);
+
+    const std::multiset<std::string> intersections = {"a1|a2", "a1|a3", "a2|a3",
+                                                      "a1|b", "a2|b", "a3|b"};
+    CHECK(labels(pgl::findIntersections(segs)) == intersections);
+    CHECK(labels(pgl::xyIntersections(segs)) == intersections);
+}
+
+TEST_CASE("Sweep agrees with brute force when segments repeat or have no length") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    auto sorted = [](auto v) { std::sort(v.begin(), v.end()); return v; };
+
+    std::size_t points = 0, repeats = 0;
+    for (unsigned seed = 0; seed < 600; ++seed) {
+        std::mt19937 rgen(seed);
+        const int span = 3 + static_cast<int>(seed % 6);
+        std::uniform_int_distribution<int> coord(-span, span), percent(0, 99);
+        std::vector<Segment> segs;
+        const std::size_t n = 4 + seed % 20;
+        while (segs.size() < n) {
+            if (!segs.empty() && percent(rgen) < 25) {
+                std::uniform_int_distribution<std::size_t> pick(0, segs.size() - 1);
+                segs.push_back(segs[pick(rgen)]);
+                ++repeats;
+                continue;
+            }
+            const Point p(coord(rgen), coord(rgen));
+            const Point q = percent(rgen) < 30 ? p : Point(coord(rgen), coord(rgen));
+            points += p == q;
+            segs.emplace_back(p, q);
+        }
+
+        // As multisets: a pair repeated by the brute-force scan is owed as
+        // many times by the sweeps.
+        const auto crossings = sorted(pgl::bruteForceCrossings(segs));
+        const auto intersections = sorted(pgl::bruteForceIntersections(segs));
+        REQUIRE(sorted(pgl::findCrossings(segs)) == crossings);
+        REQUIRE(sorted(pgl::findIntersections(segs)) == intersections);
+        REQUIRE(pgl::detectCrossings(segs) == !crossings.empty());
+        REQUIRE(pgl::detectIntersections(segs) == !intersections.empty());
+        REQUIRE(sorted(pgl::xyCrossings(segs)) == crossings);
+        REQUIRE(sorted(pgl::xyIntersections(segs)) == intersections);
+    }
+    CHECK(points > 500);
+    CHECK(repeats > 500);
+}

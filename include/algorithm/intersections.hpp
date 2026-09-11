@@ -122,10 +122,16 @@ class BentleyOttmann {
     // Each segment's rank, and one Id per rank. Duplicated values share a rank
     // and only the first of them is swept: the status tree could not hold the
     // second anyway, since the two compare equal. @ref duplicated lists the
-    // ranks that had more than one, which is all the rest of them amount to.
+    // ranks that had more than one.
     std::vector<Rank> rank;
     std::vector<Id> byRank;
     std::vector<Rank> duplicated;
+    // Every copy of each rank, in input order, as the stretch
+    // `copies[copiesStart[r]]` up to `copies[copiesStart[r + 1]]`; see
+    // @ref pairsOf, which is the only reader. Left empty when no value repeats,
+    // which is the common case, and then each rank is its Id in @ref byRank.
+    std::vector<Id> copies;
+    std::vector<std::uint32_t> copiesStart;
 
     Key keyOf(Id a, Id b) const {
         const Rank ra = rank[a], rb = rank[b];
@@ -270,6 +276,12 @@ class BentleyOttmann {
     std::vector<Key> intersectionKeys;
 
     // Each key once, in order, as the pairs of segments they name.
+    //
+    // A key names two values, and a value given k times stands for k input
+    // segments, so a key between two values stands for every pairing of their
+    // copies and a key of a value with itself for every pair of its copies.
+    // That is what the brute-force scan reports, one pair per two positions of
+    // the input, and each copy comes back as itself, label included.
     template <class Keys>
     std::vector<CrossingPair> pairsOf(const Keys &keys) const {
         std::vector<Key> ordered(keys.begin(), keys.end());
@@ -278,7 +290,20 @@ class BentleyOttmann {
         std::vector<CrossingPair> pairs;
         pairs.reserve(ordered.size());
         for (const Key key : ordered) {
-            pairs.push_back({seg(byRank[key >> 32]), seg(byRank[key & 0xffffffffu])});
+            const Rank ra = static_cast<Rank>(key >> 32);
+            const Rank rb = static_cast<Rank>(key & 0xffffffffu);
+            if (copies.empty()) {
+                if (ra != rb) {
+                    pairs.push_back({seg(byRank[ra]), seg(byRank[rb])});
+                }
+                continue;
+            }
+            for (std::uint32_t i = copiesStart[ra]; i < copiesStart[ra + 1]; ++i) {
+                for (std::uint32_t j = ra == rb ? i + 1 : copiesStart[rb];
+                     j < copiesStart[rb + 1]; ++j) {
+                    pairs.push_back({seg(copies[i]), seg(copies[j])});
+                }
+            }
         }
         return pairs;
     }
@@ -341,6 +366,25 @@ class BentleyOttmann {
             }
             rank[id] = static_cast<Rank>(byRank.size());
             byRank.push_back(id);
+        }
+        copies.clear();
+        copiesStart.clear();
+        if (!duplicated.empty()) {
+            // `order` is already every copy, grouped by rank.
+            copies = std::move(order);
+            copiesStart.reserve(byRank.size() + 1);
+            for (std::uint32_t i = 0; i < copies.size(); ++i) {
+                if (i == 0 || rank[copies[i]] != rank[copies[i - 1]]) {
+                    copiesStart.push_back(i);
+                }
+            }
+            copiesStart.push_back(static_cast<std::uint32_t>(copies.size()));
+            // Each value's copies in input order, so they come back in the
+            // order the caller gave them. Only here, and not as a tie-break in
+            // the sort above, which every input would pay for.
+            for (const Rank r : duplicated) {
+                std::sort(copies.begin() + copiesStart[r], copies.begin() + copiesStart[r + 1]);
+            }
         }
         for (std::size_t i = 0; i < extras.size(); ++i) {
             rank[count + i] = static_cast<Rank>(byRank.size() + i);
@@ -1243,7 +1287,11 @@ public:
         ends.reserve(2 * byRank.size());
         for (Rank r = 0; r < byRank.size(); ++r) {
             ends.emplace_back(&seg(byRank[r]).min(), r);
-            ends.emplace_back(&seg(byRank[r]).max(), r);
+            // A zero-length segment's two ends are one point, and listing it
+            // twice there would pair the segment with itself.
+            if (!seg(byRank[r]).isDegenerate()) {
+                ends.emplace_back(&seg(byRank[r]).max(), r);
+            }
         }
         std::sort(ends.begin(), ends.end(), [](const auto &a, const auto &b) {
             return *a.first < *b.first || (!(*b.first < *a.first) && a.second < b.second);
@@ -1286,6 +1334,8 @@ public:
             auto [_1,b1] = adjacent.insert(s.min());
             if (!b1)
                 return true;
+            if (s.isDegenerate())
+                continue; // one point, already inserted: not a second segment
             auto [_2,b2] = adjacent.insert(s.max());
             if (!b2)
                 return true;
