@@ -293,6 +293,14 @@ TEST_CASE("Polyline isSimple") {
         CHECK(!Polyline({0, 0, 2, 2, 2, 2, 4, 0}).isSimple());
     }
 
+    SUBCASE("a long chain walking one edge back and forth is not simple") {
+        // Long enough for the sweep, which once collapsed the three copies of
+        // (1,1)-(3,1) into one and then called the chain simple.
+        const Polyline doubled({0, 0, 1, 0, 1, 1, 3, 1, 1, 1, 3, 1, 3, 2, 2, 2, 2, 3, 1, 3, 1, 2, 0, 2});
+        REQUIRE(doubled.size() == 12);
+        CHECK(!doubled.isSimple());
+    }
+
     SUBCASE("large polylines exercise the Bentley-Ottmann sweep") {
         std::vector<Point> stair;
         for (int i = 0; i <= 6; ++i) {

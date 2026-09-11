@@ -288,6 +288,15 @@ TEST_CASE("Polygon::isSimple recognizes simple and non-simple polygons") {
         REQUIRE(bad10.size() == 10);
         CHECK_FALSE(bad10.isSimple());
     }
+
+    SUBCASE("a large polygon walking one edge back and forth is not simple") {
+        // The staircase above with (1,1)-(3,1) walked forward, back and forward
+        // again: three copies of one segment, which the sweep once collapsed
+        // into one and then called the ring simple.
+        const Polygon doubled({0, 0, 1, 0, 1, 1, 3, 1, 1, 1, 3, 1, 3, 2, 2, 2, 2, 3, 1, 3, 1, 2, 0, 2});
+        REQUIRE(doubled.size() == 12);
+        CHECK_FALSE(doubled.isSimple());
+    }
 }
 
 // Polygon::untangle() uncrosses the boundary by 2-opt flips and, where a flip is

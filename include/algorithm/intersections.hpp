@@ -13,14 +13,16 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <cstdint>
 #include <functional>
-#include <map>
+#include <limits>
+#include <numeric>
 #include <queue>
 #include <set>
 #include <type_traits>
-#include <unordered_map>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 
 namespace pgl::detail{
@@ -63,11 +65,10 @@ class BentleyOttmann {
                   "rounding. Use integer or rational coordinates.");
     using Rectangle = pgl::Rectangle<Point>;
     // The point label rides along with the point type through
-    // Segment::intersection, so these must carry the input's label to name the
-    // alternatives that variant actually holds. Spelling them without it made
-    // the sweep instantiable only for unlabelled points.
+    // Segment::intersection, so this must carry the input's label to name the
+    // alternative that variant actually holds. Spelling it without it made the
+    // sweep instantiable only for unlabelled points.
     using RPoint = pgl::Point<Rational, typename Point::LabelType>;
-    using RSegment = pgl::Segment<RPoint>;
     using CrossingPair = std::array<Segment,2>;
 
     // Integer types the status order's arithmetic runs in. `Integer` is what
@@ -80,12 +81,59 @@ class BentleyOttmann {
     using Wide = pgl::detail::promoted_number_t<Coordinate>;
     using Exact = pgl::detail::sweepHeightNumber_t<Wide, Integer, Rational>;
 
+    // ── Segments by number ──────────────────────────────────────────────────
+    //
+    // The sweep never holds a segment. The status tree, the events, the runs
+    // and the reported pairs all name one by an `Id`, its position in the
+    // caller's vector, and read it through @ref seg. A segment is small for
+    // `int` coordinates, but over exact fractions it is eight arbitrary-
+    // precision integers, and holding it by value made every tree node, event
+    // and pair a copy of those, every lookup a hash of them and every final
+    // ordering a sort by them. Over 5,000 polygon edges in `ERational`, which
+    // cross nowhere, that bookkeeping was the whole of the sweep's cost.
+    //
+    // A pair is named by a `Key`, the two segments' ranks packed into one
+    // integer. The rank is a segment's place in the value order of the input,
+    // with equal segments sharing one, so ordering the keys orders the pairs
+    // exactly as sorting the pairs themselves would, and one sort of the input
+    // at the start replaces a sort of everything reported at the end.
+    using Id = std::uint32_t;
+    using Rank = std::uint32_t;
+    using Key = std::uint64_t;
+
+    // The caller's segments, which outlive the sweep and stay where they are.
+    const std::vector<Segment> *input = nullptr;
+    // The segments the sweep needs that the input does not have, after it in
+    // Id order: the two sentinels bounding the status below and above, and a
+    // probe the sweep builds to search the status for a point.
+    std::array<Segment, 3> extras;
+    Id bottomId() const { return static_cast<Id>(input->size()); }
+    Id topId() const { return static_cast<Id>(input->size() + 1); }
+    Id probeId() const { return static_cast<Id>(input->size() + 2); }
+
+    const Segment &seg(Id id) const {
+        return id < input->size() ? (*input)[id] : extras[id - input->size()];
+    }
+
+    // Each segment's rank, and one Id per rank. Duplicated values share a rank
+    // and only the first of them is swept: the status tree could not hold the
+    // second anyway, since the two compare equal. @ref duplicated lists the
+    // ranks that had more than one, which is all the rest of them amount to.
+    std::vector<Rank> rank;
+    std::vector<Id> byRank;
+    std::vector<Rank> duplicated;
+
+    Key keyOf(Id a, Id b) const {
+        const Rank ra = rank[a], rb = rank[b];
+        return ra < rb ? (Key(ra) << 32) | rb : (Key(rb) << 32) | ra;
+    }
+
     // A plain function object rather than a std::function: the tree calls this
     // O(log n) times per operation and millions of times per sweep, and the
     // type-erased call cannot be inlined.
     struct AlongLine {
         const BentleyOttmann *sweep;
-        bool operator()(const Segment &a, const Segment &b) const {
+        bool operator()(Id a, Id b) const {
             return sweep->CompareAlongLine(a, b);
         }
     };
@@ -93,7 +141,7 @@ class BentleyOttmann {
     // @ref pgl::detail::RedBlackTree. The sweep knows where almost everything
     // it touches already is, and every comparison it avoids asking for is a
     // geometric predicate over exact arithmetic that does not run.
-    using Tree = pgl::detail::RedBlackTree<Segment, AlongLine>;
+    using Tree = pgl::detail::RedBlackTree<Id, AlongLine>;
     using Node = typename Tree::Handle;
 
     enum class EventEnum {
@@ -109,7 +157,7 @@ class BentleyOttmann {
         // the events whose abscissas are nowhere near each other are worth.
         pgl::detail::Approximate approx;
         EventEnum type;
-        Segment s1;
+        Id s1;
         // A CROSS event's two segments, lower then upper in the status, by
         // the nodes holding them; null for every other kind. Both stay in the
         // status until the crossing, which is interior to both, and they keep
@@ -119,9 +167,9 @@ class BentleyOttmann {
         // zero, which no filter can settle and exact arithmetic has to.
         Node lower = nullptr, upper = nullptr;
 
-        Event(Rational x_, EventEnum type_, Segment s1_)
+        Event(Rational x_, EventEnum type_, Id s1_)
             : x(std::move(x_)), approx(pgl::detail::approximate(x)),
-              type(type_), s1(std::move(s1_)) {}
+              type(type_), s1(s1_) {}
 
         Event(Rational x_, pgl::detail::Approximate approx_, Node lower_, Node upper_)
             : x(std::move(x_)), approx(approx_),
@@ -138,7 +186,7 @@ class BentleyOttmann {
         }
 
         friend std::ostream &operator<<(std::ostream &out, const Event &e) {
-            return out << e.type << "@" << e.x << ": " << e.s1;
+            return out << static_cast<int>(e.type) << "@" << e.x << ": #" << e.s1;
         }
     };
 
@@ -174,22 +222,23 @@ class BentleyOttmann {
     // The status: the segments straddling the sweep line, bottom to top.
     Tree tree;
 
-    // Where each segment of the status is. The status order locates a segment
-    // in O(log n) of those predicates; this locates it in a hash lookup, which
-    // is what a RIGHT event and the start of a crossing's run both need. It
-    // survives a crossing untouched: turning a crossing over exchanges the
-    // nodes' places, never their segments.
-    std::unordered_map<Segment, Node> nodeOf;
+    // Where each segment of the status is, by Id, or null. The status order
+    // locates a segment in O(log n) of those predicates; this locates it in
+    // one read, which is what a RIGHT event needs. It survives a crossing
+    // untouched: turning a crossing over exchanges the nodes' places, never
+    // their segments.
+    std::vector<Node> nodeOf;
 
     // This step's events, split by kind; see @ref getEvents.
     std::array<std::vector<Event>, 4> events;
 
     // Scratch reused across steps, for the same reason @ref events is: a sweep
     // takes a step per event, and these are small enough that allocating them
-    // afresh costs more than what they hold. @ref collected marks the nodes
-    // already gathered into a run this step; @ref runOrder is one run's nodes
-    // in the order the crossing leaves them in.
-    std::unordered_set<Node> collected;
+    // afresh costs more than what they hold. A segment is gathered into a run
+    // at this step when @ref collectedAt holds this step's @ref step;
+    // @ref runOrder is one run's nodes in the order the crossing leaves them in.
+    std::vector<std::uint32_t> collectedAt;
+    std::uint32_t step = 0;
     std::vector<Node> runOrder;
 
     /**
@@ -206,40 +255,40 @@ class BentleyOttmann {
         // @ref reorderRun the nodes are in the run's new order, which is the
         // same set of positions, so the run's two ends are still its two ends.
         std::vector<Node> nodes;
-        std::vector<Segment> segments;
+        std::vector<Id> ids;
     };
 
-    // Hashed, not ordered: these accumulate one entry per reported pair, and
-    // the sweep only ever asks whether a pair is already in them. Ordering them
-    // as they are built charges a log-sized run of segment comparisons, and a
-    // red-black node, for every crossing found; the results are put in order
-    // once, at the end, where it costs a single sort.
-    struct CrossingPairHash {
-        std::size_t operator()(const CrossingPair &pair) const {
-            std::size_t seed = 0;
-            pgl::detail::hashCombine(seed, pair[0]);
-            pgl::detail::hashCombine(seed, pair[1]);
-            return seed;
-        }
-    };
-    using CrossingPairSet = std::unordered_set<CrossingPair, CrossingPairHash>;
-    CrossingPairSet crossingsSet, intersectionSet;
+    // The pairs found. Crossings are hashed, since the sweep asks whether it
+    // has already scheduled a pair; the rest are only ever added to. Either
+    // way they are put in order once, at the end, where it costs one sort of
+    // integers.
+    std::unordered_set<Key> crossingsSet;
+    std::vector<Key> intersectionKeys;
 
-    // The set's contents in the order the public entry points hand them back.
-    static std::vector<CrossingPair> sorted(const CrossingPairSet &pairs) {
-        std::vector<CrossingPair> ordered(pairs.begin(), pairs.end());
+    // Each key once, in order, as the pairs of segments they name.
+    template <class Keys>
+    std::vector<CrossingPair> pairsOf(const Keys &keys) const {
+        std::vector<Key> ordered(keys.begin(), keys.end());
         std::sort(ordered.begin(), ordered.end());
-        return ordered;
+        ordered.erase(std::unique(ordered.begin(), ordered.end()), ordered.end());
+        std::vector<CrossingPair> pairs;
+        pairs.reserve(ordered.size());
+        for (const Key key : ordered) {
+            pairs.push_back({seg(byRank[key >> 32]), seg(byRank[key & 0xffffffffu])});
+        }
+        return pairs;
     }
 
-    std::function<bool(const CrossingPair&)> onCrossing = [](const CrossingPair&){return false;},
-                                       onIntersection = [](const CrossingPair&){return false;};
+    // Called with every pair as it is found, the lesser segment first; a true
+    // return stops the sweep. Empty unless an entry point needs one.
+    std::function<bool(const Segment&, const Segment&)> onCrossing, onIntersection;
     bool onlyCrossings = true;
     bool stopNow = false;
 
-    bool addCrossing(const CrossingPair &p) {
-        crossingsSet.insert(p);
-        if (onCrossing(p)) {
+    bool addCrossing(Id a, Id b) {
+        if (rank[b] < rank[a]) std::swap(a, b);
+        crossingsSet.insert(keyOf(a, b));
+        if (onCrossing && onCrossing(seg(a), seg(b))) {
             stopNow = true;
             return true;
         }
@@ -247,9 +296,10 @@ class BentleyOttmann {
         return false;
     }
 
-    bool addIntersection(const CrossingPair &p) {
-        intersectionSet.insert(p);
-        if (onIntersection(p)) {
+    bool addIntersection(Id a, Id b) {
+        if (rank[b] < rank[a]) std::swap(a, b);
+        intersectionKeys.push_back(keyOf(a, b));
+        if (onIntersection && onIntersection(seg(a), seg(b))) {
             stopNow = true;
             return true;
         }
@@ -257,22 +307,76 @@ class BentleyOttmann {
         return false;
     }
 
-    void initQueue(const std::vector<Segment> &segments) {
-        for (const Segment &s :segments) {
+    /**
+     * @brief Ranks the input and sets up everything indexed by Id.
+     *
+     * Sorting Ids by segment value is the one place the sweep compares
+     * segments as values; after it, equality is a comparison of ranks.
+     */
+    void prepare(const std::vector<Segment> &segments) {
+        assert(segments.size() + extras.size() <= std::numeric_limits<Id>::max());
+        input = &segments;
+        const std::size_t count = segments.size();
+        const std::size_t slots = count + extras.size();
+
+        std::vector<Id> order(count);
+        std::iota(order.begin(), order.end(), Id(0));
+        std::sort(order.begin(), order.end(),
+                  [&segments](Id a, Id b) { return segments[a] < segments[b]; });
+        rank.assign(slots, 0);
+        byRank.clear();
+        duplicated.clear();
+        for (const Id id : order) {
+            if (!byRank.empty() && segments[byRank.back()] == segments[id]) {
+                const Rank shared = static_cast<Rank>(byRank.size() - 1);
+                if (duplicated.empty() || duplicated.back() != shared) {
+                    duplicated.push_back(shared);
+                }
+                rank[id] = shared;
+                continue;
+            }
+            rank[id] = static_cast<Rank>(byRank.size());
+            byRank.push_back(id);
+        }
+        for (std::size_t i = 0; i < extras.size(); ++i) {
+            rank[count + i] = static_cast<Rank>(byRank.size() + i);
+        }
+
+        initBbox();
+        extras[0] = bbox.edges()[0]; // Bottom edge as sentinel
+        extras[1] = bbox.edges()[2]; // Top edge as sentinel
+
+        // Every endpoint approximated once, for all the comparisons that will
+        // read it. The probe is vertical and never reaches a height test.
+        endsOf.assign(slots, Ends{});
+        for (const Id id : byRank) {
+            endsOf[id] = endsFor(seg(id));
+        }
+        endsOf[bottomId()] = endsFor(extras[0]);
+        endsOf[topId()] = endsFor(extras[1]);
+
+        nodeOf.assign(slots, nullptr);
+        collectedAt.assign(slots, 0);
+        step = 0;
+    }
+
+    void initQueue() {
+        for (const Id id : byRank) {
+            const Segment &s = seg(id);
             if(s.isVertical()) {
-                queue.emplace(static_cast<Rational>(s.min().x()), EventEnum::VERTICAL, s);
+                queue.emplace(static_cast<Rational>(s.min().x()), EventEnum::VERTICAL, id);
             }
             else {
-                queue.emplace(static_cast<Rational>(s.min().x()), EventEnum::LEFT, s);
+                queue.emplace(static_cast<Rational>(s.min().x()), EventEnum::LEFT, id);
             }
         }
     }
 
-    void initBbox(const std::vector<Segment> &segments) {
+    void initBbox() {
         // Min and Max y-coordinate for sentinels
-        bbox = Rectangle(segments[0]);
-        for (const Segment &s :segments) {
-            bbox.insert(s);
+        bbox = Rectangle(seg(byRank.front()));
+        for (const Id id : byRank) {
+            bbox.insert(seg(id));
         }
         // Grow bbox by 1
         bbox = Rectangle(bbox.min().x()-1, bbox.min().y()-1, bbox.max().x()+1, bbox.max().y()+1);
@@ -314,21 +418,31 @@ class BentleyOttmann {
         FilteredEnd aLo, aHi, bLo, bHi;
     };
 
+    // Each segment's two endpoints, filtered, by Id; see @ref prepare. They
+    // refer to the segments where they stand, in the input and in @ref extras.
+    struct Ends {
+        FilteredEnd lo, hi;
+    };
+    std::vector<Ends> endsOf;
+    static Ends endsFor(const Segment &s) {
+        return {pgl::detail::filtered<Coordinate>(s.min()),
+                pgl::detail::filtered<Coordinate>(s.max())};
+    }
+
     /**
      * @brief Sign of `b`'s height minus `a`'s height at the sweep line.
      *
      * Both segments must be non-vertical, and both must straddle the sweep
      * abscissa — which is what every segment in the status tree does.
      */
-    int heightSign(const Segment &a, const Segment &b, const Abscissa &at) const {
-        // Four endpoints, each approximated once. Every sign below reads the
-        // same four, and an approximation of an exact coordinate is not cheap:
-        // letting each predicate convert its own operands would do the same
-        // conversion up to five times over one call.
-        const Endpoints ends{pgl::detail::filtered<Coordinate>(a.min()),
-                             pgl::detail::filtered<Coordinate>(a.max()),
-                             pgl::detail::filtered<Coordinate>(b.min()),
-                             pgl::detail::filtered<Coordinate>(b.max())};
+    int heightSign(Id ia, Id ib, const Abscissa &at) const {
+        const Segment &a = seg(ia), &b = seg(ib);
+        // Four endpoints, approximated once per segment when the input was
+        // ranked. Every sign below reads the same four, and an approximation of
+        // an exact coordinate is not cheap: converting them afresh for each of
+        // the O(log n) comparisons a tree operation makes repeats the same
+        // conversions over and over.
+        const Endpoints ends{endsOf[ia].lo, endsOf[ia].hi, endsOf[ib].lo, endsOf[ib].hi};
 
         // The height difference at each end of the shared x-range. Whichever
         // segment contributes the end, its endpoint is tested against the other
@@ -368,7 +482,7 @@ class BentleyOttmann {
      * @brief Whether two segments of the status tree meet the sweep line at the
      * same point, which is what makes them one crossing's worth of segments.
      */
-    bool sameHeight(const Segment &a, const Segment &b, const Abscissa &at) const {
+    bool sameHeight(Id a, Id b, const Abscissa &at) const {
         return a == b || heightSign(a, b, at) == 0;
     }
 
@@ -546,7 +660,8 @@ class BentleyOttmann {
     }
 
     // Compare segments by intersection points vertically along line
-    bool CompareAlongLine (const Segment& a, const Segment& b) const {
+    bool CompareAlongLine (Id ia, Id ib) const {
+        const Segment &a = seg(ia), &b = seg(ib);
         // Vertical segments are never stored in the set. They reach the
         // comparator only as a probe, and only ever at their own abscissa —
         // which is the sweep's, since a vertical segment is probed at the step
@@ -582,17 +697,18 @@ class BentleyOttmann {
         if (std::max(b.min().y(),b.max().y()) < std::min(a.min().y(),a.max().y()))
             return false;
 
-        if (a == b) { // Same segment
+        if (ia == ib) { // Same segment
             return false;
         }
 
-        const int height = heightSign(a, b, line);
+        const int height = heightSign(ia, ib, line);
         if (height != 0) {
             return height > 0;
         }
 
         // Segments intersecting line at same point
-        auto o = pgl::orientationSign(a.min(), a.max(), b.max());
+        auto o = pgl::detail::orientationSignOf(endsOf[ia].lo, endsOf[ia].hi,
+                                                endsOf[ib].hi).value();
         if (o > 0) {
             return true;
         }
@@ -600,7 +716,7 @@ class BentleyOttmann {
             return false;
         }
         // One segment is a subset of the other
-        return a < b;
+        return rank[ia] < rank[ib];
     }
 
     // Splits `x` into the parts the height tests read.
@@ -634,34 +750,27 @@ class BentleyOttmann {
 
     void initTree() {
         tree = Tree(AlongLine{this});
-        nodeOf.clear();
-        addToTree(bbox.edges()[0]); // Bottom edge as sentinel
-        addToTree(bbox.edges()[2]); // Top edge as sentinel
+        addToTree(bottomId());
+        addToTree(topId());
     }
 
-    // Inserts `s` into the status and records where it went.
-    Node addToTree(const Segment &s) {
-        const Node node = tree.insert(s).first;
-        nodeOf[s] = node;
+    // Inserts `id` into the status and records where it went.
+    Node addToTree(Id id) {
+        const Node node = tree.insert(id).first;
+        nodeOf[id] = node;
         return node;
     }
 
     // Removes the node `n` from the status and forgets where it was.
     void removeFromTree(Node n) {
-        nodeOf.erase(n->value);
+        nodeOf[n->value] = nullptr;
         tree.erase(n);
-    }
-
-    // The node holding `s`, or null when the status does not hold it.
-    Node nodeFor(const Segment &s) const {
-        const auto found = nodeOf.find(s);
-        return found == nodeOf.end() ? nullptr : found->second;
     }
 
     void printTree() const {
         std::cout << "Tree: ";
-        Segment previous = tree.first()->value;
-        for(Segment s : tree) {
+        Id previous = tree.first()->value;
+        for(Id s : tree) {
             if (s != tree.first()->value) {
                 if (CompareAlongLine(previous,s)) {
                     std::cout << " < ";
@@ -672,7 +781,7 @@ class BentleyOttmann {
                     std::cout << " _=_ ";
                 }
             }
-            std::cout << s;
+            std::cout << seg(s);
             previous = s;
         }
         std::cout << std::endl;
@@ -680,7 +789,7 @@ class BentleyOttmann {
 
     void printCrossings() const {
         std::cout << "Crossings: ";
-        for(auto [sa,sb] : crossingsSet) {
+        for(const auto &[sa,sb] : pairsOf(crossingsSet)) {
             auto p = std::get<0>(*sa.template intersection<Rational>(sb));
             std::cout << sa << "crosses" << sb << " at " << p << "; ";
         }
@@ -715,12 +824,10 @@ class BentleyOttmann {
 
     void possibleCrossing(Node ita, Node itb) {
         assert(ita && itb && "the bbox sentinels bound every neighbour walk");
-        Segment sa = ita->value, sb = itb->value;
+        const Id a = ita->value, b = itb->value;
+        const Segment &sa = seg(a), &sb = seg(b);
 
-        CrossingPair pair{sa,sb};
-        if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
-
-        if (sa.crosses(sb) && !crossingsSet.contains(pair)) {
+        if (sa.crosses(sb) && !crossingsSet.contains(keyOf(a, b))) {
             Rational x = crossingAbscissa(sa, sb);
             // The event needs this approximation anyway, and it settles whether
             // the crossing is still ahead of the sweep without an exact
@@ -730,14 +837,14 @@ class BentleyOttmann {
                 pgl::detail::approximateSign(approx - line.approx);
             if (ahead == std::partial_ordering::unordered ? x > line.x : ahead > 0) {
                 queue.emplace(std::move(x), approx, ita, itb);
-                addCrossing(pair);
+                addCrossing(a, b);
             }
         }
     }
 
     void processRIGHT(const std::vector<Event> &evts) {
-        for (Event ev : evts) {
-            const Node it1 = nodeFor(ev.s1);
+        for (const Event &ev : evts) {
+            const Node it1 = nodeOf[ev.s1];
             // A RIGHT event names a segment the sweep put in the status at its
             // LEFT event and has not taken out since, so a miss here is the
             // sweep having lost track of it. Dropping the event loses whatever
@@ -778,15 +885,15 @@ class BentleyOttmann {
     // is the one that keeps each run contiguous.
     std::vector<Run> getCrossingSegments(const std::vector<Event> &evts, const Abscissa &at) {
         std::vector<Run> ret;
-        // @ref collected, cleared rather than built: there is a step per event,
-        // and a fresh hash table each time would allocate its buckets each time.
-        collected.clear();
+        // A fresh stamp rather than a cleared set: there is a step per event,
+        // and clearing anything per step would cost in proportion to it.
+        ++step;
 
         for (const Event &ev : evts) {
-            if (collected.contains(ev.lower)) {
+            if (collectedAt[ev.lower->value] == step) {
                 // Already collected as part of an earlier run, and the event's
                 // other segment with it: the two meet at the same point.
-                assert(collected.contains(ev.upper));
+                assert(collectedAt[ev.upper->value] == step);
                 continue;
             }
             // The event's own two segments meet here by construction, and so
@@ -811,8 +918,8 @@ class BentleyOttmann {
                 assert(it && "the event's upper segment lies above its lower one");
                 assert(sameHeight(it->value, ev.lower->value, at));
                 run.nodes.push_back(it);
-                run.segments.push_back(it->value);
-                collected.insert(it);
+                run.ids.push_back(it->value);
+                collectedAt[it->value] = step;
                 if (it == last) {
                     break;
                 }
@@ -858,9 +965,12 @@ class BentleyOttmann {
                 // Both pass through the crossing, and the far endpoint is not
                 // the crossing, so it lies on the other's line exactly when the
                 // two share a line.
-                while (end < size && pgl::orientationSign(runOrder[end - 1]->value.min(),
-                                                          runOrder[end - 1]->value.max(),
-                                                          runOrder[end]->value.max()) == 0) {
+                while (end < size) {
+                    const Ends &p = endsOf[runOrder[end - 1]->value];
+                    const Ends &q = endsOf[runOrder[end]->value];
+                    if (pgl::detail::orientationSignOf(p.lo, p.hi, q.hi).value() != 0) {
+                        break;
+                    }
                     ++end;
                 }
                 std::reverse(runOrder.begin() + static_cast<std::ptrdiff_t>(begin),
@@ -935,14 +1045,11 @@ class BentleyOttmann {
 
         // 7) Add crossings to set
         for (const Run &run : crossingAt) {
-            const std::vector<Segment> &segs = run.segments;
-            for (size_t i = 0; i+1 < segs.size(); i++) {
-                for (size_t j = i+1; j < segs.size(); j++) {
-                    CrossingPair pair{segs[i], segs[j]};
-                    if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
-
-                    if (pair[0].crosses(pair[1])) {
-                        if (addCrossing(pair)) {
+            const std::vector<Id> &ids = run.ids;
+            for (size_t i = 0; i+1 < ids.size(); i++) {
+                for (size_t j = i+1; j < ids.size(); j++) {
+                    if (seg(ids[i]).crosses(seg(ids[j]))) {
+                        if (addCrossing(ids[i], ids[j])) {
                             return;
                         }
                     }
@@ -952,22 +1059,21 @@ class BentleyOttmann {
     }
 
     void processRIGHT_interior(const std::vector<Event> &evts) {
-        for (Event ev : evts) {
+        for (const Event &ev : evts) {
             // Find top segment intersecting ev.s1 on line
             // Use fake vertical segment
-            Segment sv(ev.s1.max().x(), ev.s1.max().y(), ev.s1.max().x(), ev.s1.max().y()+1);
-            Node it = tree.lowerBound(sv);
+            const Point &end = seg(ev.s1).max();
+            extras[2] = Segment(end.x(), end.y(), end.x(), end.y()+1);
+            Node it = tree.lowerBound(probeId());
 
-            for (; it && Tree::prev(it) && it->value.contains(ev.s1.max()); it = Tree::prev(it)) {
+            for (; it && Tree::prev(it) && seg(it->value).contains(end); it = Tree::prev(it)) {
             }
             if (it) {
                 it = Tree::next(it);
             }
 
-            for (; it && it->value.contains(ev.s1.max()); it = Tree::next(it)) {
-                CrossingPair pair{ev.s1,it->value};
-                if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
-                if (addIntersection(pair)) {
+            for (; it && seg(it->value).contains(end); it = Tree::next(it)) {
+                if (addIntersection(ev.s1, it->value)) {
                     return;
                 }
             }
@@ -975,78 +1081,69 @@ class BentleyOttmann {
     }
 
     void processVERTICAL(const std::vector<Event> &evts) {
-        for (Event ev : evts) {
+        for (const Event &ev : evts) {
+            const Segment &vertical = seg(ev.s1);
             for (Node it = tree.lowerBound(ev.s1); it; it = Tree::next(it)) {
-                if (!ev.s1.intersects(it->value))
+                const Segment &other = seg(it->value);
+                if (!vertical.intersects(other))
                     break;
                 if (onlyCrossings) {
-                    if (ev.s1.crosses(it->value)) {
-                        CrossingPair pair{ev.s1, it->value};
-                        if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
-                        addCrossing(pair);
+                    if (vertical.crosses(other)) {
+                        addCrossing(ev.s1, it->value);
                     }
                 }
                 else {
-                    if (ev.s1.intersects(it->value)) {
-                        CrossingPair pair{ev.s1, it->value};
-                        if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
-                        addCrossing(pair);
-                    }
+                    addCrossing(ev.s1, it->value);
                 }
             }
         }
     }
 
     void processVERTICAL_interior(const std::vector<Event> &v_evts, const std::vector<Event> &r_evts, const std::vector<Event> &l_evts) {
-        std::vector<std::pair<Number, Segment>> order;
-        for (Event ev : l_evts) {
-            order.emplace_back(ev.s1.min().y(), ev.s1);
+        std::vector<std::pair<Number, Id>> order;
+        for (const Event &ev : l_evts) {
+            order.emplace_back(seg(ev.s1).min().y(), ev.s1);
         }
-        for (Event ev : r_evts) {
-            order.emplace_back(ev.s1.max().y(), ev.s1);
+        for (const Event &ev : r_evts) {
+            order.emplace_back(seg(ev.s1).max().y(), ev.s1);
         }
-        for (Event ev : v_evts) {
-            order.emplace_back(ev.s1.min().y(), ev.s1);
-            order.emplace_back(ev.s1.max().y(), ev.s1);
+        for (const Event &ev : v_evts) {
+            order.emplace_back(seg(ev.s1).min().y(), ev.s1);
+            order.emplace_back(seg(ev.s1).max().y(), ev.s1);
         }
         std::sort(order.begin(),order.end());
 
-        for (Event ev : v_evts) {
-            auto y1 = ev.s1.min().y();
-            auto y2 = ev.s1.max().y();
-            for (auto it = std::lower_bound(order.begin(), order.end(), std::make_pair(y1, Segment()));
+        for (const Event &ev : v_evts) {
+            const auto &y1 = seg(ev.s1).min().y();
+            const auto &y2 = seg(ev.s1).max().y();
+            for (auto it = std::lower_bound(order.begin(), order.end(), std::make_pair(y1, Id(0)));
                  it != order.end() && it->first < y2;
                  ++it) {
-                CrossingPair pair{ev.s1, it->second};
-                if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
-                if (pair[0] != pair[1]) {
-                    addIntersection(pair);
+                if (it->second != ev.s1) {
+                    addIntersection(ev.s1, it->second);
                 }
             }
         }
     }
 
     void processLEFT(const std::vector<Event> &evts) {
-        for (Event ev : evts) {
+        for (const Event &ev : evts) {
+            const Segment &s = seg(ev.s1);
             const Node it1 = addToTree(ev.s1);
             Node it0 = Tree::prev(it1);
             Node it2 = Tree::next(it1);
 
-            queue.emplace(static_cast<Rational>(ev.s1.max().x()), EventEnum::RIGHT, ev.s1);
+            queue.emplace(static_cast<Rational>(s.max().x()), EventEnum::RIGHT, ev.s1);
             possibleCrossing(it0, it1);
             possibleCrossing(it1, it2);
 
             if (!onlyCrossings) {
-                while (it0 && it0->value.contains(ev.s1.min())) {
-                    CrossingPair pair{it0->value, ev.s1};
-                    if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
-                    addIntersection(pair);
+                while (it0 && seg(it0->value).contains(s.min())) {
+                    addIntersection(it0->value, ev.s1);
                     it0 = Tree::prev(it0);
                 }
-                while (it2 && it2->value.contains(ev.s1.min())) {
-                    CrossingPair pair{it2->value, ev.s1};
-                    if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
-                    addIntersection(pair);
+                while (it2 && seg(it2->value).contains(s.min())) {
+                    addIntersection(it2->value, ev.s1);
                     it2 = Tree::next(it2);
                 }
                 if (stopNow) {
@@ -1058,12 +1155,24 @@ class BentleyOttmann {
 
 
     void run(const std::vector<Segment> &segments) {
-        // Return directly for 0 or 1 segment
-        if (segments.size() <= (size_t) 1)
+        if (segments.empty())
             return;
 
-        initQueue(segments);
-        initBbox(segments);
+        prepare(segments);
+        // A segment given twice meets itself, as an intersection and not as a
+        // crossing; only one of the two is swept.
+        if (!onlyCrossings) {
+            for (const Rank r : duplicated) {
+                if (addIntersection(byRank[r], byRank[r])) {
+                    return;
+                }
+            }
+        }
+        // Nothing to sweep for a single distinct segment
+        if (byRank.size() <= 1)
+            return;
+
+        initQueue();
         line = abscissa(static_cast<Rational>(bbox.min().x()));
         initTree();
 
@@ -1112,47 +1221,59 @@ public:
     std::vector<CrossingPair> findCrossings(const std::vector<Segment> &segments) {
         onlyCrossings = true;
         run(segments);
-        return sorted(crossingsSet);
+        return pairsOf(crossingsSet);
     }
 
     std::vector<CrossingPair> findIntersections(const std::vector<Segment> &segments) {
         onlyCrossings = false;
         run(segments);
-        intersectionSet.insert(crossingsSet.begin(), crossingsSet.end());
-
-        // Insert segments sharing an endpoint
-        std::map<Point,std::vector<Segment>> adjacent;
-        for (const Segment &s : segments) {
-            adjacent[s.min()].push_back(s);
-            adjacent[s.max()].push_back(s);
+        if (segments.empty()) {
+            return {};
         }
-        for (const auto &[_,segs] : adjacent) {
-            for (size_t i = 0; i+1 < segs.size(); i++) {
-                for (size_t j = i+1; j < segs.size(); j++) {
-                    CrossingPair pair{segs[i], segs[j]};
-                    if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
-                    intersectionSet.insert(pair);
+        intersectionKeys.insert(intersectionKeys.end(), crossingsSet.begin(), crossingsSet.end());
+
+        // Insert segments sharing an endpoint. Sorting the endpoints brings the
+        // segments at each point together; a duplicate was already reported
+        // with itself, so the distinct segments are all that need visiting.
+        std::vector<std::pair<const Point *, Rank>> ends;
+        ends.reserve(2 * byRank.size());
+        for (Rank r = 0; r < byRank.size(); ++r) {
+            ends.emplace_back(&seg(byRank[r]).min(), r);
+            ends.emplace_back(&seg(byRank[r]).max(), r);
+        }
+        std::sort(ends.begin(), ends.end(), [](const auto &a, const auto &b) {
+            return *a.first < *b.first || (!(*b.first < *a.first) && a.second < b.second);
+        });
+        for (std::size_t first = 0; first < ends.size();) {
+            std::size_t last = first + 1;
+            while (last < ends.size() && *ends[last].first == *ends[first].first) {
+                ++last;
+            }
+            for (std::size_t i = first; i + 1 < last; ++i) {
+                for (std::size_t j = i + 1; j < last; ++j) {
+                    intersectionKeys.push_back((Key(ends[i].second) << 32) | ends[j].second);
                 }
             }
+            first = last;
         }
 
-        return sorted(intersectionSet);
+        return pairsOf(intersectionKeys);
     }
 
     bool detectCrossings(const std::vector<Segment> &segments) {
         onlyCrossings = true;
-        onCrossing = [] (const CrossingPair &) {return true;};
+        onCrossing = [] (const Segment &, const Segment &) {return true;};
         run(segments);
         return !crossingsSet.empty();
     }
 
     bool detectIntersections(const std::vector<Segment> &segments) {
         onlyCrossings = false;
-        onCrossing = [] (const CrossingPair &) {return true;};
-        onIntersection = [] (const CrossingPair &) {return true;};
+        onCrossing = [] (const Segment &, const Segment &) {return true;};
+        onIntersection = [] (const Segment &, const Segment &) {return true;};
         run(segments);
 
-        if (!crossingsSet.empty() || !intersectionSet.empty())
+        if (!crossingsSet.empty() || !intersectionKeys.empty())
             return true;
 
         // Insert segments sharing an endpoint
@@ -1174,16 +1295,16 @@ public:
     bool testPolygon(const std::vector<Segment> &segments) {
         onlyCrossings = false;
         bool notSimple = false;
-        onCrossing = [&notSimple] (const CrossingPair &) {notSimple = true; return true;};
+        onCrossing = [&notSimple] (const Segment &, const Segment &) {notSimple = true; return true;};
         size_t count = 0;
         size_t n = segments.size();
-        onIntersection = [n,&count, &notSimple] (const CrossingPair &p) {
-                if (p[0].collinear(p[1]) && p[0].interiorsIntersect(p[1])) {
+        onIntersection = [n,&count, &notSimple] (const Segment &p0, const Segment &p1) {
+                if (p0.collinear(p1) && p0.interiorsIntersect(p1)) {
                     notSimple = true; // Collinear overlap
                     return true;
                 }
-                const int shared = (p[0].min() == p[1].min()) + (p[0].min() == p[1].max())
-                                 + (p[0].max() == p[1].min()) + (p[0].max() == p[1].max());
+                const int shared = (p0.min() == p1.min()) + (p0.min() == p1.max())
+                                 + (p0.max() == p1.min()) + (p0.max() == p1.max());
                 if (!shared) {
                     notSimple = true; // Vertex inside an edge
                     return true;
@@ -1205,16 +1326,16 @@ public:
     bool testPolyLine(const std::vector<Segment> &segments) {
         onlyCrossings = false;
         bool notSimple = false;
-        onCrossing = [&notSimple] (const CrossingPair &) {notSimple = true; return true;};
+        onCrossing = [&notSimple] (const Segment &, const Segment &) {notSimple = true; return true;};
         size_t count = 0;
         size_t n = segments.size();
-        onIntersection = [n,&count, &notSimple] (const CrossingPair &p) {
-                if (p[0].collinear(p[1]) && p[0].interiorsIntersect(p[1])) {
+        onIntersection = [n,&count, &notSimple] (const Segment &p0, const Segment &p1) {
+                if (p0.collinear(p1) && p0.interiorsIntersect(p1)) {
                     notSimple = true; // Collinear overlap
                     return true;
                 }
-                const int shared = (p[0].min() == p[1].min()) + (p[0].min() == p[1].max())
-                                 + (p[0].max() == p[1].min()) + (p[0].max() == p[1].max());
+                const int shared = (p0.min() == p1.min()) + (p0.min() == p1.max())
+                                 + (p0.max() == p1.min()) + (p0.max() == p1.max());
                 if (!shared) {
                     notSimple = true; // Vertex inside an edge
                     return true;
