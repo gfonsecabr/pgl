@@ -10,6 +10,7 @@
  * even when integral input coordinates produce non-integral output points.
  */
 
+#include <array>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -89,6 +90,87 @@ inline pgl::BigInt pow2(int k) {
     }
     return result;
 }
+
+/// @brief The full product of two 64-bit words, high word first.
+constexpr std::array<std::uint64_t, 2> multiplyWords(std::uint64_t x, std::uint64_t y) {
+#if defined(__SIZEOF_INT128__)
+    const __uint128_t product = static_cast<__uint128_t>(x) * y;
+    return {static_cast<std::uint64_t>(product >> 64), static_cast<std::uint64_t>(product)};
+#else
+    // Schoolbook over 32-bit halves, where no partial product can overflow.
+    const std::uint64_t mask = 0xFFFFFFFFu;
+    const std::uint64_t low = (x & mask) * (y & mask);
+    const std::uint64_t cross1 = (x & mask) * (y >> 32);
+    const std::uint64_t cross2 = (x >> 32) * (y & mask);
+    const std::uint64_t middle = (low >> 32) + (cross1 & mask) + (cross2 & mask);
+    return {(x >> 32) * (y >> 32) + (cross1 >> 32) + (cross2 >> 32) + (middle >> 32),
+            (middle << 32) | (low & mask)};
+#endif
+}
+
+/// @brief |v| of a 128-bit integer as two 64-bit words, high word first.
+///
+/// Taken unsigned on the native type, where the most negative value has no
+/// negation; the Boost fallback's range is symmetric, so there it has one.
+template <class Int>
+constexpr std::array<std::uint64_t, 2> magnitudeWords(const Int& v) {
+#if defined(__SIZEOF_INT128__)
+    const __uint128_t magnitude = v < 0 ? -static_cast<__uint128_t>(v)
+                                        : static_cast<__uint128_t>(v);
+    return {static_cast<std::uint64_t>(magnitude >> 64), static_cast<std::uint64_t>(magnitude)};
+#else
+    const Int magnitude = v < 0 ? Int(-v) : v;
+    return {static_cast<std::uint64_t>(magnitude >> 64),
+            static_cast<std::uint64_t>(magnitude & Int(~std::uint64_t(0)))};
+#endif
+}
+
+/// @brief |a * b| of two 128-bit integers as four 64-bit words, high word first.
+template <class Int>
+constexpr std::array<std::uint64_t, 4> magnitudeProduct(const Int& a, const Int& b) {
+    const auto [a1, a0] = magnitudeWords(a);
+    const auto [b1, b0] = magnitudeWords(b);
+    const auto [h00, l00] = multiplyWords(a0, b0);
+    const auto [h01, l01] = multiplyWords(a0, b1);
+    const auto [h10, l10] = multiplyWords(a1, b0);
+    const auto [h11, l11] = multiplyWords(a1, b1);
+    // Column sums, each carry counted as it leaves its word.
+    std::uint64_t w1 = h00 + l01;
+    std::uint64_t carry = w1 < l01;
+    w1 += l10;
+    carry += w1 < l10;
+    std::uint64_t w2 = h01 + carry;
+    carry = w2 < carry;
+    w2 += h10;
+    carry += w2 < h10;
+    w2 += l11;
+    carry += w2 < l11;
+    // The whole product is below 2^256, so the top word takes its carry without
+    // overflowing.
+    return {h11 + carry, w2, w1, l00};
+}
+
+/**
+ * @brief Exactly `a * b <=> c * d` for 128-bit integers with @p b and @p d
+ * positive, without leaving the stack.
+ *
+ * Each product can need 255 bits. Formed as a @ref BigInt, one past the inline
+ * int128 store goes onto the heap, at several allocations apiece; here it is
+ * four machine words.
+ */
+template <class Int>
+constexpr std::strong_ordering compareProducts(const Int& a, const Int& b,
+                                               const Int& c, const Int& d) {
+    // With b and d positive, each product has the sign of its first factor.
+    const int signA = (a > 0) - (a < 0);
+    const int signC = (c > 0) - (c < 0);
+    if (signA != signC || signA == 0) {
+        return signA <=> signC;
+    }
+    const std::array<std::uint64_t, 4> left = magnitudeProduct(a, b);
+    const std::array<std::uint64_t, 4> right = magnitudeProduct(c, d);
+    return signA > 0 ? left <=> right : right <=> left;
+}
 } // namespace detail
 
 
@@ -160,22 +242,49 @@ private:
         }
     }
 
+    // Whether the type comparisons cross-multiply in holds the product of any
+    // two parts, so that no comparison can overflow however wide they are.
+    static constexpr bool productsFitWide = [] {
+        using Wide = pgl::detail::promoted_number_t<Int>;
+        if constexpr (pgl::detail::arbitraryPrecision<Wide>) {
+            return true;
+        } else if constexpr (pgl::detail::extended_integral<Int> &&
+                             pgl::detail::extended_integral<Wide>) {
+            return pgl::detail::numeric_limits<Wide>::digits >=
+                   2 * pgl::detail::numeric_limits<Int>::digits;
+        } else {
+            return false;
+        }
+    }();
+
+    /**
+     * @brief Whether a comparison settles its cross products in machine words,
+     * by @ref detail::compareProducts, instead of in the promoted type.
+     *
+     * A 128-bit Int promotes to a @ref BigInt, and a cross product past 127 bits
+     * leaves its inline store for the heap, at several allocations for each of
+     * the two products. Reducing first would keep them inline only when the gcd
+     * is large, and would pay a chain of 128-bit divisions every time. Four
+     * 64-bit words hold the product of any two parts, so neither is needed.
+     */
+    static constexpr bool comparesInWords = std::same_as<Int, pgl::int128>;
+
     /**
      * @brief Whether comparing (n, d) has to reduce it first.
      *
      * A comparison only cross-multiplies and stores nothing, so the reduction
      * buys exactly one thing: keeping the widened product from overflowing.
-     * An arbitrary-precision Int has nothing to overflow, and there the
-     * reduction is a bad trade — a gcd is a chain of divisions, against the
-     * single multiplication of two values a few limbs wide that it saves, and
-     * since @ref operandParts writes the reduced form only into the caller's
-     * locals, the same value pays for it again at every comparison. Profiling
-     * the non-convex Minkowski sum, whose arrangement compares
+     * Where nothing can overflow — an arbitrary-precision Int, or a widened
+     * type that holds any product of two parts — the reduction is a bad trade:
+     * a gcd is a chain of divisions, against the single multiplication it
+     * saves, and since @ref operandParts writes the reduced form only into the
+     * caller's locals, the same value pays for it again at every comparison.
+     * Profiling the non-convex Minkowski sum, whose arrangement compares
      * `Rational<BigInt>` coordinates by the million, put 60% of the entire run
      * inside that gcd.
      */
     static constexpr bool comparisonNeedsReduction(const Int& n, const Int& d) {
-        if constexpr (requires { n.fitsInt64(); }) {
+        if constexpr (requires { n.fitsInt64(); } || productsFitWide) {
             return false;
         } else {
             return reductionUrgent(n, d);
@@ -816,6 +925,9 @@ public:
         if (storedInteger() && r.storedInteger()) {
             return compareValues(num, r.num);
         }
+        if constexpr (comparesInWords) {
+            return pgl::detail::compareProducts(num, r.den, r.num, den);
+        }
         if ((!normalized_ && comparisonNeedsReduction(num, den)) ||
             (!r.normalized_ && comparisonNeedsReduction(r.num, r.den))) {
             Int an, ad, bn, bd;
@@ -856,6 +968,9 @@ public:
         using Wide = pgl::detail::promoted_number_t<Int>;
         if (storedInteger() && r.storedInteger()) {
             return num == r.num;
+        }
+        if constexpr (comparesInWords) {
+            return pgl::detail::compareProducts(num, r.den, r.num, den) == 0;
         }
         // Deferred fractions are equal iff their cross products match; reduce
         // first only when an operand could overflow the widened product.
@@ -1013,6 +1128,11 @@ public:
         // arbitrary-precision denominator for nothing. A deferred fraction is
         // reduced first only when that product could overflow, exactly as the
         // Rational-vs-Rational comparison does.
+        if constexpr (comparesInWords &&
+                      (std::same_as<I, Int> || (std::integral<I> && sizeof(I) <= 8))) {
+            // Any such integer is exactly an Int.
+            return pgl::detail::compareProducts(num, Int(1), static_cast<Int>(n), den);
+        }
         if (!normalized_ && comparisonNeedsReduction(num, den)) {
             Int an, ad;
             operandParts(an, ad);

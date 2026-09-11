@@ -260,6 +260,99 @@ TEST_CASE_TEMPLATE("Exact comparison against integers", Int,
     CHECK(Int(37) == R(74, 2));
 }
 
+TEST_CASE("Rational<int128> compares cross products past 128 bits exactly") {
+    // Over int128 a comparison never reduces first, so deferred parts reach the
+    // full width and their cross products up to 255 bits. Each answer is checked
+    // against the same cross products formed in BigInt.
+    using I = pgl::int128;
+    using R = pgl::Rational<I>;
+    const I max = pgl::detail::numeric_limits<I>::max();
+    const I two64 = I(1) << 64;
+
+    const auto reference = [](const R& a, const R& b) {
+        return pgl::BigInt(a.numerator()) * pgl::BigInt(b.denominator()) <=>
+               pgl::BigInt(b.numerator()) * pgl::BigInt(a.denominator());
+    };
+    const auto versusInteger = [](const R& a, const auto& n) {
+        return pgl::BigInt(a.numerator()) <=>
+               pgl::BigInt(n) * pgl::BigInt(a.denominator());
+    };
+
+    // Parts that put every word at its extremes, where a carry is easiest to
+    // lose, plus a deterministic spread of random widths.
+    std::vector<I> parts = {1, 2, 3, (I(1) << 62) + 1, (I(1) << 63), two64 - 1, two64,
+                            two64 + 1, (I(1) << 100) + 7, max / 3, max - 1, max};
+    uint64_t state = 0x9E3779B97F4A7C15u;
+    const auto next = [&state] {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        return state;
+    };
+    for (int i = 0; i < 40; ++i) {
+        const I wide = (I(next() >> 1) << 64) | I(next());
+        const I part = wide >> (next() % 127);
+        parts.push_back(part == 0 ? I(1) : part);
+    }
+
+    std::vector<R> values;
+    for (std::size_t i = 0; i < parts.size(); ++i) {
+        const I den = parts[(i * 7 + 3) % parts.size()];
+        values.emplace_back(parts[i], den);
+        values.emplace_back(-parts[i], den);
+    }
+    values.emplace_back(0, max);
+    for (const R& a : values) {
+        for (const R& b : values) {
+            CHECK(((a <=> b) == reference(a, b)));
+            CHECK((a == b) == (reference(a, b) == 0));
+        }
+        for (const int64_t n : {int64_t(5), int64_t(-7), std::numeric_limits<int64_t>::max(),
+                                std::numeric_limits<int64_t>::min()}) {
+            CHECK(((a <=> n) == versusInteger(a, n)));
+        }
+        CHECK(((a <=> max) == versusInteger(a, max)));
+        CHECK(((a <=> -max) == versusInteger(a, -max)));
+    }
+
+    // Equal values stored over different, unreduced parts.
+    const I p = (I(1) << 60) + 1;
+    const I g = two64 + 13;
+    CHECK(R(p * g, 3 * g) == R(p, 3));
+    CHECK(R(-p * g, 3 * g) == R(-p, 3));
+    CHECK(((R(p * g, 3 * g) <=> R(p + 1, 3)) < 0));
+    CHECK(((R(-p * g, 3 * g) <=> R(-p - 1, 3)) > 0));
+
+    // The four-word product itself, over factors near the full width, where
+    // every column sum carries: random ones and those whose words are all ones.
+    std::vector<I> factors = {max, max - 1, max - (two64 - 1), max - (two64 - 1) + 1,
+                              (I(1) << 126) + (two64 - 1), two64 - 1, two64 + (two64 - 1) / 2};
+    for (int i = 0; i < 60; ++i) {
+        factors.push_back((I(next() >> 1) << 64) | I(next()));
+    }
+    const pgl::BigInt word = pgl::BigInt(two64);
+    for (const I& a : factors) {
+        for (const I& b : factors) {
+            const std::array<uint64_t, 4> w = pgl::detail::magnitudeProduct(a, -b);
+            pgl::BigInt product = 0;
+            for (const uint64_t limb : w) {
+                product = product * word + pgl::BigInt(I(limb));
+            }
+            CHECK(product == pgl::BigInt(a) * pgl::BigInt(b));
+        }
+    }
+
+#if defined(__SIZEOF_INT128__)
+    // The native minimum has no negation in the type; its magnitude is taken
+    // unsigned.
+    const I min = pgl::detail::numeric_limits<I>::min();
+    CHECK((pgl::detail::compareProducts(min, I(1), -max, I(1)) < 0));
+    CHECK((pgl::detail::compareProducts(min, max, -max, max) < 0));
+    CHECK((pgl::detail::compareProducts(min, max, min, max) == 0));
+    CHECK((pgl::detail::compareProducts(-max, max, min, max) > 0));
+#endif
+}
+
 TEST_CASE("Rational numeric limits and promotion preserve rational types") {
     using SmallRational = pgl::Rational<int16_t>;
     using PromotedSmallRational = pgl::detail::promoted_number_t<SmallRational>;
