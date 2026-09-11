@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <concepts>
 #include <cstdint>
 #include <functional>
 #include <limits>
@@ -80,6 +81,9 @@ class BentleyOttmann {
     using Coordinate = pgl::detail::promoted_number_t<Number>;
     using Wide = pgl::detail::promoted_number_t<Coordinate>;
     using Exact = pgl::detail::sweepHeightNumber_t<Wide, Integer, Rational>;
+    static constexpr bool holdsWide =
+        pgl::detail::extended_integral<Number> && pgl::detail::extended_integral<Wide> &&
+        pgl::detail::extended_integral<Integer>;
 
     // ── Segments by number ──────────────────────────────────────────────────
     //
@@ -527,8 +531,8 @@ class BentleyOttmann {
      * @pre `a.crosses(b)`, so the two carriers are not parallel.
      */
     Rational crossingAbscissa(const Segment &a, const Segment &b) const {
-        if constexpr (!pgl::detail::arbitraryPrecision<Integer> ||
-                      !pgl::is_Rational_v<Rational>) {
+        if constexpr (!pgl::is_Rational_v<Rational> ||
+                      (!pgl::detail::arbitraryPrecision<Integer> && !holdsWide)) {
             return std::get<RPoint>(*a.template intersection<Rational>(b)).x();
         } else if constexpr (pgl::detail::extended_integral<Number>) {
             return wholeCrossingAbscissa<Wide>(a, b, [](const Number &value) {
@@ -1351,6 +1355,113 @@ public:
         return !notSimple;
     }
 }; // class BentleyOttmann
+
+/**
+ * @brief Largest coordinate magnitude at which the sweep over `int`
+ * coordinates is exact in `Rational<int64_t>`.
+ *
+ * A crossing's abscissa is `num / det` with `|det| <= 8 C^2`, and it lies in
+ * the bounding box, so `|num| <= C |det| <= 8 C^3`, which fits an `int64_t`
+ * for `C < 2^20`. Every other quantity the sweep forms is either compared in
+ * the fraction's promoted type or evaluated in its own wider one.
+ */
+inline constexpr long long sweepInt64Limit = (1LL << 20) - 1;
+
+/**
+ * @brief Largest coordinate magnitude at which the sweep over `int`
+ * coordinates is exact at all.
+ *
+ * The orientation predicate over `int` points evaluates in `int64_t` and
+ * compares two products of coordinate differences, each up to `4 C^2`; this is
+ * the largest `C` for which that stays below `2^63`. Up to here the abscissa,
+ * at most `8 C^3`, fits `Rational<int128>` with room to spare.
+ */
+inline constexpr long long sweepInt128Limit = 1518500249;
+
+/**
+ * @brief The narrowest fraction the sweep over @p segments is exact in: 0 for
+ * `Rational<int64_t>`, 1 for `Rational<int128>`, 2 for neither.
+ */
+template <class Segment>
+int sweepFractionTier(const std::vector<Segment> &segments) {
+    int tier = 0;
+    const auto within = [](const auto &c, long long limit) {
+        const pgl::int128 v = static_cast<pgl::int128>(c);
+        return -static_cast<pgl::int128>(limit) <= v && v <= static_cast<pgl::int128>(limit);
+    };
+    for (const Segment &s : segments) {
+        for (const auto *p : {&s.min(), &s.max()}) {
+            for (const auto *c : {&p->x(), &p->y()}) {
+                if (tier == 0 && !within(*c, sweepInt64Limit)) {
+                    tier = 1;
+                }
+                if (!within(*c, sweepInt128Limit)) {
+                    return 2;
+                }
+            }
+        }
+    }
+    return tier;
+}
+
+template <class Segment>
+struct isPglSegment : std::false_type {};
+template <class Point, class Label>
+struct isPglSegment<pgl::Segment<Point, Label>> : std::true_type {};
+
+/**
+ * @brief Runs @p body over a @ref BentleyOttmann sweep in the narrowest
+ * fraction the input allows, when the caller asked for the default
+ * `Rational<BigInt>` over integer coordinates.
+ *
+ * All three fractions compute the same exact answer wherever the narrower
+ * ones are exact; they differ only in what their arithmetic costs, and a
+ * machine-word fraction avoids the per-operation overhead of an
+ * arbitrary-precision one. Coordinates of a wider integer type small enough
+ * for the tier are narrowed to `int` for the sweep and the reported pairs
+ * converted back, labels included.
+ *
+ * @param body Called as `body(sweep, segments)`; returns what the caller
+ * returns, either a `bool` or a vector of segment pairs.
+ */
+template <class Rational, class Segment, class Body>
+auto sweepInNarrowestRational(const std::vector<Segment> &segments, Body body) {
+    using Number = typename Segment::NumberType;
+    if constexpr (std::same_as<Rational, pgl::Rational<pgl::BigInt>> &&
+                  (std::signed_integral<Number> || std::same_as<Number, pgl::int128>) &&
+                  (std::same_as<Number, int> || isPglSegment<Segment>::value)) {
+        const int tier = sweepFractionTier(segments);
+        if (tier < 2) {
+            const auto run = [&]<class Narrow>(std::type_identity<Narrow>) {
+                if constexpr (std::same_as<Number, int>) {
+                    BentleyOttmann<Narrow, Segment> sweep;
+                    return body(sweep, segments);
+                } else {
+                    using IntSegment =
+                        pgl::Segment<pgl::Point<int, typename Segment::PointType::LabelType>,
+                                     typename Segment::LabelType>;
+                    const std::vector<IntSegment> narrow(segments.begin(), segments.end());
+                    BentleyOttmann<Narrow, IntSegment> sweep;
+                    auto found = body(sweep, narrow);
+                    if constexpr (std::same_as<decltype(found), bool>) {
+                        return found;
+                    } else {
+                        std::vector<std::array<Segment, 2>> pairs;
+                        pairs.reserve(found.size());
+                        for (const auto &pair : found) {
+                            pairs.push_back({Segment(pair[0]), Segment(pair[1])});
+                        }
+                        return pairs;
+                    }
+                }
+            };
+            return tier == 0 ? run(std::type_identity<pgl::Rational<std::int64_t>>{})
+                             : run(std::type_identity<pgl::Rational<pgl::int128>>{});
+        }
+    }
+    BentleyOttmann<Rational, Segment> sweep;
+    return body(sweep, segments);
+}
 } // namespace pgl::detail
 
 namespace pgl {
@@ -1372,8 +1483,9 @@ auto findIntersections(const Container &segments) {
     using Segment = Container::value_type;
     std::vector<Segment> v(segments.begin(),segments.end());
 
-    pgl::detail::BentleyOttmann<Rational, Segment> bo;
-    return bo.findIntersections(v);
+    return pgl::detail::sweepInNarrowestRational<Rational>(v, [](auto &sweep, const auto &input) {
+        return sweep.findIntersections(input);
+    });
 }
 
 /**
@@ -1393,8 +1505,9 @@ auto findCrossings(const Container &segments) {
     using Segment = Container::value_type;
     std::vector<Segment> v(segments.begin(),segments.end());
 
-    pgl::detail::BentleyOttmann<Rational,Segment> bo;
-    return bo.findCrossings(v);
+    return pgl::detail::sweepInNarrowestRational<Rational>(v, [](auto &sweep, const auto &input) {
+        return sweep.findCrossings(input);
+    });
 }
 
 
@@ -1414,8 +1527,9 @@ bool detectIntersections(const Container &segments) {
     using Segment = Container::value_type;
     std::vector<Segment> v(segments.begin(),segments.end());
 
-    pgl::detail::BentleyOttmann<Rational,Segment> bo;
-    return bo.detectIntersections(v);
+    return pgl::detail::sweepInNarrowestRational<Rational>(v, [](auto &sweep, const auto &input) {
+        return sweep.detectIntersections(input);
+    });
 }
 
 /**
@@ -1434,8 +1548,9 @@ bool detectCrossings(const Container &segments) {
     using Segment = Container::value_type;
     std::vector<Segment> v(segments.begin(),segments.end());
 
-    pgl::detail::BentleyOttmann<Rational,Segment> bo;
-    return bo.detectCrossings(v);
+    return pgl::detail::sweepInNarrowestRational<Rational>(v, [](auto &sweep, const auto &input) {
+        return sweep.detectCrossings(input);
+    });
 }
 
 /**
