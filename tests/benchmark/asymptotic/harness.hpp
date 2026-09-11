@@ -28,10 +28,15 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <span>
 #include <string>
 #include <string_view>
 #include <vector>
+
+#if defined(__GLIBC__)
+#include <malloc.h>
+#endif
 
 namespace bench {
 
@@ -59,6 +64,29 @@ constexpr int kSlowQueryBatch = 100;
 // even the slow batch would make the one problem cost more than every other row
 // of its category put together.
 constexpr int kVisibilityQueries = 20;
+
+// ---------------------------------------------------------------------------
+// The heap
+//
+// glibc hands the free memory at the top of the heap back to the system once
+// it passes a threshold, and it does so inside whichever free() crosses it. A
+// sweep's large cells leave tens of megabytes free there, so the next cell to
+// free a big enough block pays for returning all of it: one small-size cell of
+// a segment sweep measured 2.6 times its neighbours that way. The heap is
+// therefore never trimmed, and every cell is timed against a heap that only
+// grows. Turning trimming off also freezes glibc's adaptive mmap threshold at
+// its 128 KiB start, which would map and unmap every large buffer afresh, so
+// that threshold is pinned where the adaptive one tops out on 64-bit.
+//
+// Every driver, the CGAL baseline's included, starts here through
+// parseOptions, so both libraries are timed against the same heap.
+// ---------------------------------------------------------------------------
+inline void keepHeap() {
+#if defined(__GLIBC__)
+    mallopt(M_TRIM_THRESHOLD, std::numeric_limits<int>::max());
+    mallopt(M_MMAP_THRESHOLD, 32 * 1024 * 1024);
+#endif
+}
 
 // ---------------------------------------------------------------------------
 // Command line
@@ -90,6 +118,7 @@ inline std::vector<int> parseIntList(std::string_view s) {
 }
 
 inline Options parseOptions(int argc, char** argv) {
+    keepHeap();
     Options o;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg = argv[i];
