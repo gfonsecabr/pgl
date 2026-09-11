@@ -80,6 +80,22 @@ class BentleyOttmann {
     using Wide = pgl::detail::promoted_number_t<Coordinate>;
     using Exact = pgl::detail::sweepHeightNumber_t<Wide, Integer, Rational>;
 
+    // A plain function object rather than a std::function: the tree calls this
+    // O(log n) times per operation and millions of times per sweep, and the
+    // type-erased call cannot be inlined.
+    struct AlongLine {
+        const BentleyOttmann *sweep;
+        bool operator()(const Segment &a, const Segment &b) const {
+            return sweep->CompareAlongLine(a, b);
+        }
+    };
+    // A tree the sweep can address by node rather than by value; see
+    // @ref pgl::detail::RedBlackTree. The sweep knows where almost everything
+    // it touches already is, and every comparison it avoids asking for is a
+    // geometric predicate over exact arithmetic that does not run.
+    using Tree = pgl::detail::RedBlackTree<Segment, AlongLine>;
+    using Node = typename Tree::Handle;
+
     enum class EventEnum {
         RIGHT, CROSS, VERTICAL, LEFT
     };
@@ -94,10 +110,23 @@ class BentleyOttmann {
         pgl::detail::Approximate approx;
         EventEnum type;
         Segment s1;
+        // A CROSS event's two segments, lower then upper in the status, by
+        // the nodes holding them; null for every other kind. Both stay in the
+        // status until the crossing, which is interior to both, and they keep
+        // that order until then, since the crossing is the only place they can
+        // exchange it. Knowing them is what lets the crossing's step skip
+        // asking whether they meet there — a question whose answer is exactly
+        // zero, which no filter can settle and exact arithmetic has to.
+        Node lower = nullptr, upper = nullptr;
 
         Event(Rational x_, EventEnum type_, Segment s1_)
             : x(std::move(x_)), approx(pgl::detail::approximate(x)),
               type(type_), s1(std::move(s1_)) {}
+
+        Event(Rational x_, Node lower_, Node upper_)
+            : x(std::move(x_)), approx(pgl::detail::approximate(x)),
+              type(EventEnum::CROSS), s1(lower_->value),
+              lower(lower_), upper(upper_) {}
 
         auto operator<(const Event &other) const { // Order is backwards by x
             const std::partial_ordering filtered =
@@ -142,21 +171,7 @@ class BentleyOttmann {
     // order are one step: nothing may search the tree in between.
     Abscissa line;
 
-    // A plain function object rather than a std::function: the tree calls this
-    // O(log n) times per operation and millions of times per sweep, and the
-    // type-erased call cannot be inlined.
-    struct AlongLine {
-        const BentleyOttmann *sweep;
-        bool operator()(const Segment &a, const Segment &b) const {
-            return sweep->CompareAlongLine(a, b);
-        }
-    };
-    // A tree the sweep can address by node rather than by value; see
-    // @ref pgl::detail::RedBlackTree. The sweep knows where almost everything
-    // it touches already is, and every comparison it avoids asking for is a
-    // geometric predicate over exact arithmetic that does not run.
-    using Tree = pgl::detail::RedBlackTree<Segment, AlongLine>;
-    using Node = typename Tree::Handle;
+    // The status: the segments straddling the sweep line, bottom to top.
     Tree tree;
 
     // Where each segment of the status is. The status order locates a segment
@@ -171,10 +186,10 @@ class BentleyOttmann {
 
     // Scratch reused across steps, for the same reason @ref events is: a sweep
     // takes a step per event, and these are small enough that allocating them
-    // afresh costs more than what they hold. @ref collected marks the segments
+    // afresh costs more than what they hold. @ref collected marks the nodes
     // already gathered into a run this step; @ref runOrder is one run's nodes
     // in the order the crossing leaves them in.
-    std::unordered_set<Segment> collected;
+    std::unordered_set<Node> collected;
     std::vector<Node> runOrder;
 
     /**
@@ -637,7 +652,7 @@ class BentleyOttmann {
             RPoint cross = std::get<RPoint>(*sa.template intersection<Rational>(sb));
             if (cross.x() > line.x) {
                 // assert(CompareAlongLine(sa,sb));
-                queue.emplace(cross.x(), EventEnum::CROSS, sa);
+                queue.emplace(cross.x(), ita, itb);
                 addCrossing(pair);
             }
         }
@@ -673,22 +688,6 @@ class BentleyOttmann {
         }
     }
 
-    // The lowest segment of the run that meets the sweep line where `s` does,
-    // `s` itself included.
-    //
-    // `s` is located by the tree's own order, so this must be called while the
-    // tree is still ordered where `s` sits in it — which is not necessarily
-    // `at`: the run about to collapse onto one point at `at` is found while the
-    // tree still holds the order that keeps it contiguous.
-    Node findFirst(const Segment &s, const Abscissa &at) {
-        Node it = nodeFor(s);
-        assert(it && "the run's segments are the ones the status holds");
-        while (Tree::prev(it) && sameHeight(it->value, s, at)) {
-            it = Tree::prev(it);
-        }
-        return Tree::next(it);
-    }
-
     // The segments of the status tree that meet at each of this step's crossing
     // points, each run in tree order, the runs in no particular order.
     //
@@ -697,6 +696,9 @@ class BentleyOttmann {
     // coordinate — one `yAtX` per event and a std::map over fractions — to
     // express something the runs already say, since two segments meet the sweep
     // line at the same point exactly when they are one run.
+    //
+    // Must run while the tree still holds the previous abscissa's order, which
+    // is the one that keeps each run contiguous.
     std::vector<Run> getCrossingSegments(const std::vector<Event> &evts, const Abscissa &at) {
         std::vector<Run> ret;
         // @ref collected, cleared rather than built: there is a step per event,
@@ -704,19 +706,41 @@ class BentleyOttmann {
         collected.clear();
 
         for (const Event &ev : evts) {
-            if (collected.contains(ev.s1)) {
-                continue;  // already collected as part of an earlier run
+            if (collected.contains(ev.lower)) {
+                // Already collected as part of an earlier run, and the event's
+                // other segment with it: the two meet at the same point.
+                assert(collected.contains(ev.upper));
+                continue;
+            }
+            // The event's own two segments meet here by construction, and so
+            // does everything the status holds between them: anything between
+            // them that missed the point would have had to cross one of them,
+            // or end, before it — an event already processed. So only the run's
+            // two ends need asking about, and in general position the segment
+            // beyond each end misses the point, a sign the filter settles.
+            // Asking about the pair itself is what this avoids: the height
+            // difference at its own crossing is exactly zero, the one answer no
+            // filter can give, so every crossing used to pay for it in exact
+            // arithmetic.
+            Node first = ev.lower, last = ev.upper;
+            while (Tree::prev(first) && sameHeight(Tree::prev(first)->value, ev.lower->value, at)) {
+                first = Tree::prev(first);
+            }
+            while (Tree::next(last) && sameHeight(Tree::next(last)->value, ev.upper->value, at)) {
+                last = Tree::next(last);
             }
             Run run;
-            for (Node it = findFirst(ev.s1, at); it && sameHeight(it->value, ev.s1, at);
-                 it = Tree::next(it)) {
+            for (Node it = first;; it = Tree::next(it)) {
+                assert(it && "the event's upper segment lies above its lower one");
+                assert(sameHeight(it->value, ev.lower->value, at));
                 run.nodes.push_back(it);
                 run.segments.push_back(it->value);
-                collected.insert(it->value);
+                collected.insert(it);
+                if (it == last) {
+                    break;
+                }
             }
-            if (!run.segments.empty()) {
-                ret.push_back(std::move(run));
-            }
+            ret.push_back(std::move(run));
         }
 
         return ret;
@@ -726,12 +750,20 @@ class BentleyOttmann {
      * @brief Puts a crossing's run into the order it has just past the crossing,
      * by exchanging the places of the nodes already holding it.
      *
-     * Every segment of the run meets the sweep line at the same point, so the
-     * order among them is decided by which of them leaves that point above
-     * which — a comparison the sweep's own comparator makes at the crossing
-     * abscissa. Sorting the run costs that comparison k log k times for a run
-     * of k segments, against the k searches of the whole tree that reinserting
-     * them costs, and a run is nearly always two segments long.
+     * Every segment of the run passes through the same point, in its interior,
+     * so just before the point the run is in decreasing order of slope and just
+     * past it in increasing order: the new order is the old one reversed. The
+     * exception is segments of one slope, which are collinear, since they share
+     * the point. Those overlap rather than cross, the comparator's tie-break
+     * orders them the same way on both sides, and reversing each such block
+     * again restores it.
+     *
+     * Asking the comparator instead, as sorting the run would, is asking at the
+     * crossing abscissa, where every height difference in the run is exactly
+     * zero: the filter settles none of them and each pays for exact arithmetic
+     * before falling through to the slopes anyway. A run is nearly always two
+     * segments long, and two segments that cross have different slopes, so
+     * nearly always this is a single exchange and no predicate at all.
      *
      * Leaves `run.nodes` in the run's new order, which is the same stretch of
      * the tree it occupied before.
@@ -741,10 +773,27 @@ class BentleyOttmann {
         if (size < 2) {
             return;
         }
-        runOrder.assign(run.nodes.begin(), run.nodes.end());
-        std::sort(runOrder.begin(), runOrder.end(), [this](Node a, Node b) {
+        runOrder.assign(run.nodes.rbegin(), run.nodes.rend());
+        // A two-segment run is the event's own crossing pair.
+        if (size > 2) {
+            for (std::size_t begin = 0; begin < size;) {
+                std::size_t end = begin + 1;
+                // Both pass through the crossing, and the far endpoint is not
+                // the crossing, so it lies on the other's line exactly when the
+                // two share a line.
+                while (end < size && pgl::orientationSign(runOrder[end - 1]->value.min(),
+                                                          runOrder[end - 1]->value.max(),
+                                                          runOrder[end]->value.max()) == 0) {
+                    ++end;
+                }
+                std::reverse(runOrder.begin() + static_cast<std::ptrdiff_t>(begin),
+                             runOrder.begin() + static_cast<std::ptrdiff_t>(end));
+                begin = end;
+            }
+        }
+        assert(std::is_sorted(runOrder.begin(), runOrder.end(), [this](Node a, Node b) {
             return CompareAlongLine(a->value, b->value);
-        });
+        }));
 
         // `run.nodes[i]` is the node at the run's i-th position as the exchanges
         // go on, and ends up being the run's new order. Each step puts the right
