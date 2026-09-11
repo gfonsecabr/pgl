@@ -123,8 +123,8 @@ class BentleyOttmann {
             : x(std::move(x_)), approx(pgl::detail::approximate(x)),
               type(type_), s1(std::move(s1_)) {}
 
-        Event(Rational x_, Node lower_, Node upper_)
-            : x(std::move(x_)), approx(pgl::detail::approximate(x)),
+        Event(Rational x_, pgl::detail::Approximate approx_, Node lower_, Node upper_)
+            : x(std::move(x_)), approx(approx_),
               type(EventEnum::CROSS), s1(lower_->value),
               lower(lower_), upper(upper_) {}
 
@@ -393,6 +393,78 @@ class BentleyOttmann {
     }
 
     /**
+     * @brief The abscissa at which two properly crossing segments meet.
+     *
+     * A crossing event is ordered by its abscissa alone, so building the whole
+     * point, as Segment::intersection does, pays for an ordinate nothing reads
+     * and for the four orientations that re-establish a crossing the caller has
+     * just tested. Over integer coordinates it also pays for a chain of fraction
+     * operations, each widening its parts and reducing them once they outgrow a
+     * machine word, where the abscissa is a single fraction,
+     * `(a1.x * cross(r, s) + cross(b1 - a1, s) * r.x) / cross(r, s)` in the terms
+     * of @ref detail::carrierCrossing. Its numerator is cubic in the
+     * coordinates, and `Wide`, two promotions of them, holds that with bits to
+     * spare. It is left unreduced:
+     * @ref abscissa reduces it once, if the sweep ever stands there.
+     *
+     * A sweep whose fractions are bounded, or not fractions at all, keeps the
+     * point's construction, which is written to respect those types' limits.
+     *
+     * @pre `a.crosses(b)`, so the two carriers are not parallel.
+     */
+    Rational crossingAbscissa(const Segment &a, const Segment &b) const {
+        if constexpr (!pgl::detail::arbitraryPrecision<Integer> ||
+                      !pgl::is_Rational_v<Rational>) {
+            return std::get<RPoint>(*a.template intersection<Rational>(b)).x();
+        } else if constexpr (pgl::detail::extended_integral<Number>) {
+            return wholeCrossingAbscissa<Wide>(a, b, [](const Number &value) {
+                return static_cast<Wide>(value);
+            });
+        } else {
+            if constexpr (pgl::is_Rational_v<Number>) {
+                // Fractions that are whole, as integer data read into exact
+                // coordinates is, clear into one fraction just the same.
+                if (a.min().x().isInteger() && a.min().y().isInteger() &&
+                    a.max().x().isInteger() && a.max().y().isInteger() &&
+                    b.min().x().isInteger() && b.min().y().isInteger() &&
+                    b.max().x().isInteger() && b.max().y().isInteger()) {
+                    return wholeCrossingAbscissa<Integer>(a, b, [](const Number &value) {
+                        return static_cast<Integer>(value.numerator());
+                    });
+                }
+            }
+            // Fractional coordinates leave nothing to clear into one fraction;
+            // this is the carrier crossing's abscissa, in the sweep's own type.
+            const auto exact = [](const auto &value) -> decltype(auto) {
+                return pgl::detail::asNumber<Rational>(value);
+            };
+            const Rational rx = exact(a.max().x()) - exact(a.min().x());
+            const Rational ry = exact(a.max().y()) - exact(a.min().y());
+            const Rational sx = exact(b.max().x()) - exact(b.min().x());
+            const Rational sy = exact(b.max().y()) - exact(b.min().y());
+            const Rational ox = exact(b.min().x()) - exact(a.min().x());
+            const Rational oy = exact(b.min().y()) - exact(a.min().y());
+            return exact(a.min().x()) + (ox * sy - oy * sx) * rx / (rx * sy - ry * sx);
+        }
+    }
+
+    // @ref crossingAbscissa as one fraction over whole coordinates, each read
+    // as a `Whole` by `whole`.
+    template <class Whole, class Read>
+    static Rational wholeCrossingAbscissa(const Segment &a, const Segment &b, Read whole) {
+        const Whole rx = whole(a.max().x()) - whole(a.min().x());
+        const Whole ry = whole(a.max().y()) - whole(a.min().y());
+        const Whole sx = whole(b.max().x()) - whole(b.min().x());
+        const Whole sy = whole(b.max().y()) - whole(b.min().y());
+        const Whole ox = whole(b.min().x()) - whole(a.min().x());
+        const Whole oy = whole(b.min().y()) - whole(a.min().y());
+        const Whole determinant = rx * sy - ry * sx;
+        const Whole along = ox * sy - oy * sx;
+        return Rational(Integer(whole(a.min().x()) * determinant + along * rx),
+                        Integer(determinant));
+    }
+
+    /**
      * @brief @ref heightSign for the one case its endpoint tests leave open:
      * the two segments meet strictly inside the range they share, so which side
      * of that meeting the sweep sits on is what decides.
@@ -649,10 +721,15 @@ class BentleyOttmann {
         if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
 
         if (sa.crosses(sb) && !crossingsSet.contains(pair)) {
-            RPoint cross = std::get<RPoint>(*sa.template intersection<Rational>(sb));
-            if (cross.x() > line.x) {
-                // assert(CompareAlongLine(sa,sb));
-                queue.emplace(cross.x(), ita, itb);
+            Rational x = crossingAbscissa(sa, sb);
+            // The event needs this approximation anyway, and it settles whether
+            // the crossing is still ahead of the sweep without an exact
+            // comparison of two fractions.
+            const pgl::detail::Approximate approx = pgl::detail::approximate(x);
+            const std::partial_ordering ahead =
+                pgl::detail::approximateSign(approx - line.approx);
+            if (ahead == std::partial_ordering::unordered ? x > line.x : ahead > 0) {
+                queue.emplace(std::move(x), approx, ita, itb);
                 addCrossing(pair);
             }
         }
