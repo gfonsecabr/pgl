@@ -42,9 +42,19 @@
 // what follows, and the boundaries of a Minkowski sum or a Boolean union, which
 // are built by arranging constructed curves. Rounding those makes the
 // algorithm's own decisions inconsistent — measurably so, not in theory: run
-// under EPICK, CGAL's surface sweep disagrees with itself on 23 of the 96 cells
-// of the Segment intersections sweep, by as much as 129 points out of 63,338.
-// Those drivers use EPECK for every column, `int` included.
+// under EPICK, CGAL's surface sweep disagrees with itself on 23 of the 192
+// cells of the Segment intersections sweep, by as much as 129 points out of
+// 63,338. Those drivers use EPECK for every column, `int` included.
+//
+// Segment intersections is the one exception, and it is an exception about
+// what is *recorded*, not about what is correct: it sweeps under both kernels
+// and keeps the EPICK curve as an approximation, because pgl's `int` sweep is
+// exact and so has no inexact curve of its own to put against EPICK. Every
+// place that curve is drawn or quoted says it is inexact — the chart legend,
+// and the note under the table in doc/raw/cgal.md — and the EPECK curve stays
+// beside it as the one that answers the same question pgl answers. See the
+// header of segmentintersections.cpp. Nothing else in the baseline may do
+// this: a category earns a second kernel by agreeing with the first.
 //
 // EPICK — exact predicates, inexact constructions — is the analogue of pgl's
 // `int`, and is CGAL's canonical kernel for the predicate-only structures:
@@ -62,7 +72,9 @@
 // Every dual-kernel driver is held to that claim by its own result signatures:
 // the two kernels are separate cells of the cube and must report identical
 // results at identical sizes, so a category that did not belong here would say
-// so the first time it was recorded.
+// so the first time it was recorded. Segment intersections is where that check
+// fires rather than passing, which is exactly why its EPICK curve carries the
+// word inexact everywhere it appears.
 //
 // The difference the choice makes is not a few percent of predicate cost. An
 // EPECK `Search_traits_2` or `AABB_traits_2` stores `Lazy_exact_nt`

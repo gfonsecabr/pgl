@@ -68,8 +68,13 @@ point it later *tests* offer both — Point constructions, Point search, Segment
 search, Triangulation and Visibility — where EPICK decides every predicate
 exactly on this integer dataset and is what a CGAL user would actually reach
 for. A category whose constructed points feed back into its own decisions
-(Arrangement, Segment intersections, Minkowski sum, Regularized union) has no
-honest EPICK curve to record and stays on EPECK for both columns.
+(Arrangement, Minkowski sum, Regularized union) has no honest EPICK curve to
+record and stays on EPECK for both columns.
+
+Segment intersections records both anyway, and labels the EPICK curve *inexact*
+wherever it is drawn: that kernel drops intersection points at the larger sizes,
+but pgl's `int` sweep is exact and has no inexact curve to put against it, so the
+alternative was charging machine-word fractions against a lazy-exact kernel.
 `baseline/cgal.hpp` carries the full rule and the evidence for it.
 
 Opt-in only (`--baseline`), because CGAL is not on every dev machine or CI box.

@@ -1147,7 +1147,9 @@ function asymFilterBar(name, category, state, machineData) {
       "selected. Each curve gets the CGAL kernel its number type is entitled " +
       "to — EPICK against int, EPECK against ERational — except where CGAL " +
       "constructs geometry and only EPECK is exact, which stays EPECK for " +
-      "both. The legend names the kernel each reference used.";
+      "both. The segment sweep is the one place both are drawn even though " +
+      "EPICK is not exact there; its legend entry says inexact. The legend " +
+      "names the kernel each reference used.";
     refLabel.textContent = "CGAL";
     refGroup.appendChild(refLabel);
     const refChips = document.createElement("div");
@@ -1178,11 +1180,17 @@ function asymFilterBar(name, category, state, machineData) {
 // the row never asked for.
 //
 // Only the categories whose CGAL side never constructs a point it later tests
-// record both. One that does — an arrangement, a sweep, a Minkowski sum, a
-// Boolean union — has no honest EPICK curve to record, because rounding a
-// constructed point that feeds back in makes CGAL's own decisions inconsistent
-// (see baseline/cgal.hpp). Such a key offers EPECK alone, and keeps it whatever
-// the selected type: it is still how CGAL solves that problem at all.
+// record both. One that does — an arrangement, a Minkowski sum, a Boolean
+// union — has no honest EPICK curve to record, because rounding a constructed
+// point that feeds back in makes CGAL's own decisions inconsistent (see
+// baseline/cgal.hpp). Such a key offers EPECK alone, and keeps it whatever the
+// selected type: it is still how CGAL solves that problem at all.
+//
+// The segment sweep is the exception, and records both anyway: its EPICK curve
+// loses points, but pgl's `int` sweep is exact and has no inexact curve to put
+// against it, so the choice is between a reference that is labelled inexact
+// and one that charges machine-word fractions against a lazy-exact kernel.
+// That curve carries `inexact`, and the legend says so.
 function baselineForType(found, type) {
   const wanted = type === "int" ? "EPICK" : "EPECK";
   const byAlgorithm = new Map();
@@ -1322,7 +1330,12 @@ function asymDatasets(category, state, machine, depth) {
   for (const { value, color, baseline, points, rank, typed } of references) {
     const paired = Boolean(baseline.for_algorithm);
     const specific = comparing && (state.compare !== "type" || typed);
-    const named = `${baseline.algorithm} (${baseline.number})`;
+    // A kernel that does not answer this problem exactly says so here rather
+    // than in a footnote: the curve is what CGAL costs at that strength, not a
+    // second opinion on the answer, and the two read very differently.
+    const kernel = baseline.inexact
+      ? `${baseline.number}, inexact` : baseline.number;
+    const named = `${baseline.algorithm} (${kernel})`;
     const titled = paired || specific ? `${named} · ${value}` : named;
     // Entirely above the ceiling: nothing of it will be drawn, so the legend
     // has to carry how far up it is, or the reader is left with a dashed

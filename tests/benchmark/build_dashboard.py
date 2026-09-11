@@ -244,6 +244,17 @@ BASELINE_FOR_ALGORITHM = {
         "preprocessed",
 }
 
+# A (category, number) whose curve does not answer the question the pgl curves
+# beside it answer, and must say so wherever it is drawn. The sweep's EPICK
+# curve is the only one: rounding an intersection point that is re-inserted
+# into the event structure loses points, so it is a timing reference for what
+# CGAL's `int`-strength kernel costs, not a second opinion on the answer.
+# Recorded rather than dropped because pgl's `int` sweep is exact and has no
+# inexact curve of its own; see asymptotic/baseline/cgal.hpp.
+BASELINE_INEXACT = {
+    ("Segment intersections", "EPICK"),
+}
+
 
 def build_asymptotic(history: str, repo_base: str, bench_root: str):
     """Return (asymptotic, machines) for the size-swept benchmarks."""
@@ -340,7 +351,9 @@ def read_baseline(history: str):
     kernel, since the page shows EPICK against pgl's `int` column and EPECK
     against `ERational` (see baseline/cgal.hpp for which drivers may offer
     both). Curves are therefore keyed on (algorithm, number), not on algorithm
-    alone, or the second kernel would overwrite the first.
+    alone, or the second kernel would overwrite the first. A curve listed in
+    BASELINE_INEXACT is flagged `inexact`, which the page renders into its
+    legend entry: it is a cost reference, not a second opinion on the answer.
 
     `rank` is the index of a curve's *algorithm* among the key's algorithms, and
     it is what the page picks a dash pattern from. Ranking the flat list instead
@@ -371,6 +384,8 @@ def read_baseline(history: str):
         })
         if for_algorithm:
             curve["for_algorithm"] = for_algorithm
+        if (r["category"], r["number"]) in BASELINE_INEXACT:
+            curve["inexact"] = True
         curve["_points"][r["size"]] = {
             "size": r["size"], "time": r["time"],
             "min": r.get("time_min", r["time"]), "max": r.get("time_max", r["time"]),

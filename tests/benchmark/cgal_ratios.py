@@ -132,6 +132,23 @@ ROWS = [
 # columns are independent measurements, not one scaled by the other.
 COLUMNS = (("ERational", "EPECK"), ("int", "EPICK"))
 
+# Cells the page marks with a footnote, keyed by (row label, column index). The
+# ratio is measured like every other, but the two sides are not answering the
+# same question and the note under the table says which. Only the sweep's `int`
+# column qualifies: EPICK loses intersection points there, while pgl's `int`
+# sweep is exact (see asymptotic/baseline/cgal.hpp).
+FOOTNOTE = {("Segment intersection", 1): "\\*"}
+
+# The note the page prints under the table, and the ratio it quotes: pgl `int`
+# against EPECK, the kernel that computes the answer pgl computes. That ratio is
+# not a column of the table, so it is recomputed here rather than typed in by
+# hand, and the sentence is emitted with it so refreshing the note is a copy.
+# Keep NOTE's wording in step with doc/raw/cgal.md — it is the page's sentence,
+# not this script's.
+FOOTNOTE_EXACT = ("Segment intersection", "int", "EPECK")
+NOTE = ("\\* CGAL's sweep runs under EPICK here, which is not exact. "
+        "pgl's `int` sweep is exact and {ratio} against EPECK.")
+
 
 # ── Loading ──────────────────────────────────────────────────────────────────
 def history_dir():
@@ -229,12 +246,17 @@ def table(commit, pgl, baseline):
     return rows, missing
 
 
+def cells(label, values):
+    """A row's two rendered ratio cells, footnote marker included."""
+    return [render(v) + FOOTNOTE.get((label, i), "") for i, v in enumerate(values)]
+
+
 def markdown(rows):
     out = ["| Problem | `ERational` / EPECK | `int` / EPICK | pgl | CGAL |",
            "| --- | --- | --- | --- | --- |"]
     for label, values, ours, theirs, _ in rows:
-        out.append(f"| {label} | {render(values[0])} | {render(values[1])} "
-                   f"| {ours} | {theirs} |")
+        a, b = cells(label, values)
+        out.append(f"| {label} | {a} | {b} | {ours} | {theirs} |")
     return "\n".join(out)
 
 
@@ -256,7 +278,7 @@ def check(rows):
     stated = page_rows()
     stale = 0
     for label, values, _, _, _ in rows:
-        want = (render(values[0]), render(values[1]))
+        want = tuple(cells(label, values))
         have = stated.get(label)
         if have is None:
             print(f"  not on the page: {label}")
@@ -304,6 +326,13 @@ def main():
         sys.exit(1 if stale else 0)
 
     print(markdown(rows))
+
+    label, pgl_number, cgal_number = FOOTNOTE_EXACT
+    row = next((r for r in ROWS if r[0] == label), None)
+    if row:
+        exact = row_ratio(row[1], commit, pgl, baseline, pgl_number, cgal_number)
+        if exact:
+            print("\n" + NOTE.format(ratio=render(exact)))
 
 
 if __name__ == "__main__":
