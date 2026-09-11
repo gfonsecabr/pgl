@@ -892,8 +892,8 @@ struct Disk {
     [[nodiscard]] constexpr bool contains(const Shape<PointType>& other) const;
 
     // The empty set is a subset of every shape, so its containment relations are
-    // true; the symmetric intersection/crossing predicates reach the empty set
-    // through Disk's existing generic OtherShape fallbacks.
+    // true; the other predicates against it are false and sit beside their
+    // relation's other overloads below.
     /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool contains(const EmptyShape<EmptyPoint>&) const {
@@ -1359,6 +1359,12 @@ struct Disk {
         requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Disk>)
     [[nodiscard]] constexpr bool crosses(const OtherShape& other) const {
         return other.crosses(*this);
+    }
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool separates(const EmptyShape<EmptyPoint>&) const {
+        return false;
     }
 
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */

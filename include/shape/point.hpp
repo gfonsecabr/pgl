@@ -825,6 +825,12 @@ struct Point {
         return other.crosses(*this);
     }
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool separates(const EmptyShape<EmptyPoint>&) const {
+        return false;
+    }
+
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool crosses(const EmptyShape<EmptyPoint>&) const {

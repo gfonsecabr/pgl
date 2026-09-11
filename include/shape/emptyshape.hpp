@@ -7,10 +7,10 @@
  * @brief Public declaration of pgl::EmptyShape.
  *
  * EmptyShape models the empty set of points in the plane. It is a full-fledged
- * shape alternative so it can be stored in @ref pgl::Shape, but every predicate
- * is vacuously `false`, it has no vertices, and any intersection with it is
- * again empty. Because it answers every relation generically, it can be added
- * to the Shape variant without special-casing it anywhere else.
+ * shape alternative so it can be stored in @ref pgl::Shape. It is contained in
+ * every shape and meets none, it has no vertices, and any intersection with it
+ * is again empty. Removing it leaves the other shape as it was, so it separates
+ * only a @ref pgl::PolygonSet that is already in pieces.
  */
 
 #include <compare>
@@ -19,6 +19,7 @@
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
+#include <variant>
 
 
 namespace pgl {
@@ -104,13 +105,14 @@ struct EmptyShape {
     // of another empty shape is true.
     //
     // "Another empty shape" is not only an EmptyShape. A default-constructed
-    // Rectangle, Convex, Polygon, PolygonWithHoles, PolygonSet,
-    // HalfplaneIntersection, MonotoneChain or Polyline is the empty set too, and
-    // each answers so through `empty()` -- so the generic overloads ask, rather
-    // than assuming that anything of another type covers a point. The shapes
-    // that can never be empty (a Point, Segment, Line, Ray, Halfplane, Triangle
-    // or Disk always cover at least one point) have no `empty()` and take the
-    // constant-false branch.
+    // Rectangle, Convex, Polygon, PolygonWithHoles, PolygonSet, MonotoneChain
+    // or Polyline is the empty set too, as is a HalfplaneIntersection whose
+    // half-planes leave nothing (a default-constructed one is the whole plane),
+    // and each answers so through `empty()` -- so the generic overloads ask,
+    // rather than assuming that anything of another type covers a point. The
+    // shapes that can never be empty (a Point, Segment, Line, Ray, Halfplane,
+    // Triangle or Disk always cover at least one point) have no `empty()` and
+    // take the constant-false branch.
 
     /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template <class T>
@@ -171,10 +173,32 @@ struct EmptyShape {
         return false;
     }
 
+    // Removing the empty set leaves the other shape as it was, so it separates
+    // exactly the shapes already in more than one piece. A PolygonSet is the
+    // only shape that can be; every other one is connected, and is named here
+    // so that a new shape has to be placed rather than fall through to false.
+
     /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template <class T>
+        requires(EmptyShapeConcept<T> || PointConcept<T> || SegmentConcept<T> ||
+                 OrientedSegmentConcept<T> || LineConcept<T> || OrientedLineConcept<T> ||
+                 RayConcept<T> || HalfplaneConcept<T> || RectangleConcept<T> ||
+                 TriangleConcept<T> || DiskConcept<T> || ConvexConcept<T> ||
+                 MonotoneChainConcept<T> || PolylineConcept<T> || PolygonConcept<T> ||
+                 HalfplaneIntersectionConcept<T> || PolygonWithHolesConcept<T>)
     [[nodiscard]] constexpr bool separates(const T&) const {
         return false;
+    }
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template <PolygonSetConcept OtherSet>
+    [[nodiscard]] bool separates(const OtherSet& other) const {
+        return !other.isConnected();
+    }
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] bool separates(const Shape<OtherPoint>& other) const {
+        return std::visit([this](const auto& value) { return this->separates(value); },
+                          other.variant());
     }
 
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */

@@ -1520,8 +1520,8 @@ struct Polygon {
     constexpr bool contains(const Shape<PointType>& other) const;
 
     // The empty set is a subset of every shape, so its containment relations are
-    // true; symmetric crossing reaches the empty set through the generic
-    // OtherShape fallback declared below.
+    // true; the other predicates against it are false and sit beside their
+    // relation's other overloads below.
     /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool contains(const EmptyShape<EmptyPoint>&) const {
@@ -2287,6 +2287,12 @@ struct Polygon {
         requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Polygon>)
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherShape& other) const {
         return other.interiorsIntersect(*this);
+    }
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool separates(const EmptyShape<EmptyPoint>&) const {
+        return false;
     }
 
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
