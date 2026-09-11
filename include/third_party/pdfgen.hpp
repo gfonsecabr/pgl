@@ -491,26 +491,6 @@ inline std::string pdf_escape_content_string(std::string_view value) {
     return escaped;
 }
 
-inline int pdf_add_text(pdf_doc* pdf, pdf_object* page, const char* text, float size, float xoff, float yoff, std::uint32_t colour) {
-    if (text == nullptr || *text == '\0') {
-        return 0;
-    }
-    if (pdf == nullptr || pdf->current_font == nullptr) {
-        return pdf_set_err(pdf, -EINVAL, "No active font");
-    }
-    std::string stream;
-    detail::append_format(stream, "BT %f %f TD /F%d %f Tf %f %f %f rg (%s) Tj ET",
-        xoff,
-        yoff,
-        pdf->current_font->font.index,
-        size,
-        PDF_RGB_R(colour),
-        PDF_RGB_G(colour),
-        PDF_RGB_B(colour),
-        pdf_escape_content_string(text).c_str());
-    return pdf_add_stream(pdf, page, stream);
-}
-
 inline float pdf_clamp_alpha(float alpha) {
     if (!std::isfinite(alpha)) {
         return 1.0f;
@@ -550,6 +530,44 @@ inline int pdf_find_or_create_ext_gstate(pdf_doc* pdf, pdf_object* page, float f
     ext_gstate->ext_gstate.stroke_alpha = clamped_stroke_alpha;
     page->page.ext_gstates.push_back(ext_gstate);
     return static_cast<int>(page->page.ext_gstates.size() - 1);
+}
+
+inline int pdf_add_text(pdf_doc* pdf, pdf_object* page, const char* text, float size, float xoff, float yoff, std::uint32_t colour,
+    float fill_alpha = 1.0f) {
+    if (text == nullptr || *text == '\0') {
+        return 0;
+    }
+    if (pdf == nullptr || pdf->current_font == nullptr) {
+        return pdf_set_err(pdf, -EINVAL, "No active font");
+    }
+
+    // Glyphs are filled, so their opacity is the fill alpha (/ca).
+    int ext_gstate_index = -1;
+    const float effective_fill_alpha = pdf_clamp_alpha(fill_alpha);
+    if (effective_fill_alpha < 1.0f) {
+        ext_gstate_index = pdf_find_or_create_ext_gstate(pdf, page, effective_fill_alpha, 1.0f);
+        if (ext_gstate_index < 0) {
+            return ext_gstate_index;
+        }
+    }
+
+    std::string stream;
+    if (ext_gstate_index >= 0) {
+        detail::append_format(stream, "q /GS%d gs ", ext_gstate_index);
+    }
+    detail::append_format(stream, "BT %f %f TD /F%d %f Tf %f %f %f rg (%s) Tj ET",
+        xoff,
+        yoff,
+        pdf->current_font->font.index,
+        size,
+        PDF_RGB_R(colour),
+        PDF_RGB_G(colour),
+        PDF_RGB_B(colour),
+        pdf_escape_content_string(text).c_str());
+    if (ext_gstate_index >= 0) {
+        stream += " Q";
+    }
+    return pdf_add_stream(pdf, page, stream);
 }
 
 inline int pdf_add_line_pattern(pdf_doc* pdf, pdf_object* page, float x1, float y1, float x2, float y2, float width,

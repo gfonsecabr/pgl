@@ -4,6 +4,7 @@
 int main() {
     pgl::Canvas canvas;
     canvas << pgl::Point(0,0);
+    canvas << pgl::fontSize("32") << pgl::Text("(0,0)", pgl::Point(0.0, -0.55));
 
     pgl::Triangle tri = {-1, -1, 0, 2, 1, -2};
     canvas << pgl::stroke("green") << tri;

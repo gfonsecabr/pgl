@@ -84,6 +84,7 @@ canvas << pgl::stroke("crimson") << secondSegment;
 | `pgl::strokeOpacity("value")` | Sets the stroke opacity for subsequent shapes. |
 | `pgl::strokeWidth("value")` | Sets the stroke width for subsequent shapes using a raw SVG length string. |
 | `pgl::pointRadius("value")` | Sets the rendered radius of subsequent `Point` objects. |
+| `pgl::fontSize("value")` | Sets the font size, in pixels, of subsequent `pgl::Text` that takes its size from the canvas (see [Writing text](#writing-text)). The default is `"16"`. |
 
 Example:
 
@@ -102,6 +103,47 @@ canvas << pgl::stroke("teal")
        << pgl::fillOpacity("0.22")
        << rectangle;
 ```
+
+### Writing text
+
+A `pgl::Text` writes a line of text on the canvas, centered either on a point
+or inside a box. It is not a shape, only an instruction to the canvas, and like
+a shape it captures the style active when it is inserted: the text is painted
+in the current stroke color and stroke opacity, or in the fill color and fill
+opacity when the stroke is `"none"`.
+
+```c++
+pgl::Canvas canvas;
+pgl::Point p = {0, 0}, q = {10, 6};
+pgl::Rectangle box = {pgl::Point{2, 1}, pgl::Point{8, 3}};
+
+canvas << pgl::stroke("crimson") << pgl::Text("p", p);             // 16 pixels, the default
+canvas << pgl::fontSize("24") << pgl::Text("q", q);                // 24 pixels
+canvas << pgl::Text("scales", pgl::Point{5.0, 4.5}, 0.5);          // 0.5 plane units
+canvas << pgl::stroke("royalblue") << pgl::Text("Fill the box", box);
+canvas << pgl::Text("at most 24 pixels", box, pgl::TextFit::shrink);
+```
+
+The constructor decides where the font size comes from:
+
+| Constructor | Font size |
+| --- | --- |
+| `Text(text, point)` | The current `fontSize`, in pixels. The text keeps its size however the drawing is scaled. |
+| `Text(text, point, size)` | The given size, in plane units, so the text scales with the drawing as the shapes do. It must be strictly positive. |
+| `Text(text, box)` | The largest size at which the text fits inside `box`. Same as passing `pgl::TextFit::fill`. |
+| `Text(text, box, pgl::TextFit::shrink)` | The current `fontSize`, reduced only when the text would not fit inside `box`. |
+
+Text takes part in fitting. A box, or the extent of text sized in plane units,
+is part of the bounding box. Text sized in pixels widens the padding around the
+drawing, as a point's radius does, so text on the edge of the drawing is not
+cut off.
+
+All three backends lay the text out with the metrics of Helvetica. The SVG asks
+for Helvetica, then Arial, which has the same widths, so text fitted to a box
+fills it in every format. PDF uses the standard Helvetica font, whose
+encoding covers Latin-1: any other character prints as `?`. Ipe typesets the
+text with LaTeX, in Helvetica (`\fontfamily{phv}`), with LaTeX's special
+characters escaped so that the text prints exactly as written.
 
 ### Variants, optionals, and ranges
 
@@ -169,7 +211,7 @@ Canvas fitting is automatic:
 - Because style is captured on insertion, it is easy to layer highlights on top
   of a base drawing by switching style right before inserting the highlighted
   object.
-- In SVG, the shape's output string will be shown when you hover over the shape in a browser.
+- In SVG, the shape's output string will be shown when you hover over the shape in a browser. Text has no such title, since it is already on display.
 - A `PolygonWithHoles` is drawn as a single path with one closed subpath per
   ring, so its holes are punched out of the fill rather than painted over: SVG
   asks for `fill-rule="evenodd"`, and the PDF and Ipe backends get the same

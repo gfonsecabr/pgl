@@ -851,3 +851,120 @@ TEST_CASE("Canvas renders a PolygonSet as one path over every ring of every comp
     emptyCanvas << Point(0, 0) << RegionSet();
     CHECK(emptyCanvas.toSVG().find("<path") == std::string::npos);
 }
+
+TEST_CASE("Canvas draws text centered on a point in the current stroke color and font size") {
+    pgl::Canvas canvas;
+    canvas.size(200.0, 200.0);
+    canvas << pgl::stroke("crimson") << pgl::Text("p", pgl::Point<int, std::string>(3, 4, "p"))
+           << pgl::fontSize("24") << pgl::Text("q", pgl::Point<int>(3, 4));
+    const std::string svg = canvas.toSVG();
+
+    // A lone point is drawn at the center of the image, and the baseline sits
+    // below it by half of Helvetica's ascender plus descender.
+    CHECK(svg.find("<text x=\"100\" y=\"104.088\" font-family=\"Helvetica, Arial, sans-serif\" font-size=\"16\" "
+                   "text-anchor=\"middle\" xml:space=\"preserve\" fill=\"crimson\" fill-opacity=\"1\">p</text>")
+          != std::string::npos);
+    // The font size is captured when the text is inserted, like any style.
+    CHECK(svg.find("font-size=\"24\" text-anchor=\"middle\" xml:space=\"preserve\" fill=\"crimson\" fill-opacity=\"1\">q</text>")
+          != std::string::npos);
+    CHECK(svg.find("<title>") == std::string::npos);
+}
+
+TEST_CASE("Canvas pads the image so that text sized in pixels stays inside it") {
+    pgl::Canvas canvas;
+    canvas.size(200.0, 200.0).margin(10.0);
+    canvas << pgl::Point<int>(0, 0) << pgl::Point<int>(100, 0)
+           << pgl::fontSize("20") << pgl::Text("HHHH", pgl::Point<int>(0, 0));
+    const std::string svg = canvas.toSVG();
+
+    // "HHHH" is 4 x 0.722 font sizes wide, so half of it reaches 28.88 pixels
+    // left of its point: the padding grows from 10 to 38.88 to make room.
+    CHECK(svg.find("<text x=\"38.88\"") != std::string::npos);
+}
+
+TEST_CASE("Canvas fits text to its box") {
+    using Point = pgl::Point<int>;
+    using Box = pgl::Rectangle<Point>;
+
+    // With a 100 x 100 window in a 120 x 120 image and a 10 pixel margin, one
+    // plane unit is one pixel: x maps to 10 + x and y to 110 - y.
+    const auto fitted = [](const pgl::Text& text, const std::string& fontSize = "16") {
+        pgl::Canvas canvas;
+        canvas.size(120.0, 120.0).margin(10.0).view(Box(Point(0, 0), Point(100, 100)));
+        canvas << pgl::fontSize(fontSize) << text;
+        return canvas.toSVG();
+    };
+
+    // A flat box bounds the height: 20 / 0.925, Helvetica's line height.
+    CHECK(fitted(pgl::Text("HH", Box(Point(0, 0), Point(100, 20))))
+              .find("<text x=\"60\" y=\"105.524\" font-family=\"Helvetica, Arial, sans-serif\" font-size=\"21.6216\"")
+          != std::string::npos);
+    // A tall box bounds the width: 100 / (2 x 0.722).
+    CHECK(fitted(pgl::Text("HH", Box(Point(0, 30), Point(100, 100))))
+              .find("font-size=\"69.2521\"") != std::string::npos);
+
+    // Shrinking keeps the canvas font size when it fits, and fits the box
+    // when it does not.
+    const Box flat(Point(0, 0), Point(100, 20));
+    CHECK(fitted(pgl::Text("HH", flat, pgl::TextFit::shrink), "16").find("font-size=\"16\"") != std::string::npos);
+    CHECK(fitted(pgl::Text("HH", flat, pgl::TextFit::shrink), "40").find("font-size=\"21.6216\"") != std::string::npos);
+
+    // A box with no height has no room for any text.
+    CHECK(fitted(pgl::Text("HH", Box(Point(0, 0), Point(100, 0)))).find("<text") == std::string::npos);
+    CHECK(fitted(pgl::Text("", flat)).find("<text") == std::string::npos);
+}
+
+TEST_CASE("Canvas scales text sized in plane units with the drawing") {
+    using Point = pgl::Point<int>;
+    using Box = pgl::Rectangle<Point>;
+
+    pgl::Canvas canvas;
+    canvas.size(120.0, 120.0).margin(10.0).view(Box(Point(0, 0), Point(100, 100)));
+    canvas << pgl::Text("A", Point(50, 50), 5.0);
+    CHECK(canvas.toSVG().find("font-size=\"5\"") != std::string::npos);
+    canvas.scale(2.0);
+    CHECK(canvas.toSVG().find("font-size=\"10\"") != std::string::npos);
+
+    // Such text has an extent in the plane, which the fit takes in: alone,
+    // "HH" is scaled until its 1.444 font sizes of width fill the 180 pixels
+    // between the margins.
+    pgl::Canvas alone;
+    alone.size(200.0, 200.0).margin(10.0);
+    alone << pgl::Text("HH", Point(0, 0), 10.0);
+    CHECK(alone.toSVG().find("font-size=\"124.654\"") != std::string::npos);
+
+    CHECK_THROWS_AS(pgl::Text("A", Point(0, 0), 0.0), std::invalid_argument);
+    CHECK_THROWS_AS(pgl::Text("A", Point(0, 0), -1.0), std::invalid_argument);
+}
+
+TEST_CASE("Canvas writes text in the fill color when there is no stroke, in every backend") {
+    pgl::Canvas canvas;
+    canvas.size(200.0, 200.0);
+    canvas << pgl::stroke("none") << pgl::fill("purple") << pgl::fillOpacity("0.25")
+           << pgl::Text("a<b & (c) \xC3\xA9", pgl::Point<int>(0, 0));
+
+    const std::string svg = canvas.toSVG();
+    CHECK(svg.find("fill=\"purple\" fill-opacity=\"0.25\">a&lt;b &amp; (c) \xC3\xA9</text>") != std::string::npos);
+
+    // PDF writes Helvetica glyphs, translucent through an ExtGState, with the
+    // UTF-8 "é" re-encoded as its single WinAnsi byte.
+    const std::string pdf = canvas.toPDF();
+    CHECK(pdf.find("/BaseFont /Helvetica\r\n") != std::string::npos);
+    CHECK(pdf.find("/ca 0.250000") != std::string::npos);
+    CHECK(pdf.find("q /GS0 gs BT ") != std::string::npos);
+    CHECK(pdf.find("0.501961 0.000000 0.501961 rg (a<b & \\(c\\) \xE9) Tj ET Q") != std::string::npos);
+
+    // Ipe reads the text as LaTeX, so the characters LaTeX treats specially
+    // are escaped, and the opacity is declared by name.
+    const std::string ipe = canvas.toIPE();
+    CHECK(ipe.find("<opacity name=\"op250\" value=\"0.25\"/>") != std::string::npos);
+    CHECK(ipe.find("stroke=\"0.501961 0 0.501961\" opacity=\"op250\" type=\"label\" size=\"16\" halign=\"center\" "
+                   "valign=\"baseline\">\\fontfamily{phv}\\selectfont a\\textless{}b \\&amp; (c) \xC3\xA9</text>")
+          != std::string::npos);
+
+    // With neither a stroke nor a fill, there is nothing to paint the text in.
+    pgl::Canvas unpainted;
+    unpainted << pgl::stroke("none") << pgl::fill("none") << pgl::Text("x", pgl::Point<int>(0, 0));
+    CHECK(unpainted.toPDF().find(" Tj ") == std::string::npos);
+    CHECK(unpainted.toIPE().find("<text") == std::string::npos);
+}

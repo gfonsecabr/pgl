@@ -39,6 +39,7 @@ enum class CanvasProperty {
     strokeOpacity,
     strokeWidth,
     pointRadius,
+    fontSize,
 };
 
 /**
@@ -59,6 +60,7 @@ struct CanvasStyle {
     std::string strokeOpacity = "1";
     std::string strokeWidth = "2";
     std::string pointRadius = "3";
+    std::string fontSize = "16";
 
     /**
      * @brief Applies one style command in place.
@@ -84,6 +86,9 @@ struct CanvasStyle {
                 break;
             case CanvasProperty::pointRadius:
                 pointRadius = command.value;
+                break;
+            case CanvasProperty::fontSize:
+                fontSize = command.value;
                 break;
         }
     }
@@ -118,6 +123,113 @@ inline CanvasCommand strokeWidth(std::string value) {
 inline CanvasCommand pointRadius(std::string value) {
     return {CanvasProperty::pointRadius, std::move(value)};
 }
+
+/** @brief Creates a command that changes the current text font size, in pixels. */
+inline CanvasCommand fontSize(std::string value) {
+    return {CanvasProperty::fontSize, std::move(value)};
+}
+
+/**
+ * @brief How a @ref Text placed in a box chooses its font size.
+ */
+enum class TextFit {
+    /** The largest size at which the text fits inside the box. */
+    fill,
+    /** The canvas font size, reduced only when the text would not fit inside the box. */
+    shrink,
+};
+
+/**
+ * @brief Text drawn on a @ref Canvas, at a point or inside a box.
+ *
+ * A `Text` is not a shape: it has no geometry of its own and takes part in no
+ * predicate, it only tells the canvas where to write its text. The text is a
+ * single line, centered on the point or in the box, and is painted in the
+ * canvas's current stroke color (its fill color when the stroke is `"none"`).
+ *
+ * The font size comes from one of three places:
+ * - text at a point uses the canvas's current @ref fontSize, in pixels, so
+ *   it keeps its size however the drawing is scaled;
+ * - text at a point given an explicit size uses that size, in plane units,
+ *   so it scales with the drawing;
+ * - text in a box fits the box, as its @ref TextFit asks.
+ */
+class Text {
+  public:
+    /**
+     * @brief Centers the text on a point, at the canvas's current font size.
+     *
+     * @param text Text to draw.
+     * @param position Point the text is centered on.
+     */
+    template <class Number, class PointLabel>
+    Text(std::string text, const Point<Number, PointLabel>& position)
+        : text_(std::move(text)), position_(Point<double>(position)) {}
+
+    /**
+     * @brief Centers the text on a point, at a font size given in plane units.
+     *
+     * @param text Text to draw.
+     * @param position Point the text is centered on.
+     * @param size Strictly positive font size, in the units of the plane.
+     */
+    template <class Number, class PointLabel>
+    Text(std::string text, const Point<Number, PointLabel>& position, double size)
+        : text_(std::move(text)), position_(Point<double>(position)), size_(size) {
+        if (!(size > 0.0)) {
+            throw std::invalid_argument("Text size must be strictly positive.");
+        }
+    }
+
+    /**
+     * @brief Centers the text inside a box, sized to fit it.
+     *
+     * @param text Text to draw.
+     * @param box Rectangle the text is drawn in.
+     * @param fit How the font size is chosen from the box.
+     */
+    template <class PointType, class RectangleLabel>
+    Text(std::string text, const Rectangle<PointType, RectangleLabel>& box, TextFit fit = TextFit::fill)
+        : text_(std::move(text)), box_(Rectangle<Point<double>>(box)), fit_(fit) {
+        if (!box_->empty()) {
+            position_ = Point<double>(
+                (box_->min().x() + box_->max().x()) / 2.0,
+                (box_->min().y() + box_->max().y()) / 2.0);
+        }
+    }
+
+    /** @brief The text drawn. */
+    const std::string& text() const {
+        return text_;
+    }
+
+    /** @brief The point the text is centered on: the given point, or the center of the box. */
+    const Point<double>& position() const {
+        return position_;
+    }
+
+    /** @brief The box the text is fitted to, if one was given. */
+    const std::optional<Rectangle<Point<double>>>& box() const {
+        return box_;
+    }
+
+    /** @brief The font size in plane units, if one was given. */
+    std::optional<double> size() const {
+        return size_;
+    }
+
+    /** @brief How the font size is chosen from the box, when there is one. */
+    TextFit fit() const {
+        return fit_;
+    }
+
+  private:
+    std::string text_;
+    Point<double> position_{};
+    std::optional<Rectangle<Point<double>>> box_{};
+    std::optional<double> size_{};
+    TextFit fit_ = TextFit::fill;
+};
 
 /**
  * @brief Stores drawable objects and exports them as an SVG image.
@@ -529,6 +641,18 @@ class Canvas {
         return push(HalfplaneIntersection<Point<double>>(region), region);
     }
 
+    /**
+     * @brief Appends text using the current captured style.
+     *
+     * The text is painted in the current stroke color, or in the fill color
+     * when the stroke is `"none"`, and text at a point takes the current
+     * font size.
+     */
+    Canvas& operator<<(const Text& text) {
+        elements_.push_back({Shape<Point<double>>(), style_, text.text(), text});
+        return *this;
+    }
+
     /** @brief Appends nothing: the empty shape has no geometry to draw. */
     template <class PointType>
     Canvas& operator<<(const EmptyShape<PointType>&) {
@@ -643,13 +767,34 @@ class Canvas {
         }
     };
 
+    // A drawn object: a shape, or text, which leaves the shape empty.
     struct Element {
         Shape<Point<double>> shape{};
         CanvasStyle style{};
         std::string title;
+        std::optional<Text> text{};
 
         Bounds bounds() const {
             Bounds b;
+            if (text) {
+                // A box bounds its text, and so does the extent of text sized
+                // in plane units. Text sized in pixels has no extent in the
+                // plane: its point is bounded here and its size is padded.
+                if (text->box()) {
+                    if (!text->box()->empty()) {
+                        b.include(text->box()->min().x(), text->box()->min().y());
+                        b.include(text->box()->max().x(), text->box()->max().y());
+                    }
+                } else if (text->size()) {
+                    const double halfWidth = textWidth(text->text()) * *text->size() / 2.0;
+                    const double halfHeight = textHeight * *text->size() / 2.0;
+                    b.include(text->position().x() - halfWidth, text->position().y() - halfHeight);
+                    b.include(text->position().x() + halfWidth, text->position().y() + halfHeight);
+                } else {
+                    b.include(text->position().x(), text->position().y());
+                }
+                return b;
+            }
             std::visit([&](const auto& value) {
                 using V = std::decay_t<decltype(value)>;
                 if constexpr (std::same_as<V, Point<double>>) {
@@ -843,8 +988,217 @@ class Canvas {
             Shape<Point<double>>(std::forward<Stored>(stored)),
             style_,
             titleOf(original),
+            std::nullopt,
         });
         return *this;
+    }
+
+    // ---------------------------------------------------------------
+    // Text
+    // ---------------------------------------------------------------
+
+    // Every backend lays text out with the metrics of Helvetica, the one
+    // sans-serif font a PDF viewer is required to have. The SVG asks for it
+    // first and then for Arial, whose advance widths are the same, so text
+    // measured here takes the room it is given in either format.
+    static constexpr double textAscender = 0.718;
+    static constexpr double textDescender = -0.207;
+    // The height a line of text occupies, in font sizes.
+    static constexpr double textHeight = textAscender - textDescender;
+
+    // The code points of a UTF-8 string. A malformed byte stands for itself,
+    // so that measuring and encoding never fail on bad input.
+    static std::vector<std::uint32_t> codePoints(const std::string& text) {
+        std::vector<std::uint32_t> points;
+        points.reserve(text.size());
+        for (std::size_t index = 0; index < text.size();) {
+            const auto lead = static_cast<unsigned char>(text[index]);
+            const std::size_t length = lead < 0x80 ? 1 : (lead >> 5) == 0x6 ? 2 : (lead >> 4) == 0xE ? 3 : (lead >> 3) == 0x1E ? 4 : 0;
+            bool valid = length != 0 && index + length <= text.size();
+            std::uint32_t point = length == 1 ? lead : length == 2 ? (lead & 0x1Fu) : length == 3 ? (lead & 0x0Fu) : (lead & 0x07u);
+            for (std::size_t offset = 1; valid && offset < length; ++offset) {
+                const auto continuation = static_cast<unsigned char>(text[index + offset]);
+                valid = (continuation >> 6) == 0x2;
+                point = (point << 6) | (continuation & 0x3Fu);
+            }
+            if (!valid) {
+                points.push_back(lead);
+                ++index;
+            } else {
+                points.push_back(point);
+                index += length;
+            }
+        }
+        return points;
+    }
+
+    // The width of a single line of text, in font sizes: the sum of the
+    // Helvetica advance widths of its characters. Characters outside ASCII are
+    // counted as a digit, which is about the average width of a letter.
+    static double textWidth(const std::string& text) {
+        static constexpr std::array<int, 95> widths{{
+            278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278, //   ! " # $ % & ' ( ) * + , - . /
+            556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556, // 0-9 : ; < = > ?
+            1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778, // @ A-O
+            667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556, // P-Z [ \ ] ^ _
+            333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556, // ` a-o
+            556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584,      // p-z { | } ~
+        }};
+        int total = 0;
+        for (const std::uint32_t point : codePoints(text)) {
+            total += (0x20 <= point && point <= 0x7E) ? widths[point - 0x20] : 556;
+        }
+        return total / 1000.0;
+    }
+
+    // The text re-encoded for a PDF standard font, whose encoding here is
+    // WinAnsi: Latin-1 wherever it is printable, and a question mark for any
+    // character it does not have.
+    static std::string winAnsi(const std::string& text) {
+        std::string encoded;
+        for (const std::uint32_t point : codePoints(text)) {
+            const bool printable = (0x20 <= point && point <= 0x7E) || (0xA0 <= point && point <= 0xFF);
+            encoded.push_back(printable ? static_cast<char>(point) : '?');
+        }
+        return encoded;
+    }
+
+    // The text as LaTeX source, which is what Ipe reads a text object as: the
+    // characters LaTeX treats specially are escaped so that they print as
+    // themselves, as they do in the other backends. That includes the ones
+    // the default OT1 encoding would print as other glyphs (`<` as `¡`).
+    static std::string latexEscaped(const std::string& text) {
+        std::string escaped;
+        for (const char character : text) {
+            switch (character) {
+                case '\\': escaped += "\\textbackslash{}"; break;
+                case '^': escaped += "\\^{}"; break;
+                case '~': escaped += "\\~{}"; break;
+                case '<': escaped += "\\textless{}"; break;
+                case '>': escaped += "\\textgreater{}"; break;
+                case '|': escaped += "\\textbar{}"; break;
+                case '#': case '$': case '%': case '&': case '_': case '{': case '}':
+                    escaped.push_back('\\');
+                    escaped.push_back(character);
+                    break;
+                default: escaped.push_back(character); break;
+            }
+        }
+        return escaped;
+    }
+
+    // Where and how large text comes out, in SVG pixel coordinates.
+    struct TextLayout {
+        double x = 0.0;        // center of the line
+        double y = 0.0;        // middle of the line, between descender and ascender
+        double size = 0.0;     // font size
+        double width = 0.0;    // advance width of the line
+
+        double baseline() const {
+            return y + (textAscender + textDescender) / 2.0 * size;
+        }
+    };
+
+    static double textFontSize(const CanvasStyle& style) {
+        return std::max(numericLengthOr(style.fontSize, 16.0f), 0.0f);
+    }
+
+    // The layout of text under a viewport, or nothing when it would not
+    // show: no text, an empty box, or a size that comes out zero.
+    static std::optional<TextLayout> layoutText(const Element& element, const Viewport& viewport) {
+        const Text& text = *element.text;
+        const double width = textWidth(text.text());
+        if (width == 0.0 || (text.box() && text.box()->empty())) {
+            return std::nullopt;
+        }
+
+        double size = textFontSize(element.style);
+        if (text.box()) {
+            const double boxWidth = std::abs(viewport.scale * (text.box()->max().x() - text.box()->min().x()));
+            const double boxHeight = std::abs(viewport.scale * (text.box()->max().y() - text.box()->min().y()));
+            const double fitted = std::min(boxWidth / width, boxHeight / textHeight);
+            size = text.fit() == TextFit::fill ? fitted : std::min(size, fitted);
+        } else if (text.size()) {
+            size = *text.size() * viewport.scale;
+        }
+        if (!(size > 0.0) || !std::isfinite(size)) {
+            return std::nullopt;
+        }
+
+        return TextLayout{
+            viewport.mapX(text.position().x()),
+            viewport.mapY(text.position().y()),
+            size,
+            width * size,
+        };
+    }
+
+    // The SVG paint and opacity text is written in: the stroke, unless
+    // there is none, in which case the fill.
+    static std::pair<const std::string&, const std::string&> textPaint(const CanvasStyle& style) {
+        if (lowercase(trim(style.stroke)) == "none") {
+            return {style.fill, style.fillOpacity};
+        }
+        return {style.stroke, style.strokeOpacity};
+    }
+
+    static std::string textToSVG(const Element& element, const Viewport& viewport) {
+        const std::optional<TextLayout> layout = layoutText(element, viewport);
+        if (!layout) return {};
+        const auto [paint, opacity] = textPaint(element.style);
+        std::ostringstream out;
+        out << "<text x=\"" << layout->x << "\" y=\"" << layout->baseline()
+            << "\" font-family=\"Helvetica, Arial, sans-serif\" font-size=\"" << layout->size
+            << "\" text-anchor=\"middle\" xml:space=\"preserve\""
+            << " fill=\"" << escapeXML(paint, true) << '"'
+            << " fill-opacity=\"" << escapeXML(opacity, true) << "\">"
+            << escapeXML(element.text->text(), false) << "</text>";
+        return out.str();
+    }
+
+    void appendTextToPDF(pdfgen::pdf_doc* pdf, pdfgen::pdf_object* page, const Element& element, const Viewport& viewport) const {
+        const std::optional<TextLayout> layout = layoutText(element, viewport);
+        if (!layout) return;
+        const PDFStyle style = pdfStyleOf(element.style);
+        const std::uint32_t colour = markColor(style);
+        if (pdfgen::PDF_IS_TRANSPARENT(colour)) return;
+
+        if (pdfgen::pdf_set_font(pdf, "Helvetica") < 0) {
+            throwPDFError(pdf, "select PDF text font");
+        }
+        // PDF text has no anchor: it starts at the left end of its baseline.
+        if (pdfgen::pdf_add_text(
+                pdf,
+                page,
+                winAnsi(element.text->text()).c_str(),
+                static_cast<float>(layout->size),
+                static_cast<float>(layout->x - layout->width / 2.0),
+                pdfYFromSVG(layout->baseline()),
+                colour,
+                markAlpha(style)) < 0) {
+            throwPDFError(pdf, "draw PDF text");
+        }
+    }
+
+    void appendTextToIPE(std::ostringstream& out, const Element& element, const Viewport& viewport) const {
+        const std::optional<TextLayout> layout = layoutText(element, viewport);
+        if (!layout) return;
+        const PDFStyle style = pdfStyleOf(element.style);
+        const std::uint32_t colour = markColor(style);
+        if (pdfgen::PDF_IS_TRANSPARENT(colour)) return;
+
+        // Ipe typesets the text with LaTeX, whose default font only comes in
+        // a few sizes, the largest far smaller than text filling a box can
+        // ask for. The text selects Helvetica instead (`phv`, from the
+        // standard PostScript fonts every TeX distribution ships), which
+        // scales to any size and has the metrics the layout was computed with.
+        out << "<text transformations=\"translations\" pos=\"" << layout->x << ' ' << pdfYFromSVG(layout->baseline())
+            << "\" stroke=\"" << ipeColorTriplet(colour) << '"';
+        if (const std::optional<int> key = ipeTextOpacityKey(style)) {
+            out << " opacity=\"" << ipeOpacityName(*key) << '"';
+        }
+        out << " type=\"label\" size=\"" << layout->size << "\" halign=\"center\" valign=\"baseline\">"
+            << escapeXML("\\fontfamily{phv}\\selectfont " + latexEscaped(element.text->text()), false) << "</text>\n";
     }
 
     bool needsArrowheadDefinition() const {
@@ -865,6 +1219,16 @@ class Canvas {
         }
 
         for (const Element& element : elements_) {
+            if (element.text) {
+                // Text sized in pixels is centered on its point, and reaches
+                // out from it by half its extent.
+                if (!element.text->box() && !element.text->size()) {
+                    const double size = textFontSize(element.style);
+                    const double halfWidth = textWidth(element.text->text()) * size / 2.0;
+                    value = std::max(value, marginPixels_ + std::max(halfWidth, textHeight * size / 2.0));
+                }
+                continue;
+            }
             if (const std::optional<double> width = parseNumericLength(element.style.strokeWidth)) {
                 value = std::max(value, marginPixels_ + *width / 2.0);
             }
@@ -1336,11 +1700,13 @@ class Canvas {
         return operations;
     }
 
-    static std::uint32_t arrowColor(const PDFStyle& style) {
+    // The color of a mark painted solid, an arrowhead or the glyphs of text: the
+    // stroke, or the fill when there is no stroke.
+    static std::uint32_t markColor(const PDFStyle& style) {
         return pdfgen::PDF_IS_TRANSPARENT(style.stroke) ? style.fill : style.stroke;
     }
 
-    static float arrowAlpha(const PDFStyle& style) {
+    static float markAlpha(const PDFStyle& style) {
         return pdfgen::PDF_IS_TRANSPARENT(style.stroke) ? style.fillAlpha : style.strokeAlpha;
     }
 
@@ -1352,7 +1718,7 @@ class Canvas {
         float endX,
         float endY,
         const PDFStyle& style) const {
-        const std::uint32_t colour = arrowColor(style);
+        const std::uint32_t colour = markColor(style);
         if (pdfgen::PDF_IS_TRANSPARENT(colour)) {
             return;
         }
@@ -1387,7 +1753,7 @@ class Canvas {
             baseCenterY + py * halfBase,
             baseCenterY - py * halfBase,
         };
-        if (pdfgen::pdf_add_filled_polygon(pdf, page, xs, ys, 3, 0.0f, colour, arrowAlpha(style), 1.0f) < 0) {
+        if (pdfgen::pdf_add_filled_polygon(pdf, page, xs, ys, 3, 0.0f, colour, markAlpha(style), 1.0f) < 0) {
             throwPDFError(pdf, "draw PDF arrowhead");
         }
     }
@@ -1447,6 +1813,10 @@ class Canvas {
         pdfgen::pdf_object* page,
         const Element& element,
         const Viewport& viewport) const {
+        if (element.text) {
+            appendTextToPDF(pdf, page, element, viewport);
+            return;
+        }
         using PT = Point<double>;
         const PDFStyle style = pdfStyleOf(element.style);
 
@@ -1720,6 +2090,9 @@ class Canvas {
     }
 
     std::string elementToSVG(const Element& element, const Viewport& viewport) const {
+        if (element.text) {
+            return textToSVG(element, viewport);
+        }
         using PT = Point<double>;
         const std::string titleTag = "<title>" + escapeXML(element.title, false) + "</title>";
 
@@ -1970,6 +2343,12 @@ class Canvas {
         std::vector<int> keys;
         for (const Element& element : elements_) {
             const PDFStyle style = pdfStyleOf(element.style);
+            if (element.text) {
+                if (const std::optional<int> key = ipeTextOpacityKey(style)) {
+                    keys.push_back(*key);
+                }
+                continue;
+            }
             if (const std::optional<int> key = ipeStrokeOpacityKey(style)) {
                 keys.push_back(*key);
             }
@@ -2010,6 +2389,14 @@ class Canvas {
             return std::nullopt;
         }
         return ipeOpacityKey(style.strokeAlpha);
+    }
+
+    // The opacity text must name, if any.
+    static std::optional<int> ipeTextOpacityKey(const PDFStyle& style) {
+        if (pdfgen::PDF_IS_TRANSPARENT(markColor(style)) || markAlpha(style) >= 1.0f) {
+            return std::nullopt;
+        }
+        return ipeOpacityKey(markAlpha(style));
     }
 
     static std::string ipeColorTriplet(std::uint32_t colour) {
@@ -2134,7 +2521,7 @@ class Canvas {
         std::ostringstream& out,
         double startX, double startY, double endX, double endY,
         const PDFStyle& style) const {
-        const std::uint32_t colour = arrowColor(style);
+        const std::uint32_t colour = markColor(style);
         if (pdfgen::PDF_IS_TRANSPARENT(colour)) return;
 
         const auto triangle = ipeArrowTriangle(startX, startY, endX, endY, style.strokeWidth);
@@ -2142,7 +2529,7 @@ class Canvas {
 
         std::ostringstream attrs;
         attrs << " fill=\"" << ipeColorTriplet(colour) << '"';
-        const float alpha = arrowAlpha(style);
+        const float alpha = markAlpha(style);
         if (alpha < 1.0f) {
             attrs << " opacity=\"" << ipeOpacityName(static_cast<int>(std::lround(alpha * 1000.0f))) << '"';
         }
@@ -2158,6 +2545,10 @@ class Canvas {
     }
 
     void appendElementToIPE(std::ostringstream& out, const Element& element, const Viewport& viewport) const {
+        if (element.text) {
+            appendTextToIPE(out, element, viewport);
+            return;
+        }
         using PT = Point<double>;
         const PDFStyle style = pdfStyleOf(element.style);
         const std::string attrs = ipeStyleAttributes(style);
