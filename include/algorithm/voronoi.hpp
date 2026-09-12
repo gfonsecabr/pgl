@@ -188,12 +188,19 @@ std::optional<VoronoiBisector<Number>> voronoiBisector(const VoronoiSite<Number>
  * (or on all of the line, or on none of it) and the count of nearer sites is a
  * step function of `t`. Its level sets are what this reports.
  *
- * A site `m` that is tied with the pair along the whole bisector — which needs
- * weights, two point sites being tied along a line only if they are the same
- * point — puts every pair drawn from `{i, j, m, ...}` on that one line, seeing
- * one nearer-count and so reporting one set of runs. The two smallest of the
- * tied group report them and the rest report nothing, so the line is covered
- * once rather than several times over.
+ * A site `m` that is tied with the pair along the whole bisector puts every
+ * pair drawn from `{i, j, m, ...}` on that one line, seeing one nearer-count
+ * and so reporting one set of runs. One pair of the tied group reports them and
+ * the rest report nothing, so the line is covered once rather than several
+ * times over. That pair is the smallest site of the group and the smallest one
+ * whose center differs from it, not the two smallest outright: those can be two
+ * copies of one repeated site, which have no bisector between them to report
+ * anything with, and the line would be lost.
+ *
+ * Over point sites a tied group is nothing *but* repeats — a point tied with
+ * `i` along the whole line has the line for its bisector with `i`, which puts
+ * it at `i`'s position or at `j`'s — so the rule matters exactly when the input
+ * repeats a site. Weights are what let a group hold distinct centers.
  *
  * The farthest-point diagram reads the same bisector the other way round: its
  * edges are where `i` and `j` are the `k`-th and `(k+1)`-th *farthest* sites,
@@ -241,6 +248,13 @@ void voronoiPairEdges(const std::vector<VoronoiSite<Number>>& sites, std::size_t
         return std::pair<Number, Number>(std::move(alpha), std::move(beta));
     };
 
+    // Whether a smaller pair of the tied group that `m` belongs to reports the
+    // line instead: some site of the group precedes `i`, or one precedes `j`
+    // without merely repeating `i`.
+    const auto reportedElsewhere = [&](std::size_t m) {
+        return m < j && (m < i || sites[m].center != sites[i].center);
+    };
+
     if (k == 1) {
         // The one run wanted is where no site is nearer, an intersection of
         // halflines and hence a single interval. Tracking it directly skips the
@@ -256,8 +270,8 @@ void voronoiPairEdges(const std::vector<VoronoiSite<Number>>& sites, std::size_t
                 if (beta < zero) {
                     return;
                 }
-                if (beta == zero && m < j) {
-                    return;  // a smaller pair of the tied group reports this line
+                if (beta == zero && reportedElsewhere(m)) {
+                    return;
                 }
                 continue;
             }
@@ -288,8 +302,8 @@ void voronoiPairEdges(const std::vector<VoronoiSite<Number>>& sites, std::size_t
         if (alpha == zero) {
             if (beta < zero) {
                 ++count;
-            } else if (beta == zero && m < j) {
-                return;  // a smaller pair of the tied group reports this line
+            } else if (beta == zero && reportedElsewhere(m)) {
+                return;
             }
             continue;
         }

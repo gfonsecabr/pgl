@@ -396,6 +396,65 @@ TEST_CASE("voronoiDiagram of collinear points has no Delaunay dual to borrow") {
     checkAgainstDefinition(sites, 1, 8);
 }
 
+TEST_CASE("Repeated sites keep the bisector they share on the bisector route") {
+    // A repeat is tied with its original along every bisector the original has,
+    // so the two are one tied group with the site across, and one pair of the
+    // group reports the line. The two smallest outright can be the repeats
+    // themselves, which have no bisector between them to report anything with;
+    // the pair elected has to have one. Collinear sites are what puts points on
+    // this route at all -- with a triangle to dualize, the Delaunay dual answers.
+    const std::vector<std::vector<Site>> inputs{
+        {P(0, 0), P(0, 0), P(4, 0)},
+        {P(0, 0), P(4, 0), P(0, 0)},
+        {P(4, 0), P(0, 0), P(0, 0)},
+        {P(0, 0), P(4, 0), P(4, 0)},
+        {P(0, 0), P(0, 0), P(4, 0), P(4, 0)},
+    };
+    for (const std::vector<Site>& sites : inputs) {
+        CAPTURE(sites.size());
+        const Diagram ordinary = pgl::voronoiDiagram(sites);
+        CHECK(ordinary.vertexCount() == 0);
+        CHECK(ordinary.edgeCount() == 1);
+        REQUIRE(ordinary.faceCount() == 2);
+        CHECK(ordinary.label(ordinary.locateFace(pgl::EPoint(-1, 0))) == P(0, 0));
+        CHECK(ordinary.label(ordinary.locateFace(pgl::EPoint(5, 0))) == P(4, 0));
+
+        const OrderDiagram diagram = pgl::voronoiDiagram(sites, 1);
+        CHECK(diagram.edgeCount() == 1);
+        REQUIRE(diagram.faceCount() == 2);
+        CHECK(diagram.label(diagram.locateFace(pgl::EPoint(-1, 0))) == std::vector<Site>{P(0, 0)});
+        CHECK(diagram.label(diagram.locateFace(pgl::EPoint(5, 0))) == std::vector<Site>{P(4, 0)});
+    }
+
+    // Three repeats around a pair in the middle: two lines, three slabs.
+    const std::vector<Site> sites{P(8, 0), P(0, 0), P(8, 0), P(4, 0), P(0, 0)};
+    const Diagram slabs = pgl::voronoiDiagram(sites);
+    CHECK(slabs.edgeCount() == 2);
+    REQUIRE(slabs.faceCount() == 3);
+    CHECK(slabs.label(slabs.locateFace(pgl::EPoint(1, 0))) == P(0, 0));
+    CHECK(slabs.label(slabs.locateFace(pgl::EPoint(4, 0))) == P(4, 0));
+    CHECK(slabs.label(slabs.locateFace(pgl::EPoint(7, 0))) == P(8, 0));
+}
+
+TEST_CASE("Disks sharing one radical axis report it once") {
+    // Every pair of these three has x = 0 for its radical axis, so they are one
+    // tied group with three distinct centers, and exactly one pair of it may
+    // report the line. The middle disk is nearest nowhere.
+    const std::vector<WeightedSite> disks{D(0, 0, 0), D(4, 0, 4), D(8, 0, 8)};
+
+    const PowerCells cells = pgl::powerDiagram(disks);
+    CHECK(cells.vertexCount() == 0);
+    CHECK(cells.edgeCount() == 1);
+    REQUIRE(cells.faceCount() == 2);
+    CHECK(cells.label(cells.locateFace(pgl::EPoint(-1, 0))) == disks[0]);
+    CHECK(cells.label(cells.locateFace(pgl::EPoint(1, 0))) == disks[2]);
+
+    const PowerDiagram diagram = pgl::powerDiagram(disks, 1);
+    CHECK(diagram.edgeCount() == 1);
+    CHECK(diagram.faceCount() == 2);
+    checkAgainstDefinition(disks, 1, 10);
+}
+
 TEST_CASE("voronoiDiagram of one site is the whole plane") {
     const std::vector<Site> sites{P(3, -2)};
     const OrderDiagram diagram = pgl::voronoiDiagram(sites, 1);
