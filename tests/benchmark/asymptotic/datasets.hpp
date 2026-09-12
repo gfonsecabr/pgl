@@ -5,9 +5,9 @@
 // Point, segment, rectangle and triangle datasets come straight from the
 // shape-pair benchmark's generators (../randomshapes.hpp), so "small" and
 // "large" mean exactly what they mean on the pairs page: a small shape spans
-// smallRange in a field of largeRange and a random pair usually misses; a large
-// one spans mediumRange in a field of mediumRange and a random pair usually
-// meets.
+// smallRange in a disk of diameter largeRange and a random pair usually misses;
+// a large one spans mediumRange in a disk of diameter mediumRange and a random
+// pair usually meets.
 //
 // Polygons do not, and that is deliberate. randomshapes.hpp's polygon
 // generators call legacyUntangledPolygon() to pin the shapes the pairs page's
@@ -37,12 +37,12 @@ using IntTriangle  = pgl::Triangle<IntPoint>;
 using IntRectangle = pgl::Rectangle<IntPoint>;
 using IntPolygon   = pgl::Polygon<IntPoint>;
 
-// n distinct random points over the large field.
+// n distinct random points in the large disk.
 inline std::vector<IntPoint> points(int n) {
     return randomPoints<int>(n);
 }
 
-// n query points over the same field, drawn from a different seed than
+// n query points in the same disk, drawn from a different seed than
 // points(). Sharing the seed would make the queries a prefix of the dataset, so
 // every one of them would land exactly on a vertex — the one case a point
 // location is least representative of.
@@ -64,7 +64,7 @@ inline std::vector<IntSegment> largeSegments(int n) {
     return randomLargeBishape<IntSegment>(n);
 }
 
-// n large random triangles, as on the pairs page: each spans the field it is
+// n large random triangles, as on the pairs page: each spans the disk it is
 // scattered over, so a set of them overlaps heavily.
 inline std::vector<IntTriangle> largeTriangles(int n) {
     return randomLargeTrishape<IntTriangle>(n);
@@ -85,10 +85,10 @@ namespace detail {
 // anchor and untangled, which is randomLargePolygons' construction with the
 // library's current untangle(). Retries on the anchor's own stream, so a draw
 // that collapses to a degenerate ring simply advances it.
-inline IntPolygon polygonOfSpan(int m, int field, int span, std::uint64_t seed) {
+inline IntPolygon polygonOfSpan(int m, int disk, int span, std::uint64_t seed) {
     Rng rng{seed};
     while (true) {
-        const auto base = randomPoint<int>(rng, field);
+        const auto base = randomPoint<int>(rng, disk);
         std::vector<IntPoint> vertices;
         vertices.reserve(static_cast<std::size_t>(m));
         for (int i = 0; i < m; ++i) {

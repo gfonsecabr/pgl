@@ -31,8 +31,8 @@
 // **What actually sets the ceiling.** Three different things do, and the notes
 // below say which applies where:
 //   * the anchor operation reaching about a second — the ordinary case;
-//   * quadratic output — the segments are scattered over a field of *fixed*
-//     width, so sweeping n sweeps the density too and the number of crossings
+//   * quadratic output — the segments are scattered over a disk of *fixed*
+//     radius, so sweeping n sweeps the density too and the number of crossings
 //     grows with n²; those categories are dominated by the output term, not by
 //     their n log n structure, and their drivers record the output size in the
 //     Result column so the term can be read from the data;
@@ -71,7 +71,7 @@ constexpr auto kTriangulation = linearSizes(100000);
 // Quadratic output: at 10,000 small segments the arrangement already has 63,338
 // vertices, against 20,845 at 5,000. Anchored to buildPointLocation again
 // (0.92 s at 10,000, against 0.56 s for the arrangement itself). Large segments
-// span half the field instead of a tenth of it, so they cross far more often
+// span half the disk instead of a tenth of it, so they cross far more often
 // and reach a bigger arrangement at an eighth of the n: 45,845 vertices at
 // 1,200, where the index takes 1.17 s. That is the same 1,200 the large-segment
 // list in category 3 stops at, and for the same reason — the dataset, not the
@@ -84,7 +84,7 @@ constexpr auto kArrangementLarge = linearSizes(2000);
 // the same n. Anchored to Bentley–Ottmann over ERational coordinates, the
 // slowest cell of each.
 //   small segments — quadratic output (43,354 crossings at n = 10,000); 0.86 s.
-//   large segments — large ones span half the field, so they cross far more
+//   large segments — large ones span half the disk, so they cross far more
 //     often: 29,813 crossings at n = 1,000 already, and ~1.0 s at 1,200.
 //   polygon edges  — a simple polygon's edges cross nowhere, so this is the
 //     same sweep with no output term, and it runs in 33 ms at 6,000. Its

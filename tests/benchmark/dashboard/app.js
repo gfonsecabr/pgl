@@ -102,16 +102,16 @@ function nDefiningPoints(shape) {
   return 1000; // Unknown shape: fall back to the point-sample size in run_shapepairs.py
 }
 
-// A shape's own extent and the field it is scattered over are set independently:
-// every generator draws an anchor point in the field and the rest of the shape's
-// points relative to it. A small shape spans 1000 in a field of 10000, so a random
-// pair usually misses; a large one spans 5000 in a field of 5000, so a random pair
-// usually meets. Points are drawn from the disks inscribed in those squares, hence
-// the radii below — smallRange / mediumRange / largeRange halved, as in
-// tests/benchmark/randomshapes.hpp.
+// A shape's own extent and the disk it is scattered over are set independently:
+// every generator draws an anchor point in the disk and the rest of the shape's
+// points relative to it. A small shape spans 1000 in a disk of diameter 10000, so a
+// random pair usually misses; a large one spans 5000 in a disk of diameter 5000, so
+// a random pair usually meets. Points are drawn from the disks inscribed in those
+// squares, hence the radii below — smallRange / mediumRange / largeRange halved, as
+// in tests/benchmark/randomshapes.hpp.
 const _SIZE_SCALE = {
-  small: { extent: 500,  field: 5000 },
-  large: { extent: 2500, field: 2500 },
+  small: { extent: 500,  disk: 5000 },
+  large: { extent: 2500, disk: 2500 },
 };
 const sizeScale = (size) => _SIZE_SCALE[size] || _SIZE_SCALE.small;
 
@@ -119,7 +119,7 @@ const sizeScale = (size) => _SIZE_SCALE[size] || _SIZE_SCALE.small;
 const pointCloud = (n, size) => {
   const s = sizeScale(size);
   return `${n} random integer points in a disk of radius ${s.extent} translated by ` +
-         `a random integer vector of length ≤ ${s.field}`;
+         `a random integer vector of length ≤ ${s.disk}`;
 };
 
 // Plain-language description of how a random shape of this kind/size is drawn,
@@ -138,7 +138,7 @@ function distributionTip(shape, size) {
     return `Random PolygonSet (${size}): a 6×6 grid of squares spanning ${2 * s.extent}, each cell ` +
            `filled with probability 45%, every 4-connected group of filled cells becoming one ` +
            `component (usually pinched, sometimes holed or nesting another), translated by ` +
-           `a random integer vector of length ≤ ${s.field}`;
+           `a random integer vector of length ≤ ${s.disk}`;
   }
   const sampled = _SAMPLED[shape];
   if (sampled)

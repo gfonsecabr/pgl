@@ -1,6 +1,6 @@
-// @desc: Five one-shot constructions over n random points: closest pair,
-// convex hull, sorting by angle about a centre, the Delaunay triangulation, and
-// building a kd-tree.
+// @desc: Five one-shot constructions over n random points in a disk: closest
+// pair, convex hull, sorting by angle about a centre, the Delaunay
+// triangulation, and building a kd-tree.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"

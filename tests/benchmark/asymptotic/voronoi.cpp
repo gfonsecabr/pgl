@@ -1,4 +1,4 @@
-// @desc: Voronoi diagram of random points in a field, at orders 1, 2 and 4.
+// @desc: Voronoi diagram of random points in a disk, at orders 1, 2 and 4.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"

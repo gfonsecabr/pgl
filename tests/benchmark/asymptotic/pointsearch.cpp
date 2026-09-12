@@ -1,5 +1,5 @@
 // @desc: Range counting and nearest-neighbour queries against a kd-tree
-// (ShapeTree) over n random points.
+// (ShapeTree) over n random points in a disk.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"

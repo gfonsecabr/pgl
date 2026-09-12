@@ -7,12 +7,13 @@
 #include <set>
 #include <vector>
 
-// Every generator below places a shape by drawing an anchor point in a field
+// Every generator below places a shape by drawing an anchor point in a disk
 // and the rest of its defining points relative to that anchor, so a shape's own
-// extent and the field it is scattered over are set independently: a small
-// shape spans smallRange in a field of largeRange, so a random pair usually
-// misses, while a large one spans mediumRange in a field of mediumRange, so a
-// random pair usually meets and the predicates reach their expensive paths.
+// extent and the disk it is scattered over are set independently: a small shape
+// spans smallRange in a disk of diameter largeRange, so a random pair usually
+// misses, while a large one spans mediumRange in a disk of diameter
+// mediumRange, so a random pair usually meets and the predicates reach their
+// expensive paths.
 constexpr int largeRange = 10000;
 constexpr int mediumRange = largeRange / 2;
 constexpr int smallRange = 1000;
@@ -373,7 +374,7 @@ randomPolygonSets(int n, int grid, int cell, int range) {
             }
         }
         // A set is placed like the shapes above: a small one is a tenth of
-        // the field it is scattered over, a large one as wide as its field.
+        // the disk it is scattered over, a large one as wide as its disk.
         const Point base = randomPoint<Number>(rng, range) - center;
         std::vector<pgl::PolygonWithHoles<Point>> components;
         while (!left.empty()) {
