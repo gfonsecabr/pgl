@@ -453,7 +453,12 @@ voronoi_diagram_t<ResultNumber, SiteRange> diagramOf(const SiteRange& sites, int
         }
     }
 
-    Diagram diagram(curves);
+    // The Delaunay dual is already an arrangement: two Voronoi edges have
+    // different nearest pairs throughout their relative interiors, so they meet
+    // only at shared endpoints and there is nothing for the overlay to cut. The
+    // bisector route below makes no such promise — its curves cross freely.
+    Diagram diagram = fromDelaunay ? Diagram(curves, detail::disjointInteriors)
+                                   : Diagram(curves);
 
     if constexpr (PointConcept<Element>) {
         if (k == 1) {
@@ -492,14 +497,13 @@ voronoi_diagram_t<ResultNumber, SiteRange> diagramOf(const SiteRange& sites, int
  * single swap. Cells that are empty do not appear, so the number of faces is
  * generally far below the number of `k`-element subsets.
  *
- * Complexity: finding the edges takes `O(n log n)` when `k` is 1, those edges
- * being @ref Triangulation::voronoiEdges, and `O(n^3 log n)` otherwise — one
- * pass over the sites for each of the `O(n^2)` bisectors, the `k = 1` case
- * skipping the logarithmic factor and abandoning most bisectors after a few
- * sites. Assembling them into the @ref Arrangement is quadratic in their number
- * on top of that, an unbounded diagram being exactly the input that sends the
- * construction down its carrier overlay, and when `k` is 1 it is what the
- * running time consists of.
+ * Complexity: `O(n log n)` when `k` is 1. The edges are then
+ * @ref Triangulation::voronoiEdges, and two of them have different nearest
+ * pairs throughout their relative interiors, so they meet only at a shared
+ * endpoint and the @ref Arrangement is assembled from them with no splitting
+ * step. For `k` above 1 the edges instead cost `O(n^3 log n)` — one pass over
+ * the sites for each of the `O(n^2)` bisectors — and the bisectors cross
+ * freely, so overlaying them is quadratic in their number on top of that.
  *
  * @tparam ResultNumber Coordinate type of the arrangement vertices. The default
  *         is exact and overflow-free for integral input.
@@ -531,9 +535,9 @@ template <class ResultNumber = void, std::ranges::input_range SiteRange>
  * which a point site can do. Disks of equal radius give the Voronoi diagram of
  * their centers.
  *
- * Labels, order and complexity are as in @ref voronoiDiagram, except that there
- * is no Delaunay route to take: finding the edges costs `O(n^3)` even when `k`
- * is 1.
+ * Labels and order are as in @ref voronoiDiagram, but there is no Delaunay
+ * route to take: even when `k` is 1 the edges cost `O(n^3)` to find and are
+ * then overlaid the general way, quadratically in their number.
  *
  * @tparam ResultNumber Coordinate type of the arrangement vertices. The default
  *         is exact and overflow-free for integral input.

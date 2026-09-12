@@ -224,6 +224,43 @@ TEST_CASE("voronoiDiagram of points reproduces the Delaunay dual") {
     }
 }
 
+TEST_CASE("The Delaunay dual is already an arrangement") {
+    // Both Voronoi entry points overlay the dual edges under the promise that
+    // they meet only at shared endpoints, which is what lets the construction
+    // skip its splitting step. Two dual edges have different nearest pairs
+    // throughout their relative interiors, so the promise holds; check it
+    // against the general overlay on the inputs most likely to break it, a
+    // lattice whose cocircular sites collapse dual edges to nothing and whose
+    // cells share long collinear boundaries.
+    std::vector<std::vector<Site>> inputs{
+        {P(-2, -1), P(2, -1), P(2, 1), P(-2, 1), P(-1, -2), P(1, -2), P(1, 2), P(-1, 2)},
+        {P(0, 0), P(11, 1), P(13, 10), P(7, 15), P(-2, 9), P(4, 6)},
+    };
+    for (int width = 2; width <= 5; ++width) {
+        std::vector<Site> grid;
+        for (int x = 0; x < width; ++x) {
+            for (int y = 0; y < width + 1; ++y) {
+                grid.push_back(P(3 * x, 3 * y));
+            }
+        }
+        inputs.push_back(std::move(grid));
+    }
+
+    for (const std::vector<Site>& sites : inputs) {
+        const pgl::Triangulation triangulation(sites);
+        const auto edges = triangulation.voronoiEdges();
+        const pgl::Arrangement<pgl::EPoint> split(edges);
+        const Diagram dual = triangulation.voronoiDiagram();
+
+        CHECK(dual.vertexCount() == split.vertexCount());
+        CHECK(dual.edgeCount() == split.edgeCount());
+        CHECK(dual.faceCount() == split.faceCount());
+        CHECK(dual.halfedgeCount() == split.halfedgeCount());
+        CHECK(dual.vertices() == split.vertices());
+        CHECK(dual.faceCount() == sites.size());
+    }
+}
+
 TEST_CASE("voronoiDiagram of collinear points has no Delaunay dual to borrow") {
     // No triangle to dualize, so this takes the bisector route instead.
     const std::vector<Site> sites{P(0, 0), P(4, 0), P(10, 0)};

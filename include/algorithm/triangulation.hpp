@@ -645,6 +645,12 @@ struct Triangulation {
      * and a convex-hull edge becomes an outward ray. Cocircular triangles may
      * have the same circumcenter; their zero-length dual edge is omitted.
      *
+     * Complexity: `O(n log n)`, the dual edges meeting only at shared endpoints
+     * and so needing no splitting against each other. This is the one place the
+     * Delaunay precondition is load-bearing rather than merely descriptive:
+     * dualizing a triangulation that is not Delaunay yields edges that cross,
+     * and the crossings go uncut.
+     *
      * The arrangement's edge labels are default-constructed and have no
      * meaning; its face labels are the stored @ref PointType values.
      *
@@ -664,10 +670,11 @@ struct Triangulation {
      * @brief Returns the edges of that Voronoi diagram, unassembled.
      *
      * These are the segments and rays @ref voronoiDiagram overlays, in no
-     * particular order and with nothing said about how they meet: building the
-     * @ref Arrangement out of them is what answers that, and it is also what
-     * dominates the cost, so a caller that only wants to draw the diagram or
-     * feed the edges to something else of its own is better served here.
+     * particular order. Two of them are the duals of different Delaunay edges
+     * and so have different nearest pairs throughout their relative interiors,
+     * which means they meet only at a shared endpoint: a caller that only wants
+     * to draw the diagram, or to feed the edges to something else of its own,
+     * can stop here and skip assembling the @ref Arrangement around them.
      *
      * @tparam ResultNumber Coordinate type of the endpoints. The default is
      *         exact and overflow-free for integral input.

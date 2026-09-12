@@ -72,6 +72,26 @@ struct SimpleBoundariesTag {};
 inline constexpr SimpleBoundariesTag simpleBoundaries;
 
 /**
+ * @brief Promise that the input shapes' relative interiors are pairwise
+ *        disjoint, so no shape has to be cut against another.
+ *
+ * The splitting step is the one part of the construction whose cost does not
+ * follow the size of the result, and it is the whole of the cost for a caller
+ * that already knows where its curves meet. A Voronoi diagram is the example:
+ * the dual of a Delaunay edge has that edge's two sites as its nearest pair
+ * throughout its relative interior, so two dual edges can only touch at a
+ * shared endpoint, and every crossing the splitter looks for is one it will not
+ * find.
+ *
+ * The promise is unchecked, and the arrangement is wrong rather than merely
+ * imprecise if it is broken: a crossing that is not cut leaves two edges
+ * passing through each other with no vertex between them. Isolated input points
+ * are still cut in wherever they fall, so only the shapes are constrained.
+ */
+struct DisjointInteriorsTag {};
+inline constexpr DisjointInteriorsTag disjointInteriors;
+
+/**
  * @brief The orientation of a **simple** ring: positive when it runs
  *        counterclockwise, negative when clockwise, zero when it bounds no area.
  *
@@ -255,6 +275,10 @@ public:
      * tests every pair of distinct supporting lines and is quadratic in their
      * number before the same `O(E log E)` topology construction.
      *
+     * @see detail::DisjointInteriorsTag for the fast path a caller that already
+     *      knows its shapes meet only at shared endpoints takes instead, which
+     *      is the whole of what @ref pgl::voronoiDiagram saves.
+     *
      * @tparam ShapeRange Range of shapes.
      * @param shapes Shapes whose subdivision of the plane to compute.
      */
@@ -264,7 +288,7 @@ public:
         std::vector<InputCurve> curves;
         std::vector<PointType> isolated;
         collect(shapes, segments, curves, isolated);
-        build(segments, curves, isolated, false);
+        build(segments, curves, isolated, false, false);
     }
 
     // Internal fast path for boolean operands whose boundary rings are known
@@ -275,7 +299,18 @@ public:
         std::vector<InputCurve> curves;
         std::vector<PointType> isolated;
         collect(shapes, segments, curves, isolated);
-        build(segments, curves, isolated, true);
+        build(segments, curves, isolated, true, false);
+    }
+
+    // Internal fast path for input already known to meet only at shared
+    // endpoints; see detail::DisjointInteriorsTag for what it promises.
+    template <std::ranges::input_range ShapeRange>
+    Arrangement(const ShapeRange& shapes, detail::DisjointInteriorsTag) {
+        std::vector<InputSegment> segments;
+        std::vector<InputCurve> curves;
+        std::vector<PointType> isolated;
+        collect(shapes, segments, curves, isolated);
+        build(segments, curves, isolated, false, true);
     }
 
     /**
@@ -305,7 +340,7 @@ public:
         for (const auto& point : points) {
             isolated.emplace_back(point);
         }
-        build(segments, curves, isolated, false);
+        build(segments, curves, isolated, false, false);
     }
 
     // -------------------------------------------------------------------------
@@ -1533,14 +1568,16 @@ private:
     // Construction
 
     void build(std::vector<InputSegment>& segments, std::vector<InputCurve>& curves,
-               std::vector<PointType>& isolated, bool simpleBoundaries) {
+               std::vector<PointType>& isolated, bool simpleBoundaries,
+               bool disjointInteriors) {
         const bool hasUnbounded = std::ranges::any_of(
             curves, [](const InputCurve& curve) { return curve.kind != EdgeKind::segment; });
         if (hasUnbounded) {
-            buildUnbounded(curves, isolated);
+            buildUnbounded(curves, isolated, disjointInteriors);
             return;
         }
-        std::vector<Piece> pieces = split(segments, isolated, simpleBoundaries);
+        std::vector<Piece> pieces =
+            split(segments, isolated, simpleBoundaries, disjointInteriors);
         internVertices(pieces, isolated);
         simplifyStoredCoordinates();
         syncVertexApproximations();
@@ -1650,34 +1687,33 @@ private:
         return point;
     }
 
-    // Whether a curve is collinear with a carrier, and so belongs on it rather
-    // than on one of its own.
-    static bool sameCarrier(const Carrier& carrier, const InputCurve& curve) {
-        return orientationSign(carrier.a, carrier.b, curve.a) == 0 &&
-               orientationSign(carrier.a, carrier.b, curve.b) == 0;
-    }
-
     // General normalization for input containing a ray or a line. Collinear
     // inputs are overlaid as intervals on one exact carrier; intersections of
     // distinct carriers then become additional interval endpoints.
+    //
+    // Collinear curves are grouped by hashing their supporting line rather than
+    // by testing each new curve against the carriers already built: Line's hash
+    // and equality are the exact ones, so the grouping is the same, and it is
+    // the difference between one hash per curve and a quadratic number of
+    // orientation predicates over coordinates that are usually rationals.
     void buildUnbounded(const std::vector<InputCurve>& curves,
-                        const std::vector<PointType>& isolated) {
+                        const std::vector<PointType>& isolated,
+                        bool disjointInteriors) {
         std::vector<Carrier> carriers;
+        std::unordered_map<Line<PointType>, std::uint32_t> carrierOf;
         for (const InputCurve& curve : curves) {
-            auto found = std::find_if(carriers.begin(), carriers.end(),
-                                      [&](const Carrier& carrier) {
-                                          return sameCarrier(carrier, curve);
-                                      });
-            if (found == carriers.end()) {
+            const auto [entry, fresh] =
+                carrierOf.emplace(Line<PointType>(curve.a, curve.b),
+                                  static_cast<std::uint32_t>(carriers.size()));
+            if (fresh) {
                 PointType a = curve.a;
                 PointType b = curve.b;
                 if (b < a) {
                     std::swap(a, b);
                 }
                 carriers.push_back(Carrier{a, b, !(a.x() == b.x()), {}, {}});
-                found = std::prev(carriers.end());
             }
-            Carrier& carrier = *found;
+            Carrier& carrier = carriers[entry->second];
             const NumberType ta = parameterOf(carrier, curve.a);
             const NumberType tb = parameterOf(carrier, curve.b);
             CarrierInterval interval{{}, {}, curve.origin, curve.label};
@@ -1715,26 +1751,33 @@ private:
             }
         }
 
-        for (std::size_t i = 0; i < carriers.size(); ++i) {
-            for (std::size_t j = i + 1; j < carriers.size(); ++j) {
-                const Line<PointType> first(carriers[i].a, carriers[i].b);
-                const Line<PointType> second(carriers[j].a, carriers[j].b);
-                const auto intersection = first.template intersection<NumberType>(second);
-                if (!intersection || !std::holds_alternative<PointType>(*intersection)) {
-                    continue;
-                }
-                const PointType& point = std::get<PointType>(*intersection);
-                const NumberType ti = parameterOf(carriers[i], point);
-                const NumberType tj = parameterOf(carriers[j], point);
-                const bool onFirst = std::ranges::any_of(
-                    carriers[i].intervals,
-                    [&](const CarrierInterval& interval) { return covers(interval, ti); });
-                const bool onSecond = std::ranges::any_of(
-                    carriers[j].intervals,
-                    [&](const CarrierInterval& interval) { return covers(interval, tj); });
-                if (onFirst && onSecond) {
-                    carriers[i].cuts.push_back(ti);
-                    carriers[j].cuts.push_back(tj);
+        // Where two carriers cross inside stretches both of them carry, both
+        // must be cut. This is the quadratic step, and it is the whole cost of
+        // the construction: a caller that has promised its curves meet only at
+        // shared endpoints has promised that every crossing found here is one
+        // the interval tests would reject, so the pairs go unexamined.
+        if (!disjointInteriors) {
+            for (std::size_t i = 0; i < carriers.size(); ++i) {
+                for (std::size_t j = i + 1; j < carriers.size(); ++j) {
+                    const Line<PointType> first(carriers[i].a, carriers[i].b);
+                    const Line<PointType> second(carriers[j].a, carriers[j].b);
+                    const auto intersection = first.template intersection<NumberType>(second);
+                    if (!intersection || !std::holds_alternative<PointType>(*intersection)) {
+                        continue;
+                    }
+                    const PointType& point = std::get<PointType>(*intersection);
+                    const NumberType ti = parameterOf(carriers[i], point);
+                    const NumberType tj = parameterOf(carriers[j], point);
+                    const bool onFirst = std::ranges::any_of(
+                        carriers[i].intervals,
+                        [&](const CarrierInterval& interval) { return covers(interval, ti); });
+                    const bool onSecond = std::ranges::any_of(
+                        carriers[j].intervals,
+                        [&](const CarrierInterval& interval) { return covers(interval, tj); });
+                    if (onFirst && onSecond) {
+                        carriers[i].cuts.push_back(ti);
+                        carriers[j].cuts.push_back(tj);
+                    }
                 }
             }
         }
@@ -1891,7 +1934,7 @@ private:
      */
     static std::vector<Piece> split(std::vector<InputSegment>& segments,
                                     const std::vector<PointType>& isolated,
-                                    bool simpleBoundaries) {
+                                    bool simpleBoundaries, bool disjointInteriors) {
         using IntegralPoint = Point<std::int64_t>;
         using IntegralSegment = Segment<IntegralPoint>;
         constexpr bool mayNeedIntegralNarrowing =
@@ -2032,7 +2075,11 @@ private:
             : 1 + std::ranges::max(segments, {}, &InputSegment::origin).origin;
         const bool useIntersectionSweep = simpleBoundaries && originCount == 2 && count >= 256 &&
                                           !std::floating_point<NumberType>;
-        if (useIntersectionSweep) {
+        if (disjointInteriors) {
+            // Nothing to cut against: the caller has promised that the groups
+            // meet only at shared endpoints, which the endpoints already seeded
+            // into every cut list. Only the isolated points below are left.
+        } else if (useIntersectionSweep) {
             if constexpr (!std::floating_point<NumberType>) {
                 const bool allIntegral = mayNeedIntegralNarrowing &&
                     std::ranges::all_of(
@@ -4612,7 +4659,11 @@ Triangulation<TriangleType, SegmentType>::voronoiDiagram() const {
     using ResultPoint = Point<ResultNumber>;
     using Diagram = Arrangement<ResultPoint, PointType>;
 
-    Diagram diagram(voronoiEdges<ResultNumber>());
+    // Two Voronoi edges have different nearest pairs throughout their relative
+    // interiors, so they can only touch at a shared endpoint and the overlay
+    // has nothing to cut. That is the whole cost of building the arrangement,
+    // and skipping it is what keeps the dual as cheap as the triangulation.
+    Diagram diagram(voronoiEdges<ResultNumber>(), detail::disjointInteriors);
 
     // Site points are strictly inside their own cells. Build the logarithmic
     // point-location index only for this attribution pass, then release it so
