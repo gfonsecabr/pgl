@@ -630,7 +630,8 @@ struct Triangulation {
     }
 
     /**
-     * @brief Returns the Voronoi diagram dual to this Delaunay triangulation.
+     * @brief Returns the circumcentric dual of this triangulation, which is its
+     *        Voronoi diagram when the triangulation is Delaunay.
      *
      * The result is an unbounded @ref Arrangement whose faces are labeled by
      * their generating vertices: after locating a query in a face `f`,
@@ -645,11 +646,22 @@ struct Triangulation {
      * and a convex-hull edge becomes an outward ray. Cocircular triangles may
      * have the same circumcenter; their zero-length dual edge is omitted.
      *
-     * Complexity: `O(n log n)`, the dual edges meeting only at shared endpoints
-     * and so needing no splitting against each other. This is the one place the
-     * Delaunay precondition is load-bearing rather than merely descriptive:
-     * dualizing a triangulation that is not Delaunay yields edges that cross,
-     * and the crossings go uncut.
+     * Complexity: `O(n log n)` for a Delaunay triangulation, whose dual edges
+     * meet only at shared endpoints and so need no splitting against each other,
+     * and whose faces the dual itself names — the primal edge (`u`, `v`)
+     * dualizes to the edge between their two cells, so one predicate per edge
+     * attributes both sides and no site has to be searched for.
+     *
+     * **A triangulation that is not Delaunay** dualizes to the circumcentric
+     * dual, and the connectivity is tested rather than assumed, because the two
+     * differ in kind: a non-locally-Delaunay edge dualizes to an edge that
+     * crosses others, so that dual is overlaid the ordinary way, with its
+     * crossings cut, at `O((n + c) log n)` for `c` of them. Its faces then
+     * outnumber the vertices and none of them is a Voronoi cell, so the labels
+     * keep only what still holds: a labeled face carries a vertex that falls
+     * inside it, faces no vertex falls in stay default-constructed, and where
+     * several vertices share a face — which the Delaunay dual rules out and
+     * this one does not — which of them the face carries is unspecified.
      *
      * The arrangement's edge labels are default-constructed and have no
      * meaning; its face labels are the stored @ref PointType values.
@@ -657,11 +669,11 @@ struct Triangulation {
      * @tparam ResultNumber Coordinate type of the arrangement vertices. The
      *         default is exact and overflow-free for integral input.
      * @pre The triangulation is not empty.
-     * @pre Its current real triangles form a Delaunay triangulation of all its
-     *      stored vertices (equivalently, they triangulate their convex hull and
-     *      every edge is locally Delaunay). This precondition is not checked.
-     * @return The unbounded Voronoi arrangement, with one site-labeled face per
-     *         stored vertex.
+     * @return The unbounded arrangement of the dual. For a Delaunay
+     *         triangulation — its real triangles triangulating the convex hull
+     *         of all its stored vertices with every edge locally Delaunay — that
+     *         is the Voronoi diagram, with one site-labeled face per stored
+     *         vertex; otherwise it is the circumcentric dual, labeled as above.
      */
     template <class ResultNumber = division_result_t<NumberType>>
     [[nodiscard]] Arrangement<Point<ResultNumber>, PointType> voronoiDiagram() const;
@@ -670,18 +682,20 @@ struct Triangulation {
      * @brief Returns the edges of that Voronoi diagram, unassembled.
      *
      * These are the segments and rays @ref voronoiDiagram overlays, in no
-     * particular order. Two of them are the duals of different Delaunay edges
-     * and so have different nearest pairs throughout their relative interiors,
-     * which means they meet only at a shared endpoint: a caller that only wants
-     * to draw the diagram, or to feed the edges to something else of its own,
-     * can stop here and skip assembling the @ref Arrangement around them.
+     * particular order. A caller that only wants to draw the diagram, or to feed
+     * the edges to something else of its own, can stop here and skip assembling
+     * the @ref Arrangement around them. While the triangulation is Delaunay, two
+     * of these are the duals of different Delaunay edges and so have different
+     * nearest pairs throughout their relative interiors, which means they meet
+     * only at a shared endpoint.
      *
      * @tparam ResultNumber Coordinate type of the endpoints. The default is
      *         exact and overflow-free for integral input.
-     * @pre The same Delaunay precondition @ref voronoiDiagram states.
-     * @return One @ref Segment per interior Delaunay edge whose two
-     *         circumcenters differ, and one outward @ref Ray per convex-hull
-     *         edge.
+     * @return One @ref Segment per interior edge whose two circumcenters differ,
+     *         and one outward @ref Ray per convex-hull edge. These meet only at
+     *         shared endpoints while the triangulation is Delaunay; the
+     *         circumcentric dual of one that is not has edges that cross, and a
+     *         caller assembling these itself has to let the overlay cut them.
      */
     template <class ResultNumber = division_result_t<NumberType>>
     [[nodiscard]] std::vector<Shape<Point<ResultNumber>>> voronoiEdges() const;
@@ -4478,6 +4492,51 @@ struct Triangulation {
             return Edge{NO_TRI, 0};
         }
         return Edge{t2, findSide(t2, e.tri)};
+    }
+
+    // The dual edges, optionally reporting which primal edge each one came from.
+    //
+    // @ref voronoiEdges is this with nothing recorded; @ref voronoiDiagram asks
+    // for the provenance because it is what names the faces: the dual of the
+    // primal edge (u, v) has u's cell on one of its sides and v's on the other,
+    // so one orientation predicate per edge attributes both, and no face has to
+    // be searched for. `dualOf` is filled in step with the returned vector, one
+    // entry per dual edge.
+    template <class ResultNumber>
+    [[nodiscard]] std::vector<Shape<Point<ResultNumber>>> dualEdges(
+        std::vector<std::array<VertexIndex, 2>>* dualOf) const;
+
+    // Whether every interior edge is locally Delaunay, which for a triangulation
+    // of its vertices' convex hull is to say the whole of it is Delaunay.
+    //
+    // This is @ref voronoiDiagram's unstated precondition, asked rather than
+    // assumed: the answer decides whether the dual's edges can be overlaid as
+    // disjoint or have to be cut against each other. One in-circle predicate per
+    // interior edge, on the filtered fast path, and constrained edges are tested
+    // like any other — a constrained edge that is not locally Delaunay is
+    // exactly what makes a dual that crosses itself.
+    [[nodiscard]] bool everyEdgeLocallyDelaunay() const {
+        for (TriIndex t = 0; t < firstGhost_; ++t) {
+            const auto& tv = triangles_[static_cast<std::size_t>(t)].v;
+            for (std::int8_t side = 0; side < 3; ++side) {
+                const TriIndex neighbor =
+                    triangles_[static_cast<std::size_t>(t)].nbr[static_cast<std::size_t>(side)];
+                // Each interior edge is tested once, from its lower triangle;
+                // the test itself is symmetric across the edge.
+                if (isGhost(neighbor) || neighbor < t) {
+                    continue;
+                }
+                const Edge m = mirror(Edge{t, side});
+                const VertexIndex apex = triangles_[static_cast<std::size_t>(m.tri)]
+                                             .v[static_cast<std::size_t>(m.side)];
+                if (detail::inCircleSignOf(filteredVertex(tv[0]), filteredVertex(tv[1]),
+                                           filteredVertex(tv[2]), filteredVertex(apex)) ==
+                    std::partial_ordering::greater) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     // Materializes triangle t as a public Triangle value (with its label, if any).

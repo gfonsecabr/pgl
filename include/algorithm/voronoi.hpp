@@ -673,6 +673,11 @@ struct VoronoiCells {
  * and the one it takes dualizes to a Voronoi edge of no length — which is all
  * @ref voronoiCellEdges asks of it.
  *
+ * The cells are laid out directly rather than through @ref VoronoiCells::cellOf,
+ * one per site and in the sites' own order, so @ref VoronoiCells::numbering is
+ * filled alongside them: @ref labelVoronoiCells reads a cell back by its name,
+ * and at order 1 these are the cells it reads.
+ *
  * @param triangulation A Delaunay triangulation of @p plain.
  * @param plain The sites, in the order their indices count them.
  * @return The cells, or nothing if a site is not a vertex of the triangulation.
@@ -699,8 +704,10 @@ std::optional<VoronoiCells> voronoiDelaunayCells(const Mesh& triangulation,
     VoronoiCells cells;
     cells.owners.resize(plain.size());
     cells.neighbors.resize(plain.size());
+    cells.numbering.reserve(plain.size());
     for (std::size_t s = 0; s < plain.size(); ++s) {
         cells.owners[s] = {static_cast<std::uint32_t>(s)};
+        cells.numbering.emplace(cells.owners[s], static_cast<std::uint32_t>(s));
     }
     for (const auto triangle : triangulation.triangleIds()) {
         const auto corners = triangulation.vertices(triangle);
@@ -1008,31 +1015,24 @@ bool voronoiByRefinement(Arrangement<Point<Number>, std::vector<Element>>& diagr
         return false;
     }
 
-    if (k == 1) {
-        Diagram level(triangulation.template voronoiEdges<Number>(), true);
-        // A point site is interior to its own cell, so locating it is both
-        // cheaper than scanning the sites once per face and exactly how
-        // Triangulation::voronoiDiagram attributes its own faces.
-        std::vector<bool> named(level.faceCount(), false);
-        level.buildPointLocation();
-        for (std::size_t s = 0; s < sites.size(); ++s) {
-            const auto face = level.locateFace(sites[s].center);
-            named[face.index()] = true;
-            level.label(face) = std::vector<Element>{elements[s]};
-        }
-        level.clearPointLocation();
-        for (const bool face : named) {
-            if (!face) {
-                return false;
-            }
-        }
-        diagram = std::move(level);
-        return true;
-    }
-
     std::optional<VoronoiCells> cells = voronoiDelaunayCells(triangulation, plain);
     if (!cells) {
         return false;
+    }
+
+    if (k == 1) {
+        // The faces are named by the same walk every higher order uses. Locating
+        // each site instead would be a handful of predicates apiece, but it has
+        // to index the arrangement to do it, and building that index costs more
+        // than everything else here together — for nothing, since crossing an
+        // edge of the order-1 diagram swaps one Delaunay neighbor for another
+        // and the cells already carry that adjacency.
+        Diagram level(triangulation.template voronoiEdges<Number>(), true);
+        if (!labelVoronoiCells(level, sites, elements, *cells, 1)) {
+            return false;
+        }
+        diagram = std::move(level);
+        return true;
     }
 
     std::vector<Shape<ResultPoint>> curves;

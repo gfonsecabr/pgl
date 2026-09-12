@@ -25,6 +25,12 @@ constexpr const char* kDataset  = "points";
 // It is a problem of its own and not a second algorithm under `order 1`,
 // because it is not a second algorithm: at order 1 the free function computes
 // the Delaunay dual too, and the two rows are one computation reached two ways.
+// What separates them is only how the faces are named once the dual is
+// assembled — the member reads the site pair off each dual edge, the free
+// function walks the cells from one named face outwards, since it has the
+// order-k machinery in hand and one order is the same walk — so the gap between
+// the rows is that labeling and nothing else.
+//
 // Every row measures a whole diagram — the curves *and* the Arrangement they
 // are overlaid into, which is what the call returns and what a caller has in
 // hand afterwards.

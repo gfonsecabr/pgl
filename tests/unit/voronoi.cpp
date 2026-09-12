@@ -261,6 +261,50 @@ TEST_CASE("The Delaunay dual is already an arrangement") {
     }
 }
 
+TEST_CASE("The dual of a non-Delaunay triangulation is a circumcentric dual") {
+    // A constraint edge is how a triangulation stops being Delaunay, and the
+    // dual then has edges that genuinely cross — so the promise the Delaunay
+    // dual is overlaid under does not hold, and the diagram has to be cut
+    // against itself like any other set of curves. What comes back is a real
+    // subdivision of the plane: the same one the general overlay of the same
+    // edges produces, and one the point-location index can be built over.
+    const std::vector<Site> quad{P(10, 10), P(50, 0), P(90, 10), P(50, 20)};
+    const std::vector<pgl::Segment<Site>> longDiagonal{
+        pgl::Segment<Site>(quad[0], quad[2])};
+    const pgl::Triangulation constrained(quad, longDiagonal);
+    const pgl::Triangulation plain(quad);
+
+    // The long diagonal is the one Delaunay rejects, so forcing it is what makes
+    // the difference: the same four sites, two triangulations, two duals.
+    const Diagram dual = constrained.voronoiDiagram();
+    const pgl::Arrangement<pgl::EPoint> split(constrained.voronoiEdges());
+    CHECK(dual.vertexCount() == split.vertexCount());
+    CHECK(dual.edgeCount() == split.edgeCount());
+    CHECK(dual.faceCount() == split.faceCount());
+    CHECK(dual.vertices() == split.vertices());
+
+    // The Delaunay dual of the same sites is the Voronoi diagram, one face per
+    // site; the circumcentric dual is a different subdivision with more.
+    CHECK(plain.voronoiDiagram().faceCount() == quad.size());
+    CHECK(dual.faceCount() > quad.size());
+
+    // A structure this consistent can be indexed, which is the part that fails
+    // outright when crossing edges are overlaid as though they were disjoint.
+    Diagram indexed = dual;
+    indexed.buildPointLocation();
+    CHECK(indexed.hasPointLocation());
+
+    // What is left of the face labels outside the Delaunay precondition: a face
+    // carries a site that falls inside it. Not necessarily the one asked after,
+    // because the circumcentric dual no longer keeps the sites in faces of their
+    // own — here two of the four share one — and faces no site falls in keep the
+    // default.
+    for (const Site& site : quad) {
+        const Diagram::FaceId face = indexed.locateFace(exact(site));
+        CHECK(indexed.locateFace(exact(indexed.label(face))) == face);
+    }
+}
+
 TEST_CASE("voronoiDiagram of collinear points has no Delaunay dual to borrow") {
     // No triangle to dualize, so this takes the bisector route instead.
     const std::vector<Site> sites{P(0, 0), P(4, 0), P(10, 0)};

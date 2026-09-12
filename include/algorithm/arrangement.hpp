@@ -1813,12 +1813,27 @@ private:
             return id;
         };
 
-        for (const AtomicCurve& atom : atoms) {
+        // An atom's ends, interned as they are built. Both passes below read the
+        // same two points of every atom, and rebuilding one is a division and a
+        // reduction (see @ref pointAt) and then a hash of the exact result: kept
+        // here instead, each end of each edge of the arrangement costs that once
+        // rather than twice.
+        struct AtomEnds {
+            PointType low;
+            PointType high;
+            std::uint32_t lowVertex = 0;
+            std::uint32_t highVertex = 0;
+        };
+        std::vector<AtomEnds> ends(atoms.size());
+        for (std::size_t a = 0; a < atoms.size(); ++a) {
+            const AtomicCurve& atom = atoms[a];
             if (atom.low.has_value()) {
-                idOf(pointAt(carriers[atom.carrier], *atom.low));
+                ends[a].low = pointAt(carriers[atom.carrier], *atom.low);
+                ends[a].lowVertex = idOf(ends[a].low);
             }
             if (atom.high.has_value()) {
-                idOf(pointAt(carriers[atom.carrier], *atom.high));
+                ends[a].high = pointAt(carriers[atom.carrier], *atom.high);
+                ends[a].highVertex = idOf(ends[a].high);
             }
         }
         for (const PointType& point : isolated) {
@@ -1827,26 +1842,28 @@ private:
         infinity_ = VertexId(static_cast<std::uint32_t>(points_.size()));
 
         originOffset_.push_back(0);
-        for (const AtomicCurve& atom : atoms) {
+        for (std::size_t a = 0; a < atoms.size(); ++a) {
+            const AtomicCurve& atom = atoms[a];
             const Carrier& carrier = carriers[atom.carrier];
+            AtomEnds& end = ends[a];
             if (atom.low.has_value() && atom.high.has_value()) {
-                const PointType a = pointAt(carrier, *atom.low);
-                const PointType b = pointAt(carrier, *atom.high);
-                origin_.push_back(idOf(a));
-                origin_.push_back(idOf(b));
-                edgeGeometry_.push_back({EdgeKind::segment, a, b});
+                origin_.push_back(end.lowVertex);
+                origin_.push_back(end.highVertex);
+                edgeGeometry_.push_back({EdgeKind::segment, std::move(end.low),
+                                         std::move(end.high)});
             } else if (atom.low.has_value() || atom.high.has_value()) {
                 const bool increasing = atom.low.has_value();
-                const PointType sourcePoint = pointAt(
-                    carrier, increasing ? *atom.low : *atom.high);
+                PointType sourcePoint =
+                    increasing ? std::move(end.low) : std::move(end.high);
                 const NumberType dx = carrier.b.x() - carrier.a.x();
                 const NumberType dy = carrier.b.y() - carrier.a.y();
                 const PointType directionPoint(
                     increasing ? sourcePoint.x() + dx : sourcePoint.x() - dx,
                     increasing ? sourcePoint.y() + dy : sourcePoint.y() - dy);
-                origin_.push_back(idOf(sourcePoint));
+                origin_.push_back(increasing ? end.lowVertex : end.highVertex);
                 origin_.push_back(infinity_.index());
-                edgeGeometry_.push_back({EdgeKind::ray, sourcePoint, directionPoint});
+                edgeGeometry_.push_back(
+                    {EdgeKind::ray, std::move(sourcePoint), directionPoint});
             } else {
                 origin_.push_back(infinity_.index());
                 origin_.push_back(infinity_.index());
@@ -4678,6 +4695,14 @@ template <TriangleConcept TriangleType, SegmentConcept SegmentType>
 template <class ResultNumber>
 std::vector<Shape<Point<ResultNumber>>>
 Triangulation<TriangleType, SegmentType>::voronoiEdges() const {
+    return dualEdges<ResultNumber>(nullptr);
+}
+
+template <TriangleConcept TriangleType, SegmentConcept SegmentType>
+template <class ResultNumber>
+std::vector<Shape<Point<ResultNumber>>>
+Triangulation<TriangleType, SegmentType>::dualEdges(
+    std::vector<std::array<VertexIndex, 2>>* dualOf) const {
     using ResultPoint = Point<ResultNumber>;
 
     // One exact circumcenter per current real triangle. This deliberately uses
@@ -4690,8 +4715,21 @@ Triangulation<TriangleType, SegmentType>::voronoiEdges() const {
             triangleValue(t).circumcircle().template center<ResultNumber>());
     }
 
-    std::vector<Shape<ResultPoint>> dualEdges;
-    dualEdges.reserve(segToEdge_.size());
+    std::vector<Shape<ResultPoint>> duals;
+    duals.reserve(segToEdge_.size());
+    if (dualOf != nullptr) {
+        dualOf->clear();
+        dualOf->reserve(segToEdge_.size());
+    }
+    // The primal edge opposite `side` of triangle `t`, recorded for the dual
+    // edge about to be emitted for it.
+    const auto record = [&](TriIndex t, int side) {
+        if (dualOf != nullptr) {
+            const Tri& tri = triangles_[static_cast<std::size_t>(t)];
+            dualOf->push_back({tri.v[static_cast<std::size_t>((side + 1) % 3)],
+                               tri.v[static_cast<std::size_t>((side + 2) % 3)]});
+        }
+    };
     for (TriIndex t = 0; t < firstGhost_; ++t) {
         const Tri& triangle = triangles_[static_cast<std::size_t>(t)];
         for (int side = 0; side < 3; ++side) {
@@ -4705,7 +4743,8 @@ Triangulation<TriangleType, SegmentType>::voronoiEdges() const {
                 const ResultPoint& a = centers[static_cast<std::size_t>(t)];
                 const ResultPoint& b = centers[static_cast<std::size_t>(neighbor)];
                 if (a != b) {
-                    dualEdges.emplace_back(Segment<ResultPoint>(a, b));
+                    duals.emplace_back(Segment<ResultPoint>(a, b));
+                    record(t, side);
                 }
                 continue;
             }
@@ -4722,11 +4761,11 @@ Triangulation<TriangleType, SegmentType>::voronoiEdges() const {
             const ResultNumber dy = detail::asNumber<ResultNumber>(b.y()) -
                                     detail::asNumber<ResultNumber>(a.y());
             const ResultPoint& center = centers[static_cast<std::size_t>(t)];
-            dualEdges.emplace_back(
-                Ray<ResultPoint>(center, center + ResultPoint(dy, -dx)));
+            duals.emplace_back(Ray<ResultPoint>(center, center + ResultPoint(dy, -dx)));
+            record(t, side);
         }
     }
-    return dualEdges;
+    return duals;
 }
 
 template <TriangleConcept TriangleType, SegmentConcept SegmentType>
@@ -4737,22 +4776,81 @@ Triangulation<TriangleType, SegmentType>::voronoiDiagram() const {
 
     using ResultPoint = Point<ResultNumber>;
     using Diagram = Arrangement<ResultPoint, PointType>;
+    using HalfedgeId = typename Diagram::HalfedgeId;
+
+    std::vector<std::array<VertexIndex, 2>> dualOf;
+    std::vector<Shape<ResultPoint>> duals = dualEdges<ResultNumber>(&dualOf);
+
+    if (!everyEdgeLocallyDelaunay()) {
+        // The circumcentric dual of a triangulation that is not Delaunay, which
+        // is what this method promises for connectivity outside its
+        // precondition. Here the duals of two primal edges do cross — that is
+        // what a non-locally-Delaunay edge means — so the overlay has to cut
+        // them, and there is no promising it otherwise: a subdivision assembled
+        // from crossing edges as though they were disjoint is not one, and every
+        // later query reads a structure that does not describe the plane.
+        //
+        // Its faces then outnumber the vertices and none of them is a Voronoi
+        // cell, so the labels are what survives of the Voronoi contract and no
+        // more: a face carries a vertex that falls inside it, faces no vertex
+        // falls in stay default-constructed, and where several vertices share a
+        // face — which the dual no longer rules out — which of them it carries
+        // is not specified.
+        Diagram diagram(duals);
+        diagram.buildPointLocation();
+        for (VertexIndex vertex = 1; vertex < static_cast<VertexIndex>(vertices_.size());
+             ++vertex) {
+            const auto face =
+                diagram.locateFace(ResultPoint(vertices_[static_cast<std::size_t>(vertex)]));
+            diagram.label(face) = vertices_[static_cast<std::size_t>(vertex)];
+        }
+        diagram.clearPointLocation();
+        return diagram;
+    }
 
     // Two Voronoi edges have different nearest pairs throughout their relative
     // interiors, so they can only touch at a shared endpoint and the overlay
     // has nothing to cut. That is the whole cost of building the arrangement,
     // and skipping it is what keeps the dual as cheap as the triangulation.
-    Diagram diagram(voronoiEdges<ResultNumber>(), true);
+    Diagram diagram(duals, true);
 
-    // Site points are strictly inside their own cells. Build the logarithmic
-    // point-location index only for this attribution pass, then release it so
-    // the returned Arrangement follows the usual opt-in indexing contract.
-    diagram.buildPointLocation();
-    for (VertexIndex vertex = 1; vertex < static_cast<VertexIndex>(vertices_.size()); ++vertex) {
-        const auto face = diagram.locateFace(ResultPoint(vertices_[static_cast<std::size_t>(vertex)]));
-        diagram.label(face) = vertices_[static_cast<std::size_t>(vertex)];
+    // Every face is one site's cell, and the dual says whose without looking:
+    // the dual of the primal edge (u, v) separates u's cell from v's, so which
+    // of the two lies to the left of a halfedge names the face on its left and
+    // the other names the face across. One orientation predicate per edge, in
+    // place of a trapezoidal index built to locate the sites and then thrown
+    // away — which cost more than the diagram it indexed.
+    const auto siteLeftOf = [&](HalfedgeId h, VertexIndex u, VertexIndex v) {
+        return std::visit(
+            [&](const auto& geometry) {
+                // Both halfedges of a ray report the same Ray, so the one whose
+                // source is the vertex at infinity is the one running against it.
+                bool reversed = false;
+                if constexpr (RayConcept<std::remove_cvref_t<decltype(geometry)>>) {
+                    reversed = diagram.isFictitious(diagram.source(h));
+                }
+                const auto& from = reversed ? geometry[1] : geometry[0];
+                const auto& to = reversed ? geometry[0] : geometry[1];
+                // A site is never on its own bisector, so the sign never
+                // vanishes and the choice is exact.
+                return orientationSign(from, to, vertices_[static_cast<std::size_t>(u)]) > 0 ? u
+                                                                                             : v;
+            },
+            diagram[h]);
+    };
+
+    for (std::size_t h = 0; h < diagram.halfedgeCount(); h += 2) {
+        const HalfedgeId halfedge(static_cast<std::uint32_t>(h));
+        const std::span<const std::uint32_t> origins = diagram.originsOf(halfedge);
+        assert(!origins.empty() && "a dual edge of the arrangement has no origin");
+        const std::array<VertexIndex, 2>& primal = dualOf[origins.front()];
+        const VertexIndex left = siteLeftOf(halfedge, primal[0], primal[1]);
+        const VertexIndex right = left == primal[0] ? primal[1] : primal[0];
+        diagram.label(diagram.face(halfedge)) = vertices_[static_cast<std::size_t>(left)];
+        diagram.label(diagram.face(diagram.twin(halfedge))) =
+            vertices_[static_cast<std::size_t>(right)];
     }
-    diagram.clearPointLocation();
+
     return diagram;
 }
 
