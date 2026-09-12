@@ -41,8 +41,6 @@ Given a container of $n$ line segments, we provide several functions to compute 
 
 The pair-returning functions all keep the input segment type, labels on the segments and on their points included, which is the usual way to recover which input a reported pair came from.
 
-All of them report one pair per two positions of the container that meet, so every function returns the same pairs as its brute-force counterpart, in some order. A segment given several times counts once per copy: its copies intersect each other (they never cross), and each copy is paired with every segment it meets, with its own labels. A zero-length segment is a point: it intersects the segments passing through it, crosses none, and is never paired with itself.
-
 These functions use the same predicate conventions documented in
 [Predicates](shape_methods.md#predicates).
 
