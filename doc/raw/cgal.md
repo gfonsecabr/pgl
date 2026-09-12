@@ -31,6 +31,7 @@ Both libraries are header-only, templated on the number type, and exact when tha
 - **Convex hull** — `convexHull` / `convex_hull_2`.
 - **Delaunay and constrained Delaunay triangulation**, with point location — `Triangulation` / `Delaunay_triangulation_2`, `Constrained_Delaunay_triangulation_2`.
 - **Voronoi diagram of a point set** — `voronoiDiagram` / `Voronoi_diagram_2`.
+- **Power diagram of a disk set** — `powerDiagram` / `Regular_triangulation_2`, whose dual it is.
 - **Segment intersection by sweep, and the arrangement it builds**, with point location — `findIntersections` and `Arrangement` / `compute_intersection_points` and `Arrangement_2`.
 - **Regularized Boolean operations on polygonal regions** — `regularizedUnion` and its siblings / `General_polygon_set_2`.
 - **Minkowski sum of polygons** — `minkowskiSum` / `minkowski_sum_2`.
@@ -43,7 +44,7 @@ Both libraries are header-only, templated on the number type, and exact when tha
 
 - **Dimensions higher than 2.**
 - **Curved geometry.**
-- **Diagrams beyond the point Voronoi diagram.** Segment Delaunay graphs, Apollonius (additively weighted) diagrams, alpha shapes, lower and upper envelopes, periodic and hyperbolic triangulations.
+- **Diagrams beyond those two.** Segment Delaunay graphs, Apollonius (additively weighted) diagrams, alpha shapes, lower and upper envelopes, periodic and hyperbolic triangulations.
 - **Straight skeletons and offsets**, exact or to a requested error, which is what polygon rounding and inward offsetting go through.
 - **Optimization.** Minimum enclosing ellipse, annulus and parallelogram, a QP solver, PCA, optimal bounding boxes. pgl stops at the disk, the rectangle and the slab above.
 - **Point-set and shape processing.** Polyline simplification, snap rounding, polygon repair, Fréchet distance, natural-neighbor interpolation, barycentric coordinates, shape detection, classification, surface reconstruction.
@@ -53,6 +54,7 @@ Both libraries are header-only, templated on the number type, and exact when tha
 #### What pgl has and CGAL has not
 
 - **One predicate vocabulary over every shape pair.** `contains`, `boundaryContains`, `interiorContains`, `intersects`, `interiorsIntersect`, `separates` and `crosses` are defined pair by pair across the seventeen shape types, with a documented set-theoretic meaning each. CGAL has `do_intersect` over kernel objects, `bounded_side` and `oriented_side` on `Polygon_2` for *points*, and `Boolean_set_operations_2` for 2D regions; there is no single containment-and-crossing vocabulary spanning shapes of mixed dimension.
+- **Order-$k$ Voronoi and power diagrams.** `voronoiDiagram` and `powerDiagram` take the order as an argument and label each face with the $k$ sites that own it. CGAL's `Voronoi_diagram_2` is an adaptor over a triangulation's dual, which is the order-1 case only.
 - **`Shape`, a runtime-polymorphic shape** that stores any alternative and answers the same predicates on it.
 - **Labels carried by default.** Any point or shape can carry a label that survives through the algorithms that select shapes. CGAL does this per structure, with `Triangulation_vertex_base_with_info_2` and its relatives.
 - **Minkowski erosion** by an arbitrary shape, `a.minkowskiErosion(b)`{Polygon}, dual to the sum and defined for the same pairs. CGAL has the Minkowski sum; shrinking a polygon there goes through the straight skeleton, which is a different operation.

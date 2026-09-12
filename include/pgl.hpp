@@ -83,6 +83,7 @@
 #include "algorithm/triangulation.hpp"
 #include "implementation/visibilitygraph.hpp"
 #include "algorithm/arrangement.hpp"
+#include "algorithm/voronoi.hpp"
 #include "implementation/booleans.hpp"
 #include "implementation/minkowskisum.hpp"
 #include "implementation/minkowskierosion.hpp"

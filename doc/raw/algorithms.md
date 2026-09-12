@@ -58,6 +58,16 @@ These functions use the same predicate conventions documented in
 
 - `closestPair(V)` returns a `Segment` joining two points of the container `V` at minimum distance from each other, using the classical divide and conquer algorithm. Complexity $O(n \log n)$ time on inputs whose strips stay short, which is the ordinary case, degrading to $O(n \log^2 n)$ when the points are so clustered along one line that a strip keeps holding a constant fraction of the range. The container must hold at least two points; fewer is undefined behavior. Only squared distances are compared, in the promoted coordinate type, so the result is exact for integer coordinates. The returned segment keeps the input point type, labels included, and ties are broken arbitrarily.
 
+### Voronoi and power diagrams
+
+- `voronoiDiagram(V)` returns the Voronoi diagram of the points in the container `V` as an unbounded [arrangement](data_structures.md), every face labeled with the one site that owns it. Finding the edges takes $O(n \log n)$, they being the dual of the Delaunay triangulation; overlaying them into the arrangement costs a further $O(m^2)$ exact tests for $m$ edges, which is the whole running time.
+
+- `powerDiagram(V)` does the same for a container of disks, measuring a site by the power distance $|x - c|^2 - r^2$ instead of the squared distance. The cells are still convex polygons, but a disk that its neighbors swallow owns no cell at all and a disk's center may fall outside its own cell, neither of which a point can do; disks of equal radius give the Voronoi diagram of their centers. There is no Delaunay route to take, so finding the edges costs $O(n^3)$.
+
+- `voronoiDiagram(V, k)` and `powerDiagram(V, k)` return the order-$k$ diagram instead: each face is labeled with the $k$ sites nearest to it, ordered by their position in `V`. The order must be between 1 and the number of sites, and $k = 1$ is the diagram above, so the label is a vector of sites in both cases. Cells that are empty never appear, so there are far fewer faces than $k$-element subsets. Complexity $O(n^3 \log n)$, plus the same arrangement construction.
+
+- The labels are the elements of `V` themselves, so `diagram.label(diagram.locateFace(q))` lists the sites nearest to `q`. At a diagram edge or vertex the query ties, and `locateFace` picks one of the tied faces by its usual infinitesimal-perturbation rule; use `locateCell`, then inspect the incident faces, to recover every tied answer. The arrangement's edge labels are default-constructed and have no meaning.
+
 ### Sorting points
 
 - `sortPoints(points)` reorders `points` in place lexicographically by $(x, y)$. Points sharing both coordinates tie, and which comes first is unspecified; labels do not break the tie. An integral coordinate is radix sorted on its bits instead of compared, which over a few hundred points and up is several times faster; every other coordinate type is compared. Complexity $O(n \log n)$ for $n$ points, $O(n)$ on the radix path.

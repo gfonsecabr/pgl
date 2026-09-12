@@ -660,6 +660,25 @@ struct Triangulation {
     template <class ResultNumber = division_result_t<NumberType>>
     [[nodiscard]] Arrangement<Point<ResultNumber>, PointType> voronoiDiagram() const;
 
+    /**
+     * @brief Returns the edges of that Voronoi diagram, unassembled.
+     *
+     * These are the segments and rays @ref voronoiDiagram overlays, in no
+     * particular order and with nothing said about how they meet: building the
+     * @ref Arrangement out of them is what answers that, and it is also what
+     * dominates the cost, so a caller that only wants to draw the diagram or
+     * feed the edges to something else of its own is better served here.
+     *
+     * @tparam ResultNumber Coordinate type of the endpoints. The default is
+     *         exact and overflow-free for integral input.
+     * @pre The same Delaunay precondition @ref voronoiDiagram states.
+     * @return One @ref Segment per interior Delaunay edge whose two
+     *         circumcenters differ, and one outward @ref Ray per convex-hull
+     *         edge.
+     */
+    template <class ResultNumber = division_result_t<NumberType>>
+    [[nodiscard]] std::vector<Shape<Point<ResultNumber>>> voronoiEdges() const;
+
     // ---- sizes -----------------------------------------------------------
 
     /** @brief Number of real vertices (excludes the ghost vertex). */

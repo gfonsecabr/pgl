@@ -4550,12 +4550,9 @@ Triangulation<TriangleType, SegmentType>::asArrangement() const {
 
 template <TriangleConcept TriangleType, SegmentConcept SegmentType>
 template <class ResultNumber>
-Arrangement<Point<ResultNumber>, typename Triangulation<TriangleType, SegmentType>::PointType>
-Triangulation<TriangleType, SegmentType>::voronoiDiagram() const {
-    assert(!empty() && "Triangulation::voronoiDiagram requires a nonempty triangulation");
-
+std::vector<Shape<Point<ResultNumber>>>
+Triangulation<TriangleType, SegmentType>::voronoiEdges() const {
     using ResultPoint = Point<ResultNumber>;
-    using Diagram = Arrangement<ResultPoint, PointType>;
 
     // One exact circumcenter per current real triangle. This deliberately uses
     // the internal convex-hull triangulation, including any triangles hidden by
@@ -4603,8 +4600,19 @@ Triangulation<TriangleType, SegmentType>::voronoiDiagram() const {
                 Ray<ResultPoint>(center, center + ResultPoint(dy, -dx)));
         }
     }
+    return dualEdges;
+}
 
-    Diagram diagram(dualEdges);
+template <TriangleConcept TriangleType, SegmentConcept SegmentType>
+template <class ResultNumber>
+Arrangement<Point<ResultNumber>, typename Triangulation<TriangleType, SegmentType>::PointType>
+Triangulation<TriangleType, SegmentType>::voronoiDiagram() const {
+    assert(!empty() && "Triangulation::voronoiDiagram requires a nonempty triangulation");
+
+    using ResultPoint = Point<ResultNumber>;
+    using Diagram = Arrangement<ResultPoint, PointType>;
+
+    Diagram diagram(voronoiEdges<ResultNumber>());
 
     // Site points are strictly inside their own cells. Build the logarithmic
     // point-location index only for this attribution pass, then release it so
