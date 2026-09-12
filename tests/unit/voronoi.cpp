@@ -117,6 +117,41 @@ void checkAgainstDefinition(const std::vector<Element>& elements, int k, int ext
     }
 }
 
+// The site farthest from the query, or nothing when the two farthest tie and
+// the answer is therefore not the label of any one face.
+std::optional<Site> farthestSite(const std::vector<Site>& sites, const pgl::EPoint& query) {
+    std::vector<std::pair<pgl::ERational, std::size_t>> ranked;
+    for (std::size_t i = 0; i < sites.size(); ++i) {
+        ranked.emplace_back(powerDistance(sites[i], query), i);
+    }
+    std::sort(ranked.begin(), ranked.end(), [](const auto& left, const auto& right) {
+        return left.first != right.first ? right.first < left.first : left.second < right.second;
+    });
+    if (ranked.size() > 1 && ranked[0].first == ranked[1].first) {
+        return std::nullopt;
+    }
+    return sites[ranked[0].second];
+}
+
+// Checks the farthest-point diagram against the definition at half-integer
+// queries, which the integer sites never tie at by more than the diagram itself
+// records.
+void checkFarthestAgainstDefinition(const std::vector<Site>& sites, int extent) {
+    Diagram diagram = pgl::farthestVoronoiDiagram(sites);
+    diagram.buildPointLocation();
+    const pgl::ERational half(1, 2);
+    for (int x = -extent; x <= extent; ++x) {
+        for (int y = -extent; y <= extent; ++y) {
+            const pgl::EPoint query(pgl::ERational(x) + half, pgl::ERational(y) + half);
+            const auto expected = farthestSite(sites, query);
+            if (!expected) {
+                continue;
+            }
+            REQUIRE(diagram.label(diagram.locateFace(query)) == *expected);
+        }
+    }
+}
+
 }  // namespace
 
 TEST_CASE("Triangulation Voronoi diagram labels every face with its site") {
@@ -592,4 +627,152 @@ TEST_CASE("Both entry points reject an order no set of sites can have") {
     CHECK_THROWS_AS((void)pgl::powerDiagram(disks, 0), std::invalid_argument);
     CHECK_THROWS_AS((void)pgl::powerDiagram(disks, 3), std::invalid_argument);
     CHECK_THROWS_AS((void)pgl::powerDiagram(std::vector<WeightedSite>{}), std::invalid_argument);
+}
+
+TEST_CASE("farthestVoronoiDiagram labels every face with the site farthest from it") {
+    const std::vector<Site> sites{
+        P(0, 0), P(11, 1), P(13, 10), P(7, 15), P(-2, 9), P(4, 6),
+    };
+    const Diagram diagram = pgl::farthestVoronoiDiagram(sites);
+
+    // The conventions are the ordinary diagram's: the caller's own element on
+    // every face, exact vertices, and no point-location index until asked for.
+    static_assert(std::same_as<typename Diagram::PointType, pgl::EPoint>);
+    static_assert(std::same_as<typename Diagram::LabelType, Site>);
+    CHECK_FALSE(diagram.hasPointLocation());
+
+    // P(4, 6) is inside the hull of the others, so it is farthest from nowhere
+    // and labels no face.
+    CHECK(diagram.faceCount() == sites.size() - 1);
+    checkFarthestAgainstDefinition(sites, 16);
+}
+
+TEST_CASE("Every farthest-point cell is unbounded and owned by a hull vertex") {
+    // The diagram is a tree of segments and rays: one cell per hull vertex, no
+    // bounded face anywhere, and an edge of it equidistant from the two sites
+    // whose cells it separates.
+    const std::vector<Site> sites{
+        P(0, 0), P(10, 0), P(10, 10), P(0, 10), P(5, 4), P(3, 7),
+    };
+    const Diagram diagram = pgl::farthestVoronoiDiagram(sites);
+    const std::vector<Site> hull = pgl::convexHull(sites);
+
+    REQUIRE(diagram.faceCount() == hull.size());
+    std::set<Site> owners;
+    for (std::size_t f = 0; f < diagram.faceCount(); ++f) {
+        const Diagram::FaceId face(static_cast<std::uint32_t>(f));
+        CHECK(diagram.isUnbounded(face));
+        owners.insert(diagram.label(face));
+    }
+    CHECK(owners == std::set<Site>(hull.begin(), hull.end()));
+
+    for (std::uint32_t i = 0; i < diagram.halfedgeCount(); i += 2) {
+        const Diagram::HalfedgeId h(i);
+        const Site& left = diagram.label(diagram.face(h));
+        const Site& right = diagram.label(diagram.face(diagram.twin(h)));
+        const pgl::EPoint witness = diagram.witness(h);
+        CHECK(left != right);
+        CHECK(witness.squaredDistance<pgl::ERational>(exact(left)) ==
+              witness.squaredDistance<pgl::ERational>(exact(right)));
+    }
+    checkFarthestAgainstDefinition(sites, 12);
+}
+
+TEST_CASE("The farthest-point diagram of cocircular sites meets at their center") {
+    const std::vector<Site> sites{P(0, 0), P(8, 0), P(8, 8), P(0, 8)};
+    const Diagram diagram = pgl::farthestVoronoiDiagram(sites);
+
+    REQUIRE(diagram.vertexCount() == 1);
+    CHECK(diagram.vertices().front() == pgl::EPoint(4, 4));
+    CHECK(diagram.edgeCount() == 4);
+    REQUIRE(diagram.faceCount() == 4);
+
+    // Each cell is the one across the center from the site that owns it.
+    CHECK(diagram.label(diagram.locateFace(pgl::EPoint(-4, -4))) == P(8, 8));
+    CHECK(diagram.label(diagram.locateFace(pgl::EPoint(12, 12))) == P(0, 0));
+    checkFarthestAgainstDefinition(sites, 12);
+}
+
+TEST_CASE("Only the extremes of collinear sites are ever farthest") {
+    const std::vector<Site> sites{P(0, 0), P(4, 0), P(10, 0)};
+    const Diagram diagram = pgl::farthestVoronoiDiagram(sites);
+
+    CHECK(diagram.vertexCount() == 0);
+    CHECK(diagram.edgeCount() == 1);
+    REQUIRE(diagram.faceCount() == 2);
+    CHECK(diagram.label(diagram.locateFace(pgl::EPoint(-1, 0))) == P(10, 0));
+    CHECK(diagram.label(diagram.locateFace(pgl::EPoint(11, 0))) == P(0, 0));
+    checkFarthestAgainstDefinition(sites, 12);
+}
+
+TEST_CASE("The farthest-point diagram of one site is the whole plane") {
+    const std::vector<Site> sites{P(3, -2)};
+    const Diagram diagram = pgl::farthestVoronoiDiagram(sites);
+
+    CHECK(diagram.edgeCount() == 0);
+    REQUIRE(diagram.faceCount() == 1);
+    CHECK(diagram.label(Diagram::FaceId(0)) == sites.front());
+
+    // Repeated sites share a cell, which carries the first of them.
+    const std::vector<Site> repeated{P(0, 0), P(0, 0), P(4, 0)};
+    const Diagram shared = pgl::farthestVoronoiDiagram(repeated);
+    REQUIRE(shared.faceCount() == 2);
+    CHECK(shared.label(shared.locateFace(pgl::EPoint(-1, 0))) == P(4, 0));
+    CHECK(shared.label(shared.locateFace(pgl::EPoint(5, 0))) == P(0, 0));
+
+    CHECK_THROWS_AS((void)pgl::farthestVoronoiDiagram(std::vector<Site>{}),
+                    std::invalid_argument);
+}
+
+TEST_CASE("The farthest-point diagram labels faces with the caller's own elements") {
+    // The hull the sites are pruned to is built from copies the scan is free to
+    // reorder and thin out, so what survives the pruning has to be the caller's
+    // own element rather than whichever copy the hull kept.
+    using Tagged = pgl::Point<int, std::string>;
+    const std::vector<Tagged> sites{
+        Tagged(0, 0, "sw"), Tagged(12, 0, "se"), Tagged(12, 12, "ne"),
+        Tagged(0, 12, "nw"), Tagged(6, 6, "middle"),
+    };
+    const auto diagram = pgl::farthestVoronoiDiagram(sites);
+    static_assert(std::same_as<typename decltype(diagram)::LabelType, Tagged>);
+
+    REQUIRE(diagram.faceCount() == 4);
+    CHECK(diagram.label(diagram.locateFace(pgl::EPoint(-1, -1))).label() == "ne");
+    CHECK(diagram.label(diagram.locateFace(pgl::EPoint(13, 13))).label() == "sw");
+}
+
+TEST_CASE("The farthest-point diagram is the order-(n-1) diagram, complemented") {
+    // One site is strictly farthest exactly where the other n - 1 are strictly
+    // nearest, so the two are one subdivision and each label is the complement
+    // of the other -- by two constructions with nothing in common but that.
+    const std::vector<Site> sites{P(-6, -4), P(5, -7), P(9, 3), P(1, 8), P(-8, 5)};
+    Diagram farthest = pgl::farthestVoronoiDiagram(sites);
+    OrderDiagram rest = pgl::voronoiDiagram(sites, static_cast<int>(sites.size()) - 1);
+
+    CHECK(farthest.vertexCount() == rest.vertexCount());
+    CHECK(farthest.edgeCount() == rest.edgeCount());
+    CHECK(farthest.faceCount() == rest.faceCount());
+    CHECK(std::set<pgl::EPoint>(farthest.vertices().begin(), farthest.vertices().end()) ==
+          std::set<pgl::EPoint>(rest.vertices().begin(), rest.vertices().end()));
+
+    farthest.buildPointLocation();
+    rest.buildPointLocation();
+    const pgl::ERational half(1, 2);
+    for (int x = -12; x <= 12; ++x) {
+        for (int y = -12; y <= 12; ++y) {
+            const pgl::EPoint query(pgl::ERational(x) + half, pgl::ERational(y) + half);
+            const auto expected = farthestSite(sites, query);
+            if (!expected) {
+                continue;
+            }
+            REQUIRE(farthest.label(farthest.locateFace(query)) == *expected);
+            std::vector<Site> others;
+            for (const Site& site : sites) {
+                if (site != *expected) {
+                    others.push_back(site);
+                }
+            }
+            REQUIRE(rest.label(rest.locateFace(query)) == others);
+        }
+    }
 }

@@ -6,10 +6,12 @@
  * @file voronoi.hpp
  * @brief Voronoi, power and order-`k` diagrams as arrangements.
  *
- * Two free functions cover the family: @ref pgl::voronoiDiagram over a container
- * of @ref pgl::Point sites and @ref pgl::powerDiagram over a container of
- * @ref pgl::Disk sites. Each returns the @ref pgl::Arrangement the sites
- * subdivide the plane into, with every face labeled by the sites that own it.
+ * Three free functions cover the family: @ref pgl::voronoiDiagram over a
+ * container of @ref pgl::Point sites, @ref pgl::powerDiagram over a container
+ * of @ref pgl::Disk sites, and @ref pgl::farthestVoronoiDiagram over points
+ * again, measuring farthest where the other two measure nearest. Each returns
+ * the @ref pgl::Arrangement the sites subdivide the plane into, with every face
+ * labeled by the sites that own it.
  *
  * Both read a site through the same lens: the power distance of a point `x` to a
  * disk of center `c` and radius `r` is `|x - c|^2 - r^2`, and a point site is
@@ -38,6 +40,7 @@
 #include <string>
 #include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -192,16 +195,25 @@ std::optional<VoronoiBisector<Number>> voronoiBisector(const VoronoiSite<Number>
  * tied group report them and the rest report nothing, so the line is covered
  * once rather than several times over.
  *
+ * The farthest-point diagram reads the same bisector the other way round: its
+ * edges are where `i` and `j` are the `k`-th and `(k+1)`-th *farthest* sites,
+ * that is where exactly `k - 1` others are strictly farther. That is the same
+ * step function of `t` over the negated excess, so @p farthest changes one sign
+ * and none of the tests it feeds.
+ *
  * @param sites Every site.
  * @param i,j The pair whose bisector to cut.
  * @param k Order of the diagram.
  * @param events Scratch buffer, reused across pairs.
  * @param emit Called as `emit(bisector, from, to)` once per maximal run, with
  *        `std::nullopt` for an end that runs to infinity.
+ * @param farthest Cuts the bisector for the farthest-point diagram rather than
+ *        the nearest-point one.
  */
 template <class Number, class Emit>
 void voronoiPairEdges(const std::vector<VoronoiSite<Number>>& sites, std::size_t i, std::size_t j,
-                      int k, std::vector<std::pair<Number, int>>& events, Emit&& emit) {
+                      int k, std::vector<std::pair<Number, int>>& events, Emit&& emit,
+                      bool farthest = false) {
     const auto bisector = voronoiBisector(sites[i], sites[j]);
     if (!bisector) {
         return;
@@ -213,14 +225,20 @@ void voronoiPairEdges(const std::vector<VoronoiSite<Number>>& sites, std::size_t
 
     // alpha * t + beta is how much site m's power distance exceeds site i's at
     // parameter t, times the bisector's positive denominator; m is strictly
-    // nearer exactly where it is negative, which the factor does not move.
+    // nearer exactly where it is negative, which the factor does not move. The
+    // farthest-point diagram negates it, so that "nearer" below reads "farther"
+    // throughout and the runs collected are its own.
     const auto coefficients = [&](std::size_t m) {
         const Number vx = sites[m].center.x() - sites[i].center.x();
         const Number vy = sites[m].center.y() - sites[i].center.y();
-        const Number alpha = -two * (vx * direction.x() + vy * direction.y());
-        const Number beta = -two * (vx * base.x() + vy * base.y()) +
-                            (sites[m].lifted - sites[i].lifted) * bisector->denominator;
-        return std::pair<Number, Number>(alpha, beta);
+        Number alpha = -two * (vx * direction.x() + vy * direction.y());
+        Number beta = -two * (vx * base.x() + vy * base.y()) +
+                      (sites[m].lifted - sites[i].lifted) * bisector->denominator;
+        if (farthest) {
+            alpha = -alpha;
+            beta = -beta;
+        }
+        return std::pair<Number, Number>(std::move(alpha), std::move(beta));
     };
 
     if (k == 1) {
@@ -391,11 +409,16 @@ typename Diagram::PointType voronoiHalfedgeDirection(const Diagram& diagram,
  * bisector a boundary of the order-`k` diagram, the midpoint would be a vertex
  * rather than interior to an edge, so the pair is either inside the `k` nearest
  * or outside it, never split by it.
+ *
+ * @param farthest Labels with the `k` sites *farthest* from the face instead,
+ *        which is the same ordering over the negated key and the same argument
+ *        for it word for word.
  */
 template <class Number, class Label, class Element>
 void labelVoronoiFaces(Arrangement<Point<Number>, Label>& diagram,
                        const std::vector<VoronoiSite<Number>>& sites,
-                       const std::vector<Element>& elements, int k) {
+                       const std::vector<Element>& elements, int k,
+                       bool farthest = false) {
     using Diagram = Arrangement<Point<Number>, Label>;
     // A diagram labeled by the bare element is the ordinary one, whose faces
     // have a single owner each; every other order labels by the vector.
@@ -419,8 +442,15 @@ void labelVoronoiFaces(Arrangement<Point<Number>, Label>& diagram,
     const auto labelAt = [&](typename Diagram::FaceId face, const Point<Number>& query,
                              const Point<Number>& inward) {
         for (std::size_t s = 0; s < sites.size(); ++s) {
-            keys[s] = {voronoiRelativePower(sites[s], query),
-                   voronoiPowerSlope(sites[s], query, inward)};
+            Number power = voronoiRelativePower(sites[s], query);
+            Number slope = voronoiPowerSlope(sites[s], query, inward);
+            // A key is what the ordering takes the smallest of, so the
+            // farthest-point diagram takes the smallest of its negation.
+            if (farthest) {
+                power = -power;
+                slope = -slope;
+            }
+            keys[s] = {std::move(power), std::move(slope)};
         }
         std::iota(order.begin(), order.end(), std::size_t{0});
         const auto cut = order.begin() + static_cast<std::ptrdiff_t>(wanted);
@@ -1163,6 +1193,76 @@ voronoi_dual_t<ResultNumber, SiteRange> ordinaryDiagram(const SiteRange& sites,
 }
 
 /**
+ * @brief The farthest-point diagram; see @ref pgl::farthestVoronoiDiagram for
+ *        the contract.
+ *
+ * Only a vertex of the convex hull is ever strictly the farthest site. The
+ * squared distance to a fixed query is a strictly convex function along a
+ * segment, so over the hull it is largest at a vertex and strictly smaller
+ * everywhere else — at a site inside the hull, and at one in the interior of a
+ * hull edge just the same. Every other site is therefore dropped, and repeated
+ * hull vertices with them down to the first copy of each, which the labels
+ * would have picked out of the tie anyway. What is left is every site the
+ * construction has to see: `h` of the `n`, and usually far fewer.
+ *
+ * There is no Delaunay dual to borrow and no refinement to climb here — the
+ * cells are unbounded, and the diagram is a tree rather than a subdivision with
+ * a bounded face to refine — so the edges come from cutting the bisector of
+ * each pair of what is left against all of it, which is @ref voronoiPairEdges
+ * at `k = 1` reading farthest.
+ */
+template <class ResultNumber, std::ranges::input_range SiteRange>
+    requires PointConcept<std::ranges::range_value_t<SiteRange>>
+voronoi_dual_t<ResultNumber, SiteRange> farthestDiagram(const SiteRange& sites) {
+    using Element = std::ranges::range_value_t<SiteRange>;
+    using Number = voronoi_number_t<ResultNumber, Element>;
+    using Diagram = voronoi_dual_t<ResultNumber, SiteRange>;
+
+    std::vector<Element> elements(std::ranges::begin(sites), std::ranges::end(sites));
+    if (elements.empty()) {
+        throw std::invalid_argument("pgl::farthestVoronoiDiagram: no sites to make a diagram of");
+    }
+
+    // Erasing rather than looking up is what keeps the first copy of a repeated
+    // hull vertex and drops the rest; the survivors keep the input's own order,
+    // so a tie the labels settle by index settles the way it would have.
+    const auto hull = convexHull(elements);
+    std::unordered_set<Element> extreme(hull.begin(), hull.end());
+    std::vector<Element> owners;
+    owners.reserve(hull.size());
+    for (const Element& element : elements) {
+        if (extreme.erase(element) != 0) {
+            owners.push_back(element);
+        }
+    }
+
+    std::vector<VoronoiSite<Number>> lifted;
+    lifted.reserve(owners.size());
+    for (const Element& element : owners) {
+        lifted.push_back(voronoiSiteOf<Number>(element));
+    }
+
+    std::vector<Shape<Point<Number>>> curves;
+    std::vector<std::pair<Number, int>> events;
+    const auto emit = [&](const VoronoiBisector<Number>& bisector,
+                          const std::optional<Number>& from, const std::optional<Number>& to) {
+        voronoiAppendRun(curves, bisector, from, to);
+    };
+    for (std::size_t i = 0; i + 1 < lifted.size(); ++i) {
+        for (std::size_t j = i + 1; j < lifted.size(); ++j) {
+            voronoiPairEdges(lifted, i, j, 1, events, emit, true);
+        }
+    }
+
+    // Two edges have different farthest pairs throughout their relative
+    // interiors and so meet only where a third site joins the tie, which is an
+    // endpoint of both: there is nothing here for the overlay to cut.
+    Diagram diagram(curves, true);
+    labelVoronoiFaces(diagram, lifted, owners, 1, true);
+    return diagram;
+}
+
+/**
  * @brief The diagram both public entry points compute; see them for the
  *        contract.
  *
@@ -1307,6 +1407,42 @@ template <class ResultNumber = void, std::ranges::input_range SiteRange>
 [[nodiscard]] detail::voronoi_diagram_t<ResultNumber, SiteRange> voronoiDiagram(
     const SiteRange& sites, int k) {
     return detail::diagramOf<ResultNumber>(sites, k, "pgl::voronoiDiagram");
+}
+
+/**
+ * @brief Computes the farthest-point Voronoi diagram of a set of points.
+ *
+ * Every face of the result is labeled with the one site *farthest* from it, as
+ * an element of the input container; the conventions are @ref voronoiDiagram's
+ * throughout, that one word apart. The arrangement's edge labels are
+ * default-constructed and have no meaning.
+ *
+ * Only a vertex of the convex hull of the sites owns a cell, since a site the
+ * hull contains — inside it, or in the interior of one of its edges — is
+ * strictly farther from no point of the plane at all. Every cell there is
+ * unbounded and convex, so the diagram is a tree of segments and rays — `O(h)`
+ * of them for `h` hull vertices — with no bounded face anywhere.
+ *
+ * Complexity: `O(n log n + h^3)`. The hull is what the first term buys; the
+ * sites it leaves are then cut pair against pair, each of the `O(h^2)`
+ * bisectors against every one of them, the way the order-`k`
+ * @ref voronoiDiagram cuts its own.
+ *
+ * @tparam ResultNumber Coordinate type of the arrangement vertices. The default
+ *         is exact and overflow-free for integral input.
+ * @tparam SiteRange Range of @ref pgl::Point.
+ * @param sites Sites of the diagram. Repeated sites share a cell, which then
+ *        carries the first of them.
+ * @return The unbounded arrangement of the diagram, every face labeled with the
+ *         site farthest from it. A site owning no cell labels no face.
+ * @throws std::invalid_argument if there are no sites.
+ * @see voronoiDiagram for the nearest-point diagram.
+ */
+template <class ResultNumber = void, std::ranges::input_range SiteRange>
+    requires PointConcept<std::ranges::range_value_t<SiteRange>>
+[[nodiscard]] detail::voronoi_dual_t<ResultNumber, SiteRange> farthestVoronoiDiagram(
+    const SiteRange& sites) {
+    return detail::farthestDiagram<ResultNumber>(sites);
 }
 
 /**
