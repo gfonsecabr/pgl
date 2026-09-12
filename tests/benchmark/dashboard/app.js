@@ -776,6 +776,16 @@ function asymSeries(category, state, machineData, value) {
   return null;
 }
 
+// The relaxed dimensions worth telling the reader about: the ones the filter
+// bar actually shows. Relaxing a dimension the bar leaves out — the algorithm,
+// where naming the problem already names it — contradicts nothing the reader
+// was shown, so there is nothing to disclose; saying it anyway would hang a
+// parenthesis off every legend entry in the category, naming a field the bar
+// deliberately does not have.
+const asymOverrides = (category, state, machineData, series) =>
+  series.relaxed.filter(
+    ([dim]) => asymDimValues(category, state, machineData, dim).length >= 2);
+
 // Whether a radio dimension set to `value` leaves any curve on the chart, with
 // the rest of the selection as it stands.
 function asymRadioHasData(category, state, machineData, dim, value) {
@@ -861,11 +871,11 @@ function asymAlgorithmsFor(machineData, problem) {
 //
 // This is the structural fact the bar is built around. Where it holds, naming
 // the problem names the algorithm, so the algorithm is not a choice at all —
-// the field goes away and its value rides along in each curve's legend entry —
-// and several problems can share a chart, because each curve still stands for
-// exactly one algorithm. Where it fails, a chart of several problems would be
-// showing one algorithm per problem and silently hiding the others, so the
-// problems are compared one at a time and the algorithm field is the axis.
+// the field goes away, and the chart says nothing about it — and several
+// problems can share a chart, because each curve still stands for exactly one
+// algorithm. Where it fails, a chart of several problems would be showing one
+// algorithm per problem and silently hiding the others, so the problems are
+// compared one at a time and the algorithm field is the axis.
 function asymAlgorithmImplied(category, machineData) {
   for (const problem of asymPresentValues(machineData, "problem")) {
     if (asymAlgorithmsFor(machineData, problem).size > 1) return false;
@@ -1066,8 +1076,10 @@ function asymFilterBar(name, category, state, machineData) {
         // slice than the radio buttons name — the same thing the legend
         // qualifier says once it is on the chart.
         const series = asymSeries(category, state, machineData, value);
-        if (series && series.relaxed.length) {
-          const where = series.relaxed
+        const overrides =
+          series ? asymOverrides(category, state, machineData, series) : [];
+        if (overrides.length) {
+          const where = overrides
             .map(([d, v]) => `${ASYM_DIM_LABEL[d].toLowerCase()} ${v}`).join(", ");
           chip.title = `Only measured at ${where}; selecting it draws that curve.`;
         }
@@ -1227,8 +1239,9 @@ function asymDatasets(category, state, machine, depth) {
     const series = asymSeries(category, state, machineData, value);
     if (!series || !series.runs.length) return;
     // Say so when this curve had to override a radio button to exist at all.
-    const qualifier = series.relaxed.length
-      ? ` (${series.relaxed.map(([, v]) => v).join(", ")})` : "";
+    const overrides = asymOverrides(category, state, machineData, series);
+    const qualifier = overrides.length
+      ? ` (${overrides.map(([, v]) => v).join(", ")})` : "";
     const shown = series.runs.slice(Math.max(0, series.runs.length - depth));
     const at = Object.fromEntries(series.relaxed);
     resolved.push({
