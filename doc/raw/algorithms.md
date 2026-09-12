@@ -60,7 +60,7 @@ These functions use the same predicate conventions documented in
 
 ### Voronoi and power diagrams
 
-- `voronoiDiagram(V)` returns the Voronoi diagram of the points in the container `V` as an unbounded [arrangement](data_structures.md), every face labeled with the one site that owns it. Complexity $O(n \log n)$: the edges are the dual of the Delaunay triangulation, and two of them meet only at a shared endpoint, so the arrangement has nothing to cut and is assembled from them directly.
+- `voronoiDiagram(V)` returns the Voronoi diagram of the points in the container `V` as an unbounded [arrangement](data_structures.md), every face labeled with the one site that owns it. Complexity $O(n \log n)$.
 
 - `powerDiagram(V)` is the same diagram for a container of disks, measuring a site by the power distance $|x - c|^2 - r^2$ instead of the squared distance. The cells are still convex polygons, but a disk that its neighbors swallow owns no cell at all and a disk's center may fall outside its own cell, neither of which a point can do; disks of equal radius give the Voronoi diagram of their centers. Neither route the points have is open to it, so the edges come from cutting each of the $O(n^2)$ bisectors against every site, at $O(n^3 \log n)$.
 
