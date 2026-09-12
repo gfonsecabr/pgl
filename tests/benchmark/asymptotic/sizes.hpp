@@ -152,4 +152,22 @@ constexpr auto kMinkowski = linearSizes(200);
 constexpr auto kUnionPair      = linearSizes(10000);
 constexpr auto kUnionTriangles = linearSizes(10000);
 
+// ── 10. Voronoi diagram ───────────────────────────────────────
+// Every row here is a whole diagram — `voronoiDiagram` returning the assembled
+// Arrangement — and the lists are separated by the order of the diagram, which
+// is the only thing about the call that changes. An order costs more than the
+// one below it by more than the sites suggest, because every order carries a
+// bigger diagram: k(n - k) cells to assemble against n. No one maximum could
+// serve the three — the order-4 sweep is out of room three thousand sites
+// before the order-1 one is — so there is one list per order, each anchored to
+// itself; PLACEHOLDER. The order-1 list is what carries the category's real
+// range, and is swept twice: `Triangulation::voronoiDiagram` reaches the same
+// diagram and is measured at every n the free function is.
+//
+// The number type moves none of these: a diagram over integer input is computed
+// in exact rationals whichever column it is in.
+constexpr auto kVoronoiOrder1 = linearSizes(20000);
+constexpr auto kVoronoiOrder2 = linearSizes(20000);
+constexpr auto kVoronoiOrder4 = linearSizes(10000);
+
 }  // namespace bench

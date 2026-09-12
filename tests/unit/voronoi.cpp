@@ -389,6 +389,64 @@ TEST_CASE("Order-k faces agree with the k nearest sites everywhere") {
     }
 }
 
+TEST_CASE("Order-k edges cross where four sites share a circle") {
+    // The first four sites are on the circle of squared radius 5 around
+    // (2, -3), and the fifth is nearer to that point than any of them. At order
+    // 3 the bisectors of two of the cocircular pairs are both edges of the
+    // diagram and they cross there rather than ending: walking along either
+    // one, a site of the other pair takes over from its partner at exactly that
+    // point and the number of sites nearer never changes. The crossing is a
+    // vertex of the diagram all the same, and one of degree four.
+    const std::vector<Site> sites{P(0, -4), P(3, -1), P(4, -4), P(1, -1), P(3, -4)};
+    const OrderDiagram diagram = pgl::voronoiDiagram(sites, 3);
+
+    const auto crossing =
+        std::find(diagram.vertices().begin(), diagram.vertices().end(), pgl::EPoint(2, -3));
+    REQUIRE(crossing != diagram.vertices().end());
+    const auto index = static_cast<std::uint32_t>(crossing - diagram.vertices().begin());
+    CHECK(diagram.degree(OrderDiagram::VertexId(index)) == 4);
+    checkAgainstDefinition(sites, 3, 8);
+}
+
+TEST_CASE("The refinement and the bisector construction build the same diagram") {
+    // A grid is as degenerate as a point set gets -- the corners of every
+    // square in it share a circle -- and the two routes to the order-k diagram
+    // have nothing in common but the answer. Points refine one order into the
+    // next from the Delaunay dual down; the same points as radius-zero disks
+    // have no refinement to take and cut every bisector against every site.
+    std::vector<Site> sites;
+    std::vector<WeightedSite> disks;
+    for (int x = 0; x < 4; ++x) {
+        for (int y = 0; y < 4; ++y) {
+            sites.push_back(P(x, y));
+            disks.push_back(D(x, y, 0));
+        }
+    }
+    for (int k = 1; k <= 4; ++k) {
+        CAPTURE(k);
+        const OrderDiagram refined = pgl::voronoiDiagram(sites, k);
+        const PowerDiagram cut = pgl::powerDiagram(disks, k);
+        CHECK(refined.vertexCount() == cut.vertexCount());
+        CHECK(refined.edgeCount() == cut.edgeCount());
+        CHECK(refined.faceCount() == cut.faceCount());
+        CHECK(std::set<pgl::EPoint>(refined.vertices().begin(), refined.vertices().end()) ==
+              std::set<pgl::EPoint>(cut.vertices().begin(), cut.vertices().end()));
+    }
+}
+
+TEST_CASE("Collinear sites have no refinement to take at any order") {
+    const std::vector<Site> sites{P(0, 0), P(3, 0), P(7, 0), P(12, 0)};
+    for (int k = 1; k <= 3; ++k) {
+        CAPTURE(k);
+        const OrderDiagram diagram = pgl::voronoiDiagram(sites, k);
+        // The cells are the slabs between consecutive bisectors, one fewer at
+        // each order.
+        CHECK(diagram.vertexCount() == 0);
+        CHECK(diagram.faceCount() == sites.size() - static_cast<std::size_t>(k) + 1);
+        checkAgainstDefinition(sites, k, 12);
+    }
+}
+
 TEST_CASE("Neighbouring order-k cells differ by a single site") {
     const std::vector<Site> sites{
         P(0, 0), P(10, 0), P(10, 10), P(0, 10), P(5, 4), P(-7, 3),

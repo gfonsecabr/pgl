@@ -72,26 +72,6 @@ struct SimpleBoundariesTag {};
 inline constexpr SimpleBoundariesTag simpleBoundaries;
 
 /**
- * @brief Promise that the input shapes' relative interiors are pairwise
- *        disjoint, so no shape has to be cut against another.
- *
- * The splitting step is the one part of the construction whose cost does not
- * follow the size of the result, and it is the whole of the cost for a caller
- * that already knows where its curves meet. A Voronoi diagram is the example:
- * the dual of a Delaunay edge has that edge's two sites as its nearest pair
- * throughout its relative interior, so two dual edges can only touch at a
- * shared endpoint, and every crossing the splitter looks for is one it will not
- * find.
- *
- * The promise is unchecked, and the arrangement is wrong rather than merely
- * imprecise if it is broken: a crossing that is not cut leaves two edges
- * passing through each other with no vertex between them. Isolated input points
- * are still cut in wherever they fall, so only the shapes are constrained.
- */
-struct DisjointInteriorsTag {};
-inline constexpr DisjointInteriorsTag disjointInteriors;
-
-/**
  * @brief The orientation of a **simple** ring: positive when it runs
  *        counterclockwise, negative when clockwise, zero when it bounds no area.
  *
@@ -275,20 +255,34 @@ public:
      * tests every pair of distinct supporting lines and is quadratic in their
      * number before the same `O(E log E)` topology construction.
      *
-     * @see detail::DisjointInteriorsTag for the fast path a caller that already
-     *      knows its shapes meet only at shared endpoints takes instead, which
-     *      is the whole of what @ref pgl::voronoiDiagram saves.
+     * Passing @p disjointInteriors drops the splitting step altogether, leaving
+     * `O(E log E)`, and that is the whole of what @ref pgl::voronoiDiagram
+     * saves: the dual of a Delaunay edge has that edge's two sites as its
+     * nearest pair throughout its relative interior, so two dual edges can only
+     * touch at a shared endpoint, and every crossing the splitter looks for is
+     * one it will not find.
      *
      * @tparam ShapeRange Range of shapes.
      * @param shapes Shapes whose subdivision of the plane to compute.
+     * @param disjointInteriors Promise that two input segments never meet
+     *        anywhere but at a point that is an endpoint of both, so that no
+     *        segment has to be cut. Disjoint relative interiors are not enough:
+     *        a T-junction, where the endpoint of one segment lands inside
+     *        another, keeps the interiors disjoint and still breaks the promise,
+     *        because that other segment is the one that would have to be split.
+     *        The promise is unchecked, and the arrangement is wrong rather than
+     *        merely imprecise if it is broken: the uncut segment runs through a
+     *        point that should be a vertex of it, with no vertex there. Isolated
+     *        input points are still cut in wherever they fall, so only the
+     *        shapes are constrained.
      */
     template <std::ranges::input_range ShapeRange>
-    explicit Arrangement(const ShapeRange& shapes) {
+    explicit Arrangement(const ShapeRange& shapes, bool disjointInteriors = false) {
         std::vector<InputSegment> segments;
         std::vector<InputCurve> curves;
         std::vector<PointType> isolated;
         collect(shapes, segments, curves, isolated);
-        build(segments, curves, isolated, false, false);
+        build(segments, curves, isolated, false, disjointInteriors);
     }
 
     // Internal fast path for boolean operands whose boundary rings are known
@@ -300,17 +294,6 @@ public:
         std::vector<PointType> isolated;
         collect(shapes, segments, curves, isolated);
         build(segments, curves, isolated, true, false);
-    }
-
-    // Internal fast path for input already known to meet only at shared
-    // endpoints; see detail::DisjointInteriorsTag for what it promises.
-    template <std::ranges::input_range ShapeRange>
-    Arrangement(const ShapeRange& shapes, detail::DisjointInteriorsTag) {
-        std::vector<InputSegment> segments;
-        std::vector<InputCurve> curves;
-        std::vector<PointType> isolated;
-        collect(shapes, segments, curves, isolated);
-        build(segments, curves, isolated, false, true);
     }
 
     /**
@@ -3321,7 +3304,7 @@ private:
             std::vector<WorkLine>().swap(constructionLines_);
         }
 
-        [[nodiscard]] FaceId locateFace(const Arrangement& arrangement,
+        [[nodiscard]] FaceId locateFace([[maybe_unused]] const Arrangement& arrangement,
                                         const PointType& point) const {
             const Query query = makeQuery(point);
             std::uint32_t node = root_;
@@ -4663,7 +4646,7 @@ Triangulation<TriangleType, SegmentType>::voronoiDiagram() const {
     // interiors, so they can only touch at a shared endpoint and the overlay
     // has nothing to cut. That is the whole cost of building the arrangement,
     // and skipping it is what keeps the dual as cheap as the triangulation.
-    Diagram diagram(voronoiEdges<ResultNumber>(), detail::disjointInteriors);
+    Diagram diagram(voronoiEdges<ResultNumber>(), true);
 
     // Site points are strictly inside their own cells. Build the logarithmic
     // point-location index only for this attribution pass, then release it so

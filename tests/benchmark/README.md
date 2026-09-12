@@ -18,8 +18,9 @@ Pangolin's performance benchmarks live here. There are two kinds:
 
 2. **Asymptotic benchmarks** (`asymptotic/*.cpp`) — whole algorithms measured
    against growing input, for the things that don't fit the pair model
-   (triangulation, arrangements, segment sweeps, spatial search, visibility,
-   Minkowski sums, unions). One driver per **category**, each a small cube of
+   (triangulation, Voronoi diagrams, arrangements, segment sweeps, spatial
+   search, visibility, Minkowski sums, unions). One driver per **category**,
+   each a small cube of
 
    ```
    dataset × problem × algorithm × number-type
@@ -52,10 +53,13 @@ Its **Asymptotic** button opens the size-sweep page.
 
 `asymptotic/baseline/*.cpp` measure the same problems on the same operands with
 CGAL — one file per category, covering every problem CGAL has a direct analogue
-for. Three do not have one and are left without a reference rather than given a
-misleading one: closest pair, sort by angle, and the visibility graph. The rest
-exist to check pgl's answers against something that is not more pgl, and to put
-a reference curve on the chart. A cell may carry more than one: CGAL solves the
+for. A few do not have one and are left without a reference rather than given a
+misleading one: closest pair, sort by angle, the visibility graph, and the
+Voronoi diagrams — CGAL's `Voronoi_diagram_2` stores no subdivision, and its
+`lower_envelope_3` builds one by lifting the sites into 3D, so neither races
+what pgl does; nor is there an order-k diagram in CGAL to put against orders 2
+and 4. The rest exist to check pgl's answers against something that is not more
+pgl, and to put a reference curve on the chart. A cell may carry more than one: CGAL solves the
 Minkowski sum both by decomposition, the strategy pgl uses, and by reduced
 convolution, which pgl has no counterpart for — the first says how pgl's
 implementation of an idea compares, the second says what the other idea costs.

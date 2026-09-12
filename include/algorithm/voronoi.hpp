@@ -35,6 +35,7 @@
 #include <stdexcept>
 #include <string>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -79,12 +80,20 @@ VoronoiSite<Number> voronoiSiteOf(const D& disk) {
     return site;
 }
 
-/** @brief The power distance from @p site to @p query. */
+/**
+ * @brief The power distance from @p site to @p query, less the `|query|^2` that
+ *        every site's shares.
+ *
+ * Only the order of these ever matters, and the term dropped is the same for
+ * every site, so the order is the power distances' own. What is left is affine
+ * in @p query — `site.lifted - 2 query . site.center` — which over a wide
+ * rational query is two multiplications by a narrow site coordinate rather than
+ * two squarings of a difference as wide as the query.
+ */
 template <class Number>
-Number voronoiPower(const VoronoiSite<Number>& site, const Point<Number>& query) {
-    const Number dx = query.x() - site.center.x();
-    const Number dy = query.y() - site.center.y();
-    return dx * dx + dy * dy - site.weight;
+Number voronoiRelativePower(const VoronoiSite<Number>& site, const Point<Number>& query) {
+    const Number two = static_cast<Number>(2);
+    return site.lifted - two * (query.x() * site.center.x() + query.y() * site.center.y());
 }
 
 /**
@@ -101,11 +110,22 @@ Number voronoiPowerSlope(const VoronoiSite<Number>& site, const Point<Number>& q
     return dx * direction.x() + dy * direction.y();
 }
 
-/** @brief A bisector line, as a point on it and a direction along it. */
+/**
+ * @brief A bisector line, as the points `(base + t * direction) / denominator`.
+ *
+ * The denominator is kept out of the point rather than divided into it because
+ * every site of this library's own input has whole coordinates, and so does
+ * every one of `base`, `direction` and `denominator` then: the conditions that
+ * cut the line, and the comparisons that intersect what they leave, are whole
+ * numbers throughout, and no common factor has to be found and divided out
+ * until an endpoint is finally reported. Over rationals of arbitrary width that
+ * is most of the arithmetic.
+ */
 template <class Number>
 struct VoronoiBisector {
-    Point<Number> origin{};
+    Point<Number> base{};
     Point<Number> direction{};
+    Number denominator{};
 };
 
 /**
@@ -116,6 +136,15 @@ struct VoronoiBisector {
  * two weights are. Two sites sharing a center have no bisector at all — either
  * they are the same site, or one is closer than the other everywhere — and are
  * reported as nothing.
+ *
+ * The point reported on it is the one midway between the centers, slid along
+ * `u = a.center - b.center` by however much the weights differ: writing the
+ * point as `midpoint + s u` and solving leaves `s = (b.weight - a.weight) /
+ * (2 |u|^2)`, which is zero for two point sites and leaves the midpoint over a
+ * denominator of two. Reading the line off its own equation instead would put
+ * `|a.center|^2` over `|u|^2` in a base point the midpoint states in the
+ * coordinates themselves, and every distance measured from it afterwards is
+ * that much wider a number.
  */
 template <class Number>
 std::optional<VoronoiBisector<Number>> voronoiBisector(const VoronoiSite<Number>& a,
@@ -127,11 +156,18 @@ std::optional<VoronoiBisector<Number>> voronoiBisector(const VoronoiSite<Number>
         return std::nullopt;
     }
     const Number two = static_cast<Number>(2);
-    const Number offset = (a.lifted - b.lifted) / two;
-    const Number norm = ux * ux + uy * uy;
     VoronoiBisector<Number> bisector;
-    bisector.origin = Point<Number>(ux * offset / norm, uy * offset / norm);
     bisector.direction = Point<Number>(-uy, ux);
+    if (a.weight == b.weight) {
+        bisector.base = Point<Number>(a.center.x() + b.center.x(), a.center.y() + b.center.y());
+        bisector.denominator = two;
+        return bisector;
+    }
+    const Number norm = ux * ux + uy * uy;
+    const Number slid = b.weight - a.weight;
+    bisector.base = Point<Number>(norm * (a.center.x() + b.center.x()) + slid * ux,
+                                  norm * (a.center.y() + b.center.y()) + slid * uy);
+    bisector.denominator = two * norm;
     return bisector;
 }
 
@@ -141,11 +177,18 @@ std::optional<VoronoiBisector<Number>> voronoiBisector(const VoronoiSite<Number>
  *
  * A point of the bisector lies on such an edge exactly when `i` and `j` are the
  * `k`-th and `(k+1)`-th nearest sites there, that is when exactly `k - 1` other
- * sites are strictly nearer. Along the bisector, parametrized as
- * `origin + t * direction`, the amount by which another site `m` exceeds `i` is
- * the affine function `alpha * t + beta`, so each `m` is nearer on a halfline
+ * sites are strictly nearer. Along the bisector, parametrized by `t` as
+ * @ref VoronoiBisector says, the amount by which another site `m` exceeds `i`
+ * is the affine function `alpha * t + beta`, so each `m` is nearer on a halfline
  * (or on all of the line, or on none of it) and the count of nearer sites is a
  * step function of `t`. Its level sets are what this reports.
+ *
+ * A site `m` that is tied with the pair along the whole bisector — which needs
+ * weights, two point sites being tied along a line only if they are the same
+ * point — puts every pair drawn from `{i, j, m, ...}` on that one line, seeing
+ * one nearer-count and so reporting one set of runs. The two smallest of the
+ * tied group report them and the rest report nothing, so the line is covered
+ * once rather than several times over.
  *
  * @param sites Every site.
  * @param i,j The pair whose bisector to cut.
@@ -163,17 +206,18 @@ void voronoiPairEdges(const std::vector<VoronoiSite<Number>>& sites, std::size_t
     }
     const Number zero{};
     const Number two = static_cast<Number>(2);
-    const Point<Number>& origin = bisector->origin;
+    const Point<Number>& base = bisector->base;
     const Point<Number>& direction = bisector->direction;
 
     // alpha * t + beta is how much site m's power distance exceeds site i's at
-    // origin + t * direction; m is strictly nearer exactly where it is negative.
+    // parameter t, times the bisector's positive denominator; m is strictly
+    // nearer exactly where it is negative, which the factor does not move.
     const auto coefficients = [&](std::size_t m) {
         const Number vx = sites[m].center.x() - sites[i].center.x();
         const Number vy = sites[m].center.y() - sites[i].center.y();
         const Number alpha = -two * (vx * direction.x() + vy * direction.y());
-        const Number beta =
-            -two * (vx * origin.x() + vy * origin.y()) + (sites[m].lifted - sites[i].lifted);
+        const Number beta = -two * (vx * base.x() + vy * base.y()) +
+                            (sites[m].lifted - sites[i].lifted) * bisector->denominator;
         return std::pair<Number, Number>(alpha, beta);
     };
 
@@ -191,6 +235,9 @@ void voronoiPairEdges(const std::vector<VoronoiSite<Number>>& sites, std::size_t
             if (alpha == zero) {
                 if (beta < zero) {
                     return;
+                }
+                if (beta == zero && m < j) {
+                    return;  // a smaller pair of the tied group reports this line
                 }
                 continue;
             }
@@ -221,6 +268,8 @@ void voronoiPairEdges(const std::vector<VoronoiSite<Number>>& sites, std::size_t
         if (alpha == zero) {
             if (beta < zero) {
                 ++count;
+            } else if (beta == zero && m < j) {
+                return;  // a smaller pair of the tied group reports this line
             }
             continue;
         }
@@ -243,16 +292,60 @@ void voronoiPairEdges(const std::vector<VoronoiSite<Number>>& sites, std::size_t
             count += events[e].second;
             ++e;
         }
-        if (inRun && count != k - 1) {
+        if (inRun) {
+            // A run is cut at every `at` it meets, not only at the one it ends
+            // at. A count that leaves `k - 1` and is back by the time the next
+            // interval starts is one site handing over to another, both of them
+            // tied with the pair at that single `t` — four sites on a circle —
+            // and the bisector of the two that swapped is another edge of the
+            // diagram crossing this one there. Ending the run at the crossing
+            // is what keeps the diagram's edges meeting only at endpoints.
             emit(*bisector, from, std::optional<Number>(at));
-            inRun = false;
-        } else if (!inRun && count == k - 1) {
+            from = at;
+            inRun = count == k - 1;
+        } else if (count == k - 1) {
             from = at;
             inRun = true;
         }
     }
     if (inRun) {
         emit(*bisector, from, std::nullopt);
+    }
+}
+
+/**
+ * @brief Appends the run of @p bisector between @p from and @p to to @p curves.
+ *
+ * An end left as `std::nullopt` runs to infinity, so a run bounded at neither
+ * end is the whole bisector line, one bounded at one end a ray, and one bounded
+ * at both a segment.
+ */
+template <class Number>
+void voronoiAppendRun(std::vector<Shape<Point<Number>>>& curves,
+                      const VoronoiBisector<Number>& bisector, const std::optional<Number>& from,
+                      const std::optional<Number>& to) {
+    using ResultPoint = Point<Number>;
+    const ResultPoint& base = bisector.base;
+    const ResultPoint& direction = bisector.direction;
+    const Number& denominator = bisector.denominator;
+    const auto pointAt = [&](const Number& t) {
+        return ResultPoint((base.x() + t * direction.x()) / denominator,
+                           (base.y() + t * direction.y()) / denominator);
+    };
+    if (!from && !to) {
+        const ResultPoint origin(base.x() / denominator, base.y() / denominator);
+        curves.emplace_back(Line<ResultPoint>(
+            origin, ResultPoint(origin.x() + direction.x(), origin.y() + direction.y())));
+    } else if (!from) {
+        const ResultPoint end = pointAt(*to);
+        curves.emplace_back(
+            Ray<ResultPoint>(end, ResultPoint(end.x() - direction.x(), end.y() - direction.y())));
+    } else if (!to) {
+        const ResultPoint start = pointAt(*from);
+        curves.emplace_back(Ray<ResultPoint>(
+            start, ResultPoint(start.x() + direction.x(), start.y() + direction.y())));
+    } else {
+        curves.emplace_back(Segment<ResultPoint>(pointAt(*from), pointAt(*to)));
     }
 }
 
@@ -318,7 +411,8 @@ void labelVoronoiFaces(Arrangement<Point<Number>, std::vector<Element>>& diagram
     const auto labelAt = [&](typename Diagram::FaceId face, const Point<Number>& query,
                              const Point<Number>& inward) {
         for (std::size_t s = 0; s < sites.size(); ++s) {
-            keys[s] = {voronoiPower(sites[s], query), voronoiPowerSlope(sites[s], query, inward)};
+            keys[s] = {voronoiRelativePower(sites[s], query),
+                   voronoiPowerSlope(sites[s], query, inward)};
         }
         std::iota(order.begin(), order.end(), std::size_t{0});
         const auto cut = order.begin() + static_cast<std::ptrdiff_t>(wanted);
@@ -355,6 +449,623 @@ void labelVoronoiFaces(Arrangement<Point<Number>, std::vector<Element>>& diagram
     }
 }
 
+/**
+ * @brief The site of @p among nearest to @p query, ties settled toward @p inward.
+ *
+ * @p query is a point of the boundary of the face being labeled, so a tie there
+ * may well be a tie only there: the site whose power distance grows slower
+ * leaving @p query along @p inward is the nearer one just inside the face. Two
+ * sites agreeing in both are ordered by index, which is what
+ * @ref labelVoronoiFaces argues is free to choose.
+ */
+template <class Number>
+std::uint32_t voronoiNearestAmong(const std::vector<VoronoiSite<Number>>& sites,
+                                  const std::vector<std::uint32_t>& among,
+                                  const Point<Number>& query, const Point<Number>& inward) {
+    std::uint32_t best = among.front();
+    Number bestPower = voronoiRelativePower(sites[best], query);
+    std::optional<Number> bestSlope;
+    for (std::size_t c = 1; c < among.size(); ++c) {
+        const std::uint32_t site = among[c];
+        const Number power = voronoiRelativePower(sites[site], query);
+        if (bestPower < power) {
+            continue;
+        }
+        if (power < bestPower) {
+            best = site;
+            bestPower = power;
+            bestSlope.reset();
+            continue;
+        }
+        if (!bestSlope) {
+            bestSlope = voronoiPowerSlope(sites[best], query, inward);
+        }
+        const Number slope = voronoiPowerSlope(sites[site], query, inward);
+        if (slope < *bestSlope) {
+            best = site;
+            bestSlope = slope;
+        }
+    }
+    return best;
+}
+
+/**
+ * @brief Hash of a cell's sorted owner indices, so a set of owners can name a cell.
+ */
+struct VoronoiOwnersHash {
+    /** @brief Mixes the indices in order; two cells never share a sorted name. */
+    std::size_t operator()(const std::vector<std::uint32_t>& owners) const noexcept {
+        std::size_t mixed = owners.size();
+        for (const std::uint32_t site : owners) {
+            mixed ^= std::size_t{site} + 0x9e3779b97f4a7c15ULL + (mixed << 6) + (mixed >> 2);
+        }
+        return mixed;
+    }
+};
+
+/**
+ * @brief Reports the edges the next order's diagram has inside one cell of this
+ *        one.
+ *
+ * The cell of the `k - 1` element set @p owners is subdivided by the ordinary
+ * Voronoi diagram of the sites that are not in it, so a piece of the bisector of
+ * two of those is an edge of the order-`k` diagram exactly where it is inside
+ * the cell and no third of them is nearer. Both halves of that come to a
+ * handful of affine conditions along the bisector, in the sites' own
+ * coordinates:
+ *
+ *   - the pair is no farther than any site in @p neighbors, which
+ *     @ref VoronoiCells::neighbors is every site that reaches into the cell at
+ *     all;
+ *   - every site of @p owners is no farther than the pair, which with the
+ *     condition above puts every owner ahead of every neighbor, and that is the
+ *     cell — its sides are bisectors of an owner against a neighbor, no other
+ *     site of the plane having a side of its own to contribute.
+ *
+ * An intersection of halflines is one interval, so there is no sorting and no
+ * pass over the sites: this is the whole of what Lee's refinement saves over
+ * cutting every bisector against everything.
+ *
+ * Inside that interval the conditions all hold strictly, since an affine
+ * function that vanishes inside an interval it is non-positive on vanishes
+ * throughout it, which would put a third site's bisector on top of this one and
+ * so make it one of the two. An edge reported here therefore meets another only
+ * at an endpoint, and the cells being convex with disjoint interiors keeps the
+ * edges of two different ones apart the same way.
+ *
+ * @param sites Every site.
+ * @param owners The `k - 1` sites of the cell.
+ * @param neighbors The sites the cell can gain; see @ref VoronoiCells.
+ * @param emit Called as `emit(bisector, from, to, p, q)` once per edge, with
+ *        `std::nullopt` for an end that runs to infinity.
+ */
+template <class Number, class Emit>
+void voronoiCellEdges(const std::vector<VoronoiSite<Number>>& sites,
+                      const std::vector<std::uint32_t>& owners,
+                      const std::vector<std::uint32_t>& neighbors, Emit&& emit) {
+    using ResultPoint = Point<Number>;
+    const Number zero{};
+    const Number two = static_cast<Number>(2);
+
+    for (std::size_t a = 0; a + 1 < neighbors.size(); ++a) {
+        for (std::size_t b = a + 1; b < neighbors.size(); ++b) {
+            const std::uint32_t p = neighbors[a];
+            const std::uint32_t q = neighbors[b];
+            const auto bisector = voronoiBisector(sites[p], sites[q]);
+            if (!bisector) {
+                continue;
+            }
+            const ResultPoint& base = bisector->base;
+            const ResultPoint& direction = bisector->direction;
+
+            // The interval of parameters still allowed, narrowed one condition
+            // at a time and held as a fraction per end so that nothing has to
+            // be reduced until the run is reported. An end left as nullopt runs
+            // to infinity; the denominators are kept positive, so two ends
+            // compare by crossing the fractions.
+            std::optional<std::pair<Number, Number>> from;
+            std::optional<std::pair<Number, Number>> to;
+            bool empty = false;
+            const auto atMost = [&](const Number& alpha, const Number& beta) {
+                if (alpha == zero) {
+                    empty = empty || zero < beta;
+                    return;
+                }
+                if (zero < alpha) {
+                    if (!to || -beta * to->second < to->first * alpha) {
+                        to = {-beta, alpha};
+                    }
+                } else if (!from || beta * from->second > from->first * -alpha) {
+                    from = {beta, -alpha};
+                }
+                empty = empty || (from && to && !(from->first * to->second <
+                                                  to->first * from->second));
+            };
+
+            // How much site m's power distance exceeds the pair's at parameter
+            // t, times the positive denominator, as the affine function
+            // `alpha * t + beta` the conditions are written in. Both are linear
+            // in m's center and lifted value, so the pair's own share of them
+            // is taken out of the loop over the sites and added back.
+            const Number alongBase = two * (sites[p].center.x() * base.x() +
+                                            sites[p].center.y() * base.y()) -
+                                     sites[p].lifted * bisector->denominator;
+            const Number alongDirection = two * (sites[p].center.x() * direction.x() +
+                                                 sites[p].center.y() * direction.y());
+            const auto exceeds = [&](std::uint32_t m) {
+                return std::pair<Number, Number>(
+                    alongDirection - two * (sites[m].center.x() * direction.x() +
+                                            sites[m].center.y() * direction.y()),
+                    alongBase - two * (sites[m].center.x() * base.x() +
+                                       sites[m].center.y() * base.y()) +
+                        sites[m].lifted * bisector->denominator);
+            };
+
+            for (std::size_t c = 0; c < neighbors.size() && !empty; ++c) {
+                if (c != a && c != b) {
+                    const auto [alpha, beta] = exceeds(neighbors[c]);
+                    atMost(-alpha, -beta);
+                }
+            }
+            for (std::size_t o = 0; o < owners.size() && !empty; ++o) {
+                const auto [alpha, beta] = exceeds(owners[o]);
+                atMost(alpha, beta);
+            }
+
+            if (!empty) {
+                const auto ratio = [](const std::optional<std::pair<Number, Number>>& end) {
+                    return end ? std::optional<Number>(end->first / end->second) : std::nullopt;
+                };
+                emit(*bisector, ratio(from), ratio(to), p, q);
+            }
+        }
+    }
+}
+
+/**
+ * @brief The cells of one order, and the sites each of them can gain at the next.
+ *
+ * A cell is named by the sorted indices of the sites that own it, and that name
+ * is what the refinement hands back and forth: an order-`k` cell is an
+ * order-`k - 1` cell's owners plus one more site, so the whole family is
+ * enumerated without ever laying the diagram out in the plane. Only the last
+ * order is built as an @ref pgl::Arrangement, and @ref labelVoronoiCells matches
+ * its faces back to these names.
+ *
+ * @ref neighbors is the set @ref voronoiCellEdges needs: the sites a cell can
+ * gain, which are the ones its edge-adjacent cells own. It is accumulated from
+ * the edges themselves, an edge reported between the owners `A + p` and `A + q`
+ * being exactly the statement that those two cells are adjacent.
+ */
+struct VoronoiCells {
+    /** @brief Sorted site indices of each cell. */
+    std::vector<std::vector<std::uint32_t>> owners;
+    /** @brief Sorted site indices a cell can gain, one set per cell. */
+    std::vector<std::vector<std::uint32_t>> neighbors;
+    /** @brief Which cell a set of owners names. */
+    std::unordered_map<std::vector<std::uint32_t>, std::uint32_t, VoronoiOwnersHash> numbering;
+
+    /** @brief The number of cells. */
+    [[nodiscard]] std::size_t size() const {
+        return owners.size();
+    }
+
+    /** @brief The cell @p set names, created if this is the first sight of it. */
+    std::uint32_t cellOf(const std::vector<std::uint32_t>& set) {
+        const auto seen = numbering.find(set);
+        if (seen != numbering.end()) {
+            return seen->second;
+        }
+        const auto fresh = static_cast<std::uint32_t>(owners.size());
+        numbering.emplace(set, fresh);
+        owners.push_back(set);
+        neighbors.emplace_back();
+        return fresh;
+    }
+};
+
+/**
+ * @brief The order-1 cells, read off a Delaunay triangulation.
+ *
+ * One cell per site, and a cell's neighbors are the site's Delaunay neighbors.
+ * That is a superset of the sites whose cells actually share an edge with this
+ * one — four sites on a circle leave the triangulation a choice of diagonal,
+ * and the one it takes dualizes to a Voronoi edge of no length — which is all
+ * @ref voronoiCellEdges asks of it.
+ *
+ * @param triangulation A Delaunay triangulation of @p plain.
+ * @param plain The sites, in the order their indices count them.
+ * @return The cells, or nothing if a site is not a vertex of the triangulation.
+ */
+template <class Mesh, class PlainPoint>
+std::optional<VoronoiCells> voronoiDelaunayCells(const Mesh& triangulation,
+                                                 const std::vector<PlainPoint>& plain) {
+    constexpr std::uint32_t none = ~std::uint32_t{};
+    std::unordered_map<PlainPoint, std::uint32_t> indexOf;
+    indexOf.reserve(plain.size());
+    for (std::size_t s = 0; s < plain.size(); ++s) {
+        indexOf.emplace(plain[s], static_cast<std::uint32_t>(s));
+    }
+
+    std::vector<std::uint32_t> siteAt(triangulation.vertexIndexBound(), none);
+    for (const auto vertex : triangulation.vertexIds()) {
+        const auto named = indexOf.find(triangulation[vertex]);
+        if (named == indexOf.end()) {
+            return std::nullopt;
+        }
+        siteAt[vertex.index()] = named->second;
+    }
+
+    VoronoiCells cells;
+    cells.owners.resize(plain.size());
+    cells.neighbors.resize(plain.size());
+    for (std::size_t s = 0; s < plain.size(); ++s) {
+        cells.owners[s] = {static_cast<std::uint32_t>(s)};
+    }
+    for (const auto triangle : triangulation.triangleIds()) {
+        const auto corners = triangulation.vertices(triangle);
+        for (std::size_t i = 0; i < 3; ++i) {
+            const std::uint32_t a = siteAt[corners[i].index()];
+            const std::uint32_t b = siteAt[corners[(i + 1) % 3].index()];
+            if (a == none || b == none) {
+                return std::nullopt;
+            }
+            cells.neighbors[a].push_back(b);
+            cells.neighbors[b].push_back(a);
+        }
+    }
+    for (std::vector<std::uint32_t>& list : cells.neighbors) {
+        std::sort(list.begin(), list.end());
+        list.erase(std::unique(list.begin(), list.end()), list.end());
+    }
+    return cells;
+}
+
+/**
+ * @brief Lee's refinement: the cells of the next order, and their edges.
+ *
+ * Every edge of the order-`k - 1` diagram disappears at order `k`, and every
+ * edge that appears lies strictly inside one of its cells. The first because an
+ * edge between the cells of `A + p` and `A + q` has `A + p + q` as the `k`
+ * nearest sites on both sides of it, and so has nothing left to separate. The
+ * second by counting at a point of an edge's relative interior: an edge of the
+ * order-`j` diagram is where two sites tie with exactly `j - 1` sites strictly
+ * nearer, and one point cannot do that for one pair and the same with `j - 2`
+ * for another — the second pair's members would both be strictly nearer than
+ * the first pair's, which makes `j` of them.
+ *
+ * So the cells are refined one at a time and independently, each by
+ * @ref voronoiCellEdges, and an edge reported inside the cell of `A` for the
+ * pair `p, q` both names the two cells `A + p` and `A + q` and makes them
+ * neighbors. Every edge of the new diagram is reported exactly once this way,
+ * so every cell with a boundary is named and every cell's neighbors are
+ * complete.
+ *
+ * @param sites Every site.
+ * @param cells The order-`k - 1` cells.
+ * @param emit Called as `emit(bisector, from, to)` once per edge. The
+ *        intermediate orders pass a callback that does nothing: only the last
+ *        order's edges are ever laid out.
+ * @return The order-`k` cells.
+ */
+template <class Number, class Emit>
+VoronoiCells voronoiRefineCells(const std::vector<VoronoiSite<Number>>& sites,
+                                const VoronoiCells& cells, Emit&& emit) {
+    VoronoiCells refined;
+    std::vector<std::uint32_t> grown;
+    const auto cellWith = [&](const std::vector<std::uint32_t>& owners, std::uint32_t site) {
+        grown.assign(owners.begin(), owners.end());
+        grown.insert(std::lower_bound(grown.begin(), grown.end(), site), site);
+        return refined.cellOf(grown);
+    };
+
+    for (std::size_t c = 0; c < cells.size(); ++c) {
+        const std::vector<std::uint32_t>& owners = cells.owners[c];
+        voronoiCellEdges(sites, owners, cells.neighbors[c],
+                         [&](const VoronoiBisector<Number>& bisector,
+                             const std::optional<Number>& from, const std::optional<Number>& to,
+                             std::uint32_t p, std::uint32_t q) {
+                             // Both cells before either push: naming the second
+                             // one can reallocate the first one's neighbors.
+                             const std::uint32_t kept = cellWith(owners, p);
+                             const std::uint32_t other = cellWith(owners, q);
+                             refined.neighbors[kept].push_back(q);
+                             refined.neighbors[other].push_back(p);
+                             emit(bisector, from, to);
+                         });
+    }
+    for (std::vector<std::uint32_t>& list : refined.neighbors) {
+        std::sort(list.begin(), list.end());
+        list.erase(std::unique(list.begin(), list.end()), list.end());
+    }
+    return refined;
+}
+
+/**
+ * @brief The @p wanted nearest sites at @p query, in index order.
+ *
+ * A pass over every site, for the one face of each connected piece of a diagram
+ * that has no labeled neighbor to take its answer from. @p inward settles a tie
+ * the way @ref labelVoronoiFaces settles it.
+ */
+template <class Number>
+std::vector<std::uint32_t> voronoiNearestSites(const std::vector<VoronoiSite<Number>>& sites,
+                                               const Point<Number>& query,
+                                               const Point<Number>& inward, std::size_t wanted) {
+    std::vector<std::pair<Number, Number>> keys(sites.size());
+    for (std::size_t s = 0; s < sites.size(); ++s) {
+        keys[s] = {voronoiRelativePower(sites[s], query),
+                   voronoiPowerSlope(sites[s], query, inward)};
+    }
+    std::vector<std::uint32_t> order(sites.size());
+    std::iota(order.begin(), order.end(), std::uint32_t{0});
+    const auto cut = order.begin() + static_cast<std::ptrdiff_t>(wanted);
+    std::partial_sort(order.begin(), cut, order.end(),
+                      [&](std::uint32_t left, std::uint32_t right) {
+                          if (keys[left].first != keys[right].first) {
+                              return keys[left].first < keys[right].first;
+                          }
+                          if (keys[left].second != keys[right].second) {
+                              return keys[left].second < keys[right].second;
+                          }
+                          return left < right;
+                      });
+    order.resize(wanted);
+    std::sort(order.begin(), order.end());
+    return order;
+}
+
+/**
+ * @brief The site of @p among farthest from @p query.
+ *
+ * Called at a point of an edge's relative interior, where the owners of the face
+ * on either side are one site tied with the site across the edge and `k - 1`
+ * that are strictly nearer than both. So the farthest owner is the one the face
+ * across gives up, and no tie can reach it.
+ */
+template <class Number>
+std::uint32_t voronoiFarthestAmong(const std::vector<VoronoiSite<Number>>& sites,
+                                   const std::vector<std::uint32_t>& among,
+                                   const Point<Number>& query) {
+    std::uint32_t worst = among.front();
+    Number reach = voronoiRelativePower(sites[worst], query);
+    for (std::size_t c = 1; c < among.size(); ++c) {
+        Number power = voronoiRelativePower(sites[among[c]], query);
+        if (reach < power) {
+            worst = among[c];
+            reach = std::move(power);
+        }
+    }
+    return worst;
+}
+
+/**
+ * @brief Labels every face of @p diagram with the cell of @p cells it is.
+ *
+ * The faces are walked rather than looked up. Crossing an edge swaps one site
+ * for another, and both of them are a handful of power distances away at a point
+ * of that edge: the site coming in is the nearest of what the face can gain, and
+ * the one going out is the farthest the face owns. So a face named names its
+ * neighbors, and one face of each connected piece — in practice one face, the
+ * cells of a diagram tiling the plane — is named by a pass over the sites.
+ *
+ * @param diagram The order-`k` diagram, its faces unlabeled.
+ * @param sites Every site.
+ * @param elements The sites as the caller handed them over, for the labels.
+ * @param cells The order-`k` cells.
+ * @param k Order of the diagram.
+ * @return Whether every face was named; `false` asks the caller for the general
+ *         construction instead.
+ */
+template <class Number, class Element>
+bool labelVoronoiCells(Arrangement<Point<Number>, std::vector<Element>>& diagram,
+                       const std::vector<VoronoiSite<Number>>& sites,
+                       const std::vector<Element>& elements, const VoronoiCells& cells,
+                       std::size_t k) {
+    using ResultPoint = Point<Number>;
+    using Diagram = Arrangement<ResultPoint, std::vector<Element>>;
+    using HalfedgeId = typename Diagram::HalfedgeId;
+    constexpr std::uint32_t none = ~std::uint32_t{};
+
+    if (diagram.halfedgeCount() == 0) {
+        // One face, the whole plane, which happens only once every site owns
+        // it: below that, a site left out is nearest at its own position and
+        // the nearest set is not the same everywhere.
+        if (k != sites.size()) {
+            return false;
+        }
+        diagram.label(typename Diagram::FaceId(0)) = elements;
+        return true;
+    }
+
+    std::vector<std::vector<HalfedgeId>> boundary(diagram.faceCount());
+    for (std::size_t h = 0; h < diagram.halfedgeCount(); ++h) {
+        const HalfedgeId halfedge(static_cast<std::uint32_t>(h));
+        boundary[diagram.face(halfedge).index()].push_back(halfedge);
+    }
+
+    std::vector<std::uint32_t> cellAt(diagram.faceCount(), none);
+    std::vector<std::uint32_t> swapped;
+    std::vector<std::size_t> pending;
+    const auto name = [&](std::size_t face, std::uint32_t cell) {
+        cellAt[face] = cell;
+        std::vector<Element> owners;
+        owners.reserve(cells.owners[cell].size());
+        for (const std::uint32_t site : cells.owners[cell]) {
+            owners.push_back(elements[site]);
+        }
+        diagram.label(typename Diagram::FaceId(static_cast<std::uint32_t>(face))) =
+            std::move(owners);
+        pending.push_back(face);
+    };
+
+    for (std::size_t seed = 0; seed < diagram.faceCount(); ++seed) {
+        if (cellAt[seed] != none || boundary[seed].empty()) {
+            continue;
+        }
+        {
+            const HalfedgeId halfedge = boundary[seed].front();
+            const ResultPoint query = diagram.template witness<Number>(halfedge);
+            const ResultPoint along = voronoiHalfedgeDirection(diagram, halfedge);
+            // The face of a halfedge is the one on its left.
+            const auto found = cells.numbering.find(voronoiNearestSites(
+                sites, query, ResultPoint(-along.y(), along.x()), k));
+            if (found == cells.numbering.end()) {
+                return false;
+            }
+            name(seed, found->second);
+        }
+
+        while (!pending.empty()) {
+            const std::size_t here = pending.back();
+            pending.pop_back();
+            const std::uint32_t cell = cellAt[here];
+            const std::vector<std::uint32_t>& owners = cells.owners[cell];
+            const std::vector<std::uint32_t>& neighbors = cells.neighbors[cell];
+            for (const HalfedgeId halfedge : boundary[here]) {
+                const std::size_t across = diagram.face(diagram.twin(halfedge)).index();
+                if (cellAt[across] != none) {
+                    continue;
+                }
+                if (neighbors.empty()) {
+                    return false;
+                }
+                const ResultPoint query = diagram.template witness<Number>(halfedge);
+                const ResultPoint along = voronoiHalfedgeDirection(diagram, halfedge);
+                // The face across is the one on the halfedge's right.
+                const ResultPoint inward(along.y(), -along.x());
+                const std::uint32_t gained =
+                    voronoiNearestAmong(sites, neighbors, query, inward);
+                const std::uint32_t given = voronoiFarthestAmong(sites, owners, query);
+                swapped.clear();
+                for (const std::uint32_t site : owners) {
+                    if (site != given) {
+                        swapped.push_back(site);
+                    }
+                }
+                swapped.insert(std::lower_bound(swapped.begin(), swapped.end(), gained), gained);
+                const auto found = cells.numbering.find(swapped);
+                if (found == cells.numbering.end()) {
+                    return false;
+                }
+                name(across, found->second);
+            }
+        }
+    }
+
+    for (const std::uint32_t cell : cellAt) {
+        if (cell == none) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * @brief The order-@p k diagram of point sites, by Lee's refinement.
+ *
+ * The order-1 cells come from a Delaunay triangulation and @ref voronoiRefineCells
+ * raises them one order at a time. Only the last order's edges are laid out and
+ * overlaid into an @ref pgl::Arrangement; the orders below it exist as names and
+ * adjacencies alone.
+ *
+ * @param diagram Where to put the diagram; untouched unless the return is true.
+ * @param sites Every site.
+ * @param elements The sites as the caller handed them over, for the labels.
+ * @param k Order of the diagram.
+ * @return Whether the refinement stands. It declines sites that are not in
+ *         general enough position for it: sites with no triangle to dualize,
+ *         which are all equal or all collinear, and repeated sites, which share
+ *         a cell no bisector ever splits and so are invisible to a refinement.
+ */
+template <class Number, class Element>
+bool voronoiByRefinement(Arrangement<Point<Number>, std::vector<Element>>& diagram,
+                         const std::vector<VoronoiSite<Number>>& sites,
+                         const std::vector<Element>& elements, int k) {
+    using ResultPoint = Point<Number>;
+    using Diagram = Arrangement<ResultPoint, std::vector<Element>>;
+    using PlainPoint = Point<typename Element::NumberType>;
+
+    if (k > 1) {
+        std::vector<ResultPoint> centers;
+        centers.reserve(sites.size());
+        for (const VoronoiSite<Number>& site : sites) {
+            centers.push_back(site.center);
+        }
+        std::sort(centers.begin(), centers.end());
+        if (std::adjacent_find(centers.begin(), centers.end()) != centers.end()) {
+            return false;
+        }
+    }
+
+    std::vector<PlainPoint> plain;
+    plain.reserve(elements.size());
+    for (const Element& element : elements) {
+        plain.emplace_back(element.x(), element.y());
+    }
+    const Triangulation triangulation(plain);
+    if (triangulation.numTriangles() == 0) {
+        return false;
+    }
+
+    if (k == 1) {
+        Diagram level(triangulation.template voronoiEdges<Number>(), true);
+        // A point site is interior to its own cell, so locating it is both
+        // cheaper than scanning the sites once per face and exactly how
+        // Triangulation::voronoiDiagram attributes its own faces.
+        std::vector<bool> named(level.faceCount(), false);
+        level.buildPointLocation();
+        for (std::size_t s = 0; s < sites.size(); ++s) {
+            const auto face = level.locateFace(sites[s].center);
+            named[face.index()] = true;
+            level.label(face) = std::vector<Element>{elements[s]};
+        }
+        level.clearPointLocation();
+        for (const bool face : named) {
+            if (!face) {
+                return false;
+            }
+        }
+        diagram = std::move(level);
+        return true;
+    }
+
+    std::optional<VoronoiCells> cells = voronoiDelaunayCells(triangulation, plain);
+    if (!cells) {
+        return false;
+    }
+
+    std::vector<Shape<ResultPoint>> curves;
+    for (int order = 2; order <= k; ++order) {
+        if (order < k) {
+            const auto keepNothing = [](const auto&, const auto&, const auto&) {};
+            *cells = voronoiRefineCells(sites, *cells, keepNothing);
+        } else {
+            *cells = voronoiRefineCells(
+                sites, *cells,
+                [&](const VoronoiBisector<Number>& bisector, const std::optional<Number>& from,
+                    const std::optional<Number>& to) {
+                    voronoiAppendRun(curves, bisector, from, to);
+                });
+        }
+        // Nothing left to refine below the last order means the cells stopped
+        // covering the plane, which they never do; hand the input back rather
+        // than build a diagram out of what is left.
+        if (cells->size() == 0 && order < k) {
+            return false;
+        }
+    }
+
+    // Every edge of the diagram comes out of exactly one cell, reported open at
+    // both ends: there is nothing here for the overlay to cut.
+    Diagram next(curves, true);
+    if (!labelVoronoiCells(next, sites, elements, *cells, static_cast<std::size_t>(k))) {
+        return false;
+    }
+    diagram = std::move(next);
+    return true;
+}
+
 /** @brief The coordinate type the diagram functions compute in. */
 template <class ResultNumber, class Element>
 using voronoi_number_t =
@@ -370,6 +1081,12 @@ using voronoi_diagram_t =
 /**
  * @brief The diagram both public entry points compute; see them for the
  *        contract.
+ *
+ * Point sites go through @ref voronoiByRefinement, which is Lee's refinement
+ * over a Delaunay triangulation. What is left here is the general construction,
+ * which every disk site takes and a point site takes only when the refinement
+ * declines the input: it cuts each of the `O(n^2)` bisectors against every site
+ * and keeps the runs where the pair is the `k`-th and `(k+1)`-th nearest.
  *
  * @param sites Point or disk sites.
  * @param k Order of the diagram.
@@ -397,84 +1114,29 @@ voronoi_diagram_t<ResultNumber, SiteRange> diagramOf(const SiteRange& sites, int
         lifted.push_back(detail::voronoiSiteOf<Number>(element));
     }
 
+    if constexpr (PointConcept<Element>) {
+        Diagram refined;
+        if (detail::voronoiByRefinement(refined, lifted, elements, k)) {
+            return refined;
+        }
+    }
+
     std::vector<Shape<ResultPoint>> curves;
-
-    // Point sites with k = 1 are the Delaunay dual, whose edges come out of the
-    // triangulation in O(n log n) instead of one pass per bisector. Sites that
-    // are all collinear, or all equal, leave no triangle to dualize and fall
-    // through.
-    bool fromDelaunay = false;
-    if constexpr (PointConcept<Element>) {
-        if (k == 1) {
-            std::vector<Point<typename Element::NumberType>> plain;
-            plain.reserve(elements.size());
-            for (const Element& element : elements) {
-                plain.emplace_back(element.x(), element.y());
-            }
-            const Triangulation triangulation(plain);
-            if (triangulation.numTriangles() != 0) {
-                fromDelaunay = true;
-                curves = triangulation.template voronoiEdges<Number>();
-            }
+    const auto emit = [&](const detail::VoronoiBisector<Number>& bisector,
+                          const std::optional<Number>& from, const std::optional<Number>& to) {
+        detail::voronoiAppendRun(curves, bisector, from, to);
+    };
+    std::vector<std::pair<Number, int>> events;
+    for (std::size_t i = 0; i + 1 < lifted.size(); ++i) {
+        for (std::size_t j = i + 1; j < lifted.size(); ++j) {
+            detail::voronoiPairEdges(lifted, i, j, k, events, emit);
         }
     }
 
-    if (!fromDelaunay) {
-        const auto pointAt = [](const detail::VoronoiBisector<Number>& bisector, const Number& t) {
-            return ResultPoint(bisector.origin.x() + t * bisector.direction.x(),
-                               bisector.origin.y() + t * bisector.direction.y());
-        };
-        const auto emit = [&](const detail::VoronoiBisector<Number>& bisector,
-                              const std::optional<Number>& from, const std::optional<Number>& to) {
-            const ResultPoint& direction = bisector.direction;
-            if (!from && !to) {
-                curves.emplace_back(Line<ResultPoint>(
-                    bisector.origin, ResultPoint(bisector.origin.x() + direction.x(),
-                                                 bisector.origin.y() + direction.y())));
-            } else if (!from) {
-                const ResultPoint end = pointAt(bisector, *to);
-                curves.emplace_back(Ray<ResultPoint>(
-                    end, ResultPoint(end.x() - direction.x(), end.y() - direction.y())));
-            } else if (!to) {
-                const ResultPoint start = pointAt(bisector, *from);
-                curves.emplace_back(Ray<ResultPoint>(
-                    start, ResultPoint(start.x() + direction.x(), start.y() + direction.y())));
-            } else {
-                curves.emplace_back(
-                    Segment<ResultPoint>(pointAt(bisector, *from), pointAt(bisector, *to)));
-            }
-        };
-
-        std::vector<std::pair<Number, int>> events;
-        for (std::size_t i = 0; i + 1 < lifted.size(); ++i) {
-            for (std::size_t j = i + 1; j < lifted.size(); ++j) {
-                detail::voronoiPairEdges(lifted, i, j, k, events, emit);
-            }
-        }
-    }
-
-    // The Delaunay dual is already an arrangement: two Voronoi edges have
-    // different nearest pairs throughout their relative interiors, so they meet
-    // only at shared endpoints and there is nothing for the overlay to cut. The
-    // bisector route below makes no such promise — its curves cross freely.
-    Diagram diagram = fromDelaunay ? Diagram(curves, detail::disjointInteriors)
-                                   : Diagram(curves);
-
-    if constexpr (PointConcept<Element>) {
-        if (k == 1) {
-            // A point site is interior to its own cell, so locating it is both
-            // cheaper than scanning the sites once per face and exactly how
-            // Triangulation::voronoiDiagram attributes its own faces.
-            diagram.buildPointLocation();
-            for (std::size_t s = 0; s < lifted.size(); ++s) {
-                diagram.label(diagram.locateFace(lifted[s].center)) =
-                    std::vector<Element>{elements[s]};
-            }
-            diagram.clearPointLocation();
-            return diagram;
-        }
-    }
-
+    // Two edges of the diagram have different nearest pairs throughout their
+    // relative interiors, so they meet only where a third site joins the tie,
+    // which is an endpoint of both: there is nothing for the overlay to cut.
+    Diagram diagram(curves, true);
     detail::labelVoronoiFaces(diagram, lifted, elements, k);
     return diagram;
 }
@@ -497,13 +1159,20 @@ voronoi_diagram_t<ResultNumber, SiteRange> diagramOf(const SiteRange& sites, int
  * single swap. Cells that are empty do not appear, so the number of faces is
  * generally far below the number of `k`-element subsets.
  *
- * Complexity: `O(n log n)` when `k` is 1. The edges are then
- * @ref Triangulation::voronoiEdges, and two of them have different nearest
- * pairs throughout their relative interiors, so they meet only at a shared
- * endpoint and the @ref Arrangement is assembled from them with no splitting
- * step. For `k` above 1 the edges instead cost `O(n^3 log n)` — one pass over
- * the sites for each of the `O(n^2)` bisectors — and the bisectors cross
- * freely, so overlaying them is quadratic in their number on top of that.
+ * Complexity: `O(k^2 n log n)` for sites whose cells have a bounded number of
+ * neighbors each, which is the usual case; refining a cell with `d` of them
+ * costs `O(d^3)`. The order-1 cells are the Delaunay triangulation's, and each
+ * order after them is Lee's refinement of the one below: every cell of the
+ * order-`k - 1` diagram is subdivided by the ordinary diagram of the sites it
+ * does not own, which is a few conditions per neighboring pair rather than a
+ * pass over the sites. Only the order asked for is ever laid out in the plane —
+ * the orders below it are cells named by their sites and nothing else — and
+ * since two edges of one diagram meet only at a shared endpoint, the one
+ * @ref Arrangement that is built needs no splitting step.
+ *
+ * Repeated sites, and sites that are all collinear, have no refinement to take
+ * and fall back to the general construction, which cuts each of the `O(n^2)`
+ * bisectors against every site at `O(n^3 log n)`.
  *
  * @tparam ResultNumber Coordinate type of the arrangement vertices. The default
  *         is exact and overflow-free for integral input.
@@ -535,9 +1204,11 @@ template <class ResultNumber = void, std::ranges::input_range SiteRange>
  * which a point site can do. Disks of equal radius give the Voronoi diagram of
  * their centers.
  *
- * Labels and order are as in @ref voronoiDiagram, but there is no Delaunay
- * route to take: even when `k` is 1 the edges cost `O(n^3)` to find and are
- * then overlaid the general way, quadratically in their number.
+ * Labels and order are as in @ref voronoiDiagram, but neither the Delaunay dual
+ * nor Lee's refinement is available: a disk's center need not lie in its own
+ * cell, and a light disk can own a region buried inside a heavy one's cell,
+ * which no neighbor of that cell names. So every order, `k` of 1 included, cuts
+ * each of the `O(n^2)` bisectors against every site, at `O(n^3 log n)`.
  *
  * @tparam ResultNumber Coordinate type of the arrangement vertices. The default
  *         is exact and overflow-free for integral input.
