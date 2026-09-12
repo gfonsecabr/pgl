@@ -405,7 +405,7 @@ PolygonSet<ResultPoint> regularizedUnionByCoverage(
 
     // Start outside every piece in the unbounded face, then propagate those
     // parity bits across the arrangement's face adjacency graph.
-    const Arrangement<ExactPoint> arrangement(distinct, detail::simpleBoundaries);
+    const Arrangement<ExactPoint> arrangement(distinct);
     using HalfedgeId = typename Arrangement<ExactPoint>::HalfedgeId;
     using FaceId = typename Arrangement<ExactPoint>::FaceId;
     const std::size_t faceCount = arrangement.faceCount();

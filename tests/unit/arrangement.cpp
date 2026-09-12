@@ -1435,3 +1435,34 @@ TEST_CASE("the graph of a line is one isolated fictitious vertex") {
     CHECK(empty.asGraph().vertexCount() == 0);
     CHECK(empty.asGraph().edgeCount() == 0);
 }
+
+// A comb: `count` parallel diagonals, none of which meets another, crossed by
+// one transversal that meets them all. Every pair of diagonal bounding boxes
+// overlaps, so the split's box filter tests them all and finds nothing, which
+// is what its budget is there to cut short — at 800 diagonals it gives up and
+// the sweep line enumerates the pairs instead. The comb is a tree either way,
+// so the counts are the same on both paths and the only question is which one
+// produced them.
+void checkComb(int count) {
+    std::vector<Segment> segments;
+    for (int i = 0; i < count; ++i) {
+        segments.push_back(Segment(P(4 * i, 0), P(4 * i + 4000, 4000)));
+    }
+    const int last = 4 * (count - 1);
+    segments.push_back(Segment(P(-1, 2000), P(last + 4001, 2000)));
+
+    const Arrangement arr(segments);
+    checkInvariants(arr);
+    // Two endpoints per diagonal and per the transversal, plus one crossing on
+    // each diagonal.
+    CHECK(arr.vertexCount() == std::size_t(3 * count + 2));
+    // Every diagonal in two, the transversal in count + 1.
+    CHECK(arr.edgeCount() == std::size_t(3 * count + 1));
+    // Connected and acyclic: nothing but the unbounded face.
+    CHECK(arr.faceCount() == 1);
+}
+
+TEST_CASE("the split agrees whether or not its box filter runs out of budget") {
+    checkComb(20);   // the box filter answers this one
+    checkComb(800);  // and gives up on this one
+}
