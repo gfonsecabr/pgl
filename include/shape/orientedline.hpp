@@ -569,23 +569,23 @@ struct OrientedLine {
         // only grazes a corner is the degenerate chord where the two slabs meet at a
         // single parameter; the same clip yields a segment touching just that corner.
         const auto floorDiv = [](NumberType n, NumberType d) -> NumberType {
-            if (d < NumberType(0)) { n = -n; d = -d; }
+            if (d < 0) { n = -n; d = -d; }
             NumberType q = n / d;
-            if (n - q * d != NumberType(0) && n < NumberType(0)) { --q; }
+            if (n - q * d != 0 && n < 0) { --q; }
             return q;
         };
         const auto ceilDiv = [](NumberType n, NumberType d) -> NumberType {
-            if (d < NumberType(0)) { n = -n; d = -d; }
+            if (d < 0) { n = -n; d = -d; }
             NumberType q = n / d;
-            if (n - q * d != NumberType(0) && n > NumberType(0)) { ++q; }
+            if (n - q * d != 0 && n > 0) { ++q; }
             return q;
         };
 
         // Entry/exit parameters of each axis slab (entry <= exit within the slab).
-        const NumberType xEntry = (dx > NumberType(0)) ? (minX - sx) : (maxX - sx);
-        const NumberType xExit = (dx > NumberType(0)) ? (maxX - sx) : (minX - sx);
-        const NumberType yEntry = (dy > NumberType(0)) ? (minY - sy) : (maxY - sy);
-        const NumberType yExit = (dy > NumberType(0)) ? (maxY - sy) : (minY - sy);
+        const NumberType xEntry = (dx > 0) ? (minX - sx) : (maxX - sx);
+        const NumberType xExit = (dx > 0) ? (maxX - sx) : (minX - sx);
+        const NumberType yEntry = (dy > 0) ? (minY - sy) : (maxY - sy);
+        const NumberType yExit = (dy > 0) ? (maxY - sy) : (minY - sy);
 
         // floor(t_enter) = max over slabs of floor(entry); ceil(t_exit) = min of ceil(exit).
         const NumberType aX = floorDiv(xEntry, dx);

@@ -543,7 +543,7 @@ constexpr Point<ResultNumber> Convex<PointType, LabelType>::centroid() const {
         return Point<ResultNumber>(points_[0]);
     }
     auto area_twice = twiceArea();
-    if (points_.size() == 2 || area_twice == NumberType(0)) {
+    if (points_.size() == 2 || area_twice == 0) {
         const  Point<ResultNumber> p1 = static_cast<Point<ResultNumber>>(points_[0]);
         const  Point<ResultNumber> p2 = static_cast<Point<ResultNumber>>(points_[maxIndex()]);
         return (p1 + p2) / ResultNumber(2) + static_cast<Point<ResultNumber>>(translation_);
@@ -976,7 +976,7 @@ minimumWidthFraction(const Convex<PointType, LabelType>& convex, std::size_t edg
     const Number vy = asNumber<Number>(support.y()) - asNumber<Number>(base.y());
 
     const Number squaredLength = ux * ux + uy * uy;
-    if (squaredLength == Number(0)) {
+    if (squaredLength == 0) {
         // Every edge of the polygon is a repeated vertex, which only a trusted
         // construction produces. It covers one point, whose width is zero;
         // reporting the fraction as 0/1 keeps that the answer instead of a
@@ -1133,7 +1133,7 @@ constexpr Point<ResultNumber> PolygonWithHoles<PointType, LabelType>::centroid()
         return Point<ResultNumber>();
     }
     const NumberType netTwiceArea = twiceArea();
-    if (netTwiceArea == NumberType(0)) {
+    if (netTwiceArea == 0) {
         // No area to weight by (a collapsed outer ring, or holes cancelling it
         // out); fall back to the vertex centroid as Polygon does.
         return verticesCentroid<ResultNumber>();
@@ -1186,7 +1186,7 @@ constexpr Point<ResultNumber> PolygonSet<PointType, LabelType>::centroid() const
         return Point<ResultNumber>();
     }
     const NumberType netTwiceArea = twiceArea();
-    if (netTwiceArea == NumberType(0)) {
+    if (netTwiceArea == 0) {
         // No area to weight by; fall back to the vertex centroid as Polygon and
         // PolygonWithHoles do.
         return verticesCentroid<ResultNumber>();

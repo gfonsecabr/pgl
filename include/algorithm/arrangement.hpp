@@ -2462,13 +2462,13 @@ private:
     // counts as the upper half and due west as the lower, which puts the cut
     // just below the positive x axis.
     static int directionHalf(const FanDirection& direction) {
-        if (direction.dy > NumberType(0)) {
+        if (direction.dy > 0) {
             return 0;
         }
-        if (direction.dy < NumberType(0)) {
+        if (direction.dy < 0) {
             return 1;
         }
-        return direction.dx > NumberType(0) ? 0 : 1;
+        return direction.dx > 0 ? 0 : 1;
     }
 
     // Counterclockwise order of two directions around a shared origin, starting
@@ -4176,8 +4176,8 @@ private:
                 if (directionHalf(end) != 0) {
                     return false;
                 }
-                if (end.dx != NumberType(0)) {
-                    return end.dx > NumberType(0);
+                if (end.dx != 0) {
+                    return end.dx > 0;
                 }
                 return abscissa < WorkNumber(end.anchor.x());
             };
@@ -4290,7 +4290,7 @@ bool Arrangement<PointType, TLabel>::visitStraightIntersecting(
     // first endpoint and 1 at its second. A degenerate piece puts everything
     // at 0, which is the only parameter it has.
     const auto parameterOf = [&](const auto& point) {
-        if (squaredLength == Parameter(0)) {
+        if (squaredLength == 0) {
             return Parameter(0);
         }
         return ((Parameter(point.x()) - ax) * dx +
@@ -4304,14 +4304,14 @@ bool Arrangement<PointType, TLabel>::visitStraightIntersecting(
     // than that start.
     const auto firstOnEdge = [&](const EdgeGeometry& geometry) {
         Event event;
-        if (squaredLength == Parameter(0)) {
+        if (squaredLength == 0) {
             return event;
         }
 
         const Parameter ex = Parameter(geometry.b.x()) - Parameter(geometry.a.x());
         const Parameter ey = Parameter(geometry.b.y()) - Parameter(geometry.a.y());
         Parameter denominator = dx * ey - dy * ex;
-        if (denominator != Parameter(0)) {
+        if (denominator != 0) {
             Parameter numerator =
                 (Parameter(geometry.a.x()) - ax) * ey -
                 (Parameter(geometry.a.y()) - ay) * ex;
@@ -4321,7 +4321,7 @@ bool Arrangement<PointType, TLabel>::visitStraightIntersecting(
 
         if (geometry.kind == EdgeKind::line) {
             event.negativeInfinity = true;
-        } else if (geometry.kind == EdgeKind::ray && ex * dx + ey * dy < Parameter(0)) {
+        } else if (geometry.kind == EdgeKind::ray && ex * dx + ey * dy < 0) {
             event.negativeInfinity = true;
         } else {
             event.parameter = parameterOf(geometry.a);
@@ -4331,7 +4331,7 @@ bool Arrangement<PointType, TLabel>::visitStraightIntersecting(
         }
 
         if constexpr (!OrientedLineConcept<Q>) {
-            if (event.negativeInfinity || event.parameter < Parameter(0)) {
+            if (event.negativeInfinity || event.parameter < 0) {
                 event.negativeInfinity = false;
                 event.parameter = Parameter(0);
             }

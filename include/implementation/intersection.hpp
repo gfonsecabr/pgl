@@ -2118,16 +2118,16 @@ Polygon<PointType, LabelType>::intersection(const OtherPolygon& other) const {
         // 0 for directions in [0, 180) degrees, 1 for [180, 360); orders the circle.
         auto half = [&](const ResultPoint& p) {
             const Number y = dy(p);
-            if (y > Number(0)) return 0;
-            if (y < Number(0)) return 1;
-            return dx(p) >= Number(0) ? 0 : 1;
+            if (y > 0) return 0;
+            if (y < 0) return 1;
+            return dx(p) >= 0 ? 0 : 1;
         };
         auto ccwBefore = [&](const ResultPoint& u, const ResultPoint& w) {  // u strictly CCW-before w
             const int hu = half(u), hw = half(w);
             if (hu != hw) {
                 return hu < hw;
             }
-            return dx(u) * dy(w) - dy(u) * dx(w) > Number(0);
+            return dx(u) * dy(w) - dy(u) * dx(w) > 0;
         };
         // The neighbour immediately clockwise from `from`: the CCW-largest one
         // that is CCW-before `from`, wrapping to the CCW-largest overall.
@@ -2174,7 +2174,7 @@ Polygon<PointType, LabelType>::intersection(const OtherPolygon& other) const {
                 const ResultPoint& q = cycle[(i + 1) % cycle.size()];
                 twiceArea += p.x() * q.y() - q.x() * p.y();
             }
-            if (twiceArea > Number(0)) {
+            if (twiceArea > 0) {
                 result.emplace_back(ResultPolygon(cycle));
             }
         }
@@ -2350,16 +2350,16 @@ Polygon<PointType, LabelType>::intersection(const OtherHalfplane& other) const {
         auto dy = [&](const ResultPoint& p) { return p.y() - at.y(); };
         auto half = [&](const ResultPoint& p) {
             const Number y = dy(p);
-            if (y > Number(0)) return 0;
-            if (y < Number(0)) return 1;
-            return dx(p) >= Number(0) ? 0 : 1;
+            if (y > 0) return 0;
+            if (y < 0) return 1;
+            return dx(p) >= 0 ? 0 : 1;
         };
         auto ccwBefore = [&](const ResultPoint& u, const ResultPoint& w) {
             const int hu = half(u), hw = half(w);
             if (hu != hw) {
                 return hu < hw;
             }
-            return dx(u) * dy(w) - dy(u) * dx(w) > Number(0);
+            return dx(u) * dy(w) - dy(u) * dx(w) > 0;
         };
         const ResultPoint* best = nullptr;
         for (const auto& n : neighbors) {
@@ -2403,7 +2403,7 @@ Polygon<PointType, LabelType>::intersection(const OtherHalfplane& other) const {
                 const ResultPoint& q = cycle[(i + 1) % cycle.size()];
                 twiceArea += p.x() * q.y() - q.x() * p.y();
             }
-            if (twiceArea > Number(0)) {
+            if (twiceArea > 0) {
                 result.emplace_back(ResultPolygon(cycle));
             }
         }
