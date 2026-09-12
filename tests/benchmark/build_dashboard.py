@@ -224,15 +224,16 @@ def split_initial_pairs(pairs: dict):
 # Display order for the asymptotic page's own dimensions. Anything not listed
 # sorts after, alphabetically — a new dataset or problem shows up without
 # needing this table edited, just not in a hand-chosen position.
-CATEGORY_ORDER = ["Triangulation", "Voronoi diagram", "Arrangement",
+CATEGORY_ORDER = ["Triangulation", "Arrangement",
                   "Segment intersections", "Point constructions", "Point search",
                   "Segment search", "Visibility", "Minkowski sum",
-                  "Regularized union"]
+                  "Regularized union", "Voronoi diagram"]
 DATASET_ORDER = ["points", "small segments", "large segments", "polygon edges",
                  "polygon", "large + large", "large + small", "triangles"]
 PROBLEM_ORDER = ["build", "buildPointLocation", "locate", "locateFace",
                  "closest pair", "convex hull", "sort by angle", "Delaunay",
                  "kd-tree", "order 1", "order 2", "order 4",
+                 "Triangulation::voronoiDiagram",
                  "intersections", "crossings",
                  "count in Rectangle", "count in Triangle", "nearest neighbor",
                  "visibility graph", "visible vertices",
