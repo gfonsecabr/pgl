@@ -10,12 +10,14 @@
  * runtime dispatch over heterogeneous shapes is more convenient.
  */
 
+#include <array>
 #include <compare>
 #include <concepts>
 #include <functional>
 #include <optional>
 #include <ostream>
 #include <stdexcept>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -26,94 +28,49 @@ namespace pgl {
 
 namespace detail {
 
+// The alternatives of Shape<PointType>, in storage order. The leading
+// EmptyShape is the state of a default-constructed Shape. The accessor table
+// PGL_SHAPE_ALTERNATIVES below lists the same types and is checked against
+// this one.
+template <class PointType>
+using ShapeVariant = std::variant<
+    EmptyShape<PointType>,
+    PointType,
+    Segment<PointType>,
+    OrientedSegment<PointType>,
+    Line<PointType>,
+    OrientedLine<PointType>,
+    Ray<PointType>,
+    Halfplane<PointType>,
+    Rectangle<PointType>,
+    Triangle<PointType>,
+    Disk<PointType>,
+    Convex<PointType>,
+    MonotoneChain<PointType>,
+    Polyline<PointType>,
+    Polygon<PointType>,
+    HalfplaneIntersection<PointType>,
+    PolygonWithHoles<PointType>,
+    PolygonSet<PointType>>;
+
+template <class T, class Variant>
+struct variant_has : std::false_type {};
+template <class T, class... Ts>
+struct variant_has<T, std::variant<Ts...>> : std::bool_constant<(std::same_as<T, Ts> || ...)> {};
+
+// True iff T is exactly one of the alternatives of Shape<PointType>.
 template <class PointType, class T>
-struct is_shape_alternative : std::false_type {};
+concept ShapeAlternative = variant_has<std::remove_cvref_t<T>, ShapeVariant<PointType>>::value;
 
-template <class PointType>
-struct is_shape_alternative<PointType, EmptyShape<PointType>> : std::true_type {};
-
-template <class PointType, class Number, class Label>
-struct is_shape_alternative<PointType, Point<Number, Label>> : std::bool_constant<std::same_as<PointType, Point<Number, Label>>> {};
-
-template <class PointType, class Label>
-struct is_shape_alternative<PointType, Segment<PointType, Label>> : std::true_type {};
-
-template <class PointType>
-struct is_shape_alternative<PointType, OrientedSegment<PointType>> : std::true_type {};
-
-template <class PointType>
-struct is_shape_alternative<PointType, Line<PointType>> : std::true_type {};
-
-template <class PointType>
-struct is_shape_alternative<PointType, OrientedLine<PointType>> : std::true_type {};
-
-template <class PointType>
-struct is_shape_alternative<PointType, Ray<PointType>> : std::true_type {};
-
-template <class PointType>
-struct is_shape_alternative<PointType, Halfplane<PointType>> : std::true_type {};
-
-template <class PointType>
-struct is_shape_alternative<PointType, Rectangle<PointType>> : std::true_type {};
-
-template <class PointType>
-struct is_shape_alternative<PointType, Triangle<PointType>> : std::true_type {};
-
-template <class PointType>
-struct is_shape_alternative<PointType, Convex<PointType>> : std::true_type {};
-
-template <class PointType, class Label>
-struct is_shape_alternative<PointType, Disk<PointType, Label>> : std::true_type {};
-
-template <class PointType>
-struct is_shape_alternative<PointType, MonotoneChain<PointType>> : std::true_type {};
-
-template <class PointType>
-struct is_shape_alternative<PointType, Polyline<PointType>> : std::true_type {};
-
-template <class PointType>
-struct is_shape_alternative<PointType, Polygon<PointType>> : std::true_type {};
-
-template <class PointType, class Label>
-struct is_shape_alternative<PointType, HalfplaneIntersection<PointType, Label>> : std::true_type {};
-
-template <class PointType, class Label>
-struct is_shape_alternative<PointType, PolygonWithHoles<PointType, Label>> : std::true_type {};
-
-template <class PointType, class Label>
-struct is_shape_alternative<PointType, PolygonSet<PointType, Label>> : std::true_type {};
-
-template <class PointType, class T>
-inline constexpr bool is_shape_alternative_v = is_shape_alternative<PointType, std::remove_cvref_t<T>>::value;
-
-template <class PointType, class T>
-concept ShapeAlternative = is_shape_alternative_v<PointType, T>;
-
-// Minimal shape detectors for the standard wrappers an intersection may return.
-template <class T>
-struct is_std_optional : std::false_type {};
-template <class T>
-struct is_std_optional<std::optional<T>> : std::true_type {};
-
-template <class T>
-struct is_std_vector : std::false_type {};
-template <class T, class A>
-struct is_std_vector<std::vector<T, A>> : std::true_type {};
-
-template <class T>
-struct is_std_variant : std::false_type {};
-template <class... Ts>
-struct is_std_variant<std::variant<Ts...>> : std::true_type {};
-
-// True iff T is a std::variant whose every alternative is a supported shape for
-// PointType. Gates the variant-unwrapping Shape constructor so a variant that
-// could hold a non-shape is rejected at compile time.
+// True iff T is a std::variant whose every alternative is an alternative of
+// Shape<PointType>. Gates the variant-unwrapping Shape constructor so a variant
+// that could hold a non-shape is rejected at compile time.
 template <class PointType, class T>
 struct is_shape_variant : std::false_type {};
 
 template <class PointType, class... Ts>
 struct is_shape_variant<PointType, std::variant<Ts...>>
-    : std::bool_constant<(is_shape_alternative_v<PointType, Ts> && ...)> {};
+    : std::bool_constant<(ShapeAlternative<PointType, Ts> && ...)> {};
 
 template <class PointType, class T>
 inline constexpr bool is_shape_variant_v = is_shape_variant<PointType, std::remove_cvref_t<T>>::value;
@@ -130,9 +87,8 @@ template <class PointType, class T>
 inline constexpr bool is_shape_optional_variant_v =
     is_shape_optional_variant<PointType, std::remove_cvref_t<T>>::value;
 
-// Point type carried by a shape alternative: a Point is its own point type;
-// every other alternative exposes it as a nested PointType. Used by the Shape
-// deduction guides to recover the wrapper's point type from a result variant.
+// Point type carried by a shape: a Point is its own point type; every other
+// shape, Shape included, exposes it as a nested PointType.
 template <class T>
 struct shape_point_type {
     using type = typename T::PointType;
@@ -146,48 +102,124 @@ struct shape_point_type<Point<Number, Label>> {
 template <class T>
 using shape_point_type_t = typename shape_point_type<T>::type;
 
+// The alternative of a variant that is the same kind of shape as T, i.e. has
+// its shapeRank; void when there is none.
+template <int Rank, class Variant>
+struct alternative_with_rank {
+    using type = void;
+};
+
+template <int Rank, class T, class... Ts>
+struct alternative_with_rank<Rank, std::variant<T, Ts...>> {
+    using type = std::conditional_t<shapeRank<T> == Rank, T,
+                                    typename alternative_with_rank<Rank, std::variant<Ts...>>::type>;
+};
+
+template <class PointType, class T>
+using shape_alternative_of_kind_t =
+    typename alternative_with_rank<shapeRank<std::remove_cvref_t<T>>, ShapeVariant<PointType>>::type;
+
+// True iff a concrete shape T of another point or label type converts to the
+// alternative of Shape<PointType> of its kind.
+template <class PointType, class T>
+concept ConvertibleToShapeAlternative =
+    !ShapeConcept<T> && !ShapeAlternative<PointType, T> && shapeRank<std::remove_cvref_t<T>> >= 0 &&
+    (EmptyShapeConcept<T> || std::is_constructible_v<shape_alternative_of_kind_t<PointType, T>, const T&>);
+
+// Converts a concrete shape to the alternative of Shape<PointType> of its kind.
+template <class PointType, class T>
+constexpr auto toShapeAlternative(const T& value) {
+    using Alternative = shape_alternative_of_kind_t<PointType, T>;
+    if constexpr (EmptyShapeConcept<T>) {
+        return Alternative{};
+    } else {
+        return Alternative(value);
+    }
+}
+
+// Converts an exactly computed point to Point<ResultNumber, Label>, throwing
+// when ResultNumber is not closed under division and the point is off its
+// lattice. This is how a Shape over an integral point type reports a
+// HalfplaneIntersection vertex it cannot hold, instead of truncating it.
+template <class ResultNumber, class Label, class ExactPoint>
+constexpr Point<ResultNumber, Label> narrowPoint(const ExactPoint& point, std::string_view operation) {
+    if constexpr (!std::same_as<division_result_t<ResultNumber>, ResultNumber> &&
+                  requires { point.x().isInteger(); }) {
+        if (!point.x().isInteger() || !point.y().isInteger()) {
+            throw unsupported_operation(operation, "HalfplaneIntersection");
+        }
+    }
+    return Point<ResultNumber, Label>(point);
+}
+
 }  // namespace detail
+
+// The accessor table: every alternative of Shape<PointType> as a (Name, Type)
+// pair, in storage order. The holdsX / getIfHoldsX / asX shorthands are
+// generated from it, and it is checked against detail::ShapeVariant; error
+// messages name the alternatives through detail::shapeName.
+#define PGL_SHAPE_ALTERNATIVES(X)                                  \
+    X(EmptyShape, EmptyShape<PointType>)                           \
+    X(Point, PointType)                                            \
+    X(Segment, Segment<PointType>)                                 \
+    X(OrientedSegment, OrientedSegment<PointType>)                 \
+    X(Line, Line<PointType>)                                       \
+    X(OrientedLine, OrientedLine<PointType>)                       \
+    X(Ray, Ray<PointType>)                                         \
+    X(Halfplane, Halfplane<PointType>)                             \
+    X(Rectangle, Rectangle<PointType>)                             \
+    X(Triangle, Triangle<PointType>)                               \
+    X(Disk, Disk<PointType>)                                       \
+    X(Convex, Convex<PointType>)                                   \
+    X(MonotoneChain, MonotoneChain<PointType>)                     \
+    X(Polyline, Polyline<PointType>)                               \
+    X(Polygon, Polygon<PointType>)                                 \
+    X(HalfplaneIntersection, HalfplaneIntersection<PointType>)     \
+    X(PolygonWithHoles, PolygonWithHoles<PointType>)               \
+    X(PolygonSet, PolygonSet<PointType>)
 
 /**
  * @brief Type-erased wrapper over the finite set of supported primitive shapes.
  *
- * `Shape<PointType>` stores one geometry in a variant and forwards common
- * predicates through visitation.
+ * `Shape<PointType>` stores one geometry in a variant. It does what the object
+ * it holds does whenever that is possible, and throws
+ * @ref unsupported_operation otherwise: nothing is forbidden at compile time by
+ * the set of alternatives, and nothing answers in place of an implementation
+ * that does not exist.
  *
- * @tparam PointType Point type shared by every stored alternative.
+ * Two vocabularies never share a word. `is…`, `getIf…` and `as…` are geometric
+ * and answer as the held object does (`isPoint()`: is the point set a single
+ * point); `holds…`, `getIfHolds…` and `asHeld…` are about storage
+ * (`holdsPoint()`: is the stored alternative a `Point`).
+ *
+ * @tparam PointType_ Point type shared by every stored alternative.
  */
-template <class PointType = Point<>>
+template <class PointType_ = Point<>>
 struct Shape {
     /** Point type shared by all alternatives. */
-    using PointType_ = PointType;
+    using PointType = PointType_;
     /** Coordinate type of the stored point type. */
-    using NumberType = PointType::NumberType;
+    using NumberType = typename PointType::NumberType;
     /** Label type of the stored point type. */
-    using LabelType = PointType::LabelType;
+    using LabelType = typename PointType::LabelType;
     /** Variant type used for storage and visitation. The leading
      * `EmptyShape` is the empty state of a default-constructed `Shape`. */
-    using Variant = std::variant<
-        EmptyShape<PointType>,
-        PointType,
-        Segment<PointType>,
-        OrientedSegment<PointType>,
-        Line<PointType>,
-        OrientedLine<PointType>,
-        Ray<PointType>,
-        Halfplane<PointType>,
-        Rectangle<PointType>,
-        Triangle<PointType>,
-        Disk<PointType>,
-        Convex<PointType>,
-        MonotoneChain<PointType>,
-        Polyline<PointType>,
-        Polygon<PointType>,
-        HalfplaneIntersection<PointType>,
-        PolygonWithHoles<PointType>,
-        PolygonSet<PointType>>;
+    using Variant = detail::ShapeVariant<PointType>;
+
+#define PGL_SHAPE_COUNT_ALTERNATIVE(Name, Type) +1
+#define PGL_SHAPE_CHECK_ALTERNATIVE(Name, Type) \
+    static_assert(detail::variant_has<Type, Variant>::value, "PGL_SHAPE_ALTERNATIVES lists " #Name " but the variant does not hold it");
+    static_assert(std::variant_size_v<Variant> == 0 PGL_SHAPE_ALTERNATIVES(PGL_SHAPE_COUNT_ALTERNATIVE),
+                  "PGL_SHAPE_ALTERNATIVES and detail::ShapeVariant disagree");
+    PGL_SHAPE_ALTERNATIVES(PGL_SHAPE_CHECK_ALTERNATIVE)
+#undef PGL_SHAPE_CHECK_ALTERNATIVE
+#undef PGL_SHAPE_COUNT_ALTERNATIVE
+
+    // -------------------------------------------------------------------------
+    // Construction
 
     /**
-     * @brief Creates a point-valued default shape.
+     * @brief Creates the empty shape, holding an `EmptyShape`.
      */
     constexpr Shape() = default;
 
@@ -229,6 +261,40 @@ struct Shape {
     }
 
     /**
+     * @brief Converts a concrete shape of another point or label type into the
+     *        alternative of its kind.
+     *
+     * `Shape<Point<double>>(segment)` stores `Segment<Point<double>>(segment)`
+     * for a `Segment` over any point type, and likewise for every other kind.
+     *
+     * @tparam T Concrete shape type that is not itself an alternative.
+     * @param value Shape to convert.
+     */
+    template <class T>
+        requires(detail::ConvertibleToShapeAlternative<PointType, T>)
+    constexpr explicit Shape(const T& value)
+        : value_(detail::toShapeAlternative<PointType>(value)) {}
+
+    /**
+     * @brief Converts a shape over another point type, alternative by alternative.
+     *
+     * @throws unsupported_operation if the stored alternative has no conversion
+     *   to this point type.
+     */
+    template <class OtherPoint>
+        requires(!std::same_as<OtherPoint, PointType>)
+    constexpr explicit Shape(const Shape<OtherPoint>& other)
+        : value_(other.visit([](const auto& alternative) -> Variant {
+              using S = std::remove_cvref_t<decltype(alternative)>;
+              if constexpr (EmptyShapeConcept<S> ||
+                            std::is_constructible_v<detail::shape_alternative_of_kind_t<PointType, S>, const S&>) {
+                  return Variant(detail::toShapeAlternative<PointType>(alternative));
+              } else {
+                  throw unsupported_operation("Shape conversion", detail::shapeName<S>);
+              }
+          })) {}
+
+    /**
      * @brief Replaces the stored alternative.
      *
      * @tparam T Alternative type.
@@ -242,22 +308,27 @@ struct Shape {
         return *this;
     }
 
+    // -------------------------------------------------------------------------
+    // Storage access
+
     /**
-     * @brief Compares wrapped values.
+     * @brief Calls @p f with the stored alternative.
+     *
+     * @return Whatever @p f returns, which must be the same type for every alternative.
      */
-    constexpr bool operator==(const Shape&) const = default;
+    template <class F>
+    constexpr decltype(auto) visit(F&& f) const {
+        return std::visit(std::forward<F>(f), value_);
+    }
 
-    /** @brief Tests whether another shape defines exactly the same point set. */
-    template<AnyShapeConcept OtherShape>
-    [[nodiscard]] constexpr bool samePointSet(const OtherShape& other) const;
+    /** @copydoc visit(F&&) const */
+    template <class F>
+    constexpr decltype(auto) visit(F&& f) {
+        return std::visit(std::forward<F>(f), value_);
+    }
 
     /**
-     * @brief Orders wrapped values by the underlying variant ordering.
-     */
-    constexpr auto operator<=>(const Shape&) const = default;
-
-    /**
-     * @brief Returns the underlying variant.
+     * @brief Returns the underlying variant, for code that needs it as a variant.
      *
      * @return Const reference to the stored variant.
      */
@@ -265,325 +336,69 @@ struct Shape {
         return value_;
     }
 
-    /**
-     * @brief Returns the underlying variant.
-     *
-     * @return Mutable reference to the stored variant.
-     */
+    /** @copydoc variant() const */
     constexpr Variant& variant() {
         return value_;
     }
 
     /**
-     * @brief Tests whether the wrapped shape covers no point at all.
+     * @brief Tests whether the stored alternative is `T`.
      *
-     * The `EmptyShape` alternative of a default-constructed wrapper is always
-     * empty. Every other alternative that has an empty state of its own --
-     * `Rectangle`, `Convex`, `Polygon`, `PolygonWithHoles`, `PolygonSet`,
-     * `HalfplaneIntersection`, `Polyline`, and `MonotoneChain` -- answers its
-     * own `empty()`, so a wrapper holding an empty `Rectangle` is empty as
-     * well. An alternative that is defined by points it always covers is never
-     * empty and answers `false`.
-     *
-     * This is a question about the stored geometry, not about which alternative
-     * is stored; `holdsAlternative<EmptyShape<PointType>>()` asks the latter.
-     *
-     * @return `true` when the wrapped shape is the empty set of points.
-     */
-    [[nodiscard]] constexpr bool empty() const {
-        return std::visit([](const auto& value) { return detail::coversNoPoint(value); },
-                          value_);
-    }
-
-    /**
-     * @brief Tests whether the wrapped shape is degenerate.
-     *
-     * @return Result of dispatching `isDegenerate` when available.
-     */
-    [[nodiscard]] constexpr bool isDegenerate() const {
-        return std::visit(
-            [](const auto& value) {
-                if constexpr (requires { value.isDegenerate(); }) {
-                    return value.isDegenerate();
-                } else {
-                    return false;
-                }
-            },
-            value_);
-    }
-
-    /**
-     * @brief Returns the wrapped shape's axis-aligned bounding box.
-     *
-     * Dispatches to the alternative's `bbox()`.
-     *
-     * @throws std::logic_error if the wrapped alternative is unbounded and
-     * therefore has no `bbox()` — the `EmptyShape`, `Line`, `OrientedLine`,
-     * `Ray`, and `Halfplane` alternatives, and a `HalfplaneIntersection`
-     * whose own `bbox()` throws when the region is unbounded or empty.
-     */
-    [[nodiscard]] constexpr Rectangle<PointType> bbox() const {
-        return std::visit(
-            [](const auto& value) -> Rectangle<PointType> {
-                if constexpr (requires { value.template bbox<NumberType>(); }) {
-                    return value.template bbox<NumberType>();
-                } else if constexpr (requires { value.bbox(); }) {
-                    return value.bbox();
-                } else {
-                    throw std::logic_error("Shape::bbox is not defined for this unbounded alternative");
-                }
-            },
-            value_);
-    }
-
-    /**
-     * @brief Returns the number of indexable elements of the wrapped shape.
-     *
-     * Dispatches to the alternative's `size()` so the result matches the
-     * valid range of its `operator[]`.
-     *
-     * @throws std::logic_error for the `PolygonWithHoles` and `PolygonSet`
-     * alternatives, neither of which has a single indexable sequence: a region's
-     * vertices are spread over its outer ring and its holes, and a set's over
-     * its components. Reach through with `getIfPolygonWithHoles()` and use
-     * `vertexCount()`, `outer()`, or `holes()`; with `getIfPolygonSet()` and use
-     * `vertexCount()`, `componentCount()`, or `component()`.
-     */
-    [[nodiscard]] constexpr std::size_t size() const {
-        return std::visit(
-            [](const auto& value) -> std::size_t {
-                using S = std::decay_t<decltype(value)>;
-                if constexpr (detail::is_polygon_with_holes_v<S>) {
-                    throw std::logic_error("Shape::size is not defined for the PolygonWithHoles alternative");
-                } else if constexpr (detail::is_polygon_set_v<S>) {
-                    throw std::logic_error("Shape::size is not defined for the PolygonSet alternative");
-                } else {
-                    return value.size();
-                }
-            },
-            value_);
-    }
-
-    /**
-     * @brief Returns the i-th vertex (modulo @ref size()) of the wrapped shape.
-     *
-     * Dispatches via `std::visit` to the alternative's `get(index)`. Only
-     * defined for alternatives whose `get` yields a `PointType_` — i.e.,
-     * every alternative except `Point` itself, whose `get` yields a
-     * coordinate, `HalfplaneIntersection`, whose `get` yields a
-     * half-plane, and `PolygonWithHoles` and `PolygonSet`, which have no single
-     * indexable vertex sequence. Throws `std::logic_error` for those four
-     * alternatives.
-     */
-    [[nodiscard]] constexpr PointType_ get(std::ptrdiff_t index) const {
-        return std::visit(
-            [index](const auto& value) -> PointType_ {
-                using S = std::decay_t<decltype(value)>;
-                if constexpr (std::same_as<S, PointType_>) {
-                    throw std::logic_error("Shape::get is not defined for the Point alternative");
-                } else if constexpr (detail::is_halfplane_intersection_v<S>) {
-                    throw std::logic_error("Shape::get is not defined for the HalfplaneIntersection alternative");
-                } else if constexpr (detail::is_polygon_with_holes_v<S>) {
-                    throw std::logic_error("Shape::get is not defined for the PolygonWithHoles alternative");
-                } else if constexpr (detail::is_polygon_set_v<S>) {
-                    throw std::logic_error("Shape::get is not defined for the PolygonSet alternative");
-                } else {
-                    return value.get(index);
-                }
-            },
-            value_);
-    }
-
-    /**
-     * @brief Returns the vertex at `index` of the wrapped shape.
-     *
-     * Dispatches via `std::visit` to the alternative's `operator[](index)`.
-     * Only defined for alternatives whose `operator[]` yields a
-     * `PointType_` — i.e., every alternative except `Point` itself, whose
-     * `operator[]` yields a coordinate, `HalfplaneIntersection`, whose
-     * `operator[]` yields a half-plane, and `PolygonWithHoles` and `PolygonSet`,
-     * which have no single indexable vertex sequence. Throws
-     * `std::logic_error` for those four alternatives.
-     */
-    [[nodiscard]] constexpr PointType_ operator[](std::size_t index) const {
-        return std::visit(
-            [index](const auto& value) -> PointType_ {
-                using S = std::decay_t<decltype(value)>;
-                if constexpr (std::same_as<S, PointType_>) {
-                    throw std::logic_error("Shape::operator[] is not defined for the Point alternative");
-                } else if constexpr (detail::is_halfplane_intersection_v<S>) {
-                    throw std::logic_error("Shape::operator[] is not defined for the HalfplaneIntersection alternative");
-                } else if constexpr (detail::is_polygon_with_holes_v<S>) {
-                    throw std::logic_error("Shape::operator[] is not defined for the PolygonWithHoles alternative");
-                } else if constexpr (detail::is_polygon_set_v<S>) {
-                    throw std::logic_error("Shape::operator[] is not defined for the PolygonSet alternative");
-                } else {
-                    return value[index];
-                }
-            },
-            value_);
-    }
-
-    /**
-     * @brief Returns the smallest index `i` with `(*this)[i] == point`, or
-     * `-1` if no vertex of the wrapped shape equals `point`.
-     *
-     * Dispatches via `std::visit` to the alternative's `index(point)`. The
-     * argument type selects this overload for every alternative except `Point`
-     * — whose `operator[]` yields a coordinate, handled by the
-     * @ref index(const NumberType&) overload. Throws `std::logic_error` if the
-     * wrapped value is a `Point`, a `HalfplaneIntersection`, whose elements
-     * are half-planes rather than points, or a `PolygonWithHoles` or a
-     * `PolygonSet`, neither of which has a single indexable vertex sequence.
-     */
-    [[nodiscard]] constexpr std::ptrdiff_t index(const PointType_& point) const {
-        return std::visit(
-            [&point](const auto& value) -> std::ptrdiff_t {
-                using S = std::decay_t<decltype(value)>;
-                if constexpr (std::same_as<S, PointType_>) {
-                    throw std::logic_error("Shape::index(Point) is not defined for the Point alternative");
-                } else if constexpr (detail::is_halfplane_intersection_v<S>) {
-                    throw std::logic_error("Shape::index(Point) is not defined for the HalfplaneIntersection alternative");
-                } else if constexpr (detail::is_polygon_with_holes_v<S>) {
-                    throw std::logic_error("Shape::index(Point) is not defined for the PolygonWithHoles alternative");
-                } else if constexpr (detail::is_polygon_set_v<S>) {
-                    throw std::logic_error("Shape::index(Point) is not defined for the PolygonSet alternative");
-                } else {
-                    return value.index(point);
-                }
-            },
-            value_);
-    }
-
-    /**
-     * @brief Returns the smallest index `i` with `(*this)[i] == value`, or
-     * `-1` if no coordinate equals `value`.
-     *
-     * Dispatches via `std::visit` to `Point::index(value)`. The argument type
-     * selects this overload only for the `Point` alternative, whose
-     * `operator[]` yields a coordinate; every other alternative indexes points
-     * via the @ref index(const PointType_&) overload. Throws
-     * `std::logic_error` if the wrapped value is not a `Point`.
-     */
-    [[nodiscard]] constexpr std::ptrdiff_t index(const NumberType& value) const {
-        return std::visit(
-            [&value](const auto& shape) -> std::ptrdiff_t {
-                using S = std::decay_t<decltype(shape)>;
-                if constexpr (std::same_as<S, PointType_>) {
-                    return shape.index(value);
-                } else {
-                    throw std::logic_error("Shape::index(NumberType) is only defined for the Point alternative");
-                }
-            },
-            value_);
-    }
-
-    /**
-     * @brief Tests whether the wrapper currently stores a given alternative.
-     *
-     * @tparam T Alternative type.
-     * @return `true` if the stored value has that type.
+     * A question about storage, not geometry: a `Shape` holding a `Triangle`
+     * collapsed to a point holds a `Triangle` and not a `Point`.
      */
     template <class T>
         requires(detail::ShapeAlternative<PointType, T>)
-    constexpr bool holdsAlternative() const {
+    [[nodiscard]] constexpr bool holds() const {
         return std::holds_alternative<std::remove_cvref_t<T>>(value_);
     }
 
     /**
-     * @brief Returns a pointer to the stored alternative when it matches `T`.
-     *
-     * @tparam T Alternative type.
-     * @return Pointer to the stored value or `nullptr`.
+     * @brief Returns a pointer to the stored alternative when it is `T`,
+     *        `nullptr` otherwise.
      */
     template <class T>
         requires(detail::ShapeAlternative<PointType, T>)
-    constexpr const std::remove_cvref_t<T>* getIf() const {
+    [[nodiscard]] constexpr const std::remove_cvref_t<T>* getIfHolds() const {
+        return std::get_if<std::remove_cvref_t<T>>(&value_);
+    }
+
+    /** @copydoc getIfHolds() const */
+    template <class T>
+        requires(detail::ShapeAlternative<PointType, T>)
+    [[nodiscard]] constexpr std::remove_cvref_t<T>* getIfHolds() {
         return std::get_if<std::remove_cvref_t<T>>(&value_);
     }
 
     /**
-     * @brief Returns a mutable pointer to the stored alternative when it matches `T`.
+     * @brief Returns the stored alternative, which must be `T`.
      *
-     * @tparam T Alternative type.
-     * @return Pointer to the stored value or `nullptr`.
+     * @throws std::bad_variant_access if another alternative is stored.
      */
     template <class T>
         requires(detail::ShapeAlternative<PointType, T>)
-    constexpr std::remove_cvref_t<T>* getIf() {
-        return std::get_if<std::remove_cvref_t<T>>(&value_);
+    [[nodiscard]] constexpr const std::remove_cvref_t<T>& asHeld() const {
+        return std::get<std::remove_cvref_t<T>>(value_);
+    }
+
+    /** @copydoc asHeld() const */
+    template <class T>
+        requires(detail::ShapeAlternative<PointType, T>)
+    [[nodiscard]] constexpr std::remove_cvref_t<T>& asHeld() {
+        return std::get<std::remove_cvref_t<T>>(value_);
     }
 
     /**
-     * @name Per-alternative accessors
+     * @brief Converts to the stored alternative, so an alternative can be
+     *        recovered by naming its type: `Point cross(shape);`.
      *
-     * Named shorthands for @ref holdsAlternative and @ref getIf, one family per
-     * stored alternative: `isPoint()` / `getIfPoint()`, `isSegment()` /
-     * `getIfSegment()`, and so on through every alternative of @ref Variant.
-     *
-     * These test *which alternative is stored*, not the geometry of the stored
-     * value. This differs from the same-named methods on the concrete shapes,
-     * where `isPoint()` asks whether the shape's point set is a single point:
-     * a `Shape` holding a `Triangle` whose vertices coincide reports
-     * `isTriangle()` and not `isPoint()`. Reach through with
-     * `getIfTriangle()->isPoint()` to ask the geometric question.
-     *
-     * `getIf...` returns a pointer into the stored variant, `nullptr` when
-     * another alternative is active. The `EmptyShape` alternative has no such
-     * pair; use `holdsAlternative<EmptyShape<PointType>>()`, since @ref empty()
-     * asks the geometric question and is also true for, say, an empty
-     * `Rectangle`.
-     */
-    ///@{
-// The doc comments below are part of the expansion on purpose: a description on
-// the enclosing @name group documents the group, not its members, which would
-// leave all 51 generated methods without a @brief of their own.
-#define PGL_SHAPE_ALTERNATIVE(Name, Type)                        \
-    /** @brief Tests whether the stored alternative is Name. */  \
-    [[nodiscard]] constexpr bool is##Name() const {              \
-        return std::holds_alternative<Type>(value_);             \
-    }                                                            \
-    /** @brief Returns a pointer to the stored Name, or `nullptr` \
-        when another alternative is active. */                   \
-    [[nodiscard]] constexpr const Type* getIf##Name() const {    \
-        return std::get_if<Type>(&value_);                       \
-    }                                                            \
-    /** @brief Returns a pointer to the stored Name, or `nullptr` \
-        when another alternative is active. */                   \
-    [[nodiscard]] constexpr Type* getIf##Name() {                \
-        return std::get_if<Type>(&value_);                       \
-    }
-
-    PGL_SHAPE_ALTERNATIVE(Point, PointType)
-    PGL_SHAPE_ALTERNATIVE(Segment, Segment<PointType>)
-    PGL_SHAPE_ALTERNATIVE(OrientedSegment, OrientedSegment<PointType>)
-    PGL_SHAPE_ALTERNATIVE(Line, Line<PointType>)
-    PGL_SHAPE_ALTERNATIVE(OrientedLine, OrientedLine<PointType>)
-    PGL_SHAPE_ALTERNATIVE(Ray, Ray<PointType>)
-    PGL_SHAPE_ALTERNATIVE(Halfplane, Halfplane<PointType>)
-    PGL_SHAPE_ALTERNATIVE(Rectangle, Rectangle<PointType>)
-    PGL_SHAPE_ALTERNATIVE(Triangle, Triangle<PointType>)
-    PGL_SHAPE_ALTERNATIVE(Disk, Disk<PointType>)
-    PGL_SHAPE_ALTERNATIVE(Convex, Convex<PointType>)
-    PGL_SHAPE_ALTERNATIVE(MonotoneChain, MonotoneChain<PointType>)
-    PGL_SHAPE_ALTERNATIVE(Polyline, Polyline<PointType>)
-    PGL_SHAPE_ALTERNATIVE(Polygon, Polygon<PointType>)
-    PGL_SHAPE_ALTERNATIVE(HalfplaneIntersection, HalfplaneIntersection<PointType>)
-    PGL_SHAPE_ALTERNATIVE(PolygonWithHoles, PolygonWithHoles<PointType>)
-    PGL_SHAPE_ALTERNATIVE(PolygonSet, PolygonSet<PointType>)
-
-#undef PGL_SHAPE_ALTERNATIVE
-    ///@}
-
-    /**
-     * @brief Converts to the currently stored alternative.
-     *
-     * Lets an unwrapped alternative be recovered directly, e.g.
-     * `Point cross = shape;` when @p shape holds a `Point`.
+     * The same value @ref asHeld returns, spelled as a construction or a
+     * `static_cast`. Explicit, so it never fires on its own -- a `Shape` is
+     * never silently taken for one of its alternatives.
      *
      * @tparam T Alternative type to extract.
      * @return A copy of the stored value.
-     * @throws std::bad_variant_access if the wrapper holds a different alternative.
+     * @throws std::bad_variant_access if another alternative is stored.
      */
     template <class T>
         requires(detail::ShapeAlternative<PointType, T>)
@@ -592,521 +407,816 @@ struct Shape {
     }
 
     /**
-     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     * @name Per-alternative storage accessors
      *
-     * @tparam Other `Shape` or a supported alternative type.
-     * @param other Operand to test.
-     * @return Result of dispatching `contains`.
+     * Named shorthands for @ref holds, @ref getIfHolds and @ref asHeld, one
+     * family per stored alternative: `holdsPoint()` / `getIfHoldsPoint()` /
+     * `asHeldPoint()`, `holdsSegment()` / `getIfHoldsSegment()` /
+     * `asHeldSegment()`, and so on through every alternative of @ref Variant,
+     * `EmptyShape` included. The plain `getIfPoint()`, `getIfSegment()` and
+     * `asPolygonWithHoles()` are geometric, as on every concrete shape.
      */
-    template <class Other>
-        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
-    constexpr bool contains(const Other& other) const {
-        return applyPredicate(
-            [](const auto& left, const auto& right) {
-                if constexpr (requires { left.contains(right); }) {
-                    return left.contains(right);
-                } else {
-                    return false;
-                }
-            },
-            other);
+    ///@{
+// The doc comments below are part of the expansion on purpose: a description on
+// the enclosing @name group documents the group, not its members, which would
+// leave every generated method without a @brief of their own.
+#define PGL_SHAPE_STORAGE_ACCESSORS(Name, Type)                          \
+    /** @brief Tests whether the stored alternative is Name. */          \
+    [[nodiscard]] constexpr bool holds##Name() const {                   \
+        return std::holds_alternative<Type>(value_);                     \
+    }                                                                    \
+    /** @brief Returns a pointer to the stored Name, or `nullptr`         \
+        when another alternative is stored. */                           \
+    [[nodiscard]] constexpr const Type* getIfHolds##Name() const {       \
+        return std::get_if<Type>(&value_);                               \
+    }                                                                    \
+    /** @brief Returns a pointer to the stored Name, or `nullptr`         \
+        when another alternative is stored. */                           \
+    [[nodiscard]] constexpr Type* getIfHolds##Name() {                   \
+        return std::get_if<Type>(&value_);                               \
+    }                                                                    \
+    /** @brief Returns the stored Name; throws std::bad_variant_access    \
+        when another alternative is stored. */                           \
+    [[nodiscard]] constexpr const Type& asHeld##Name() const {           \
+        return std::get<Type>(value_);                                   \
+    }                                                                    \
+    /** @brief Returns the stored Name; throws std::bad_variant_access    \
+        when another alternative is stored. */                           \
+    [[nodiscard]] constexpr Type& asHeld##Name() {                       \
+        return std::get<Type>(value_);                                   \
+    }
+
+    PGL_SHAPE_ALTERNATIVES(PGL_SHAPE_STORAGE_ACCESSORS)
+
+#undef PGL_SHAPE_STORAGE_ACCESSORS
+    ///@}
+
+    // -------------------------------------------------------------------------
+    // Geometry queries
+
+    /**
+     * @brief Tests whether the wrapped shape covers no point at all.
+     *
+     * True for the `EmptyShape` alternative and for any alternative in its own
+     * empty state, such as an empty `Rectangle`; `holdsEmptyShape()` asks the
+     * storage question instead.
+     */
+    [[nodiscard]] constexpr bool empty() const {
+        return visit([](const auto& value) { return detail::coversNoPoint(value); });
     }
 
     /**
-     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
+     * @brief Tests whether the point set is a single point.
      *
-     * @tparam Other `Shape` or a supported alternative type.
-     * @param other Operand to test.
-     * @return Result of dispatching `boundaryContains`.
+     * A stored `Point` is one; every other alternative answers its own
+     * `isPoint()`, and those that have none -- `EmptyShape`, `Line`,
+     * `OrientedLine`, `Ray`, `Halfplane` -- are never a point.
      */
-    template <class Other>
-        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
-    constexpr bool boundaryContains(const Other& other) const {
-        return applyPredicate(
-            [](const auto& left, const auto& right) {
-                if constexpr (requires { left.boundaryContains(right); }) {
-                    return left.boundaryContains(right);
-                } else {
-                    return false;
-                }
-            },
-            other);
+    [[nodiscard]] constexpr bool isPoint() const {
+        return visit([](const auto& value) { return isPointOf(value); });
     }
 
     /**
-     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
+     * @brief Tests whether the point set is a segment of positive length.
      *
-     * @tparam Other `Shape` or a supported alternative type.
-     * @param other Operand to test.
-     * @return Result of dispatching `interiorContains`.
+     * A stored `Segment` or `OrientedSegment` is one unless it has collapsed to
+     * a point; every other alternative answers its own `isSegment()`, and those
+     * that have none are never a segment.
      */
-    template <class Other>
-        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
-    constexpr bool interiorContains(const Other& other) const {
-        return applyPredicate(
-            [](const auto& left, const auto& right) {
-                if constexpr (requires { left.interiorContains(right); }) {
-                    return left.interiorContains(right);
-                } else {
-                    return false;
-                }
-            },
-            other);
+    [[nodiscard]] constexpr bool isSegment() const {
+        return visit([](const auto& value) -> bool {
+            using S = std::remove_cvref_t<decltype(value)>;
+            if constexpr (SegmentConcept<S> || OrientedSegmentConcept<S>) {
+                return !value.isPoint();
+            } else if constexpr (requires { value.isSegment(); }) {
+                return value.isSegment();
+            } else {
+                return false;
+            }
+        });
     }
 
     /**
-     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
+     * @brief Returns the point the point set collapses to, if it is one.
      *
-     * @tparam Other `Shape` or a supported alternative type.
-     * @param other Operand to test.
-     * @return Result of dispatching `intersects`.
+     * The geometric counterpart of @ref isPoint, answered as the held object's
+     * own `getIfPoint()`; @ref getIfHoldsPoint asks the storage question.
+     *
+     * @tparam ResultNumber Coordinate type of the returned point.
+     * @throws unsupported_operation for a `HalfplaneIntersection` that collapses
+     *   to a point off the lattice of an integral @p ResultNumber, which cannot
+     *   hold it.
      */
-    template <class Other>
-        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
-    constexpr bool intersects(const Other& other) const {
-        return applyPredicate(
-            [](const auto& left, const auto& right) {
-                if constexpr (requires { left.intersects(right); }) {
-                    return left.intersects(right);
-                } else {
-                    return false;
+    template <class ResultNumber = NumberType>
+    [[nodiscard]] constexpr std::optional<Point<ResultNumber, LabelType>> getIfPoint() const {
+        using Result = std::optional<Point<ResultNumber, LabelType>>;
+        return visit([](const auto& value) -> Result {
+            using S = std::remove_cvref_t<decltype(value)>;
+            if constexpr (PointConcept<S>) {
+                return Point<ResultNumber, LabelType>(value);
+            } else if constexpr (HalfplaneIntersectionConcept<S>) {
+                const auto exact = value.getIfPoint();
+                if (!exact) {
+                    return Result{};
                 }
-            },
-            other);
+                return detail::narrowPoint<ResultNumber, LabelType>(*exact, "getIfPoint");
+            } else if constexpr (requires { value.getIfPoint(); }) {
+                const auto point = value.getIfPoint();
+                return point ? Result(Point<ResultNumber, LabelType>(*point)) : Result{};
+            } else {
+                return Result{};
+            }
+        });
     }
 
     /**
-     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
+     * @brief Returns the segment the point set collapses to, if it is one.
      *
-     * @tparam Other `Shape` or a supported alternative type.
-     * @param other Operand to test.
-     * @return Result of dispatching `interiorsIntersect`.
+     * The geometric counterpart of @ref isSegment; @ref getIfHoldsSegment asks
+     * the storage question.
+     *
+     * @tparam ResultNumber Coordinate type of the returned endpoints.
+     * @throws unsupported_operation for a `HalfplaneIntersection` that collapses
+     *   to a segment with an endpoint off the lattice of an integral
+     *   @p ResultNumber.
      */
-    template <class Other>
-        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
-    constexpr bool interiorsIntersect(const Other& other) const {
-        return applyPredicate(
-            [](const auto& left, const auto& right) {
-                if constexpr (requires { left.interiorsIntersect(right); }) {
-                    return left.interiorsIntersect(right);
-                } else {
-                    return false;
+    template <class ResultNumber = NumberType>
+    [[nodiscard]] constexpr std::optional<Segment<Point<ResultNumber, LabelType>>> getIfSegment() const {
+        using ResultPoint = Point<ResultNumber, LabelType>;
+        using ResultSegment = Segment<ResultPoint>;
+        using Result = std::optional<ResultSegment>;
+        return visit([](const auto& value) -> Result {
+            using S = std::remove_cvref_t<decltype(value)>;
+            if constexpr (SegmentConcept<S> || OrientedSegmentConcept<S>) {
+                if (value.isPoint()) {
+                    return Result{};
                 }
-            },
-            other);
+                return ResultSegment(ResultPoint(value[0]), ResultPoint(value[1]));
+            } else if constexpr (HalfplaneIntersectionConcept<S>) {
+                const auto exact = value.getIfSegment();
+                if (!exact) {
+                    return Result{};
+                }
+                return ResultSegment(detail::narrowPoint<ResultNumber, LabelType>((*exact)[0], "getIfSegment"),
+                                     detail::narrowPoint<ResultNumber, LabelType>((*exact)[1], "getIfSegment"));
+            } else if constexpr (requires { value.getIfSegment(); }) {
+                const auto segment = value.getIfSegment();
+                if (!segment) {
+                    return Result{};
+                }
+                return ResultSegment(ResultPoint((*segment)[0]), ResultPoint((*segment)[1]));
+            } else {
+                return Result{};
+            }
+        });
     }
 
     /**
-     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
-     *
-     * @tparam Other `Shape` or a supported alternative type.
-     * @param other Operand to test.
-     * @return Result of dispatching `separates` when available.
+     * @brief Tests whether the wrapped shape is degenerate, as the held object
+     *        defines it.
      */
-    template <class Other>
-        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
-    constexpr bool separates(const Other& other) const {
-        return applyPredicate(
-            [](const auto& left, const auto& right) {
-                if constexpr (requires { left.separates(right); }) {
-                    return left.separates(right);
-                } else {
-                    return false;
-                }
-            },
-            other);
+    [[nodiscard]] constexpr bool isDegenerate() const {
+        return visit([](const auto& value) -> bool {
+            if constexpr (requires { value.isDegenerate(); }) {
+                return value.isDegenerate();
+            } else {
+                throw unsupported_operation("isDegenerate", detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
     }
 
     /**
-     * @brief Tests whether the two shapes mutually separate each other (each disconnects the other).
-     *
-     * @tparam Other `Shape` or a supported alternative type.
-     * @param other Operand to test.
-     * @return Result of dispatching `crosses` when available.
+     * @brief Tests whether the wrapped shape's defining data describes no
+     *        shape, as the held object defines it.
      */
-    template <class Other>
-        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
-    constexpr bool crosses(const Other& other) const {
-        return applyPredicate(
-            [](const auto& left, const auto& right) {
-                if constexpr (requires { left.crosses(right); }) {
-                    return left.crosses(right);
-                } else {
-                    return false;
-                }
-            },
-            other);
+    [[nodiscard]] constexpr bool isUndefined() const {
+        return visit([](const auto& value) -> bool {
+            if constexpr (requires { value.isUndefined(); }) {
+                return value.isUndefined();
+            } else {
+                throw unsupported_operation("isUndefined", detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
     }
 
     /**
-     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
+     * @brief Returns the dimension of the point set: `-1` when empty, `0` for a
+     *        point, `1` for a curve, `2` for a region.
      *
-     * Visits the stored alternative (and @p other when it is itself a `Shape`),
-     * delegates to the concrete `intersection` requesting @p ResultNumber
-     * coordinates, and re-wraps the result. An empty intersection becomes an
-     * `EmptyShape`. The returned wrapper is parameterized on the result point
-     * type, which may differ from this wrapper's.
+     * This is the dimension of what the stored alternative covers, not of the
+     * alternative: a `Triangle` with collinear vertices is `1`, a collapsed one
+     * `0`.
+     */
+    [[nodiscard]] constexpr int dimension() const {
+        return visit([](const auto& value) -> int {
+            using S = std::remove_cvref_t<decltype(value)>;
+            if (detail::coversNoPoint(value)) {
+                return -1;
+            }
+            if (isPointOf(value)) {
+                return 0;
+            }
+            if constexpr (SegmentConcept<S> || OrientedSegmentConcept<S> || LineConcept<S> ||
+                          OrientedLineConcept<S> || RayConcept<S> || MonotoneChainConcept<S> ||
+                          PolylineConcept<S>) {
+                return 1;
+            } else if constexpr (DiskConcept<S> || HalfplaneConcept<S>) {
+                return 2;
+            } else {
+                return value.isDegenerate() ? 1 : 2;
+            }
+        });
+    }
+
+    /**
+     * @brief Tests whether the point set is bounded.
      *
-     * @tparam ResultNumber Coordinate type of the result (defaults to
-     *   @ref division_result_t for this wrapper's coordinate type).
-     * @tparam Other `Shape` or a supported alternative type.
-     * @param other Shape to intersect with.
-     * @return The intersection wrapped in a `Shape<Point<ResultNumber, LabelType>>`.
-     * @throws std::logic_error when the result cannot be represented by a single
-     *   `Shape` — i.e. a disconnected intersection with no single alternative to
-     *   hold it, or a pair whose intersection is unsupported (anything against a
-     *   `Disk`, and a `HalfplaneIntersection` against a `MonotoneChain` or
-     *   `Polyline`). Two
-     *   `Halfplane`s, and a `HalfplaneIntersection` against a `Halfplane`,
-     *   `Rectangle`, `Triangle`, `Convex`, or another `HalfplaneIntersection`,
-     *   wrap their (possibly unbounded or empty) `HalfplaneIntersection`
-     *   result. A `HalfplaneIntersection` against a `Polygon` wraps the single
-     *   component of its component vector, in either order. A
-     *   `PolygonWithHoles` against a one-dimensional alternative — a `Point`,
-     *   `Segment`, `OrientedSegment`, `Line`, `OrientedLine`, `Ray`,
-     *   `MonotoneChain` or `Polyline` — a `PolygonWithHoles` wraps the single
-     *   point-or-segment piece instead, in either order, and throws when there
-     *   are several, a hole being exactly what makes that likely. A
-     *   `PolygonWithHoles` or a `PolygonSet` against an area alternative wraps
-     *   the single piece of its literal intersection the same way, and throws
-     *   just as readily: an intersection of regions comes apart into a piece per
-     *   area component *plus* one per stretch of shared boundary. Reach for the
-     *   separately named @ref regularizedIntersection when only the areas are
-     *   wanted — it answers with a `PolygonSet`, so a result in several pieces
-     *   is never what makes *it* throw. Its overload grid is narrower than this
-     *   one's, though: it needs a `PolygonWithHoles` or a `PolygonSet` on one
-     *   side, so it throws for a pair drawn only from `Rectangle`, `Triangle`,
-     *   `Convex` and `Polygon`, where @ref regularizedUnion, @ref difference
-     *   and @ref symmetricDifference all answer.
+     * `false` for a `Line`, `OrientedLine`, `Ray`, `Halfplane`, and a
+     * `HalfplaneIntersection` that is unbounded; `true` otherwise, including for
+     * the empty shape.
+     */
+    [[nodiscard]] constexpr bool isBounded() const {
+        return visit([](const auto& value) -> bool {
+            using S = std::remove_cvref_t<decltype(value)>;
+            if constexpr (requires { value.isBounded(); }) {
+                return value.isBounded();
+            } else {
+                return !(LineConcept<S> || OrientedLineConcept<S> || RayConcept<S> || HalfplaneConcept<S>);
+            }
+        });
+    }
+
+    /**
+     * @brief Returns the wrapped shape's axis-aligned bounding box.
+     *
+     * @throws unsupported_operation when the held object has no bounding box:
+     *   the `EmptyShape`, `Line`, `OrientedLine`, `Ray` and `Halfplane`
+     *   alternatives, and an empty or unbounded `HalfplaneIntersection`.
+     */
+    [[nodiscard]] constexpr Rectangle<PointType> bbox() const {
+        return visit([](const auto& value) -> Rectangle<PointType> {
+            using S = std::remove_cvref_t<decltype(value)>;
+            if constexpr (HalfplaneIntersectionConcept<S>) {
+                if (value.empty() || !value.isBounded()) {
+                    throw unsupported_operation("bbox", detail::shapeName<S>);
+                }
+            }
+            if constexpr (requires { value.template bbox<NumberType>(); }) {
+                return value.template bbox<NumberType>();
+            } else if constexpr (requires { value.bbox(); }) {
+                return value.bbox();
+            } else {
+                throw unsupported_operation("bbox", detail::shapeName<S>);
+            }
+        });
+    }
+
+    /**
+     * @brief Returns a floating-point bounding box of the wrapped shape.
+     *
+     * The held object's own `fbox()`, so a `Disk` computes its box from its
+     * floating-point center and radius and the stored shapes round their exact
+     * coordinates outward.
+     *
+     * @tparam ResultNumber Floating-point coordinate type of the box.
+     * @throws unsupported_operation for an alternative with no `fbox()`: the
+     *   `EmptyShape`, `Line`, `OrientedLine`, `Ray` and `Halfplane`
+     *   alternatives.
+     */
+    template <class ResultNumber = double>
+    [[nodiscard]] constexpr Rectangle<Point<ResultNumber>> fbox() const {
+        using Result = Rectangle<Point<ResultNumber>>;
+        return visit([](const auto& value) -> Result {
+            if constexpr (requires { value.template fbox<ResultNumber>(); }) {
+                return value.template fbox<ResultNumber>();
+            } else {
+                throw unsupported_operation("fbox", detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
+    }
+
+    /**
+     * @name Queries about the defining data
+     *
+     * Each answers as the held object's method of the same name, and throws
+     * @ref unsupported_operation for an alternative that has none. Unlike the
+     * queries above, these are about how the shape is written down rather than
+     * about its point set, so only the alternatives that store that kind of
+     * data answer: the linear shapes have a slope and the shapes built from a
+     * ring know whether it is simple.
+     */
+    ///@{
+// The doc comments are part of the expansion on purpose; see the storage
+// accessors above.
+#define PGL_SHAPE_FORWARD_QUERY(Name, Supported)                                          \
+    /** @brief Name of the wrapped shape. @throws unsupported_operation for an             \
+        alternative other than Supported. */                                              \
+    [[nodiscard]] constexpr bool Name() const {                                           \
+        return visit([](const auto& value) -> bool {                                       \
+            if constexpr (requires { value.Name(); }) {                                    \
+                return value.Name();                                                      \
+            } else {                                                                       \
+                throw unsupported_operation(#Name,                                        \
+                                            detail::shapeName<std::remove_cvref_t<decltype(value)>>); \
+            }                                                                             \
+        });                                                                               \
+    }
+
+    PGL_SHAPE_FORWARD_QUERY(isVertical, Segment OrientedSegment Line OrientedLine Ray Halfplane)
+    PGL_SHAPE_FORWARD_QUERY(isHorizontal, Segment OrientedSegment Line OrientedLine Ray Halfplane)
+    PGL_SHAPE_FORWARD_QUERY(isSimple, Polyline Polygon PolygonWithHoles PolygonSet)
+
+#undef PGL_SHAPE_FORWARD_QUERY
+    ///@}
+
+    /**
+     * @brief Returns the slope of the wrapped linear shape.
+     *
+     * @tparam ResultNumber Type of the slope, which is a ratio of coordinates.
+     * @throws unsupported_operation for an alternative other than `Segment`,
+     *   `OrientedSegment`, `Line`, `OrientedLine`, `Ray` and `Halfplane`.
+     */
+    template <class ResultNumber = division_result_t<NumberType>>
+    [[nodiscard]] constexpr ResultNumber slope() const {
+        return visit([](const auto& value) -> ResultNumber {
+            if constexpr (requires { value.template slope<ResultNumber>(); }) {
+                return value.template slope<ResultNumber>();
+            } else {
+                throw unsupported_operation("slope", detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
+    }
+
+    /**
+     * @name Defining points
+     *
+     * The points a shape is written down with, by the names the concrete shapes
+     * use: @ref min and @ref max for the lexicographically ordered pair of a
+     * `Segment`, a `Line` or a `Halfplane` and the corners of a `Rectangle`,
+     * @ref source and @ref target for the ordered pair of an oriented shape.
+     * Each returns a copy rather than the reference the concrete shape returns,
+     * since the stored alternative is reached through a visit.
+     */
+    ///@{
+#define PGL_SHAPE_FORWARD_POINT(Name, Supported)                                          \
+    /** @brief The wrapped shape's Name point. @throws unsupported_operation for an        \
+        alternative other than Supported. */                                              \
+    [[nodiscard]] constexpr PointType Name() const {                                      \
+        return visit([](const auto& value) -> PointType {                                 \
+            if constexpr (requires { value.Name(); }) {                                    \
+                return value.Name();                                                      \
+            } else {                                                                       \
+                throw unsupported_operation(#Name,                                        \
+                                            detail::shapeName<std::remove_cvref_t<decltype(value)>>); \
+            }                                                                             \
+        });                                                                               \
+    }
+
+    PGL_SHAPE_FORWARD_POINT(min, Segment OrientedSegment Line OrientedLine Ray Halfplane Rectangle)
+    PGL_SHAPE_FORWARD_POINT(max, Segment OrientedSegment Line OrientedLine Ray Halfplane Rectangle)
+    PGL_SHAPE_FORWARD_POINT(source, OrientedSegment OrientedLine Ray Halfplane)
+    PGL_SHAPE_FORWARD_POINT(target, OrientedSegment OrientedLine Ray Halfplane)
+
+#undef PGL_SHAPE_FORWARD_POINT
+    ///@}
+
+    // -------------------------------------------------------------------------
+    // Sequences
+
+    /**
+     * @brief Returns the vertices of the wrapped shape.
+     *
+     * The held object's own `vertices()`, as a vector. A stored `Point` is its
+     * one vertex and a `Ray` its source; the `EmptyShape`, `Line`,
+     * `OrientedLine` and `Halfplane` alternatives have none.
+     *
+     * @tparam ResultNumber Coordinate type of the returned vertices.
+     * @throws unsupported_operation for a `Disk`, which has no vertices, and for
+     *   a `HalfplaneIntersection` with a vertex off the lattice of an integral
+     *   @p ResultNumber.
+     */
+    template <class ResultNumber = NumberType>
+    [[nodiscard]] constexpr std::vector<Point<ResultNumber, LabelType>> vertices() const {
+        using ResultPoint = Point<ResultNumber, LabelType>;
+        using Result = std::vector<ResultPoint>;
+        return visit([](const auto& value) -> Result {
+            using S = std::remove_cvref_t<decltype(value)>;
+            if constexpr (EmptyShapeConcept<S> || LineConcept<S> || OrientedLineConcept<S> ||
+                          HalfplaneConcept<S>) {
+                return Result{};
+            } else if constexpr (PointConcept<S>) {
+                return Result{ResultPoint(value)};
+            } else if constexpr (RayConcept<S>) {
+                return Result{ResultPoint(value.source())};
+            } else if constexpr (HalfplaneIntersectionConcept<S>) {
+                Result result;
+                for (const auto& vertex : value.vertices()) {
+                    result.push_back(detail::narrowPoint<ResultNumber, LabelType>(vertex, "vertices"));
+                }
+                return result;
+            } else if constexpr (requires { value.vertices(); }) {
+                const auto& vertices = value.vertices();
+                return Result(vertices.begin(), vertices.end());
+            } else {
+                throw unsupported_operation("vertices", detail::shapeName<S>);
+            }
+        });
+    }
+
+    /**
+     * @brief Returns the edges of the wrapped shape, as the held object's own
+     *        `edges()`.
+     *
+     * A stored `Point` and the empty shape have none.
+     *
+     * @throws unsupported_operation for an alternative with no `edges()`: a
+     *   `Line`, `OrientedLine`, `Ray`, `Halfplane`, `Disk` or
+     *   `HalfplaneIntersection`.
+     */
+    [[nodiscard]] constexpr std::vector<Segment<PointType>> edges() const {
+        using Result = std::vector<Segment<PointType>>;
+        return visit([](const auto& value) -> Result {
+            using S = std::remove_cvref_t<decltype(value)>;
+            if constexpr (EmptyShapeConcept<S>) {
+                return Result{};
+            } else if constexpr (requires { value.edges(); }) {
+                const auto& edges = value.edges();
+                return Result(edges.begin(), edges.end());
+            } else {
+                throw unsupported_operation("edges", detail::shapeName<S>);
+            }
+        });
+    }
+
+    /**
+     * @brief Returns the oriented boundary edges of the wrapped shape, as the
+     *        held object's own `orientedEdges()`.
+     *
+     * @throws unsupported_operation for an alternative with no
+     *   `orientedEdges()`, the same ones as for @ref edges.
+     */
+    [[nodiscard]] constexpr std::vector<OrientedSegment<PointType>> orientedEdges() const {
+        using Result = std::vector<OrientedSegment<PointType>>;
+        return visit([](const auto& value) -> Result {
+            using S = std::remove_cvref_t<decltype(value)>;
+            if constexpr (EmptyShapeConcept<S>) {
+                return Result{};
+            } else if constexpr (requires { value.orientedEdges(); }) {
+                const auto& edges = value.orientedEdges();
+                return Result(edges.begin(), edges.end());
+            } else {
+                throw unsupported_operation("orientedEdges", detail::shapeName<S>);
+            }
+        });
+    }
+
+    /**
+     * @brief Returns the integer points the wrapped shape contains.
+     *
+     * The held object's own `latticePoints()`: increasing, each point once, the
+     * boundary included.
+     *
+     * @tparam ResultNumber Integer type of the answer.
+     * @throws unsupported_operation for an alternative with no
+     *   `latticePoints()`, which is every unbounded one -- `Line`,
+     *   `OrientedLine`, `Ray` and `Halfplane` -- and the `EmptyShape` and
+     *   `Point` alternatives.
+     * @throws std::logic_error for an unbounded `HalfplaneIntersection`, or for
+     *   a point that does not fit @p ResultNumber, as the concrete shapes do.
+     */
+    template <class ResultNumber = grid_number_t<NumberType>>
+        requires(detail::extended_integral<ResultNumber> || std::same_as<ResultNumber, BigInt>)
+    [[nodiscard]] std::vector<Point<ResultNumber, LabelType>> latticePoints() const {
+        using Result = std::vector<Point<ResultNumber, LabelType>>;
+        return visit([](const auto& value) -> Result {
+            if constexpr (requires { value.template latticePoints<ResultNumber>(); }) {
+                const auto points = value.template latticePoints<ResultNumber>();
+                return Result(points.begin(), points.end());
+            } else {
+                throw unsupported_operation("latticePoints",
+                                           detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
+    }
+
+    /**
+     * @brief Returns the number of vertices of the wrapped shape.
+     *
+     * The held object's own `vertexCount()`, which the alternatives whose
+     * vertices are spread over several rings or components expose in place of
+     * @ref size.
+     *
+     * @throws unsupported_operation for an alternative other than
+     *   `HalfplaneIntersection`, `PolygonWithHoles` and `PolygonSet`. Every
+     *   other alternative counts its vertices with @ref size.
+     */
+    [[nodiscard]] constexpr std::size_t vertexCount() const {
+        return visit([](const auto& value) -> std::size_t {
+            if constexpr (requires { value.vertexCount(); }) {
+                return value.vertexCount();
+            } else {
+                throw unsupported_operation("vertexCount",
+                                           detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
+    }
+
+    /**
+     * @brief Returns the number of indexable elements of the wrapped shape.
+     *
+     * Dispatches to the alternative's `size()` so the result matches the
+     * valid range of its `operator[]`.
+     *
+     * @throws unsupported_operation for the `PolygonWithHoles` and `PolygonSet`
+     *   alternatives, neither of which has a single indexable sequence. Use
+     *   @ref vertices, or reach through with `getIfHoldsPolygonWithHoles()` or
+     *   `getIfHoldsPolygonSet()`.
+     */
+    [[nodiscard]] constexpr std::size_t size() const {
+        return visit([](const auto& value) -> std::size_t {
+            using S = std::remove_cvref_t<decltype(value)>;
+            if constexpr (PolygonWithHolesConcept<S> || PolygonSetConcept<S>) {
+                throw unsupported_operation("size", detail::shapeName<S>);
+            } else {
+                return value.size();
+            }
+        });
+    }
+
+    /**
+     * @brief Returns the i-th vertex (modulo @ref size()) of the wrapped shape.
+     *
+     * @throws unsupported_operation for the alternatives whose elements are not
+     *   vertices: a `Point`, whose elements are coordinates, a
+     *   `HalfplaneIntersection`, whose elements are half-planes, and a
+     *   `PolygonWithHoles` or `PolygonSet`, which have no single sequence.
+     */
+    [[nodiscard]] constexpr PointType get(std::ptrdiff_t index) const {
+        return visit([index](const auto& value) -> PointType {
+            using S = std::remove_cvref_t<decltype(value)>;
+            if constexpr (!indexesPoints<S>()) {
+                throw unsupported_operation("get", detail::shapeName<S>);
+            } else {
+                return value.get(index);
+            }
+        });
+    }
+
+    /**
+     * @brief Returns the vertex at `index` of the wrapped shape.
+     *
+     * @throws unsupported_operation for the same alternatives as @ref get.
+     */
+    [[nodiscard]] constexpr PointType operator[](std::size_t index) const {
+        return visit([index](const auto& value) -> PointType {
+            using S = std::remove_cvref_t<decltype(value)>;
+            if constexpr (!indexesPoints<S>()) {
+                throw unsupported_operation("operator[]", detail::shapeName<S>);
+            } else {
+                return value[index];
+            }
+        });
+    }
+
+    /**
+     * @brief Returns the smallest index `i` with `(*this)[i] == point`, or
+     * `-1` if no vertex of the wrapped shape equals `point`.
+     *
+     * @throws unsupported_operation for the same alternatives as @ref get.
+     */
+    [[nodiscard]] constexpr std::ptrdiff_t index(const PointType& point) const {
+        return visit([&point](const auto& value) -> std::ptrdiff_t {
+            using S = std::remove_cvref_t<decltype(value)>;
+            if constexpr (!indexesPoints<S>()) {
+                throw unsupported_operation("index", detail::shapeName<S>);
+            } else {
+                return value.index(point);
+            }
+        });
+    }
+
+    // -------------------------------------------------------------------------
+    // Measures
+
+    /**
+     * @brief Returns the area of the wrapped shape, as the held object's own
+     *        `area()`.
+     *
+     * A `Disk` computes in floating point and converts to @p ResultNumber.
+     *
+     * @throws unsupported_operation for an alternative with no `area()`.
+     */
+    template <class ResultNumber = division_result_t<NumberType>>
+    [[nodiscard]] constexpr ResultNumber area() const {
+        return visit([](const auto& value) -> ResultNumber {
+            if constexpr (requires { value.template area<ResultNumber>(); }) {
+                return static_cast<ResultNumber>(value.template area<ResultNumber>());
+            } else if constexpr (requires { value.area(); }) {
+                return static_cast<ResultNumber>(value.area());
+            } else {
+                throw unsupported_operation("area", detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
+    }
+
+    /**
+     * @brief Returns the Euclidean length of the wrapped curve, as the held
+     *        object's own `length()`.
+     *
+     * @throws unsupported_operation for an alternative with no `length()`.
+     */
+    template <class ResultNumber = double>
+    [[nodiscard]] ResultNumber length() const {
+        return visit([](const auto& value) -> ResultNumber {
+            if constexpr (requires { value.template length<ResultNumber>(); }) {
+                return value.template length<ResultNumber>();
+            } else {
+                throw unsupported_operation("length", detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
+    }
+
+    /**
+     * @brief Returns the centroid of the wrapped region, as the held object's
+     *        own `centroid()`.
+     *
+     * @throws unsupported_operation for an alternative with no `centroid()`.
      * @warning Divides coordinates after casting to ResultNumber.
      */
-    template <class ResultNumber = division_result_t<NumberType>, class Other>
-        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
-    constexpr Shape<Point<ResultNumber, LabelType>> intersection(const Other& other) const {
-        if constexpr (detail::is_shape_v<Other>) {
-            return std::visit(
-                [](const auto& left, const auto& right) {
-                    return intersectionOf<ResultNumber>(left, right);
-                },
-                value_,
-                other.variant());
-        } else {
-            return std::visit(
-                [&other](const auto& left) {
-                    return intersectionOf<ResultNumber>(left, other);
-                },
-                value_);
-        }
+    template <class ResultNumber = division_result_t<NumberType>>
+    [[nodiscard]] constexpr Point<ResultNumber, LabelType> centroid() const {
+        return visit([](const auto& value) -> Point<ResultNumber, LabelType> {
+            if constexpr (requires { value.template centroid<ResultNumber>(); }) {
+                return Point<ResultNumber, LabelType>(value.template centroid<ResultNumber>());
+            } else {
+                throw unsupported_operation("centroid", detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
     }
 
     /**
-     * @brief Returns the regularized intersection of two region-valued shapes.
+     * @brief Returns twice the area of the wrapped shape.
      *
-     * Visits the stored alternative and delegates to the concrete
-     * `regularizedIntersection`. The result is
-     * `closure(A° ∩ B°)` as a @ref PolygonSet; lower-dimensional contacts
-     * are discarded. See @ref PolygonWithHoles::regularizedIntersection for the
-     * full contract.
+     * Like @ref area, and unlike the concrete shapes, this defaults to
+     * @ref division_result_t rather than to the native coordinate type: which
+     * alternative is stored is not known until run time, and a
+     * `HalfplaneIntersection` needs division even for twice its area. An
+     * integral coordinate type therefore comes back as an exact `Rational`
+     * holding a whole number; ask for `twiceArea<NumberType>()` for the
+     * concrete shapes' own type.
      *
-     * Unlike its three siblings, this one is **not** defined for every pair of
-     * bounded regions. One operand must be a `PolygonWithHoles` or a
-     * `PolygonSet`; the other may then be any of the six bounded region types, a
-     * `Halfplane`, or a `HalfplaneIntersection` — an unbounded operand is fine
-     * here because A ∩ B is bounded as soon as A is. A pair drawn only from
-     * `Rectangle`, `Triangle`, `Convex` and `Polygon` throws, even though
-     * @ref regularizedUnion, @ref difference and @ref symmetricDifference cover
-     * all thirty-six ordered pairs of the six. Calling `asPolygonWithHoles()` on
-     * either operand first reaches the operation.
-     *
-     * @throws std::logic_error when neither operand is a `PolygonWithHoles` or a
-     *   `PolygonSet`, or when the other operand is not one of the regions listed
-     *   above — the pair then has no region-valued regularized intersection.
+     * @throws unsupported_operation for an alternative with no `twiceArea()`,
+     *   which is the `EmptyShape`, `Point`, `Halfplane`, `Disk`,
+     *   `MonotoneChain` and `Polyline` alternatives.
      */
-    template <class ResultNumber = division_result_t<NumberType>, class Other>
-        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
-    [[nodiscard]] PolygonSet<Point<ResultNumber, LabelType>> regularizedIntersection(const Other& other) const {
-        if constexpr (detail::is_shape_v<Other>) {
-            return std::visit(
-                [](const auto& left, const auto& right) {
-                    return regularizedIntersectionOf<ResultNumber>(left, right);
-                },
-                value_,
-                other.variant());
-        } else {
-            return std::visit(
-                [&other](const auto& left) {
-                    return regularizedIntersectionOf<ResultNumber>(left, other);
-                },
-                value_);
-        }
+    template <class ResultNumber = division_result_t<NumberType>>
+    [[nodiscard]] constexpr ResultNumber twiceArea() const {
+        return visit([](const auto& value) -> ResultNumber {
+            if constexpr (requires { value.template twiceArea<ResultNumber>(); }) {
+                return static_cast<ResultNumber>(value.template twiceArea<ResultNumber>());
+            } else if constexpr (requires { value.twiceArea(); }) {
+                return static_cast<ResultNumber>(value.twiceArea());
+            } else {
+                throw unsupported_operation("twiceArea",
+                                           detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
     }
 
     /**
-     * @brief Returns the regularized union `closure(A° ∪ B°)`.
+     * @brief Returns the L1 length of the wrapped curve.
      *
-     * Visits the stored alternative (and @p other when it is itself a `Shape`)
-     * and delegates to the concrete `regularizedUnion` requesting @p ResultNumber
-     * coordinates. See @ref Polygon::regularizedUnion for the contract.
-     *
-     * Unlike @ref intersection this does not re-wrap its answer, because it does
-     * not have to: every pair that has a union at all answers with a
-     * @ref PolygonSet, so the static type is already exact and the caller is
-     * spared an unwrap. Nor can it fail the way an intersection can — a union
-     * that comes apart into several pieces is still one set — so the throw below
-     * is only ever about the pair, never about the result.
-     *
-     * @tparam ResultNumber Coordinate type of the result (defaults to
-     *   @ref division_result_t for this wrapper's coordinate type).
-     * @tparam Other `Shape` or a supported alternative type.
-     * @param other Shape to unite with.
-     * @return The pieces of the union, in canonical order.
-     * @throws std::logic_error when the pair selected at run time has no union a
-     *   `PolygonSet` can hold. It succeeds exactly when **both** alternatives are
-     *   @ref PolygonalRegionConcept — a `Rectangle`, `Triangle`, `Convex`,
-     *   `Polygon`, `PolygonWithHoles` or `PolygonSet` — for all thirty-six
-     *   ordered pairs of them, in either order. Every other alternative throws
-     *   whatever it is paired with: an `EmptyShape`, `Point`, `Segment`,
-     *   `OrientedSegment`, `MonotoneChain` or `Polyline` has no area, so the
-     *   union keeps a piece no set of regions can express; a `Line`,
-     *   `OrientedLine`, `Ray`, `Halfplane` or `HalfplaneIntersection` may be
-     *   unbounded; and a `Disk` is round.
+     * @throws unsupported_operation for an alternative other than `Segment`,
+     *   `OrientedSegment`, `MonotoneChain` and `Polyline`.
      */
-    template <class ResultNumber = division_result_t<NumberType>, class Other>
-        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
-    [[nodiscard]] PolygonSet<Point<ResultNumber, LabelType>> regularizedUnion(const Other& other) const {
-        if constexpr (detail::is_shape_v<Other>) {
-            return std::visit(
-                [](const auto& left, const auto& right) {
-                    return regularizedUnionOf<ResultNumber>(left, right);
-                },
-                value_,
-                other.variant());
-        } else {
-            return std::visit(
-                [&other](const auto& left) {
-                    return regularizedUnionOf<ResultNumber>(left, other);
-                },
-                value_);
-        }
+    template <class ResultNumber = NumberType>
+    [[nodiscard]] constexpr ResultNumber lengthL1() const {
+        return visit([](const auto& value) -> ResultNumber {
+            if constexpr (requires { value.lengthL1(); }) {
+                return static_cast<ResultNumber>(value.lengthL1());
+            } else {
+                throw unsupported_operation("lengthL1",
+                                           detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
     }
 
     /**
-     * @brief Returns the regularized set difference of the two shapes (A ∖ B).
+     * @brief Returns the LInf length of the wrapped curve.
      *
-     * Visits the stored alternative (and @p other when it is itself a `Shape`)
-     * and delegates to the concrete `difference` requesting @p ResultNumber
-     * coordinates. See @ref Polygon::difference for the contract.
-     *
-     * Like @ref regularizedUnion and unlike @ref intersection this does not re-wrap its
-     * answer: every pair that has a difference at all answers with a
-     * @ref PolygonSet, so the static type is already exact.
-     *
-     * This is the one of the three that is **not** symmetric, and the one whose
-     * grid is therefore not square. `A ∖ B` is contained in `A`, so it is
-     * bounded as soon as the *receiver* is, however far `B` reaches — which is
-     * why an unbounded subtrahend is accepted here where @ref regularizedUnion cannot
-     * take one on either side.
-     *
-     * @tparam ResultNumber Coordinate type of the result (defaults to
-     *   @ref division_result_t for this wrapper's coordinate type).
-     * @tparam Other `Shape` or a supported alternative type.
-     * @param other Shape to remove.
-     * @return The pieces of the difference, in canonical order.
-     * @throws std::logic_error when the pair selected at run time has no
-     *   difference a `PolygonSet` can hold. The **left** alternative must be
-     *   @ref PolygonalRegionConcept — a `Rectangle`, `Triangle`, `Convex`,
-     *   `Polygon`, `PolygonWithHoles` or `PolygonSet` — and the right one must
-     *   be one of those or a `Halfplane` or `HalfplaneIntersection`, which have
-     *   area but need not be bounded. Everything else throws: an alternative
-     *   with no area would leave the whole of `A` behind rather than remove
-     *   anything, and a `Disk` is round.
+     * @throws unsupported_operation for the same alternatives as @ref lengthL1.
      */
-    template <class ResultNumber = division_result_t<NumberType>, class Other>
-        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
-    [[nodiscard]] PolygonSet<Point<ResultNumber, LabelType>> difference(const Other& other) const {
-        if constexpr (detail::is_shape_v<Other>) {
-            return std::visit(
-                [](const auto& left, const auto& right) {
-                    return differenceOf<ResultNumber>(left, right);
-                },
-                value_,
-                other.variant());
-        } else {
-            return std::visit(
-                [&other](const auto& left) {
-                    return differenceOf<ResultNumber>(left, other);
-                },
-                value_);
-        }
+    template <class ResultNumber = NumberType>
+    [[nodiscard]] constexpr ResultNumber lengthLInf() const {
+        return visit([](const auto& value) -> ResultNumber {
+            if constexpr (requires { value.lengthLInf(); }) {
+                return static_cast<ResultNumber>(value.lengthLInf());
+            } else {
+                throw unsupported_operation("lengthLInf",
+                                           detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
     }
 
     /**
-     * @brief Returns the regularized symmetric difference of the two shapes
-     *        (A △ B).
+     * @brief Returns the squared Euclidean length of the wrapped segment.
      *
-     * Visits the stored alternative (and @p other when it is itself a `Shape`)
-     * and delegates to the concrete `symmetricDifference` requesting
-     * @p ResultNumber coordinates. See @ref Polygon::symmetricDifference for the
-     * contract. It answers with a @ref PolygonSet on the same grid, and throws
-     * off it, exactly as @ref regularizedUnion and @ref difference do.
-     *
-     * @tparam ResultNumber Coordinate type of the result (defaults to
-     *   @ref division_result_t for this wrapper's coordinate type).
-     * @tparam Other `Shape` or a supported alternative type.
-     * @param other The other shape.
-     * @return The pieces of the symmetric difference, in canonical order.
-     * @throws std::logic_error when the pair selected at run time has no
-     *   symmetric difference a `PolygonSet` can hold, which is the same set of
-     *   pairs @ref regularizedUnion throws on.
+     * @throws unsupported_operation for an alternative other than `Segment` and
+     *   `OrientedSegment`, the two whose length is squared exactly.
      */
-    template <class ResultNumber = division_result_t<NumberType>, class Other>
-        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
-    [[nodiscard]] PolygonSet<Point<ResultNumber, LabelType>> symmetricDifference(const Other& other) const {
-        if constexpr (detail::is_shape_v<Other>) {
-            return std::visit(
-                [](const auto& left, const auto& right) {
-                    return symmetricDifferenceOf<ResultNumber>(left, right);
-                },
-                value_,
-                other.variant());
-        } else {
-            return std::visit(
-                [&other](const auto& left) {
-                    return symmetricDifferenceOf<ResultNumber>(left, other);
-                },
-                value_);
-        }
+    template <class ResultNumber = NumberType>
+    [[nodiscard]] constexpr ResultNumber squaredLength() const {
+        return visit([](const auto& value) -> ResultNumber {
+            if constexpr (requires { value.squaredLength(); }) {
+                return static_cast<ResultNumber>(value.squaredLength());
+            } else {
+                throw unsupported_operation("squaredLength",
+                                           detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
+    }
+
+    /**
+     * @name Constructed points
+     *
+     * Each returns the point the held object's method of the same name returns,
+     * re-expressed over @p ResultNumber, and throws
+     * @ref unsupported_operation for an alternative that has none.
+     */
+    ///@{
+#define PGL_SHAPE_FORWARD_CONSTRUCTED_POINT(Name, Supported)                              \
+    /** @brief The wrapped shape's Name. @throws unsupported_operation for an              \
+        alternative other than Supported. */                                              \
+    template <class ResultNumber = division_result_t<NumberType>>                          \
+    [[nodiscard]] constexpr Point<ResultNumber, LabelType> Name() const {                 \
+        using Result = Point<ResultNumber, LabelType>;                                     \
+        return visit([](const auto& value) -> Result {                                     \
+            if constexpr (requires { value.template Name<ResultNumber>(); }) {             \
+                return Result(value.template Name<ResultNumber>());                       \
+            } else {                                                                       \
+                throw unsupported_operation(#Name,                                        \
+                                            detail::shapeName<std::remove_cvref_t<decltype(value)>>); \
+            }                                                                             \
+        });                                                                               \
+    }
+
+    PGL_SHAPE_FORWARD_CONSTRUCTED_POINT(pointInside, every alternative but EmptyShape)
+    PGL_SHAPE_FORWARD_CONSTRUCTED_POINT(midpoint, Segment OrientedSegment Rectangle)
+    PGL_SHAPE_FORWARD_CONSTRUCTED_POINT(center, Rectangle Disk)
+    PGL_SHAPE_FORWARD_CONSTRUCTED_POINT(verticesCentroid, Convex Polygon PolygonWithHoles PolygonSet)
+
+#undef PGL_SHAPE_FORWARD_CONSTRUCTED_POINT
+    ///@}
+
+    /**
+     * @brief Returns a segment realizing the diameter of the wrapped shape.
+     *
+     * Like @ref twiceArea, this defaults to @ref division_result_t where the
+     * concrete shapes default to the native coordinate type, because a `Disk`
+     * built from three boundary points finds its endpoints by division.
+     *
+     * @throws unsupported_operation for an alternative with no `diameter()`,
+     *   which is the `EmptyShape` and the unbounded ones -- `Line`,
+     *   `OrientedLine`, `Ray`, `Halfplane` and `HalfplaneIntersection`.
+     */
+    template <class ResultNumber = division_result_t<NumberType>>
+    [[nodiscard]] constexpr Segment<Point<ResultNumber, LabelType>> diameter() const {
+        using Result = Segment<Point<ResultNumber, LabelType>>;
+        return visit([](const auto& value) -> Result {
+            if constexpr (requires { value.template diameter<ResultNumber>(); }) {
+                return Result(value.template diameter<ResultNumber>());
+            } else if constexpr (requires { value.diameter(); }) {
+                return Result(value.diameter());
+            } else {
+                throw unsupported_operation("diameter",
+                                           detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
     }
 
     /**
      * @brief Returns the squared Euclidean distance to the given shape.
      *
-     * Visits the stored alternative (and @p other when it is itself a `Shape`)
-     * and delegates to the concrete `squaredDistance` requesting @p ResultNumber
-     * coordinates.
-     *
-     * @tparam ResultNumber Coordinate type of the result (defaults to `double`,
-     *   because the wrapped alternative may be a @ref Disk).
-     * @tparam Other `Shape` or a supported alternative type.
-     * @param other Shape to measure the distance to.
-     * @return The squared Euclidean distance as @p ResultNumber.
-     * @throws std::logic_error when `squaredDistance` is undefined for the pair
-     *   selected at runtime — anything involving an `EmptyShape`.
-     *
-     * @warning A pair involving a @ref Disk computes in `double`; requesting a
-     *   non-floating @p ResultNumber does not make that leg exact.
-     *
-     * @warning With an integer @p ResultNumber the exact squared distance is
-     *   generally a fraction, so the internal division truncates and the result
-     *   is inexact. Request a floating-point or pgl::Rational result type for an
-     *   accurate value.
+     * @throws unsupported_operation when the pair has no `squaredDistance`, such
+     *   as anything against an `EmptyShape`.
+     * @warning A pair involving a @ref Disk computes in `double` and converts to
+     *   @p ResultNumber, so an exact @p ResultNumber holds a rounded value there.
      */
-    template <class ResultNumber = double, class Other>
-        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
-    constexpr ResultNumber squaredDistance(const Other& other) const {
-        if constexpr (detail::is_shape_v<Other>) {
-            return std::visit(
-                [](const auto& left, const auto& right) {
-                    return squaredDistanceOf<ResultNumber>(left, right);
-                },
-                value_,
-                other.variant());
-        } else {
-            return std::visit(
-                [&other](const auto& left) {
-                    return squaredDistanceOf<ResultNumber>(left, other);
-                },
-                value_);
-        }
-    }
-
-    /**
-     * @brief Returns the squared Euclidean Hausdorff distance to the given shape.
-     *
-     * Visits the stored alternative (and @p other when it is itself a `Shape`)
-     * and delegates to the concrete `squaredHausdorffDistance` requesting
-     * @p ResultNumber coordinates.
-     *
-     * @tparam ResultNumber Coordinate type of the result (defaults to
-     *   @ref division_result_t for this wrapper's coordinate type).
-     * @tparam Other `Shape` or a supported alternative type.
-     * @param other Shape to measure the Hausdorff distance to.
-     * @return The squared Hausdorff distance as @p ResultNumber.
-     * @throws std::logic_error when `squaredHausdorffDistance` is undefined for
-     *   the pair selected at runtime. `Line`, `OrientedLine`, `Ray`, `Halfplane`,
-     *   `Disk`, `MonotoneChain`, `Polyline`, `Polygon`, `HalfplaneIntersection`,
-     *   `PolygonWithHoles`, and `PolygonSet` never define it
-     *   (unbounded shapes have a generally infinite Hausdorff distance; the
-     *   others simply have no overload yet), so any pair involving one of those
-     *   always throws.
-     *
-     * @warning With an integer @p ResultNumber the exact squared distance is
-     *   generally a fraction, so the internal division truncates and the result
-     *   is inexact. Request a floating-point or pgl::Rational result type for an
-     *   accurate value.
-     */
-    template <class ResultNumber = division_result_t<NumberType>, class Other>
-        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
-    constexpr ResultNumber squaredHausdorffDistance(const Other& other) const {
-        if constexpr (detail::is_shape_v<Other>) {
-            return std::visit(
-                [](const auto& left, const auto& right) {
-                    return squaredHausdorffDistanceOf<ResultNumber>(left, right);
-                },
-                value_,
-                other.variant());
-        } else {
-            return std::visit(
-                [&other](const auto& left) {
-                    return squaredHausdorffDistanceOf<ResultNumber>(left, other);
-                },
-                value_);
-        }
+    template <class ResultNumber = division_result_t<NumberType>, AnyShapeConcept Other>
+    [[nodiscard]] constexpr ResultNumber squaredDistance(const Other& other) const {
+        return detail::squaredDistanceAny<ResultNumber>(*this, other);
     }
 
     /**
      * @brief Returns the Manhattan (L1) distance to the given shape.
      *
-     * Visits the stored alternative (and @p other when it is itself a `Shape`)
-     * and delegates to the concrete `distanceL1` requesting @p ResultNumber
-     * coordinates.
-     *
-     * @tparam ResultNumber Coordinate type of the result (defaults to `double`,
-     *   because the wrapped alternative may be a @ref Disk).
-     * @tparam Other `Shape` or a supported alternative type.
-     * @param other Shape to measure the distance to.
-     * @return The L1 distance as @p ResultNumber.
-     * @throws std::logic_error when `distanceL1` is undefined for the pair
-     *   selected at runtime — anything involving an `EmptyShape`, and any `Disk`
-     *   pair other than `Disk`-`Point` (not yet implemented).
-     *
-     * @warning `Disk::distanceL1` (like `Disk::squaredDistance`) reports in
-     *   `detail::floating_result_t<ResultNumber>`, so an exact @p ResultNumber
-     *   is served in `double` and then `static_cast` back rather than computed
-     *   exactly.
-     *
-     * @warning With an integer @p ResultNumber the exact distance is generally a
-     *   fraction for a non-axis-aligned segment, ray, or line, so the internal
-     *   division truncates. Request a floating-point or pgl::Rational result
-     *   type for an accurate value.
+     * @throws unsupported_operation when the pair has no `distanceL1`.
+     * @warning A pair involving a @ref Disk computes in `double`, as for
+     *   @ref squaredDistance.
      */
-    template <class ResultNumber = double, class Other>
-        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
-    constexpr ResultNumber distanceL1(const Other& other) const {
-        if constexpr (detail::is_shape_v<Other>) {
-            return std::visit(
-                [](const auto& left, const auto& right) {
-                    return distanceL1Of<ResultNumber>(left, right);
-                },
-                value_,
-                other.variant());
-        } else {
-            return std::visit(
-                [&other](const auto& left) {
-                    return distanceL1Of<ResultNumber>(left, other);
-                },
-                value_);
-        }
+    template <class ResultNumber = division_result_t<NumberType>, AnyShapeConcept Other>
+    [[nodiscard]] constexpr ResultNumber distanceL1(const Other& other) const {
+        return detail::distanceL1Any<ResultNumber>(*this, other);
     }
 
     /**
@@ -1114,89 +1224,267 @@ struct Shape {
      *
      * @copydetails distanceL1
      */
-    template <class ResultNumber = double, class Other>
-        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
-    constexpr ResultNumber distanceLInf(const Other& other) const {
-        if constexpr (detail::is_shape_v<Other>) {
-            return std::visit(
-                [](const auto& left, const auto& right) {
-                    return distanceLInfOf<ResultNumber>(left, right);
-                },
-                value_,
-                other.variant());
-        } else {
-            return std::visit(
-                [&other](const auto& left) {
-                    return distanceLInfOf<ResultNumber>(left, other);
-                },
-                value_);
-        }
+    template <class ResultNumber = division_result_t<NumberType>, AnyShapeConcept Other>
+    [[nodiscard]] constexpr ResultNumber distanceLInf(const Other& other) const {
+        return detail::distanceLInfAny<ResultNumber>(*this, other);
+    }
+
+    /**
+     * @brief Returns the squared Euclidean Hausdorff distance to the given shape.
+     *
+     * @throws unsupported_operation when the pair has no
+     *   `squaredHausdorffDistance`.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, AnyShapeConcept Other>
+    [[nodiscard]] constexpr ResultNumber squaredHausdorffDistance(const Other& other) const {
+        return detail::squaredHausdorffDistanceAny<ResultNumber>(*this, other);
     }
 
     /**
      * @brief Returns the Manhattan (L1) Hausdorff distance to the given shape.
      *
-     * Visits the stored alternative (and @p other when it is itself a `Shape`)
-     * and delegates to the concrete `hausdorffDistanceL1` requesting
-     * @p ResultNumber coordinates.
-     *
-     * @tparam ResultNumber Coordinate type of the result (defaults to
-     *   @ref division_result_t for this wrapper's coordinate type).
-     * @tparam Other `Shape` or a supported alternative type.
-     * @param other Shape to measure the Hausdorff distance to.
-     * @return The L1 Hausdorff distance as @p ResultNumber.
-     * @throws std::logic_error when `hausdorffDistanceL1` is undefined for the
-     *   pair selected at runtime. Defined only for `Point`, `Segment`,
-     *   `OrientedSegment`, `Rectangle`, `Triangle`, and `Convex`; any pair
-     *   involving `Line`, `OrientedLine`, `Ray`, `Halfplane`, `Disk`,
-     *   `MonotoneChain`, `Polyline`, `Polygon`, `HalfplaneIntersection`,
-     *   `PolygonWithHoles`, or `PolygonSet` always throws.
-     *
-     * @warning With an integer @p ResultNumber the exact distance is generally a
-     *   fraction, so the internal division truncates. Request a floating-point
-     *   or pgl::Rational result type for an accurate value.
+     * @throws unsupported_operation when the pair has no `hausdorffDistanceL1`.
      */
-    template <class ResultNumber = division_result_t<NumberType>, class Other>
-        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
-    constexpr ResultNumber hausdorffDistanceL1(const Other& other) const {
-        if constexpr (detail::is_shape_v<Other>) {
-            return std::visit(
-                [](const auto& left, const auto& right) {
-                    return hausdorffDistanceL1Of<ResultNumber>(left, right);
-                },
-                value_,
-                other.variant());
-        } else {
-            return std::visit(
-                [&other](const auto& left) {
-                    return hausdorffDistanceL1Of<ResultNumber>(left, other);
-                },
-                value_);
-        }
+    template <class ResultNumber = division_result_t<NumberType>, AnyShapeConcept Other>
+    [[nodiscard]] constexpr ResultNumber hausdorffDistanceL1(const Other& other) const {
+        return detail::hausdorffDistanceL1Any<ResultNumber>(*this, other);
     }
 
     /**
      * @brief Returns the Chebyshev (LInf) Hausdorff distance to the given shape.
      *
-     * @copydetails hausdorffDistanceL1
+     * @throws unsupported_operation when the pair has no `hausdorffDistanceLInf`.
      */
-    template <class ResultNumber = division_result_t<NumberType>, class Other>
-        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
-    constexpr ResultNumber hausdorffDistanceLInf(const Other& other) const {
-        if constexpr (detail::is_shape_v<Other>) {
-            return std::visit(
-                [](const auto& left, const auto& right) {
-                    return hausdorffDistanceLInfOf<ResultNumber>(left, right);
-                },
-                value_,
-                other.variant());
-        } else {
-            return std::visit(
-                [&other](const auto& left) {
-                    return hausdorffDistanceLInfOf<ResultNumber>(left, other);
-                },
-                value_);
-        }
+    template <class ResultNumber = division_result_t<NumberType>, AnyShapeConcept Other>
+    [[nodiscard]] constexpr ResultNumber hausdorffDistanceLInf(const Other& other) const {
+        return detail::hausdorffDistanceLInfAny<ResultNumber>(*this, other);
+    }
+
+    // -------------------------------------------------------------------------
+    // Predicates
+    //
+    // Each answers as the held object answers against @p other (or against the
+    // object @p other holds), and throws unsupported_operation for a pair with no
+    // implementation.
+
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
+    template <AnyShapeConcept Other>
+    [[nodiscard]] constexpr bool contains(const Other& other) const {
+        return detail::containsAny(*this, other);
+    }
+
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template <AnyShapeConcept Other>
+    [[nodiscard]] constexpr bool boundaryContains(const Other& other) const {
+        return detail::boundaryContainsAny(*this, other);
+    }
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template <AnyShapeConcept Other>
+    [[nodiscard]] constexpr bool interiorContains(const Other& other) const {
+        return detail::interiorContainsAny(*this, other);
+    }
+
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
+    template <AnyShapeConcept Other>
+    [[nodiscard]] constexpr bool intersects(const Other& other) const {
+        return detail::intersectsAny(*this, other);
+    }
+
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
+    template <AnyShapeConcept Other>
+    [[nodiscard]] constexpr bool interiorsIntersect(const Other& other) const {
+        return detail::interiorsIntersectAny(*this, other);
+    }
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template <AnyShapeConcept Other>
+    [[nodiscard]] constexpr bool separates(const Other& other) const {
+        return detail::separatesAny(*this, other);
+    }
+
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
+    template <AnyShapeConcept Other>
+    [[nodiscard]] constexpr bool crosses(const Other& other) const {
+        return detail::crossesAny(*this, other);
+    }
+
+    /** @brief Tests whether another shape defines exactly the same point set. */
+    template <AnyShapeConcept OtherShape>
+    [[nodiscard]] constexpr bool samePointSet(const OtherShape& other) const;
+
+    /**
+     * @brief Tests whether the interior of this shape contains the interior of
+     *        the other shape, which must be a segment.
+     *
+     * @throws unsupported_operation unless the stored alternative is `Polygon`,
+     *   `PolygonWithHoles` or `PolygonSet` and @p other is or holds a `Segment`
+     *   or an `OrientedSegment`.
+     */
+    template <AnyShapeConcept Other>
+    [[nodiscard]] constexpr bool interiorContainsInterior(const Other& other) const {
+        return detail::interiorContainsInteriorAny(*this, other);
+    }
+
+    /**
+     * @brief Tests whether this shape's `pointInside()` witness lies in the
+     *        strict interior of the other shape.
+     *
+     * @throws unsupported_operation for an alternative with no
+     *   `pointInsideInteriorContainedIn`, which is the `EmptyShape`, `Polyline`
+     *   and `PolygonSet` alternatives.
+     */
+    template <AnyShapeConcept Other>
+    [[nodiscard]] constexpr bool pointInsideInteriorContainedIn(const Other& other) const {
+        return detail::pointInsideInteriorContainedInAny(*this, other);
+    }
+
+    /**
+     * @brief Tests whether some defining point of this shape equals the given
+     *        point.
+     *
+     * Two shapes that compare equal may still differ here when they are written
+     * down with different points, as two equal lines can be.
+     *
+     * @throws unsupported_operation for an alternative with no
+     *   `verticesContain`, and for an @p other that is not, and does not hold,
+     *   a `Point`.
+     */
+    template <AnyShapeConcept Other>
+    [[nodiscard]] constexpr bool verticesContain(const Other& other) const {
+        return detail::verticesContainAny(*this, other);
+    }
+
+    /**
+     * @brief Tests whether the given point, already known to be collinear with
+     *        this shape, lies on it.
+     *
+     * @throws unsupported_operation unless the stored alternative is `Segment`,
+     *   `OrientedSegment` or `Ray` and @p other is or holds a `Point`.
+     */
+    template <AnyShapeConcept Other>
+    [[nodiscard]] constexpr bool containsCollinear(const Other& other) const {
+        return detail::containsCollinearAny(*this, other);
+    }
+
+    /**
+     * @brief Tests whether the given point is an endpoint of this shape.
+     *
+     * @throws unsupported_operation unless the stored alternative is `Segment`
+     *   or `OrientedSegment` and @p other is or holds a `Point`.
+     */
+    template <AnyShapeConcept Other>
+    [[nodiscard]] constexpr bool containsEndpoint(const Other& other) const {
+        return detail::containsEndpointAny(*this, other);
+    }
+
+    /**
+     * @brief Tests whether this shape and the other are parallel.
+     *
+     * @throws unsupported_operation unless both shapes are linear -- `Segment`,
+     *   `OrientedSegment`, `Line`, `OrientedLine` or `Ray` on either side.
+     */
+    template <AnyShapeConcept Other>
+    [[nodiscard]] constexpr bool parallel(const Other& other) const {
+        return detail::parallelAny(*this, other);
+    }
+
+    /**
+     * @brief Tests whether this shape and the other are collinear.
+     *
+     * @throws unsupported_operation unless this shape is linear -- `Segment`,
+     *   `OrientedSegment`, `Line`, `OrientedLine` or `Ray` -- and @p other is
+     *   linear or a `Point`.
+     */
+    template <AnyShapeConcept Other>
+    [[nodiscard]] constexpr bool collinear(const Other& other) const {
+        return detail::collinearAny(*this, other);
+    }
+
+    /**
+     * @brief Returns which side of this oriented shape the given point lies on.
+     *
+     * `std::partial_ordering::greater` to the left, `less` to the right,
+     * `equivalent` on the line through it, and `unordered` when this shape is
+     * degenerate.
+     *
+     * @throws unsupported_operation unless the stored alternative is
+     *   `OrientedSegment`, `OrientedLine` or `Ray` and @p other is or holds a
+     *   `Point`.
+     */
+    template <AnyShapeConcept Other>
+    [[nodiscard]] constexpr std::partial_ordering orientation(const Other& other) const {
+        return detail::orientationAny(*this, other);
+    }
+
+    // -------------------------------------------------------------------------
+    // Constructions
+
+    /**
+     * @brief Returns the connected pieces of the intersection of the two shapes
+     *        (A ∩ B).
+     *
+     * The concrete `intersection` of the pair, split by @ref pieces: empty for a
+     * disjoint pair, one element for a connected intersection, one per
+     * component otherwise.
+     *
+     * @tparam ResultNumber Coordinate type of the result (defaults to
+     *   @ref division_result_t for this wrapper's coordinate type).
+     * @throws unsupported_operation when the pair has no `intersection`, such
+     *   as anything against a `Disk`.
+     * @warning Divides coordinates after casting to ResultNumber.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, AnyShapeConcept Other>
+    [[nodiscard]] constexpr std::vector<Shape<Point<ResultNumber, LabelType>>> intersection(const Other& other) const {
+        return detail::intersectionAny<ResultNumber>(*this, other);
+    }
+
+    /**
+     * @brief Returns the regularized intersection `closure(A° ∩ B°)` of two
+     *        region-valued shapes.
+     *
+     * @throws unsupported_operation when the pair has no
+     *   `regularizedIntersection`: one operand must be a `PolygonWithHoles` or
+     *   a `PolygonSet`, the other a region, a `Halfplane` or a
+     *   `HalfplaneIntersection`.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, AnyShapeConcept Other>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, LabelType>> regularizedIntersection(const Other& other) const {
+        return detail::regularizedIntersectionAny<ResultNumber>(*this, other);
+    }
+
+    /**
+     * @brief Returns the regularized union `closure(A° ∪ B°)`.
+     *
+     * @throws unsupported_operation unless both alternatives are
+     *   @ref PolygonalRegionConcept.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, AnyShapeConcept Other>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, LabelType>> regularizedUnion(const Other& other) const {
+        return detail::regularizedUnionAny<ResultNumber>(*this, other);
+    }
+
+    /**
+     * @brief Returns the regularized set difference of the two shapes (A ∖ B).
+     *
+     * @throws unsupported_operation unless the left alternative is
+     *   @ref PolygonalRegionConcept and the right one is too, or is a
+     *   `Halfplane` or `HalfplaneIntersection`.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, AnyShapeConcept Other>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, LabelType>> difference(const Other& other) const {
+        return detail::differenceAny<ResultNumber>(*this, other);
+    }
+
+    /**
+     * @brief Returns the regularized symmetric difference of the two shapes
+     *        (A △ B).
+     *
+     * @throws unsupported_operation on the same pairs as @ref regularizedUnion.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, AnyShapeConcept Other>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, LabelType>> symmetricDifference(const Other& other) const {
+        return detail::symmetricDifferenceAny<ResultNumber>(*this, other);
     }
 
     /**
@@ -1243,6 +1531,294 @@ struct Shape {
     [[nodiscard]] constexpr auto minkowskiErosion(const OtherShape& other) const;
 
     /**
+     * @brief Returns the pair of points realizing the distance, nothing when the
+     *        shapes meet.
+     *
+     * The first point lies on this shape and the second on @p other.
+     *
+     * @throws unsupported_operation when the pair has no `closestPoints`.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, AnyShapeConcept Other>
+    [[nodiscard]] constexpr std::optional<std::array<Point<ResultNumber, LabelType>, 2>>
+    closestPoints(const Other& other) const {
+        return detail::closestPointsAny<ResultNumber>(*this, other);
+    }
+
+    /**
+     * @brief Returns the pair of elements realizing the distance, nothing when
+     *        the shapes meet.
+     *
+     * @throws unsupported_operation when the pair has no `closestSegments`.
+     */
+    template <class ResultNumber = NumberType, AnyShapeConcept Other>
+    [[nodiscard]] constexpr std::optional<std::array<Segment<Point<ResultNumber, LabelType>>, 2>>
+    closestSegments(const Other& other) const {
+        return detail::closestSegmentsAny<ResultNumber>(*this, other);
+    }
+
+    /**
+     * @brief Returns the convex hull of the wrapped shape, as the held object's
+     *        own `convexHull()`.
+     *
+     * @throws unsupported_operation for an alternative with no convex hull --
+     *   the empty shape, the unbounded alternatives and a `Disk` -- and for a
+     *   `HalfplaneIntersection` with a vertex off the lattice of an integral
+     *   @p ResultNumber.
+     */
+    template <class ResultNumber = NumberType>
+    [[nodiscard]] Convex<Point<ResultNumber, LabelType>> convexHull() const {
+        using Result = Convex<Point<ResultNumber, LabelType>>;
+        return visit([this](const auto& value) -> Result {
+            using S = std::remove_cvref_t<decltype(value)>;
+            if constexpr (HalfplaneIntersectionConcept<S>) {
+                if (value.empty() || !value.isBounded()) {
+                    throw unsupported_operation("convexHull", detail::shapeName<S>);
+                }
+                return Result(vertices<ResultNumber>());
+            } else if constexpr (requires { value.convexHull(); }) {
+                return Result(value.convexHull());
+            } else {
+                throw unsupported_operation("convexHull", detail::shapeName<S>);
+            }
+        });
+    }
+
+    /**
+     * @brief Returns the wrapped region as a `PolygonWithHoles`.
+     *
+     * A stored `PolygonWithHoles` is returned as it is; every other alternative
+     * answers its own `asPolygonWithHoles()`.
+     *
+     * @throws unsupported_operation for an alternative with no such
+     *   conversion.
+     */
+    [[nodiscard]] PolygonWithHoles<PointType> asPolygonWithHoles() const {
+        return visit([](const auto& value) -> PolygonWithHoles<PointType> {
+            using S = std::remove_cvref_t<decltype(value)>;
+            if constexpr (PolygonWithHolesConcept<S>) {
+                return value;
+            } else if constexpr (requires { value.asPolygonWithHoles(); }) {
+                return value.asPolygonWithHoles();
+            } else {
+                throw unsupported_operation("asPolygonWithHoles", detail::shapeName<S>);
+            }
+        });
+    }
+
+    /**
+     * @name Conversions to another shape
+     *
+     * Each answers the held object's conversion of the same name, joining
+     * @ref asPolygonWithHoles. A stored alternative that is already the target
+     * type is returned as it is.
+     */
+    ///@{
+#define PGL_SHAPE_FORWARD_CONVERSION(Name, Target, Concept, Supported)                    \
+    /** @brief The wrapped shape as a Target. @throws unsupported_operation for an         \
+        alternative other than Supported. */                                              \
+    [[nodiscard]] constexpr Target<PointType> Name() const {                              \
+        return visit([](const auto& value) -> Target<PointType> {                         \
+            using S = std::remove_cvref_t<decltype(value)>;                                \
+            if constexpr (Concept<S>) {                                                    \
+                return value;                                                             \
+            } else if constexpr (requires { value.Name(); }) {                             \
+                return value.Name();                                                      \
+            } else {                                                                       \
+                throw unsupported_operation(#Name, detail::shapeName<S>);                 \
+            }                                                                             \
+        });                                                                               \
+    }
+
+    PGL_SHAPE_FORWARD_CONVERSION(asLine, Line, LineConcept,
+                                 Segment OrientedSegment Line OrientedLine Ray Halfplane)
+    PGL_SHAPE_FORWARD_CONVERSION(asOrientedLine, OrientedLine, OrientedLineConcept,
+                                 OrientedSegment OrientedLine Ray Halfplane)
+    PGL_SHAPE_FORWARD_CONVERSION(asPolyline, Polyline, PolylineConcept,
+                                 Segment MonotoneChain Polyline)
+    PGL_SHAPE_FORWARD_CONVERSION(asPolygon, Polygon, PolygonConcept,
+                                 Rectangle Triangle Convex Polygon)
+    PGL_SHAPE_FORWARD_CONVERSION(asPolygonSet, PolygonSet, PolygonSetConcept,
+                                 Rectangle Triangle Convex Polygon PolygonWithHoles PolygonSet)
+    PGL_SHAPE_FORWARD_CONVERSION(asHalfplaneIntersection, HalfplaneIntersection,
+                                 HalfplaneIntersectionConcept,
+                                 Point Segment Line Halfplane Rectangle Triangle Convex
+                                 HalfplaneIntersection)
+
+#undef PGL_SHAPE_FORWARD_CONVERSION
+    ///@}
+
+    /**
+     * @brief Returns the wrapped shape as a `Convex`.
+     *
+     * @tparam ResultNumber Coordinate type of the result, which a
+     *   `HalfplaneIntersection` needs because its vertices are implicit.
+     * @throws unsupported_operation for an alternative other than `Rectangle`,
+     *   `Triangle`, `Convex` and `HalfplaneIntersection`.
+     */
+    template <class ResultNumber = NumberType>
+    [[nodiscard]] constexpr Convex<Point<ResultNumber, LabelType>> asConvex() const {
+        using Result = Convex<Point<ResultNumber, LabelType>>;
+        return visit([](const auto& value) -> Result {
+            using S = std::remove_cvref_t<decltype(value)>;
+            if constexpr (ConvexConcept<S>) {
+                return Result(value);
+            } else if constexpr (requires { value.template asConvex<ResultNumber>(); }) {
+                return Result(value.template asConvex<ResultNumber>());
+            } else if constexpr (requires { value.asConvex(); }) {
+                return Result(value.asConvex());
+            } else {
+                throw unsupported_operation("asConvex", detail::shapeName<S>);
+            }
+        });
+    }
+
+    /**
+     * @name Derived linear shapes
+     *
+     * The half-planes an oriented or unoriented linear shape bounds, as the held
+     * object names them.
+     */
+    ///@{
+#define PGL_SHAPE_FORWARD_HALFPLANE(Name, Supported)                                      \
+    /** @brief The wrapped shape's Name. @throws unsupported_operation for an              \
+        alternative other than Supported. */                                              \
+    [[nodiscard]] constexpr Halfplane<PointType> Name() const {                            \
+        return visit([](const auto& value) -> Halfplane<PointType> {                       \
+            if constexpr (requires { value.Name(); }) {                                    \
+                return value.Name();                                                      \
+            } else {                                                                       \
+                throw unsupported_operation(#Name,                                        \
+                                            detail::shapeName<std::remove_cvref_t<decltype(value)>>); \
+            }                                                                             \
+        });                                                                               \
+    }
+
+    PGL_SHAPE_FORWARD_HALFPLANE(halfplaneAbove, Line OrientedLine Ray)
+    PGL_SHAPE_FORWARD_HALFPLANE(halfplaneBelow, Line OrientedLine Ray)
+    PGL_SHAPE_FORWARD_HALFPLANE(leftHalfplane, OrientedSegment OrientedLine Ray)
+    PGL_SHAPE_FORWARD_HALFPLANE(rightHalfplane, OrientedSegment OrientedLine Ray)
+
+#undef PGL_SHAPE_FORWARD_HALFPLANE
+    ///@}
+
+    /**
+     * @brief Returns the wrapped shape with its orientation reversed.
+     *
+     * The held object's own `opposite()`, which is again its own type, so the
+     * result is a `Shape` holding the same alternative.
+     *
+     * @throws unsupported_operation for an alternative other than
+     *   `OrientedSegment`, `OrientedLine`, `Ray` and `Halfplane`, the four that
+     *   carry an orientation.
+     */
+    [[nodiscard]] constexpr Shape opposite() const {
+        return visit([](const auto& value) -> Shape {
+            if constexpr (requires { value.opposite(); }) {
+                return Shape(value.opposite());
+            } else {
+                throw unsupported_operation("opposite",
+                                           detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
+    }
+
+    /**
+     * @brief Returns the circumscribed disk of the wrapped shape.
+     *
+     * @throws unsupported_operation for an alternative other than `Rectangle`
+     *   and `Triangle`.
+     */
+    [[nodiscard]] constexpr Disk<PointType, NoLabel> circumcircle() const {
+        return visit([](const auto& value) -> Disk<PointType, NoLabel> {
+            if constexpr (requires { value.circumcircle(); }) {
+                return value.circumcircle();
+            } else {
+                throw unsupported_operation("circumcircle",
+                                           detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
+    }
+
+    /**
+     * @name Duality
+     *
+     * The dual and polar images, which swap a point for a line and a line for a
+     * point. Both come back as a `Shape`, since which of the two it is depends
+     * on the stored alternative, and both default to @ref division_result_t for
+     * that reason: the `Line` direction divides where the `Point` direction does
+     * not. See @ref duality.
+     */
+    ///@{
+#define PGL_SHAPE_FORWARD_DUAL(Name)                                                      \
+    /** @brief The wrapped shape's Name image, a line for a point and a point for a        \
+        line. @throws unsupported_operation for an alternative other than Point and        \
+        Line. */                                                                          \
+    template <class ResultNumber = division_result_t<NumberType>>                          \
+    [[nodiscard]] constexpr Shape<Point<ResultNumber, LabelType>> Name() const {           \
+        using Result = Shape<Point<ResultNumber, LabelType>>;                              \
+        return visit([](const auto& value) -> Result {                                     \
+            if constexpr (requires { value.template Name<ResultNumber>(); }) {             \
+                return Result(value.template Name<ResultNumber>());                        \
+            } else {                                                                       \
+                throw unsupported_operation(#Name,                                        \
+                                            detail::shapeName<std::remove_cvref_t<decltype(value)>>); \
+            }                                                                             \
+        });                                                                               \
+    }
+
+    PGL_SHAPE_FORWARD_DUAL(dual)
+    PGL_SHAPE_FORWARD_DUAL(polar)
+
+#undef PGL_SHAPE_FORWARD_DUAL
+    ///@}
+
+    /**
+     * @brief Cuts the wrapped region into `Convex` pieces with disjoint
+     *        interiors.
+     *
+     * Defined out of line, since it builds a @ref Triangulation.
+     *
+     * @throws unsupported_operation for an alternative other than `Polygon`,
+     *   `PolygonWithHoles` and `PolygonSet`.
+     */
+    [[nodiscard]] std::vector<Convex<PointType>> convexPartition() const;
+
+    /**
+     * @brief Returns an irredundant covering of the wrapped region by `Convex`
+     *        pieces, which may overlap.
+     *
+     * @throws unsupported_operation for an alternative other than `Polygon`,
+     *   `PolygonWithHoles` and `PolygonSet`.
+     */
+    [[nodiscard]] std::vector<Convex<PointType>> convexCovering() const;
+
+    /**
+     * @brief Returns the constrained Delaunay triangulation of the wrapped
+     *        region.
+     *
+     * @throws unsupported_operation for an alternative other than `Polygon`,
+     *   `PolygonWithHoles` and `PolygonSet`.
+     */
+    [[nodiscard]] auto triangulation() const;
+
+    /**
+     * @brief Returns the wrapped rectilinear region rasterized into a
+     *        @ref BitMatrix.
+     *
+     * @tparam ResultNumber Integer type of the grid.
+     * @throws unsupported_operation for an alternative other than `Polygon`,
+     *   `PolygonWithHoles` and `PolygonSet`.
+     * @throws std::logic_error when the region is not rectilinear, as the
+     *   concrete shapes do.
+     */
+    template <class ResultNumber = grid_number_t<NumberType>>
+        requires(std::signed_integral<ResultNumber>)
+    [[nodiscard]] auto asBitMatrix() const;
+
+    // -------------------------------------------------------------------------
+    // Transformations
+
+    /**
      * @brief Translates the stored shape in place.
      *
      * Visits the active alternative and translates it by @p translation; the
@@ -1254,7 +1830,7 @@ struct Shape {
      */
     template <PointConcept OtherPoint>
     constexpr Shape& operator+=(const OtherPoint& translation) {
-        std::visit([&translation](auto& alternative) { alternative += translation; }, value_);
+        visit([&translation](auto& alternative) { alternative += translation; });
         return *this;
     }
 
@@ -1270,7 +1846,7 @@ struct Shape {
      */
     template <PointConcept OtherPoint>
     constexpr Shape& operator-=(const OtherPoint& translation) {
-        std::visit([&translation](auto& alternative) { alternative -= translation; }, value_);
+        visit([&translation](auto& alternative) { alternative -= translation; });
         return *this;
     }
 
@@ -1287,7 +1863,7 @@ struct Shape {
     template <class Scalar>
         requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr Shape& operator*=(const Scalar& scalar) {
-        std::visit([&scalar](auto& alternative) { alternative *= scalar; }, value_);
+        visit([&scalar](auto& alternative) { alternative *= scalar; });
         return *this;
     }
 
@@ -1304,7 +1880,7 @@ struct Shape {
     template <class Scalar>
         requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr Shape& operator/=(const Scalar& scalar) {
-        std::visit([&scalar](auto& alternative) { alternative /= scalar; }, value_);
+        visit([&scalar](auto& alternative) { alternative /= scalar; });
         return *this;
     }
 
@@ -1315,9 +1891,7 @@ struct Shape {
      * @return Rotated shape, preserving the stored alternative type.
      */
     [[nodiscard]] constexpr Shape rotated90(int k = 1) const {
-        return std::visit(
-            [k](const auto& value) -> Shape { return Shape(value.rotated90(k)); },
-            value_);
+        return visit([k](const auto& value) -> Shape { return Shape(value.rotated90(k)); });
     }
 
     /**
@@ -1326,400 +1900,188 @@ struct Shape {
      * @param k Number of 90-degree CCW rotations (may be negative).
      */
     constexpr void rotate90(int k = 1) {
-        std::visit([k](auto& value) { value.rotate90(k); }, value_);
+        visit([k](auto& value) { value.rotate90(k); });
     }
 
     /**
      * @brief Returns the wrapped shape with its x-coordinates scaled up.
      *
-     * @throws std::logic_error if the wrapped alternative cannot be scaled along
-     * a single axis (the `Disk` alternative, whose result would be an ellipse).
+     * @throws unsupported_operation for the `Disk` alternative, whose result
+     *   would be an ellipse.
      */
     template <class OtherNumber>
     [[nodiscard]] constexpr Shape scaledUpX(const OtherNumber scalar) const {
-        return std::visit(
-            [scalar](const auto& value) -> Shape {
-                if constexpr (requires { value.scaledUpX(scalar); }) {
-                    return Shape(value.scaledUpX(scalar));
-                } else {
-                    throw std::logic_error("Shape::scaledUpX is not defined for the Disk alternative");
-                }
-            },
-            value_);
+        return visit([scalar](const auto& value) -> Shape {
+            if constexpr (requires { value.scaledUpX(scalar); }) {
+                return Shape(value.scaledUpX(scalar));
+            } else {
+                throw unsupported_operation("scaledUpX", detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
     }
 
     /**
      * @brief Scales the wrapped shape's x-coordinates up in place.
      *
-     * @throws std::logic_error if the wrapped alternative cannot be scaled along
-     * a single axis (the `Disk` alternative).
+     * @throws unsupported_operation for the `Disk` alternative.
      */
     template <class OtherNumber>
     constexpr void scaleUpX(const OtherNumber scalar) {
-        std::visit(
-            [scalar](auto& value) {
-                if constexpr (requires { value.scaleUpX(scalar); }) {
-                    value.scaleUpX(scalar);
-                } else {
-                    throw std::logic_error("Shape::scaleUpX is not defined for the Disk alternative");
-                }
-            },
-            value_);
+        visit([scalar](auto& value) {
+            if constexpr (requires { value.scaleUpX(scalar); }) {
+                value.scaleUpX(scalar);
+            } else {
+                throw unsupported_operation("scaleUpX", detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
     }
 
     /**
      * @brief Returns the wrapped shape with its y-coordinates scaled up.
      *
-     * @throws std::logic_error if the wrapped alternative cannot be scaled along
-     * a single axis (the `Disk` alternative, whose result would be an ellipse).
+     * @throws unsupported_operation for the `Disk` alternative, whose result
+     *   would be an ellipse.
      */
     template <class OtherNumber>
     [[nodiscard]] constexpr Shape scaledUpY(const OtherNumber scalar) const {
-        return std::visit(
-            [scalar](const auto& value) -> Shape {
-                if constexpr (requires { value.scaledUpY(scalar); }) {
-                    return Shape(value.scaledUpY(scalar));
-                } else {
-                    throw std::logic_error("Shape::scaledUpY is not defined for the Disk alternative");
-                }
-            },
-            value_);
+        return visit([scalar](const auto& value) -> Shape {
+            if constexpr (requires { value.scaledUpY(scalar); }) {
+                return Shape(value.scaledUpY(scalar));
+            } else {
+                throw unsupported_operation("scaledUpY", detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
     }
 
     /**
      * @brief Scales the wrapped shape's y-coordinates up in place.
      *
-     * @throws std::logic_error if the wrapped alternative cannot be scaled along
-     * a single axis (the `Disk` alternative).
+     * @throws unsupported_operation for the `Disk` alternative.
      */
     template <class OtherNumber>
     constexpr void scaleUpY(const OtherNumber scalar) {
-        std::visit(
-            [scalar](auto& value) {
-                if constexpr (requires { value.scaleUpY(scalar); }) {
-                    value.scaleUpY(scalar);
-                } else {
-                    throw std::logic_error("Shape::scaleUpY is not defined for the Disk alternative");
-                }
-            },
-            value_);
+        visit([scalar](auto& value) {
+            if constexpr (requires { value.scaleUpY(scalar); }) {
+                value.scaleUpY(scalar);
+            } else {
+                throw unsupported_operation("scaleUpY", detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
     }
 
     /**
      * @brief Returns the wrapped shape with its x-coordinates scaled down.
      *
-     * @throws std::logic_error if the wrapped alternative cannot be scaled along
-     * a single axis (the `Disk` alternative, whose result would be an ellipse).
+     * @throws unsupported_operation for the `Disk` alternative, whose result
+     *   would be an ellipse.
      */
     template <class OtherNumber>
     [[nodiscard]] constexpr Shape scaledDownX(const OtherNumber scalar) const {
-        return std::visit(
-            [scalar](const auto& value) -> Shape {
-                if constexpr (requires { value.scaledDownX(scalar); }) {
-                    return Shape(value.scaledDownX(scalar));
-                } else {
-                    throw std::logic_error("Shape::scaledDownX is not defined for the Disk alternative");
-                }
-            },
-            value_);
+        return visit([scalar](const auto& value) -> Shape {
+            if constexpr (requires { value.scaledDownX(scalar); }) {
+                return Shape(value.scaledDownX(scalar));
+            } else {
+                throw unsupported_operation("scaledDownX", detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
     }
 
     /**
      * @brief Scales the wrapped shape's x-coordinates down in place.
      *
-     * @throws std::logic_error if the wrapped alternative cannot be scaled along
-     * a single axis (the `Disk` alternative).
+     * @throws unsupported_operation for the `Disk` alternative.
      */
     template <class OtherNumber>
     constexpr void scaleDownX(const OtherNumber scalar) {
-        std::visit(
-            [scalar](auto& value) {
-                if constexpr (requires { value.scaleDownX(scalar); }) {
-                    value.scaleDownX(scalar);
-                } else {
-                    throw std::logic_error("Shape::scaleDownX is not defined for the Disk alternative");
-                }
-            },
-            value_);
+        visit([scalar](auto& value) {
+            if constexpr (requires { value.scaleDownX(scalar); }) {
+                value.scaleDownX(scalar);
+            } else {
+                throw unsupported_operation("scaleDownX", detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
     }
 
     /**
      * @brief Returns the wrapped shape with its y-coordinates scaled down.
      *
-     * @throws std::logic_error if the wrapped alternative cannot be scaled along
-     * a single axis (the `Disk` alternative, whose result would be an ellipse).
+     * @throws unsupported_operation for the `Disk` alternative, whose result
+     *   would be an ellipse.
      */
     template <class OtherNumber>
     [[nodiscard]] constexpr Shape scaledDownY(const OtherNumber scalar) const {
-        return std::visit(
-            [scalar](const auto& value) -> Shape {
-                if constexpr (requires { value.scaledDownY(scalar); }) {
-                    return Shape(value.scaledDownY(scalar));
-                } else {
-                    throw std::logic_error("Shape::scaledDownY is not defined for the Disk alternative");
-                }
-            },
-            value_);
+        return visit([scalar](const auto& value) -> Shape {
+            if constexpr (requires { value.scaledDownY(scalar); }) {
+                return Shape(value.scaledDownY(scalar));
+            } else {
+                throw unsupported_operation("scaledDownY", detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
     }
 
     /**
      * @brief Scales the wrapped shape's y-coordinates down in place.
      *
-     * @throws std::logic_error if the wrapped alternative cannot be scaled along
-     * a single axis (the `Disk` alternative).
+     * @throws unsupported_operation for the `Disk` alternative.
      */
     template <class OtherNumber>
     constexpr void scaleDownY(const OtherNumber scalar) {
-        std::visit(
-            [scalar](auto& value) {
-                if constexpr (requires { value.scaleDownY(scalar); }) {
-                    value.scaleDownY(scalar);
-                } else {
-                    throw std::logic_error("Shape::scaleDownY is not defined for the Disk alternative");
-                }
-            },
-            value_);
+        visit([scalar](auto& value) {
+            if constexpr (requires { value.scaleDownY(scalar); }) {
+                value.scaleDownY(scalar);
+            } else {
+                throw unsupported_operation("scaleDownY", detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
     }
+
+    // -------------------------------------------------------------------------
+    // Comparison
+
+    /**
+     * @brief Compares wrapped values: equal when the same alternative holds an
+     *        equal value.
+     *
+     * A `Rectangle` and a `Convex` with the same point set compare unequal; use
+     * @ref samePointSet to compare point sets.
+     */
+    constexpr bool operator==(const Shape&) const = default;
+
+    /**
+     * @brief Orders wrapped values by the underlying variant ordering: by
+     *        stored alternative first, then by value.
+     */
+    constexpr auto operator<=>(const Shape&) const = default;
 
   private:
-    /**
-     * @brief Dispatches a binary predicate against a shape or concrete alternative.
-     *
-     * Unwraps the stored value (and @p other when it is itself a `Shape`) and
-     * forwards the operands to @p dispatch. This is the shared plumbing behind
-     * every public predicate, so the `Shape` and alternative overloads need not
-     * be written twice.
-     *
-     * @tparam Dispatch Callable taking the two unwrapped operands.
-     * @tparam Other `Shape` or a supported alternative type.
-     */
-    template <class Dispatch, class Other>
-    constexpr bool applyPredicate(Dispatch dispatch, const Other& other) const {
-        if constexpr (detail::is_shape_v<Other>) {
-            return std::visit(
-                [&dispatch](const auto& left, const auto& right) {
-                    return dispatch(left, right);
-                },
-                value_,
-                other.variant());
+    // The geometric isPoint of one alternative; see isPoint().
+    template <class S>
+    static constexpr bool isPointOf(const S& value) {
+        if constexpr (PointConcept<S>) {
+            return true;
+        } else if constexpr (requires { value.isPoint(); }) {
+            return value.isPoint();
         } else {
-            return std::visit(
-                [&dispatch, &other](const auto& self) {
-                    return dispatch(self, other);
-                },
-                value_);
+            return false;
         }
     }
 
-    // Intersect two unwrapped alternatives and wrap the result as a Shape over
-    // the result point type. The empty set on either side gives the empty shape;
-    // otherwise the pair is dispatched to the concrete `intersection` when one
-    // exists. Thanks to the rank-constrained fallbacks, the `requires` probe is
-    // SFINAE-safe and self-maintaining: a pair with no intersection (Disk, or
-    // two shapes neither of which implements the other) simply takes the throw.
-    template <class ResultNumber, class Left, class Right>
-    static constexpr Shape<Point<ResultNumber, LabelType>> intersectionOf(const Left& left, const Right& right) {
-        using ResultPoint = Point<ResultNumber, LabelType>;
-        if constexpr (std::same_as<Left, EmptyShape<PointType>> ||
-                      std::same_as<Right, EmptyShape<PointType>>) {
-            return Shape<ResultPoint>{EmptyShape<ResultPoint>{}};
-        } else if constexpr (requires { left.template intersection<ResultNumber>(right); }) {
-            return resultToShape<ResultNumber>(left.template intersection<ResultNumber>(right));
-        } else {
-            throw std::logic_error("Shape::intersection is not defined for this shape pair");
-        }
-    }
-
-    // Compute a regularized region intersection. Unlike literal intersection,
-    // the empty shape is not a specially supported operand: this dispatcher
-    // mirrors the concrete regularizedIntersection overload grid exactly.
-    template <class ResultNumber, class Left, class Right>
-    static PolygonSet<Point<ResultNumber, LabelType>> regularizedIntersectionOf(
-        const Left& left, const Right& right) {
-        if constexpr (requires { left.template regularizedIntersection<ResultNumber>(right); }) {
-            return left.template regularizedIntersection<ResultNumber>(right);
-        } else {
-            throw std::logic_error(
-                "Shape::regularizedIntersection is not defined for this shape pair");
-        }
-    }
-
-    // Unite two unwrapped alternatives. The probe is SFINAE-safe and
-    // self-maintaining in the same way intersectionOf's is, and here it lands
-    // exactly on the pairs of bounded polygonal regions: those define
-    // regularizedUnion for every ordered pair between them, each on the
-    // higher-ranked operand with the lower-ranked one forwarding, and nothing
-    // else defines it at all.
-    //
-    // There is no EmptyShape short circuit as there is above. The empty set is
-    // the identity of a union rather than its absorber, so `empty ∪ A` would have
-    // to answer with A itself — which is only a PolygonSet when A is a region,
-    // and would then be a special case reachable no other way. It takes the
-    // throw with everything else instead.
-    template <class ResultNumber, class Left, class Right>
-    static PolygonSet<Point<ResultNumber, LabelType>> regularizedUnionOf(const Left& left, const Right& right) {
-        if constexpr (requires { left.template regularizedUnion<ResultNumber>(right); }) {
-            return left.template regularizedUnion<ResultNumber>(right);
-        } else {
-            throw std::logic_error("Shape::regularizedUnion is not defined for this shape pair");
-        }
-    }
-
-    // Remove one unwrapped alternative from another, and take the same
-    // regularized parts as the two above. The probe lands on the same grid of
-    // bounded polygonal regions regularizedUnionOf's does, but by a different
-    // route: a difference is not symmetric, so nothing forwards, and every one
-    // of the thirty-six ordered pairs is stated on its own receiver.
-    //
-    // The empty set is no more a special case here than it is above, and for a
-    // sharper reason: `A ∖ empty` is A, which is a PolygonSet only when A is a
-    // region, and `empty ∖ A` is the empty shape rather than the empty set of
-    // regions. Both take the throw.
-    template <class ResultNumber, class Left, class Right>
-    static PolygonSet<Point<ResultNumber, LabelType>> differenceOf(const Left& left, const Right& right) {
-        if constexpr (requires { left.template difference<ResultNumber>(right); }) {
-            return left.template difference<ResultNumber>(right);
-        } else {
-            throw std::logic_error("Shape::difference is not defined for this shape pair");
-        }
-    }
-
-    // The symmetric difference of two unwrapped alternatives, probed as above.
-    template <class ResultNumber, class Left, class Right>
-    static PolygonSet<Point<ResultNumber, LabelType>> symmetricDifferenceOf(const Left& left,
-                                                                            const Right& right) {
-        if constexpr (requires { left.template symmetricDifference<ResultNumber>(right); }) {
-            return left.template symmetricDifference<ResultNumber>(right);
-        } else {
-            throw std::logic_error("Shape::symmetricDifference is not defined for this shape pair");
-        }
-    }
-
-    // Measure the squared distance between two unwrapped alternatives. A pair with
-    // no defined squaredDistance (anything against an EmptyShape) takes the throw.
-    // The requires probes are SFINAE-safe and self-maintaining: a pair gains
-    // support here as soon as either side implements squaredDistance for the
-    // other (directly or via forwarding).
-    //
-    // Both probes convert explicitly, because a pair involving a Disk answers in
-    // detail::floating_result_t<ResultNumber> rather than in ResultNumber itself
-    // — an exact request cannot be honoured for a distance realized on a circle.
-    // That conversion is the point at which an exact caller learns it is getting
-    // a rounded answer, and it is why the cast cannot be left implicit: Rational
-    // is only explicitly constructible from a floating-point value.
-    template <class ResultNumber, class Left, class Right>
-    static constexpr ResultNumber squaredDistanceOf(const Left& left, const Right& right) {
-        if constexpr (requires { left.template squaredDistance<ResultNumber>(right); }) {
-            return static_cast<ResultNumber>(left.template squaredDistance<ResultNumber>(right));
-        } else if constexpr (requires { left.squaredDistance(right); }) {
-            return static_cast<ResultNumber>(left.squaredDistance(right));
-        } else {
-            throw std::logic_error("Shape::squaredDistance is not defined for this shape pair");
-        }
-    }
-
-    // Measure the squared Hausdorff distance between two unwrapped alternatives.
-    // Defined only for Point, Segment, OrientedSegment, Rectangle, Triangle, and
-    // Convex, so any other pair (including anything against Line, OrientedLine,
-    // Ray, Halfplane, Disk, MonotoneChain, Polyline, Polygon, or EmptyShape)
-    // takes the throw. Unlike
-    // squaredDistance there is no untemplated double-returning overload to probe
-    // for: Disk has no squaredHausdorffDistance at all.
-    template <class ResultNumber, class Left, class Right>
-    static constexpr ResultNumber squaredHausdorffDistanceOf(const Left& left, const Right& right) {
-        if constexpr (requires { left.template squaredHausdorffDistance<ResultNumber>(right); }) {
-            return left.template squaredHausdorffDistance<ResultNumber>(right);
-        } else {
-            throw std::logic_error("Shape::squaredHausdorffDistance is not defined for this shape pair");
-        }
-    }
-
-    // Measure the L1 distance between two unwrapped alternatives. Every
-    // supported concrete overload accepts ResultNumber; an EmptyShape or a Disk
-    // paired with anything but a Point takes the throw. Convert explicitly for
-    // the reason given on squaredDistanceOf: a Disk pair answers in a floating
-    // type.
-    template <class ResultNumber, class Left, class Right>
-    static constexpr ResultNumber distanceL1Of(const Left& left, const Right& right) {
-        if constexpr (requires { left.template distanceL1<ResultNumber>(right); }) {
-            return static_cast<ResultNumber>(left.template distanceL1<ResultNumber>(right));
-        } else {
-            throw std::logic_error("Shape::distanceL1 is not defined for this shape pair");
-        }
-    }
-
-    // LInf counterpart of distanceL1Of.
-    template <class ResultNumber, class Left, class Right>
-    static constexpr ResultNumber distanceLInfOf(const Left& left, const Right& right) {
-        if constexpr (requires { left.template distanceLInf<ResultNumber>(right); }) {
-            return static_cast<ResultNumber>(left.template distanceLInf<ResultNumber>(right));
-        } else {
-            throw std::logic_error("Shape::distanceLInf is not defined for this shape pair");
-        }
-    }
-
-    // Measure the L1 Hausdorff distance between two unwrapped alternatives.
-    // Defined only for Point, Segment, OrientedSegment, Rectangle, Triangle, and
-    // Convex (same coverage as squaredHausdorffDistanceOf, and for the same
-    // reason: Disk has no hausdorffDistanceL1 overload to probe for either).
-    template <class ResultNumber, class Left, class Right>
-    static constexpr ResultNumber hausdorffDistanceL1Of(const Left& left, const Right& right) {
-        if constexpr (requires { left.template hausdorffDistanceL1<ResultNumber>(right); }) {
-            return left.template hausdorffDistanceL1<ResultNumber>(right);
-        } else {
-            throw std::logic_error("Shape::hausdorffDistanceL1 is not defined for this shape pair");
-        }
-    }
-
-    // LInf counterpart of hausdorffDistanceL1Of; see there for the coverage.
-    template <class ResultNumber, class Left, class Right>
-    static constexpr ResultNumber hausdorffDistanceLInfOf(const Left& left, const Right& right) {
-        if constexpr (requires { left.template hausdorffDistanceLInf<ResultNumber>(right); }) {
-            return left.template hausdorffDistanceLInf<ResultNumber>(right);
-        } else {
-            throw std::logic_error("Shape::hausdorffDistanceLInf is not defined for this shape pair");
-        }
-    }
-
-    // Unwrap a concrete intersection result (optional<T> or vector<T>, where T is
-    // a single alternative or a variant over alternatives) into a Shape. An
-    // absent/empty result is the empty shape; a disconnected result (more than
-    // one component) cannot be a single Shape and throws. The actual wrapping of
-    // a value or variant is handled by the Shape constructors.
-    template <class ResultNumber, class Result>
-    static constexpr Shape<Point<ResultNumber, LabelType>> resultToShape(const Result& result) {
-        using ResultShape = Shape<Point<ResultNumber, LabelType>>;
-        if constexpr (detail::is_std_optional<Result>::value) {
-            return result ? ResultShape(*result) : ResultShape{};
-        } else if constexpr (detail::is_std_vector<Result>::value) {
-            if (result.size() > 1) {
-                throw std::logic_error(
-                    "Shape::intersection: disconnected result cannot be a single Shape");
-            }
-            return result.empty() ? ResultShape{} : ResultShape(result.front());
-        } else if constexpr (detail::is_polygon_set_v<Result>) {
-            // A set of regions is an alternative of its own, so unlike a vector
-            // it survives coming apart. A single component is still unwrapped to
-            // the tighter `PolygonWithHoles` alternative, which is the answer
-            // this pair has always given when the intersection stayed in one
-            // piece.
-            if (result.empty()) {
-                return ResultShape{};
-            }
-            return result.componentCount() == 1 ? ResultShape(result.component(0))
-                                                : ResultShape(result);
-        } else {
-            return ResultShape(result);
-        }
+    // Whether the elements get(), operator[] and index() reach are vertices.
+    template <class S>
+    static constexpr bool indexesPoints() {
+        return !(PointConcept<S> || HalfplaneIntersectionConcept<S> || PolygonWithHolesConcept<S> ||
+                 PolygonSetConcept<S>);
     }
 
     Variant value_{};
 };
 
+#undef PGL_SHAPE_ALTERNATIVES
+
 // Deduce the wrapper's point type from the alternatives of a result variant (or
 // an optional thereof), so `Shape s = a.intersection<N>(b);` names the right
-// type. The point type is taken from the variant's first alternative; every
-// alternative shares it.
+// type for a concrete pair. The point type is taken from the variant's first
+// alternative; every alternative shares it.
 template <class T, class... Ts>
 Shape(const std::variant<T, Ts...>&) -> Shape<detail::shape_point_type_t<T>>;
 
@@ -1741,11 +2103,9 @@ template <class PointType, class TranslationNumber, class TranslationLabel>
 constexpr auto operator-(const Shape<PointType>& shape,
                          const Point<TranslationNumber, TranslationLabel>& translation) {
     using ResultPoint = std::decay_t<decltype(std::declval<const PointType&>() - translation)>;
-    return std::visit(
-        [&translation](const auto& alternative) {
-            return Shape<ResultPoint>(alternative - translation);
-        },
-        shape.variant());
+    return shape.visit([&translation](const auto& alternative) {
+        return Shape<ResultPoint>(alternative - translation);
+    });
 }
 
 /**
@@ -1763,11 +2123,9 @@ template <class PointType, class Scalar>
     requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Shape<PointType>& shape, const Scalar& scalar) {
     using ResultPoint = std::decay_t<decltype(std::declval<const PointType&>() * scalar)>;
-    return std::visit(
-        [&scalar](const auto& alternative) {
-            return Shape<ResultPoint>(alternative * scalar);
-        },
-        shape.variant());
+    return shape.visit([&scalar](const auto& alternative) {
+        return Shape<ResultPoint>(alternative * scalar);
+    });
 }
 
 /** @copydoc operator*(const Shape<PointType>&, const Scalar&) */
@@ -1792,11 +2150,9 @@ template <class PointType, class Scalar>
     requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator/(const Shape<PointType>& shape, const Scalar& scalar) {
     using ResultPoint = std::decay_t<decltype(std::declval<const PointType&>() / scalar)>;
-    return std::visit(
-        [&scalar](const auto& alternative) {
-            return Shape<ResultPoint>(alternative / scalar);
-        },
-        shape.variant());
+    return shape.visit([&scalar](const auto& alternative) {
+        return Shape<ResultPoint>(alternative / scalar);
+    });
 }
 
 /**
@@ -1809,11 +2165,7 @@ constexpr auto operator/(const Shape<PointType>& shape, const Scalar& scalar) {
  */
 template <class PointType>
 std::ostream& operator<<(std::ostream& stream, const Shape<PointType>& shape) {
-    std::visit(
-        [&stream](const auto& value) {
-            stream << value;
-        },
-        shape.variant());
+    shape.visit([&stream](const auto& value) { stream << value; });
     return stream;
 }
 

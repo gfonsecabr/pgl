@@ -8,7 +8,12 @@
  * forcing all definitions to be parsed immediately.
  */
 
+#include <compare>
+#include <stdexcept>
+#include <string>
+#include <string_view>
 #include <type_traits>
+#include <variant>
 #include <vector>
 
 namespace pgl {
@@ -216,6 +221,54 @@ inline constexpr int shapeRank<PolygonWithHoles<PointType, Label>> = 140;
 template <class PointType, class Label>
 inline constexpr int shapeRank<PolygonSet<PointType, Label>> = 150;
 
+/**
+ * @brief Name of each shape kind, as it appears in error messages.
+ *
+ * Kept beside @ref shapeRank so that one table lists every shape; a type that
+ * is not a shape is named `"?"`.
+ */
+template <class T>
+inline constexpr std::string_view shapeName = "?";
+
+template <class PointType>
+inline constexpr std::string_view shapeName<Shape<PointType>> = "Shape";
+template <class PointType>
+inline constexpr std::string_view shapeName<EmptyShape<PointType>> = "EmptyShape";
+template <class Number, class Label>
+inline constexpr std::string_view shapeName<Point<Number, Label>> = "Point";
+template <class PointType, class Label>
+inline constexpr std::string_view shapeName<Segment<PointType, Label>> = "Segment";
+template <class PointType, class Label>
+inline constexpr std::string_view shapeName<OrientedSegment<PointType, Label>> = "OrientedSegment";
+template <class PointType, class Label>
+inline constexpr std::string_view shapeName<Line<PointType, Label>> = "Line";
+template <class PointType, class Label>
+inline constexpr std::string_view shapeName<OrientedLine<PointType, Label>> = "OrientedLine";
+template <class PointType, class Label>
+inline constexpr std::string_view shapeName<Ray<PointType, Label>> = "Ray";
+template <class PointType, class Label>
+inline constexpr std::string_view shapeName<Halfplane<PointType, Label>> = "Halfplane";
+template <class PointType, class Label>
+inline constexpr std::string_view shapeName<Rectangle<PointType, Label>> = "Rectangle";
+template <class PointType, class Label>
+inline constexpr std::string_view shapeName<Triangle<PointType, Label>> = "Triangle";
+template <class PointType, class Label>
+inline constexpr std::string_view shapeName<Disk<PointType, Label>> = "Disk";
+template <class PointType, class Label>
+inline constexpr std::string_view shapeName<Convex<PointType, Label>> = "Convex";
+template <class PointType, class Label, class Storage>
+inline constexpr std::string_view shapeName<MonotoneChain<PointType, Label, Storage>> = "MonotoneChain";
+template <class PointType, class Label>
+inline constexpr std::string_view shapeName<Polyline<PointType, Label>> = "Polyline";
+template <class PointType, class Label>
+inline constexpr std::string_view shapeName<Polygon<PointType, Label>> = "Polygon";
+template <class PointType, class Label>
+inline constexpr std::string_view shapeName<HalfplaneIntersection<PointType, Label>> = "HalfplaneIntersection";
+template <class PointType, class Label>
+inline constexpr std::string_view shapeName<PolygonWithHoles<PointType, Label>> = "PolygonWithHoles";
+template <class PointType, class Label>
+inline constexpr std::string_view shapeName<PolygonSet<PointType, Label>> = "PolygonSet";
+
 // Shape-detection traits: is_<shape>_v<T> is true when T (ignoring cv/ref) is a
 // specialization of that shape. They back the public XxxConcept concepts below
 // and the generic 'Shape' routing in predicates.hpp. Defined here, before any
@@ -331,6 +384,114 @@ template <class T> concept TransformationConcept = detail::is_transformation_v<T
 template <class T>
 concept AnyShapeConcept =
     ShapeConcept<T> || detail::shapeRank<std::remove_cvref_t<T>> >= 0;
+
+/**
+ * @brief Thrown when a @ref Shape is asked something the shape it holds cannot
+ *        answer.
+ *
+ * `Shape` does what the object it holds does whenever that object can, and
+ * throws this otherwise: a pair of alternatives with no implementation of a
+ * relation, a bounding box of an unbounded alternative, the vertices of a disk.
+ * The message names the operation and the stored alternatives, e.g.
+ * `pgl::Shape: separates(Disk, Polyline) is not supported`.
+ */
+struct unsupported_operation : std::logic_error {
+    /** @brief Reports @p operation as unsupported on a @p shape alternative. */
+    unsupported_operation(std::string_view operation, std::string_view shape)
+        : std::logic_error("pgl::Shape: " + std::string(operation) + "(" + std::string(shape) +
+                           ") is not supported") {}
+
+    /** @brief Reports @p operation as unsupported on the pair @p left, @p right. */
+    unsupported_operation(std::string_view operation, std::string_view left, std::string_view right)
+        : std::logic_error("pgl::Shape: " + std::string(operation) + "(" + std::string(left) + ", " +
+                           std::string(right) + ") is not supported") {}
+};
+
+namespace detail {
+
+// The exception for an operation the pair of unwrapped operands has no
+// implementation of.
+template <class X, class Y>
+unsupported_operation unsupportedPair(std::string_view operation, const X&, const Y&) {
+    return unsupported_operation(operation, shapeName<std::remove_cvref_t<X>>,
+                                 shapeName<std::remove_cvref_t<Y>>);
+}
+
+// Whether Self has an operation against at least one alternative of the Shape
+// S. The Shape overloads of a concrete shape's constructions and distances exist
+// only then, so a call that no stored alternative could answer -- a Segment's
+// regularizedUnion, say -- stays a compile error rather than a call that always
+// throws. The predicates need no gate: every shape answers every predicate
+// against every alternative. Each probe is a named concept, since a bare
+// requires-expression on a class-constrained member is a hard error.
+template <class Tag, class Self, class Variant>
+struct receives : std::false_type {};
+
+template <class Tag, class Self, class... Ts>
+struct receives<Tag, Self, std::variant<Ts...>>
+    : std::bool_constant<(Tag::template on<Self, Ts> || ...)> {};
+
+template <class Tag, class Self, class S>
+concept Receives = receives<Tag, Self, typename S::Variant>::value;
+
+#define PGL_OPERATION_TAG(Operation)                                                   \
+    template <class Self, class Other>                                                 \
+    concept Has_##Operation =                                                          \
+        requires(const Self& self, const Other& other) { self.Operation(other); };    \
+    struct Operation##Tag {                                                            \
+        template <class Self, class Other>                                             \
+        static constexpr bool on = Has_##Operation<Self, Other>;                       \
+    };
+
+PGL_OPERATION_TAG(intersection)
+PGL_OPERATION_TAG(regularizedIntersection)
+PGL_OPERATION_TAG(regularizedUnion)
+PGL_OPERATION_TAG(difference)
+PGL_OPERATION_TAG(symmetricDifference)
+PGL_OPERATION_TAG(squaredDistance)
+PGL_OPERATION_TAG(distanceL1)
+PGL_OPERATION_TAG(distanceLInf)
+PGL_OPERATION_TAG(squaredHausdorffDistance)
+PGL_OPERATION_TAG(hausdorffDistanceL1)
+PGL_OPERATION_TAG(hausdorffDistanceLInf)
+PGL_OPERATION_TAG(closestPoints)
+PGL_OPERATION_TAG(closestSegments)
+
+#undef PGL_OPERATION_TAG
+
+// The dispatchers behind every operation that accepts a runtime Shape operand,
+// defined in implementation/shapedispatch.hpp. Declared here so that the
+// one-line Shape overloads in each shape header can name them.
+template <class A, class B> constexpr bool containsAny(const A& a, const B& b);
+template <class A, class B> constexpr bool boundaryContainsAny(const A& a, const B& b);
+template <class A, class B> constexpr bool interiorContainsAny(const A& a, const B& b);
+template <class A, class B> constexpr bool intersectsAny(const A& a, const B& b);
+template <class A, class B> constexpr bool interiorsIntersectAny(const A& a, const B& b);
+template <class A, class B> constexpr bool separatesAny(const A& a, const B& b);
+template <class A, class B> constexpr bool crossesAny(const A& a, const B& b);
+template <class ResultNumber, class A, class B> constexpr auto intersectionAny(const A& a, const B& b);
+template <class ResultNumber, class A, class B> auto regularizedIntersectionAny(const A& a, const B& b);
+template <class ResultNumber, class A, class B> auto regularizedUnionAny(const A& a, const B& b);
+template <class ResultNumber, class A, class B> auto differenceAny(const A& a, const B& b);
+template <class ResultNumber, class A, class B> auto symmetricDifferenceAny(const A& a, const B& b);
+template <class ResultNumber, class A, class B> constexpr ResultNumber squaredDistanceAny(const A& a, const B& b);
+template <class ResultNumber, class A, class B> constexpr ResultNumber distanceL1Any(const A& a, const B& b);
+template <class ResultNumber, class A, class B> constexpr ResultNumber distanceLInfAny(const A& a, const B& b);
+template <class ResultNumber, class A, class B> constexpr ResultNumber squaredHausdorffDistanceAny(const A& a, const B& b);
+template <class ResultNumber, class A, class B> constexpr ResultNumber hausdorffDistanceL1Any(const A& a, const B& b);
+template <class ResultNumber, class A, class B> constexpr ResultNumber hausdorffDistanceLInfAny(const A& a, const B& b);
+template <class ResultNumber, class A, class B> constexpr auto closestPointsAny(const A& a, const B& b);
+template <class ResultNumber, class A, class B> constexpr auto closestSegmentsAny(const A& a, const B& b);
+template <class A, class B> constexpr bool verticesContainAny(const A& a, const B& b);
+template <class A, class B> constexpr bool containsCollinearAny(const A& a, const B& b);
+template <class A, class B> constexpr bool containsEndpointAny(const A& a, const B& b);
+template <class A, class B> constexpr bool parallelAny(const A& a, const B& b);
+template <class A, class B> constexpr bool collinearAny(const A& a, const B& b);
+template <class A, class B> constexpr bool interiorContainsInteriorAny(const A& a, const B& b);
+template <class A, class B> constexpr bool pointInsideInteriorContainedInAny(const A& a, const B& b);
+template <class A, class B> constexpr std::partial_ordering orientationAny(const A& a, const B& b);
+
+}  // namespace detail
 
 /**
  * @brief Bounded convex primitives.

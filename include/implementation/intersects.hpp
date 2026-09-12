@@ -27,15 +27,6 @@ constexpr bool Point<Number, Label>::intersects(const OtherPoint& other) const {
 }
 
 
-template <class Number, class Label>
-constexpr bool Point<Number, Label>::intersects(const Shape<Point<Number, Label>>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->intersects(value);
-        },
-        other.variant());
-}
-
 /**
  * @section predicates-segment Segment
  * Segment endpoint, boundary, containment, collinearity, intersection, and
@@ -113,15 +104,6 @@ constexpr bool Segment<PointType, LabelType>::intersects(const OtherSegment& oth
     return d1 != d2 && d3 != d4;
 }
 
-
-template <class PointType, class LabelType>
-constexpr bool Segment<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->intersects(value);
-        },
-        other.variant());
-}
 
 /**
  * @section predicates-triangle Triangle
@@ -258,15 +240,6 @@ constexpr bool Triangle<PointType, LabelType>::intersects(const OtherTriangle& o
     return false;
 }
 
-template <class PointType, class LabelType>
-constexpr bool Triangle<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->intersects(value);
-        },
-        other.variant());
-}
-
 /**
  * @section predicates-oriented-segment OrientedSegment
  * Oriented-segment predicates. Most topology delegates to the unoriented
@@ -291,15 +264,6 @@ constexpr bool OrientedSegment<PointType, LabelType>::intersects(const OtherOrie
     return static_cast<Segment<PointType>>(*this).intersects(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
-
-template <class PointType, class LabelType>
-constexpr bool OrientedSegment<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->intersects(value);
-        },
-        other.variant());
-}
 
 /**
  * @section predicates-line Line
@@ -344,15 +308,6 @@ constexpr bool Line<PointType, LabelType>::intersects(const OtherOrientedSegment
     return intersects(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
-template <class PointType, class LabelType>
-constexpr bool Line<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->intersects(value);
-        },
-        other.variant());
-}
-
 /**
  * @section predicates-oriented-line OrientedLine
  * Oriented-line predicates. Shared topology is mostly delegated to the
@@ -387,15 +342,6 @@ template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
 constexpr bool OrientedLine<PointType, LabelType>::intersects(const OtherOrientedSegment& other) const {
     return this->asLine().intersects(other);
-}
-
-template <class PointType, class LabelType>
-constexpr bool OrientedLine<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->intersects(value);
-        },
-        other.variant());
 }
 
 /**
@@ -480,15 +426,6 @@ constexpr bool Ray<PointType, LabelType>::intersects(const OtherRay& other) cons
     // iff that point lies on both (each ray reaches the other's line).
     return intersects(other.asLine()) &&
            this->asLine().intersects(other);
-}
-
-template <class PointType, class LabelType>
-constexpr bool Ray<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->intersects(value);
-        },
-        other.variant());
 }
 
 /**
@@ -602,15 +539,6 @@ constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherHalfplane&
     return false;
 }
 
-template <class PointType, class LabelType>
-constexpr bool Rectangle<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->intersects(value);
-        },
-        other.variant());
-}
-
 /**
  * @section predicates-halfplane Halfplane
  * Half-plane containment, intersection, and topological predicates, together
@@ -696,15 +624,6 @@ constexpr bool Halfplane<PointType, LabelType>::intersects(const OtherHalfplane&
         return true;
     }
     return contains(other.source()) || contains(other.target()) || other.contains(source()) || other.contains(target());
-}
-
-template <class PointType, class LabelType>
-constexpr bool Halfplane<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->intersects(value);
-        },
-        other.variant());
 }
 
 
@@ -966,16 +885,6 @@ constexpr bool Disk<PointType, LabelType>::intersects(const OtherDisk& other) co
     return A <= R{} || A * A <= R{4} * r1_sq * r2_sq;
 }
 
-template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-constexpr bool Convex<PointType, LabelType>::intersects(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->intersects(value);
-        },
-        other.variant());
-}
-
 
 // ---------------------------------------------------------------------------
 // Polygon
@@ -1169,16 +1078,6 @@ constexpr bool Polygon<PointType, LabelType>::intersects(const OtherPolygon& oth
 
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType, LabelType>::intersects(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->intersects(value);
-        },
-        other.variant());
-}
-
-template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
 constexpr bool Disk<PointType, LabelType>::intersects(const OtherPoint& point) const {
     return contains(point);
 }
@@ -1310,16 +1209,6 @@ constexpr bool Disk<PointType, LabelType>::intersects(const OtherTriangle& other
         }
     }
     return other.contains((*this)[0]);
-}
-
-template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::intersects(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->intersects(value);
-        },
-        other.variant());
 }
 
 
@@ -1525,16 +1414,6 @@ constexpr bool MonotoneChain<PointType, LabelType, Storage>::intersects(const Ot
         }
     }
     return false;
-}
-
-template <class PointType, class LabelType, class Storage>
-template<PointConcept OtherPoint>
-constexpr bool MonotoneChain<PointType, LabelType, Storage>::intersects(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->intersects(value);
-        },
-        other.variant());
 }
 
 template <class PointType, class LabelType, class Storage>
@@ -1773,16 +1652,6 @@ constexpr bool Polyline<PointType, LabelType>::intersects(const OtherPolyline& o
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Polyline<PointType, LabelType>::intersects(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->intersects(value);
-        },
-        other.variant());
-}
-
-template <class PointType, class LabelType>
 template<PolylineConcept OtherPolyline>
 constexpr bool Polygon<PointType, LabelType>::intersects(const OtherPolyline& other) const {
     if (other.empty()) {
@@ -2009,16 +1878,6 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const Oth
     return !this->template intersection<NumberType>(other).empty();
 }
 
-template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->intersects(value);
-        },
-        other.variant());
-}
-
 
 // ---------------------------------------------------------------------------
 // PolygonWithHoles
@@ -2209,21 +2068,6 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherInt
 // definitions are needed.
 
 // ---------------------------------------------------------------------------
-// Runtime Shape argument: unwrap the stored alternative and re-dispatch. Every
-// alternative has a per-shape overload above, so no fallback is needed.
-
-template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->intersects(value);
-        },
-        other.variant());
-}
-
-
-// ---------------------------------------------------------------------------
 // PolygonSet
 //
 // `A ∩ x ≠ ∅` iff some `Aᵢ ∩ x ≠ ∅`: the union of the components is the set, and
@@ -2244,13 +2088,6 @@ bool PolygonSet<PointType, LabelType>::intersects(const OtherSet& other) const {
         }
     }
     return false;
-}
-
-template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-bool PolygonSet<PointType, LabelType>::intersects(const Shape<OtherPoint>& other) const {
-    return std::visit([this](const auto& value) { return this->intersects(value); },
-                      other.variant());
 }
 
 }  // namespace pgl

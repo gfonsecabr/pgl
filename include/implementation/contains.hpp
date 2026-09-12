@@ -98,15 +98,6 @@ constexpr bool Point<Number, Label>::contains(const OtherDisk& other) const {
     return other.a() == other.b() && contains(other.a());
 }
 
-template <class Number, class Label>
-constexpr bool Point<Number, Label>::contains(const Shape<Point<Number, Label>>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->contains(value);
-        },
-        other.variant());
-}
-
 /**
  * @section predicates-segment Segment
  * Segment endpoint, boundary, containment, collinearity, intersection, and
@@ -200,16 +191,6 @@ template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Segment<PointType, LabelType>::contains(const OtherDisk& other) const {
     return other.a() == other.b() && other.b() == other.c() && contains(other.a());
-}
-
-template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::contains(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->contains(value);
-        },
-        other.variant());
 }
 
 /**
@@ -326,15 +307,6 @@ constexpr bool Triangle<PointType, LabelType>::contains(const OtherDisk& other) 
     return asConvex().contains(other);
 }
 
-template <class PointType, class LabelType>
-constexpr bool Triangle<PointType, LabelType>::contains(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->contains(value);
-        },
-        other.variant());
-}
-
 /**
  * @section predicates-oriented-segment OrientedSegment
  * Oriented-segment predicates. Most topology delegates to the unoriented
@@ -409,11 +381,6 @@ constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherConvex
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherDisk& other) const {
-    return asSegment().contains(other);
-}
-
-template <class PointType, class LabelType>
-constexpr bool OrientedSegment<PointType, LabelType>::contains(const Shape<PointType>& other) const {
     return asSegment().contains(other);
 }
 
@@ -511,15 +478,6 @@ constexpr bool Line<PointType, LabelType>::contains(const OtherDisk& other) cons
     return other.a() == other.b() && contains(other.a());
 }
 
-template <class PointType, class LabelType>
-constexpr bool Line<PointType, LabelType>::contains(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->contains(value);
-        },
-        other.variant());
-}
-
 /**
  * @section predicates-oriented-line OrientedLine
  * Oriented-line predicates. Shared topology is mostly delegated to the
@@ -603,15 +561,6 @@ template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool OrientedLine<PointType, LabelType>::contains(const OtherDisk& other) const {
     return this->asLine().contains(other);
-}
-
-template <class PointType, class LabelType>
-constexpr bool OrientedLine<PointType, LabelType>::contains(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->contains(value);
-        },
-        other.variant());
 }
 
 /**
@@ -706,15 +655,6 @@ constexpr bool Ray<PointType, LabelType>::contains(const OtherDisk& other) const
     // the case a() == b(), can lie in a one-dimensional ray. See
     // Point::contains(Disk) for the undefined a() == b() != c() case.
     return other.a() == other.b() && contains(other.a());
-}
-
-template <class PointType, class LabelType>
-constexpr bool Ray<PointType, LabelType>::contains(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->contains(value);
-        },
-        other.variant());
 }
 
 /**
@@ -850,15 +790,6 @@ constexpr bool Rectangle<PointType, LabelType>::contains(const OtherDisk& other)
         }
     }
     return other.pointInsideInteriorContainedIn(*this);
-}
-
-template <class PointType, class LabelType>
-constexpr bool Rectangle<PointType, LabelType>::contains(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->contains(value);
-        },
-        other.variant());
 }
 
 /**
@@ -998,15 +929,6 @@ constexpr bool Halfplane<PointType, LabelType>::contains(const OtherDisk& other)
     return !asLine().interiorsIntersect(other) && other.pointInsideInteriorContainedIn(*this);
 }
 
-template <class PointType, class LabelType>
-constexpr bool Halfplane<PointType, LabelType>::contains(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->contains(value);
-        },
-        other.variant());
-}
-
 // -----------------------------------------------------------------------------
 // Disk
 
@@ -1115,15 +1037,6 @@ constexpr bool Disk<PointType, LabelType>::contains(const OtherDisk& other) cons
     const R d2 = center<R>().template squaredDistance<R>(other.template center<R>());
     const R A = d2 - r1_sq - r2_sq;
     return A <= R{} && A * A >= R{4} * r1_sq * r2_sq;
-}
-
-template <class PointType, class LabelType>
-constexpr bool Disk<PointType, LabelType>::contains(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->contains(value);
-        },
-        other.variant());
 }
 
 
@@ -1671,25 +1584,6 @@ constexpr bool Polygon<PointType, LabelType>::contains(const OtherDisk& other) c
     return true;
 }
 
-template <class PointType, class LabelType>
-constexpr bool Polygon<PointType, LabelType>::contains(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->contains(value);
-        },
-        other.variant());
-}
-
-template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-constexpr bool Convex<PointType, LabelType>::contains(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->contains(value);
-        },
-        other.variant());
-}
-
 template <class Number, class Label>
 template<PolygonConcept OtherPolygon>
 constexpr bool Point<Number, Label>::contains(const OtherPolygon& other) const {
@@ -1973,16 +1867,6 @@ constexpr bool MonotoneChain<PointType, LabelType, Storage>::contains(const Othe
         }
     }
     return true;
-}
-
-template <class PointType, class LabelType, class Storage>
-template<PointConcept OtherPoint>
-constexpr bool MonotoneChain<PointType, LabelType, Storage>::contains(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->contains(value);
-        },
-        other.variant());
 }
 
 // Every shape below is a convex point set, so it contains the chain iff it
@@ -2332,16 +2216,6 @@ constexpr bool Polyline<PointType, LabelType>::contains(const OtherPolyline& oth
     return true;
 }
 
-template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Polyline<PointType, LabelType>::contains(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->contains(value);
-        },
-        other.variant());
-}
-
 // A point and a segment are convex point sets, so they contain the polyline
 // iff they contain all of its vertices (an empty polyline is trivially
 // contained).
@@ -2686,16 +2560,6 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::contains(const Other
         }
     }
     return true;
-}
-
-template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-constexpr bool HalfplaneIntersection<PointType, LabelType>::contains(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->contains(value);
-        },
-        other.variant());
 }
 
 
@@ -3342,21 +3206,6 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::contains(const Other
 }
 
 // ---------------------------------------------------------------------------
-// Runtime Shape argument: unwrap the stored alternative and re-dispatch. Every
-// alternative has a per-shape overload above, so no fallback is needed.
-
-template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->contains(value);
-        },
-        other.variant());
-}
-
-
-// ---------------------------------------------------------------------------
 // PolygonSet
 //
 // One definition per relation, stated over every operand the set outranks: the
@@ -3653,12 +3502,6 @@ bool PolygonSet<PointType, LabelType>::contains(const OtherSet& other) const {
         }
     }
     return true;
-}
-
-template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-bool PolygonSet<PointType, LabelType>::contains(const Shape<OtherPoint>& other) const {
-    return std::visit([this](const auto& value) { return this->contains(value); }, other.variant());
 }
 
 }  // namespace pgl

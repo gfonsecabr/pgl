@@ -129,16 +129,6 @@ constexpr bool Segment<PointType, LabelType>::interiorContains(const OtherTriang
     return interiorContains(other.a()) && interiorContains(other.b()) && interiorContains(other.c());
 }
 
-template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::interiorContains(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return interiorContains(value);
-        },
-        other.variant());
-}
-
 /**
  * @section predicates-triangle Triangle
  * Triangle boundary, containment, intersection, and cut predicates, including
@@ -913,16 +903,6 @@ constexpr bool Convex<PointType, LabelType>::interiorContains(const OtherDisk& o
     return true;
 }
 
-template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-constexpr bool Convex<PointType, LabelType>::interiorContains(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->interiorContains(value);
-        },
-        other.variant());
-}
-
 // ---------------------------------------------------------------------------
 // Polygon
 
@@ -1435,16 +1415,6 @@ constexpr bool MonotoneChain<PointType, LabelType, Storage>::interiorContains(co
            !boundaryContains(other[other.size() - 1]);
 }
 
-template <class PointType, class LabelType, class Storage>
-template<PointConcept OtherPoint>
-constexpr bool MonotoneChain<PointType, LabelType, Storage>::interiorContains(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->interiorContains(value);
-        },
-        other.variant());
-}
-
 template <class Number, class Label>
 template<MonotoneChainConcept OtherChain>
 constexpr bool Point<Number, Label>::interiorContains(const OtherChain& other) const {
@@ -1657,16 +1627,6 @@ constexpr bool Polyline<PointType, LabelType>::interiorContains(const OtherPolyl
     // must avoid both extreme points of this polyline entirely.
     return contains(other) && !other.contains((*this)[0]) &&
            !other.contains((*this)[size() - 1]);
-}
-
-template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Polyline<PointType, LabelType>::interiorContains(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->interiorContains(value);
-        },
-        other.variant());
 }
 
 template <class Number, class Label>
@@ -1990,16 +1950,6 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorContains(con
         }
     }
     return true;
-}
-
-template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorContains(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->interiorContains(value);
-        },
-        other.variant());
 }
 
 
@@ -2555,21 +2505,6 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorContains(con
 }
 
 // ---------------------------------------------------------------------------
-// Runtime Shape argument: unwrap the stored alternative and re-dispatch. Every
-// alternative has a per-shape overload above, so no fallback is needed.
-
-template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->interiorContains(value);
-        },
-        other.variant());
-}
-
-
-// ---------------------------------------------------------------------------
 // PolygonSet
 //
 // The component interiors are open and pairwise disjoint, so their union — the
@@ -2603,13 +2538,6 @@ bool PolygonSet<PointType, LabelType>::interiorContains(const OtherSet& other) c
         }
     }
     return true;
-}
-
-template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-bool PolygonSet<PointType, LabelType>::interiorContains(const Shape<OtherPoint>& other) const {
-    return std::visit([this](const auto& value) { return this->interiorContains(value); },
-                      other.variant());
 }
 
 }  // namespace pgl

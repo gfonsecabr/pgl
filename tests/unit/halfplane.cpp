@@ -423,13 +423,14 @@ TEST_CASE("Halfplane intersection with another halfplane is a HalfplaneIntersect
         CHECK(wedge.contains(pgl::Point<Rational>(Rational(1, 2), Rational(1, 3))));
     }
 
-    SUBCASE("the Shape wrapper re-wraps the pair as a HalfplaneIntersection") {
+    SUBCASE("the Shape wrapper returns the pair as one HalfplaneIntersection piece") {
         // A HalfplaneIntersection is itself a Shape alternative, so the
         // variant dispatch wraps the (possibly unbounded) result directly.
         const pgl::Shape<Point> a = upper;
         const pgl::Shape<Point> b = right;
-        const pgl::Shape<Point> wedge = a.intersection<int>(b);
-        REQUIRE(wedge.holdsAlternative<Region>());
-        CHECK(Region(wedge) == Region({upper, right}));
+        const auto wedge = a.intersection<int>(b);
+        REQUIRE(wedge.size() == 1);
+        REQUIRE(wedge[0].holds<Region>());
+        CHECK(wedge[0].asHeld<Region>() == Region({upper, right}));
     }
 }

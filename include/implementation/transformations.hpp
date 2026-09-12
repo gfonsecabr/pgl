@@ -2383,19 +2383,17 @@ constexpr auto operator*(const Transformation<Number>& transformation, const Sha
 
 template <class Number, ShapeConcept ShapeT>
 constexpr auto operator*(const Transformation<Number>& transformation, const ShapeT& shape) {
-    using PointType = typename ShapeT::PointType_;
+    using PointType = typename ShapeT::PointType;
     using ResultNumber = std::common_type_t<Number, typename PointType::NumberType>;
     using ResultShape = Shape<Point<ResultNumber, typename PointType::LabelType>>;
-    return std::visit(
-        [&transformation](const auto& value) -> ResultShape {
-            if constexpr (requires { transformation * value; }) {
-                return ResultShape(transformation * value);
-            } else {
-                throw std::logic_error(
-                    "Transformation::operator* is not defined for the Rectangle/Disk alternative");
-            }
-        },
-        shape.variant());
+    return shape.visit([&transformation](const auto& value) -> ResultShape {
+        if constexpr (requires { transformation * value; }) {
+            return ResultShape(transformation * value);
+        } else {
+            throw unsupported_operation("Transformation * Shape",
+                                        detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+        }
+    });
 }
 
 

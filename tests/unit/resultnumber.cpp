@@ -7,6 +7,7 @@
 #include <optional>
 #include <type_traits>
 #include <variant>
+#include <vector>
 
 #include "pgl.hpp"
 
@@ -113,7 +114,7 @@ static_assert(std::is_same_v<decltype(std::declval<const pgl::Disk<Point>&>().di
                              long double>);
 static_assert(std::is_same_v<decltype(std::declval<const pgl::Disk<Point>&>().distanceL1(
                                  std::declval<const pgl::Shape<Point>&>())),
-                             double>);
+                             pgl::ERational>);
 static_assert(std::is_same_v<decltype(std::declval<const pgl::Disk<Point>&>().distanceLInf<long double>(
                                  std::declval<const pgl::Shape<Point>&>())),
                              long double>);
@@ -125,10 +126,10 @@ static_assert(std::is_same_v<decltype(std::declval<const pgl::Transformation<flo
                              pgl::Transformation<float>>);
 static_assert(std::is_same_v<decltype(std::declval<const pgl::Shape<Point>&>().squaredDistance(
                                  std::declval<const Point&>())),
-                             double>);
+                             pgl::ERational>);
 static_assert(std::is_same_v<decltype(std::declval<const pgl::Shape<Point>&>().intersection(
                                  std::declval<const Point&>())),
-                             pgl::Shape<EPoint>>);
+                             std::vector<pgl::Shape<EPoint>>>);
 static_assert(std::is_same_v<decltype(std::declval<const pgl::Segment<Point>&>().squaredDistance(
                                  std::declval<const Point&>())),
                              pgl::ERational>);

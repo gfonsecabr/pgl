@@ -195,10 +195,9 @@ struct EmptyShape {
         return !other.isConnected();
     }
     /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] bool separates(const Shape<OtherPoint>& other) const {
-        return std::visit([this](const auto& value) { return this->separates(value); },
-                          other.variant());
+    template <ShapeConcept OtherShape>
+    [[nodiscard]] constexpr bool separates(const OtherShape& other) const {
+        return detail::separatesAny(*this, other);
     }
 
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */

@@ -21,25 +21,25 @@ TEST_CASE("Shape defaults to empty and stores the active alternative") {
 
     const Shape empty;
     REQUIRE(empty.empty());
-    REQUIRE(empty.holdsAlternative<EmptyShape>());
-    CHECK(empty.getIf<EmptyShape>() != nullptr);
+    REQUIRE(empty.holds<EmptyShape>());
+    CHECK(empty.getIfHolds<EmptyShape>() != nullptr);
     CHECK(empty.size() == 0);
 
     const Shape segment = Segment({1, 2}, {3, 4});
-    REQUIRE(segment.holdsAlternative<Segment>());
-    CHECK(segment.getIf<Segment>() != nullptr);
-    CHECK(*segment.getIf<Segment>() == Segment({1, 2}, {3, 4}));
+    REQUIRE(segment.holds<Segment>());
+    CHECK(segment.getIfHolds<Segment>() != nullptr);
+    CHECK(*segment.getIfHolds<Segment>() == Segment({1, 2}, {3, 4}));
 
     const Shape triangle = Triangle({0, 0}, {4, 0}, {0, 3});
-    REQUIRE(triangle.holdsAlternative<Triangle>());
-    CHECK(triangle.getIf<Triangle>() != nullptr);
-    CHECK(*triangle.getIf<Triangle>() == Triangle({0, 0}, {4, 0}, {0, 3}));
+    REQUIRE(triangle.holds<Triangle>());
+    CHECK(triangle.getIfHolds<Triangle>() != nullptr);
+    CHECK(*triangle.getIfHolds<Triangle>() == Triangle({0, 0}, {4, 0}, {0, 3}));
 
     const Convex square({{0, 0}, {4, 0}, {4, 4}, {0, 4}});
     const Shape convex = square;
-    REQUIRE(convex.holdsAlternative<Convex>());
-    CHECK(convex.getIf<Convex>() != nullptr);
-    CHECK(*convex.getIf<Convex>() == square);
+    REQUIRE(convex.holds<Convex>());
+    CHECK(convex.getIfHolds<Convex>() != nullptr);
+    CHECK(*convex.getIfHolds<Convex>() == square);
     CHECK(convex.size() == 4);
     CHECK(convex[0] == Point(0, 0));
     CHECK(convex.get(0) == Point(0, 0));
@@ -111,8 +111,8 @@ TEST_CASE("Shape empty answers the wrapped shape's own emptiness") {
     // Emptiness is a question about the geometry, not about the alternative.
     const Shape emptyRectangle = Rectangle{};
     CHECK(emptyRectangle.empty());
-    CHECK(emptyRectangle.isRectangle());
-    CHECK_FALSE(emptyRectangle.holdsAlternative<EmptyShape>());
+    CHECK(emptyRectangle.holdsRectangle());
+    CHECK_FALSE(emptyRectangle.holds<EmptyShape>());
 }
 
 TEST_CASE("Shape streams, compares, and hashes through the wrapped value") {
@@ -342,9 +342,9 @@ TEST_CASE("Shape stores a Polygon and dispatches its predicates") {
 
     const Polygon square({0, 0, 10, 0, 10, 10, 0, 10});
     const Shape shape = square;
-    REQUIRE(shape.holdsAlternative<Polygon>());
-    CHECK(shape.getIf<Polygon>() != nullptr);
-    CHECK(*shape.getIf<Polygon>() == square);
+    REQUIRE(shape.holds<Polygon>());
+    CHECK(shape.getIfHolds<Polygon>() != nullptr);
+    CHECK(*shape.getIfHolds<Polygon>() == square);
 
     // Point containment through the wrapper.
     CHECK(shape.contains(Point(5, 5)));
@@ -424,8 +424,8 @@ TEST_CASE("Shape dispatches squaredHausdorffDistance across wrapped shapes") {
     // an unbounded Line, or a Polygon (no overload yet), always throws.
     const Shape line = Line({0, 0}, {1, 0});
     const Shape polygon = Polygon({Point(0, 0), Point(2, 0), Point(2, 2), Point(0, 2)});
-    CHECK_THROWS_AS(t1.squaredHausdorffDistance<int>(line), std::logic_error);
-    CHECK_THROWS_AS(t1.squaredHausdorffDistance<int>(polygon), std::logic_error);
+    CHECK_THROWS_AS((void)t1.squaredHausdorffDistance<int>(line), std::logic_error);
+    CHECK_THROWS_AS((void)t1.squaredHausdorffDistance<int>(polygon), std::logic_error);
 }
 
 TEST_CASE("Shape dispatches distanceL1/distanceLInf across wrapped shapes") {
@@ -449,9 +449,9 @@ TEST_CASE("Shape dispatches distanceL1/distanceLInf across wrapped shapes") {
     const Shape segment = Segment({3, 4}, {3, 10});
     CHECK(origin.distanceL1<int>(segment) == segment.distanceL1<int>(origin));
 
-    // A runtime Shape can contain a Disk, so the common default must allow an
-    // irrational metric result even when this particular pair is polygonal.
-    static_assert(std::is_same_v<decltype(origin.distanceL1(corner)), double>);
+    // The default result type is the concrete shapes' own, division_result_t;
+    // a Disk pair converts its floating answer into it.
+    static_assert(std::is_same_v<decltype(origin.distanceL1(corner)), pgl::ERational>);
 
     // A purely horizontal gap: L1 and LInf both equal the axis gap.
     const Shape t1 = Triangle({0, 0}, {2, 0}, {0, 2});
@@ -469,8 +469,8 @@ TEST_CASE("Shape dispatches distanceL1/distanceLInf across wrapped shapes") {
 
     // Disk against anything but a Point is not yet implemented and throws.
     const Shape line = Line({0, 0}, {1, 0});
-    CHECK_THROWS_AS(disk.distanceL1<int>(line), std::logic_error);
-    CHECK_THROWS_AS(disk.distanceLInf<int>(t1), std::logic_error);
+    CHECK_THROWS_AS((void)disk.distanceL1<int>(line), std::logic_error);
+    CHECK_THROWS_AS((void)disk.distanceLInf<int>(t1), std::logic_error);
 }
 
 TEST_CASE("Shape dispatches hausdorffDistanceL1/hausdorffDistanceLInf across wrapped shapes") {
@@ -493,8 +493,8 @@ TEST_CASE("Shape dispatches hausdorffDistanceL1/hausdorffDistanceLInf across wra
     // an unbounded Line, or a Polygon (no overload yet), always throws.
     const Shape line = Line({0, 0}, {1, 0});
     const Shape polygon = Polygon({Point(0, 0), Point(2, 0), Point(2, 2), Point(0, 2)});
-    CHECK_THROWS_AS(t1.hausdorffDistanceL1<int>(line), std::logic_error);
-    CHECK_THROWS_AS(t1.hausdorffDistanceLInf<int>(polygon), std::logic_error);
+    CHECK_THROWS_AS((void)t1.hausdorffDistanceL1<int>(line), std::logic_error);
+    CHECK_THROWS_AS((void)t1.hausdorffDistanceLInf<int>(polygon), std::logic_error);
 }
 
 TEST_CASE("Concrete shapes accept a Shape argument for every distance method, symmetrically") {
@@ -562,36 +562,36 @@ TEST_CASE("Shape translates and scales through the wrapped value") {
     // Free translation preserves the stored alternative type and shifts it.
     const Shape segment = Segment({1, 2}, {3, 4});
     const Shape shifted = segment + Point(2, 3);
-    REQUIRE(shifted.holdsAlternative<Segment>());
-    CHECK(*shifted.getIf<Segment>() == Segment({3, 5}, {5, 7}));
+    REQUIRE(shifted.holds<Segment>());
+    CHECK(*shifted.getIfHolds<Segment>() == Segment({3, 5}, {5, 7}));
     CHECK((Point(2, 3) + segment) == shifted);
     CHECK((shifted - Point(2, 3)) == segment);
 
     // Scaling and division around the origin.
     const Shape scaled = segment * 2;
-    REQUIRE(scaled.holdsAlternative<Segment>());
-    CHECK(*scaled.getIf<Segment>() == Segment({2, 4}, {6, 8}));
+    REQUIRE(scaled.holds<Segment>());
+    CHECK(*scaled.getIfHolds<Segment>() == Segment({2, 4}, {6, 8}));
     CHECK((2 * segment) == scaled);
     CHECK((scaled / 2) == segment);
 
     // In-place operators mutate the active alternative.
     Shape triangle = Triangle({0, 0}, {4, 0}, {0, 3});
     triangle += Point(1, 1);
-    CHECK(*triangle.getIf<Triangle>() == Triangle({1, 1}, {5, 1}, {1, 4}));
+    CHECK(*triangle.getIfHolds<Triangle>() == Triangle({1, 1}, {5, 1}, {1, 4}));
     triangle -= Point(1, 1);
-    CHECK(*triangle.getIf<Triangle>() == Triangle({0, 0}, {4, 0}, {0, 3}));
+    CHECK(*triangle.getIfHolds<Triangle>() == Triangle({0, 0}, {4, 0}, {0, 3}));
     triangle *= 3;
-    CHECK(*triangle.getIf<Triangle>() == Triangle({0, 0}, {12, 0}, {0, 9}));
+    CHECK(*triangle.getIfHolds<Triangle>() == Triangle({0, 0}, {12, 0}, {0, 9}));
     triangle /= 3;
-    CHECK(*triangle.getIf<Triangle>() == Triangle({0, 0}, {4, 0}, {0, 3}));
+    CHECK(*triangle.getIfHolds<Triangle>() == Triangle({0, 0}, {4, 0}, {0, 3}));
 
     // The empty alternative is carried through every transformation unchanged.
     Shape empty;
-    REQUIRE(empty.holdsAlternative<EmptyShape>());
-    CHECK((empty + Point(5, 6)).holdsAlternative<EmptyShape>());
-    CHECK((empty - Point(5, 6)).holdsAlternative<EmptyShape>());
-    CHECK((empty * 4).holdsAlternative<EmptyShape>());
-    CHECK((empty / 4).holdsAlternative<EmptyShape>());
+    REQUIRE(empty.holds<EmptyShape>());
+    CHECK((empty + Point(5, 6)).holds<EmptyShape>());
+    CHECK((empty - Point(5, 6)).holds<EmptyShape>());
+    CHECK((empty * 4).holds<EmptyShape>());
+    CHECK((empty / 4).holds<EmptyShape>());
     empty += Point(5, 6);
     empty *= 4;
     CHECK(empty.empty());
@@ -631,7 +631,7 @@ TEST_CASE("Shape rotates and axis-scales through the wrapped value") {
     CHECK_THROWS_AS((void)Shape(disk).scaledUpX(2), std::logic_error);
     CHECK_THROWS_AS((void)Shape(disk).scaledDownY(2), std::logic_error);
     Shape mutable_disk = disk;
-    CHECK_THROWS_AS(mutable_disk.scaleUpX(2), std::logic_error);
+    CHECK_THROWS_AS((void)mutable_disk.scaleUpX(2), std::logic_error);
 
     // The empty alternative is invariant under all named transforms.
     Shape empty;
@@ -681,8 +681,8 @@ TEST_CASE("Shape wraps a MonotoneChain") {
 
     const Chain zig({0, 0, 2, 4, 4, 0, 4, 4, 6, 0});
     const Shape shape = zig;
-    REQUIRE(shape.holdsAlternative<Chain>());
-    CHECK(*shape.getIf<Chain>() == zig);
+    REQUIRE(shape.holds<Chain>());
+    CHECK(*shape.getIfHolds<Chain>() == zig);
     CHECK(shape.size() == 5);
     CHECK(shape[1] == Point(2, 4));
     CHECK(shape.get(-1) == Point(6, 0));
@@ -725,21 +725,20 @@ TEST_CASE("Shape dispatches predicates and measures through a MonotoneChain") {
     CHECK(shape.distanceL1<pgl::Rational<int>>(Shape(Point(1, 3))) == pgl::Rational<int>(1, 2));
     CHECK_THROWS_AS((void)shape.squaredHausdorffDistance<double>(crossing), std::logic_error);
 
-    // A single-point crossing re-wraps into a Point-valued Shape. (The right
-    // operand stays concrete: a Shape-Shape intersection instantiates every
-    // pair, and the preexisting Rectangle-Polygon result cannot be wrapped.)
+    // A single-point crossing is one Point-valued piece.
     const Shape up = Chain({0, 0, 4, 4});
-    const Shape cross = up.intersection<int>(Chain({0, 4, 4, 0}));
-    REQUIRE(cross.holdsAlternative<Point>());
-    CHECK(Point(cross) == Point(2, 2));
+    const auto cross = up.intersection<int>(Chain({0, 4, 4, 0}));
+    REQUIRE(cross.size() == 1);
+    REQUIRE(cross[0].holds<Point>());
+    CHECK(cross[0].asHeld<Point>() == Point(2, 2));
 
     // Transformations preserve the alternative.
     Shape moved = shape;
     moved += Point(1, 1);
-    REQUIRE(moved.holdsAlternative<Chain>());
+    REQUIRE(moved.holds<Chain>());
     CHECK(moved[0] == Point(1, 1));
-    CHECK(moved.rotated90(2).holdsAlternative<Chain>());
-    CHECK(moved.scaledUpX(2).holdsAlternative<Chain>());
+    CHECK(moved.rotated90(2).holds<Chain>());
+    CHECK(moved.scaledUpX(2).holds<Chain>());
 }
 
 TEST_CASE("Shape wraps a Polyline") {
@@ -751,8 +750,8 @@ TEST_CASE("Shape wraps a Polyline") {
     // MonotoneChain, which would sort these vertices.
     const Polyline bowtie({0, 0, 4, 4, 4, 0, 0, 4});
     const Shape shape = bowtie;
-    REQUIRE(shape.holdsAlternative<Polyline>());
-    CHECK(*shape.getIf<Polyline>() == bowtie);
+    REQUIRE(shape.holds<Polyline>());
+    CHECK(*shape.getIfHolds<Polyline>() == bowtie);
     CHECK(shape.size() == 4);
     CHECK(shape[1] == Point(4, 4));
     CHECK(shape.get(-1) == Point(0, 4));
@@ -781,9 +780,9 @@ TEST_CASE("Shape wraps a HalfplaneIntersection") {
 
     const Region square{Rectangle({0, 0}, {6, 6})};
     const Shape shape = square;
-    REQUIRE(shape.holdsAlternative<Region>());
-    CHECK(shape.getIf<Region>() != nullptr);
-    CHECK(*shape.getIf<Region>() == square);
+    REQUIRE(shape.holds<Region>());
+    CHECK(shape.getIfHolds<Region>() != nullptr);
+    CHECK(*shape.getIfHolds<Region>() == square);
     CHECK(shape.size() == 4);  // stored half-planes
     CHECK_FALSE(shape.isDegenerate());
     CHECK(shape.bbox() == Rectangle({0, 0}, {6, 6}));
@@ -860,41 +859,48 @@ TEST_CASE("Shape dispatches predicates, intersection, and distances through a Ha
     CHECK(strip.separates(plane));
     CHECK_FALSE(plane.separates(strip));
 
-    // Two half-planes now intersect into a wrapped HalfplaneIntersection,
-    // which previously had no Shape representation and threw.
+    // Two half-planes intersect into one HalfplaneIntersection piece.
     const Shape upper = Halfplane({0, 0}, {1, 0});
     const Shape right = Halfplane({0, 1}, {0, 0});
-    const Shape wedge = upper.intersection<int>(right);
-    REQUIRE(wedge.holdsAlternative<Region>());
-    CHECK_FALSE(Region(wedge).isBounded());
-    CHECK(wedge.contains(Shape(Point(3, 3))));
+    const auto wedge = upper.intersection<int>(right);
+    REQUIRE(wedge.size() == 1);
+    REQUIRE(wedge[0].holds<Region>());
+    CHECK_FALSE(Region(wedge[0]).isBounded());
+    CHECK(wedge[0].contains(Shape(Point(3, 3))));
 
     // Region-with-area intersections stay regions through the wrapper; the
     // clip of the square with a half-plane keeps half the square.
-    const Shape clipped = shape.intersection<int>(upper);
-    REQUIRE(clipped.holdsAlternative<Region>());
-    CHECK(Region(clipped) == square);
-    const Shape cell = strip.intersection<int>(shape);
-    REQUIRE(cell.holdsAlternative<Region>());
-    CHECK(Region(cell).twiceArea<int>() == 12);  // 6 x 1
+    const auto clipped = shape.intersection<int>(upper);
+    REQUIRE(clipped.size() == 1);
+    REQUIRE(clipped[0].holds<Region>());
+    CHECK(Region(clipped[0]) == square);
+    const auto cell = strip.intersection<int>(shape);
+    REQUIRE(cell.size() == 1);
+    REQUIRE(cell[0].holds<Region>());
+    CHECK(Region(cell[0]).twiceArea<int>() == 12);  // 6 x 1
 
-    // One-dimensional results re-wrap as their own alternatives.
-    const Shape chord = shape.intersection<int>(Shape(Segment({-1, 3}, {7, 3})));
-    REQUIRE(chord.holdsAlternative<Segment>());
-    CHECK(Segment(chord) == Segment({0, 3}, {6, 3}));
+    // One-dimensional results come back as their own alternatives.
+    const auto chord = shape.intersection<int>(Shape(Segment({-1, 3}, {7, 3})));
+    REQUIRE(chord.size() == 1);
+    REQUIRE(chord[0].holds<Segment>());
+    CHECK(chord[0].asHeld<Segment>() == Segment({0, 3}, {6, 3}));
 
     // A polygon against the region comes back as its single component.
-    const Shape corner = shape.intersection<int>(Shape(Polygon({0, 0, 4, 0, 4, 4, 0, 4})));
-    REQUIRE(corner.holdsAlternative<Polygon>());
-    CHECK(Polygon(corner) == Polygon({0, 0, 4, 0, 4, 4, 0, 4}));
+    const auto corner = shape.intersection<int>(Shape(Polygon({0, 0, 4, 0, 4, 4, 0, 4})));
+    REQUIRE(corner.size() == 1);
+    REQUIRE(corner[0].holds<Polygon>());
+    CHECK(corner[0].asHeld<Polygon>() == Polygon({0, 0, 4, 0, 4, 4, 0, 4}));
     CHECK(Shape(Polygon({0, 0, 4, 0, 4, 4, 0, 4})).intersection<int>(shape) == corner);
 
-    // A disconnected one has no single Shape to be, and a Disk has no
+    // A disconnected one comes back in its pieces, and a Disk has no
     // intersection with the region at all.
     const Shape uShaped = Polygon({0, 0, 6, 0, 6, 6, 4, 6, 4, 2, 2, 2, 2, 6, 0, 6});
     const Shape slab = Region({Halfplane({0, 3}, {1, 3}), Halfplane({1, 5}, {0, 5})});
-    CHECK_THROWS_AS((void)slab.intersection<int>(uShaped), std::logic_error);
-    CHECK_THROWS_AS((void)shape.intersection<int>(Shape(Disk(Point(3, 3), 1))), std::logic_error);
+    const auto legs = slab.intersection<int>(uShaped);
+    REQUIRE(legs.size() == 2);
+    CHECK(legs[0].holds<Polygon>());
+    CHECK(legs[1].holds<Polygon>());
+    CHECK_THROWS_AS((void)shape.intersection<int>(Shape(Disk(Point(3, 3), 1))), pgl::unsupported_operation);
 
     // Distances dispatch both ways, with the explicit ResultNumber probe.
     const Shape farPoint = Point(20, 3);
@@ -911,16 +917,16 @@ TEST_CASE("Shape dispatches predicates, intersection, and distances through a Ha
     // Transformations preserve the alternative.
     Shape moved = shape;
     moved += Point(1, 1);
-    REQUIRE(moved.holdsAlternative<Region>());
+    REQUIRE(moved.holds<Region>());
     CHECK(Region(moved) == Region{Rectangle({1, 1}, {7, 7})});
     CHECK((shape + Point(1, 1)) == moved);
     CHECK((moved - Point(1, 1)) == shape);
-    CHECK((shape * 2).holdsAlternative<Region>());
+    CHECK((shape * 2).holds<Region>());
     CHECK(Region(shape * 2) == Region{Rectangle({0, 0}, {12, 12})});
     CHECK(((shape * 2) / 2) == shape);
-    CHECK(shape.rotated90(2).holdsAlternative<Region>());
+    CHECK(shape.rotated90(2).holds<Region>());
     CHECK(Region(shape.rotated90(2)) == Region{Rectangle({-6, -6}, {0, 0})});
-    CHECK(shape.scaledUpX(2).holdsAlternative<Region>());
+    CHECK(shape.scaledUpX(2).holds<Region>());
     CHECK(Region(shape.scaledUpX(2)) == Region{Rectangle({0, 0}, {12, 6})});
 }
 
@@ -959,20 +965,21 @@ TEST_CASE("Shape dispatches predicates and measures through a Polyline") {
     CHECK(zig.distanceL1<pgl::Rational<int>>(Shape(Point(1, 3))) == pgl::Rational<int>(1, 2));
     CHECK_THROWS_AS((void)shape.squaredHausdorffDistance<double>(crossing), std::logic_error);
 
-    // A single-point crossing re-wraps into a Point-valued Shape. (The right
-    // operand stays concrete, as in the MonotoneChain case above.)
+    // A single-point crossing is one Point-valued piece, here with both
+    // operands wrapped.
     const Shape up = Polyline({0, 0, 4, 4});
-    const Shape cross = up.intersection<int>(Polyline({0, 4, 4, 0}));
-    REQUIRE(cross.holdsAlternative<Point>());
-    CHECK(Point(cross) == Point(2, 2));
+    const auto cross = up.intersection<int>(Shape(Polyline({0, 4, 4, 0})));
+    REQUIRE(cross.size() == 1);
+    REQUIRE(cross[0].holds<Point>());
+    CHECK(cross[0].asHeld<Point>() == Point(2, 2));
 
     // Transformations preserve the alternative.
     Shape moved = shape;
     moved += Point(1, 1);
-    REQUIRE(moved.holdsAlternative<Polyline>());
+    REQUIRE(moved.holds<Polyline>());
     CHECK(moved[0] == Point(1, 1));
-    CHECK(moved.rotated90(2).holdsAlternative<Polyline>());
-    CHECK(moved.scaledUpX(2).holdsAlternative<Polyline>());
+    CHECK(moved.rotated90(2).holds<Polyline>());
+    CHECK(moved.scaledUpX(2).holds<Polyline>());
 }
 
 TEST_CASE("Shape wraps a PolygonWithHoles") {
@@ -985,9 +992,9 @@ TEST_CASE("Shape wraps a PolygonWithHoles") {
     const Region annulus(Polygon({0, 0, 6, 0, 6, 6, 0, 6}),
                          std::vector<Polygon>{Polygon({2, 2, 4, 2, 4, 4, 2, 4})});
     const Shape shape = annulus;
-    REQUIRE(shape.holdsAlternative<Region>());
-    CHECK(shape.getIf<Region>() != nullptr);
-    CHECK(*shape.getIf<Region>() == annulus);
+    REQUIRE(shape.holds<Region>());
+    CHECK(shape.getIfHolds<Region>() != nullptr);
+    CHECK(*shape.getIfHolds<Region>() == annulus);
     CHECK_FALSE(shape.isDegenerate());
     CHECK(shape.bbox() == Rectangle({0, 0}, {6, 6}));
 
@@ -1120,16 +1127,16 @@ TEST_CASE("Shape dispatches predicates, regularized intersection, and distances 
     // Transformations preserve the alternative.
     Shape moved = shape;
     moved += Point(1, 1);
-    REQUIRE(moved.holdsAlternative<Region>());
+    REQUIRE(moved.holds<Region>());
     CHECK(Region(moved) == annulus + Point(1, 1));
     CHECK((shape + Point(1, 1)) == moved);
     CHECK((moved - Point(1, 1)) == shape);
-    CHECK((shape * 2).holdsAlternative<Region>());
+    CHECK((shape * 2).holds<Region>());
     CHECK(Region(shape * 2) == annulus * 2);
     CHECK(((shape * 2) / 2) == shape);
-    CHECK(shape.rotated90(2).holdsAlternative<Region>());
+    CHECK(shape.rotated90(2).holds<Region>());
     CHECK(Region(shape.rotated90(2)) == annulus.rotated90(2));
-    CHECK(shape.scaledUpX(2).holdsAlternative<Region>());
+    CHECK(shape.scaledUpX(2).holds<Region>());
     CHECK(Region(shape.scaledUpX(2)) ==
           Region(Polygon({0, 0, 12, 0, 12, 6, 0, 6}),
                  std::vector<Polygon>{Polygon({4, 2, 8, 2, 8, 4, 4, 4})}));
@@ -1139,13 +1146,13 @@ TEST_CASE("Shape dispatches predicates, regularized intersection, and distances 
     // shear keeps every area, so the region keeps its hole.
     const pgl::Transformation<int> shear(1, 0, 1, 1, 0, 0);
     const Shape sheared = shear * shape;
-    REQUIRE(sheared.holdsAlternative<Region>());
+    REQUIRE(sheared.holds<Region>());
     CHECK(Region(sheared).holeCount() == 1);
     CHECK(Region(sheared).twiceArea() == annulus.twiceArea());
 
     // Summing with a Point is a translation and stays a region.
     const Shape summed = shape.minkowskiSum(Shape(Point(1, 1)));
-    REQUIRE(summed.holdsAlternative<Region>());
+    REQUIRE(summed.holds<Region>());
     CHECK(Region(summed) == annulus + Point(1, 1));
     // A non-convex operand has no single-Shape sum; that is what the
     // PolygonWithHoles-valued minkowskiSum overloads are for.
@@ -1166,9 +1173,9 @@ TEST_CASE("Shape wraps a PolygonSet") {
     const RegionSet pair(std::vector<Region>{Region(Polygon({0, 0, 2, 0, 2, 2, 0, 2})),
                                              Region(Polygon({4, 0, 6, 0, 6, 2, 4, 2}))});
     const Shape shape = pair;
-    REQUIRE(shape.holdsAlternative<RegionSet>());
-    CHECK(shape.getIf<RegionSet>() != nullptr);
-    CHECK(*shape.getIf<RegionSet>() == pair);
+    REQUIRE(shape.holds<RegionSet>());
+    CHECK(shape.getIfHolds<RegionSet>() != nullptr);
+    CHECK(*shape.getIfHolds<RegionSet>() == pair);
     CHECK_FALSE(shape.isDegenerate());
     CHECK(shape.bbox() == Rectangle({0, 0}, {6, 2}));
 
@@ -1286,30 +1293,30 @@ TEST_CASE("Shape dispatches predicates, regularized intersection, and distances 
     // Transformations preserve the alternative.
     Shape moved = shape;
     moved += Point(1, 1);
-    REQUIRE(moved.holdsAlternative<RegionSet>());
+    REQUIRE(moved.holds<RegionSet>());
     CHECK(RegionSet(moved) == pair + Point(1, 1));
     CHECK((shape + Point(1, 1)) == moved);
     CHECK((moved - Point(1, 1)) == shape);
-    CHECK((shape * 2).holdsAlternative<RegionSet>());
+    CHECK((shape * 2).holds<RegionSet>());
     CHECK(RegionSet(shape * 2) == pair * 2);
     CHECK(((shape * 2) / 2) == shape);
-    CHECK(shape.rotated90(2).holdsAlternative<RegionSet>());
+    CHECK(shape.rotated90(2).holds<RegionSet>());
     CHECK(RegionSet(shape.rotated90(2)) == pair.rotated90(2));
-    CHECK(shape.scaledUpX(2).holdsAlternative<RegionSet>());
+    CHECK(shape.scaledUpX(2).holds<RegionSet>());
     CHECK(RegionSet(shape.scaledUpX(2).scaledDownX(2)) == pair);
 
     // An affine map takes the set through the wrapper as well; the shear keeps
     // every area, so the components stay two and keep their size.
     const pgl::Transformation<int> shear(1, 0, 1, 1, 0, 0);
     const Shape sheared = shear * shape;
-    REQUIRE(sheared.holdsAlternative<RegionSet>());
+    REQUIRE(sheared.holds<RegionSet>());
     CHECK(RegionSet(sheared).componentCount() == 2);
     CHECK(RegionSet(sheared).twiceArea() == pair.twiceArea());
 
     // Summing with a Point is a translation and stays a set; nothing else is a
     // single-Shape sum, a set of regions being anything but convex.
     const Shape summed = shape.minkowskiSum(Shape(Point(1, 1)));
-    REQUIRE(summed.holdsAlternative<RegionSet>());
+    REQUIRE(summed.holds<RegionSet>());
     CHECK(RegionSet(summed) == pair + Point(1, 1));
     CHECK_THROWS_AS((void)shape.minkowskiSum(Shape(Triangle({0, 0}, {1, 0}, {0, 1}))),
                     std::logic_error);
@@ -1561,14 +1568,15 @@ TEST_CASE("A concrete shape takes a Shape argument on intersections and regulari
     const Segment diagonal({0, 0}, {4, 4});
     const PolygonShape big({0, 0, 8, 0, 8, 8, 0, 8});
 
-    SUBCASE("intersection forwards and answers as a Shape") {
+    SUBCASE("intersection forwards and answers with the pieces") {
         const auto result = rect.intersection<int>(Shape(offset));
-        CHECK(std::is_same_v<decltype(result), const Shape>);
+        CHECK(std::is_same_v<decltype(result), const std::vector<Shape>>);
         // Same answer as the wrapper gives with the operands the other way up.
         CHECK(result == Shape(offset).intersection<int>(rect));
-        // The wrapper still unwraps to the tightest alternative it can.
-        REQUIRE(result.holdsAlternative<Rectangle>());
-        CHECK(Rectangle(result) == Rectangle({2, 2}, {4, 4}));
+        // Each piece is the tightest alternative the concrete pair answers with.
+        REQUIRE(result.size() == 1);
+        REQUIRE(result[0].holds<Rectangle>());
+        CHECK(result[0].asHeld<Rectangle>() == Rectangle({2, 2}, {4, 4}));
     }
 
     SUBCASE("literal intersection forwards from every receiver that has one") {
@@ -1714,73 +1722,319 @@ TEST_CASE("A concrete shape takes a Shape argument on intersections and regulari
     }
 
     SUBCASE("a concrete argument does not reach the Shape overload by conversion") {
-        // Shape's converting constructor is implicit, so the point type is
-        // deduced from an actual Shape to keep a concrete pair on its own
-        // overload — which still answers with the tight type, not a wrapper.
+        // The Shape overloads are constrained on ShapeConcept, so a concrete
+        // pair stays on its own overload -- which still answers with the tight
+        // type, not a wrapper.
         CHECK(std::is_same_v<decltype(rect.regularizedUnion<int>(offset)), RegionSet>);
         CHECK(std::is_same_v<decltype(rect.intersection<int>(offset)), std::optional<Rectangle>>);
     }
 }
 
-TEST_CASE("Shape exposes named is/getIf accessors for every alternative") {
+TEST_CASE("Shape keeps storage and geometry in two vocabularies") {
     using Point = pgl::Point<int>;
+    using EmptyShape = pgl::EmptyShape<Point>;
     using Segment = pgl::Segment<Point>;
     using Triangle = pgl::Triangle<Point>;
     using Shape = pgl::Shape<Point>;
 
-    // Each accessor recognizes exactly its own alternative.
+    // holds / getIfHolds / asHeld recognize exactly their own alternative.
     const Shape point = Point(3, 7);
-    CHECK(point.isPoint());
-    CHECK(point.getIfPoint() != nullptr);
-    CHECK(*point.getIfPoint() == Point(3, 7));
-    CHECK_FALSE(point.isSegment());
-    CHECK(point.getIfSegment() == nullptr);
+    CHECK(point.holdsPoint());
+    CHECK(point.getIfHoldsPoint() != nullptr);
+    CHECK(*point.getIfHoldsPoint() == Point(3, 7));
+    CHECK(point.asHeldPoint() == Point(3, 7));
+    CHECK_FALSE(point.holdsSegment());
+    CHECK(point.getIfHoldsSegment() == nullptr);
+    CHECK_THROWS_AS((void)point.asHeldSegment(), std::bad_variant_access);
 
     const Shape segment = Segment({1, 2}, {3, 4});
-    CHECK(segment.isSegment());
-    CHECK(*segment.getIfSegment() == Segment({1, 2}, {3, 4}));
-    CHECK_FALSE(segment.isOrientedSegment());
-    CHECK_FALSE(segment.isPoint());
+    CHECK(segment.holdsSegment());
+    CHECK(*segment.getIfHoldsSegment() == Segment({1, 2}, {3, 4}));
+    CHECK_FALSE(segment.holdsOrientedSegment());
+    CHECK_FALSE(segment.holdsPoint());
 
-    // The default (EmptyShape) state answers false to all of them.
+    // The generic forms agree with the named ones.
+    CHECK(segment.holds<Segment>());
+    CHECK(segment.getIfHolds<Segment>() == segment.getIfHoldsSegment());
+    CHECK(segment.asHeld<Segment>() == segment.asHeldSegment());
+
+    // Naming the alternative's type extracts it as well, by construction or by
+    // static_cast. The conversion is explicit, so it never fires on its own.
+    const Segment extracted(segment);
+    CHECK(extracted == segment.asHeld<Segment>());
+    CHECK(static_cast<Segment>(segment) == extracted);
+    CHECK_THROWS_AS((void)Triangle(segment), std::bad_variant_access);
+    static_assert(!std::is_convertible_v<Shape, Segment>);
+    static_assert(std::is_constructible_v<Segment, Shape>);
+
+    // The default state holds the EmptyShape alternative, which has its own
+    // named accessors like every other.
     const Shape empty;
-    CHECK_FALSE(empty.isPoint());
-    CHECK_FALSE(empty.isSegment());
-    CHECK_FALSE(empty.isPolygon());
-    CHECK(empty.getIfPoint() == nullptr);
+    CHECK(empty.holdsEmptyShape());
+    CHECK(empty.getIfHoldsEmptyShape() != nullptr);
+    CHECK(empty.asHeldEmptyShape() == EmptyShape{});
+    CHECK_FALSE(empty.holdsPoint());
+    CHECK_FALSE(empty.holdsPolygon());
 
-    // The accessors agree with holdsAlternative/getIf on every alternative.
-    CHECK(Shape(pgl::OrientedSegment<Point>({1, 2}, {3, 4})).isOrientedSegment());
-    CHECK(Shape(pgl::Line<Point>({0, 0}, {1, 1})).isLine());
-    CHECK(Shape(pgl::OrientedLine<Point>({0, 0}, {1, 1})).isOrientedLine());
-    CHECK(Shape(pgl::Ray<Point>({0, 0}, {1, 1})).isRay());
-    CHECK(Shape(pgl::Halfplane<Point>({0, 0}, {1, 1})).isHalfplane());
-    CHECK(Shape(pgl::Rectangle<Point>({0, 0}, {4, 4})).isRectangle());
-    CHECK(Shape(Triangle({0, 0}, {4, 0}, {0, 4})).isTriangle());
-    CHECK(Shape(pgl::Disk<Point>({0, 0}, {4, 0}, {0, 4})).isDisk());
-    CHECK(Shape(pgl::Convex<Point>({{0, 0}, {4, 0}, {0, 4}})).isConvex());
-    CHECK(Shape(pgl::MonotoneChain<Point>({{0, 0}, {1, 1}, {2, 0}})).isMonotoneChain());
-    CHECK(Shape(pgl::Polyline<Point>({{0, 0}, {1, 1}, {2, 0}})).isPolyline());
-    CHECK(Shape(pgl::Polygon<Point>({{0, 0}, {4, 0}, {0, 4}})).isPolygon());
+    CHECK(Shape(pgl::OrientedSegment<Point>({1, 2}, {3, 4})).holdsOrientedSegment());
+    CHECK(Shape(pgl::Line<Point>({0, 0}, {1, 1})).holdsLine());
+    CHECK(Shape(pgl::OrientedLine<Point>({0, 0}, {1, 1})).holdsOrientedLine());
+    CHECK(Shape(pgl::Ray<Point>({0, 0}, {1, 1})).holdsRay());
+    CHECK(Shape(pgl::Halfplane<Point>({0, 0}, {1, 1})).holdsHalfplane());
+    CHECK(Shape(pgl::Rectangle<Point>({0, 0}, {4, 4})).holdsRectangle());
+    CHECK(Shape(Triangle({0, 0}, {4, 0}, {0, 4})).holdsTriangle());
+    CHECK(Shape(pgl::Disk<Point>({0, 0}, {4, 0}, {0, 4})).holdsDisk());
+    CHECK(Shape(pgl::Convex<Point>({{0, 0}, {4, 0}, {0, 4}})).holdsConvex());
+    CHECK(Shape(pgl::MonotoneChain<Point>({{0, 0}, {1, 1}, {2, 0}})).holdsMonotoneChain());
+    CHECK(Shape(pgl::Polyline<Point>({{0, 0}, {1, 1}, {2, 0}})).holdsPolyline());
+    CHECK(Shape(pgl::Polygon<Point>({{0, 0}, {4, 0}, {0, 4}})).holdsPolygon());
     CHECK(Shape(pgl::HalfplaneIntersection<Point>(pgl::Rectangle<Point>({0, 0}, {4, 4})))
-              .isHalfplaneIntersection());
+              .holdsHalfplaneIntersection());
     CHECK(Shape(pgl::PolygonWithHoles<Point>(pgl::Polygon<Point>({0, 0, 4, 0, 4, 4, 0, 4})))
-              .isPolygonWithHoles());
+              .holdsPolygonWithHoles());
     CHECK(Shape(pgl::PolygonSet<Point>(
                     pgl::PolygonWithHoles<Point>(pgl::Polygon<Point>({0, 0, 4, 0, 4, 4, 0, 4}))))
-              .isPolygonSet());
+              .holdsPolygonSet());
 
-    // The test is on the stored alternative, not on the geometry: a triangle
-    // collapsed to a point is still the Triangle alternative.
+    // is / getIf are geometric, as on every concrete shape: a segment collapsed
+    // to a point holds a Segment and is a point.
+    const Shape dot = Segment({2, 2}, {2, 2});
+    CHECK(dot.holdsSegment());
+    CHECK_FALSE(dot.holdsPoint());
+    CHECK_FALSE(dot.isSegment());
+    CHECK(dot.isPoint());
+    CHECK(dot.getIfPoint() == Point(2, 2));
+    CHECK_FALSE(dot.getIfSegment().has_value());
+    CHECK(dot.getIfHoldsSegment()->isPoint());
+
     const Shape collapsed = Triangle({2, 2}, {2, 2}, {2, 2});
-    CHECK(collapsed.isTriangle());
-    CHECK_FALSE(collapsed.isPoint());
-    CHECK(collapsed.getIfTriangle()->isPoint());
+    CHECK(collapsed.holdsTriangle());
+    CHECK(collapsed.isPoint());
+    CHECK(collapsed.getIfPoint() == collapsed.asHeldTriangle().getIfPoint());
+
+    const Shape flat = Triangle({0, 0}, {2, 2}, {4, 4});
+    CHECK(flat.isSegment());
+    CHECK(flat.getIfSegment() == Segment({0, 0}, {4, 4}));
+
+    CHECK(point.isPoint());
+    CHECK(point.getIfPoint() == Point(3, 7));
+    CHECK(segment.isSegment());
+    CHECK(segment.getIfSegment() == Segment({1, 2}, {3, 4}));
+    CHECK_FALSE(empty.isPoint());
+    CHECK_FALSE(empty.isSegment());
+    CHECK_FALSE(empty.getIfPoint().has_value());
+    CHECK_FALSE(Shape(pgl::Line<Point>({0, 0}, {1, 1})).isPoint());
+
+    // isUndefined and isDegenerate answer as the held object, a Point included.
+    CHECK_FALSE(point.isUndefined());
+    CHECK_FALSE(point.isDegenerate());
+    CHECK(Shape(pgl::Line<Point>({1, 1}, {1, 1})).isUndefined());
 
     // The mutable overload hands out a writable pointer into the variant.
     Shape mutablePoint = Point(3, 7);
-    *mutablePoint.getIfPoint() = Point(8, 9);
+    *mutablePoint.getIfHoldsPoint() = Point(8, 9);
     CHECK(mutablePoint == Shape(Point(8, 9)));
+    mutablePoint.asHeldPoint() = Point(1, 1);
+    CHECK(mutablePoint == Shape(Point(1, 1)));
+}
+
+TEST_CASE("Shape throws unsupported_operation naming the pair it cannot answer") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Disk = pgl::Disk<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Shape disk = Disk(Point(0, 0), 2);
+    const Shape segment = Segment({0, 0}, {4, 0});
+
+    // The type derives from std::logic_error, so old handlers still catch it.
+    static_assert(std::is_base_of_v<std::logic_error, pgl::unsupported_operation>);
+    try {
+        (void)disk.intersection(segment);
+        FAIL("Disk-Segment has no intersection");
+    } catch (const pgl::unsupported_operation& error) {
+        CHECK(std::string(error.what()) == "pgl::Shape: intersection(Disk, Segment) is not supported");
+    }
+    try {
+        (void)Shape(pgl::Ray<Point>({0, 0}, {1, 0})).bbox();
+        FAIL("a ray has no bounding box");
+    } catch (const pgl::unsupported_operation& error) {
+        CHECK(std::string(error.what()) == "pgl::Shape: bbox(Ray) is not supported");
+    }
+
+    // A concrete receiver with a Shape argument reports the same way.
+    const Disk concrete(Point(0, 0), 2);
+    CHECK_THROWS_AS((void)concrete.distanceL1(segment), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)disk.squaredHausdorffDistance(segment), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)disk.scaledUpX(2), pgl::unsupported_operation);
+}
+
+TEST_CASE("Shape answers dimension, boundedness and its sequences as the held object") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using OrientedSegment = pgl::OrientedSegment<Point>;
+    using Line = pgl::Line<Point>;
+    using Ray = pgl::Ray<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using Disk = pgl::Disk<Point>;
+    using Polygon = pgl::Polygon<Point>;
+    using Region = pgl::HalfplaneIntersection<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    CHECK(Shape().dimension() == -1);
+    CHECK(Shape(Rectangle{}).dimension() == -1);
+    CHECK(Shape(Point(1, 1)).dimension() == 0);
+    CHECK(Shape(Triangle({1, 1}, {1, 1}, {1, 1})).dimension() == 0);
+    CHECK(Shape(Segment({0, 0}, {1, 1})).dimension() == 1);
+    CHECK(Shape(Triangle({0, 0}, {1, 1}, {2, 2})).dimension() == 1);
+    CHECK(Shape(Line({0, 0}, {1, 1})).dimension() == 1);
+    CHECK(Shape(Triangle({0, 0}, {4, 0}, {0, 4})).dimension() == 2);
+    CHECK(Shape(Halfplane({0, 0}, {1, 0})).dimension() == 2);
+    CHECK(Shape(Disk(Point(0, 0), 2)).dimension() == 2);
+    CHECK(Shape(Region({Halfplane({0, 0}, {1, 0}), Halfplane({1, 0}, {0, 0})})).dimension() == 1);
+
+    CHECK(Shape().isBounded());
+    CHECK(Shape(Triangle({0, 0}, {4, 0}, {0, 4})).isBounded());
+    CHECK_FALSE(Shape(Ray({0, 0}, {1, 0})).isBounded());
+    CHECK_FALSE(Shape(Halfplane({0, 0}, {1, 0})).isBounded());
+    CHECK(Shape(Region(Rectangle({0, 0}, {2, 2}))).isBounded());
+    CHECK_FALSE(Shape(Region(Halfplane({0, 0}, {1, 0}))).isBounded());
+
+    // vertices() collapses the concrete array/vector split into a vector.
+    const Shape triangle = Triangle({0, 0}, {4, 0}, {0, 4});
+    CHECK(triangle.vertices() == std::vector<Point>{{0, 0}, {4, 0}, {0, 4}});
+    CHECK(triangle.edges().size() == 3);
+    CHECK(triangle.orientedEdges().front() == OrientedSegment({0, 0}, {4, 0}));
+    CHECK(Shape(Point(1, 2)).vertices() == std::vector<Point>{{1, 2}});
+    CHECK(Shape(Point(1, 2)).edges().empty());
+    CHECK(Shape(Ray({1, 2}, {3, 4})).vertices() == std::vector<Point>{{1, 2}});
+    CHECK(Shape(Line({1, 2}, {3, 4})).vertices().empty());
+    CHECK(Shape().vertices().empty());
+    CHECK(Shape().edges().empty());
+    CHECK_THROWS_AS((void)Shape(Disk(Point(0, 0), 2)).vertices(), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)Shape(Line({1, 2}, {3, 4})).edges(), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)Shape(Ray({1, 2}, {3, 4})).orientedEdges(), pgl::unsupported_operation);
+
+    // A region's vertices span its rings, where size() and operator[] throw.
+    const pgl::PolygonWithHoles<Point> annulus(Polygon({0, 0, 6, 0, 6, 6, 0, 6}),
+                                               std::vector<Polygon>{Polygon({2, 2, 4, 2, 4, 4, 2, 4})});
+    CHECK(Shape(annulus).vertices().size() == 8);
+    CHECK_THROWS_AS((void)Shape(annulus).size(), pgl::unsupported_operation);
+
+    // A half-plane intersection's vertices are exact: on the lattice they come
+    // back in the wrapper's coordinates, off it they need a rational request.
+    const Shape square = Region(Rectangle({0, 0}, {2, 2}));
+    CHECK(square.vertices().size() == 4);
+    // x >= 0, y >= 0, x + 2y <= 3: a triangle with the vertex (0, 3/2).
+    const Shape thin = Region({Halfplane({0, 0}, {1, 0}), Halfplane({0, 1}, {0, 0}), Halfplane({3, 0}, {1, 1})});
+    CHECK_THROWS_AS((void)thin.vertices(), pgl::unsupported_operation);
+    CHECK(thin.vertices<pgl::ERational>().size() == 3);
+}
+
+TEST_CASE("Shape forwards the measures and constructions of the held object") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using Disk = pgl::Disk<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Shape triangle = Triangle({0, 0}, {4, 0}, {0, 4});
+    CHECK(triangle.area() == pgl::ERational(8));
+    CHECK(triangle.area<double>() == doctest::Approx(8.0));
+    CHECK(triangle.centroid() == pgl::Point<pgl::ERational>(pgl::ERational(4, 3), pgl::ERational(4, 3)));
+    CHECK(Shape(Segment({0, 0}, {3, 4})).length() == doctest::Approx(5.0));
+    CHECK(Shape(Disk(Point(0, 0), 1)).area<double>() == doctest::Approx(3.14159265));
+    CHECK_THROWS_AS((void)Shape(Point(1, 1)).area(), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)triangle.length(), pgl::unsupported_operation);
+
+    CHECK(triangle.convexHull() == pgl::Convex<Point>({{0, 0}, {4, 0}, {0, 4}}));
+    CHECK(triangle.asPolygonWithHoles() == Triangle({0, 0}, {4, 0}, {0, 4}).asPolygonWithHoles());
+    CHECK_THROWS_AS((void)Shape(Segment({0, 0}, {3, 4})).asPolygonWithHoles(), pgl::unsupported_operation);
+
+    // closestPoints and closestSegments answer as the concrete pair does.
+    const Shape distant = Point(10, 10);
+    const auto points = triangle.closestPoints(distant);
+    REQUIRE(points.has_value());
+    CHECK((*points)[0] == pgl::Point<pgl::ERational>(2, 2));
+    CHECK((*points)[1] == pgl::Point<pgl::ERational>(10, 10));
+    CHECK(triangle.closestSegments(distant) == Triangle({0, 0}, {4, 0}, {0, 4}).closestSegments(Point(10, 10)));
+    CHECK_FALSE(triangle.closestPoints(Shape(Point(1, 1))).has_value());
+    CHECK_THROWS_AS((void)Shape(Disk(Point(0, 0), 1)).closestPoints(distant), pgl::unsupported_operation);
+
+    // Distances default to division_result_t, as on the concrete shapes; a
+    // Disk pair converts its floating answer into it.
+    static_assert(std::is_same_v<decltype(triangle.squaredDistance(distant)), pgl::ERational>);
+    CHECK(triangle.squaredDistance(distant) == pgl::ERational(128));
+    CHECK(Shape(Disk(Point(0, 0), 1)).squaredDistance(Point(3, 0)) == pgl::ERational(4));
+
+    // A concrete receiver offers a Shape overload only for an operation it
+    // has against some alternative.
+    const Rectangle box({0, 0}, {1, 1});
+    CHECK(box.closestPoints(distant).has_value());
+    CHECK(box.hausdorffDistanceL1<int>(distant) == 20);
+}
+
+TEST_CASE("Shape intersection returns the connected pieces") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Shape staple = PolygonShape({0, 0, 6, 0, 6, 6, 4, 6, 4, 2, 2, 2, 2, 6, 0, 6});
+
+    // A segment across both legs meets the polygon twice.
+    const auto twice = staple.intersection<int>(Segment({-1, 4}, {7, 4}));
+    REQUIRE(twice.size() == 2);
+    CHECK(twice[0] == Shape(Segment({0, 4}, {2, 4})));
+    CHECK(twice[1] == Shape(Segment({4, 4}, {6, 4})));
+
+    // A disjoint pair has no piece; the empty shape has none either.
+    CHECK(staple.intersection<int>(Rectangle({10, 10}, {11, 11})).empty());
+    CHECK(staple.intersection<int>(Shape()).empty());
+    CHECK(Shape().intersection<int>(staple).empty());
+
+    // pieces() applies the same normalization to a concrete result.
+    const PolygonShape concrete({0, 0, 6, 0, 6, 6, 4, 6, 4, 2, 2, 2, 2, 6, 0, 6});
+    const auto result = concrete.intersection<int>(Segment({-1, 4}, {7, 4}));
+    CHECK(pgl::pieces(result) == twice);
+    CHECK(pgl::pieces(std::optional<Segment>()).empty());
+    CHECK(pgl::pieces(Segment({0, 0}, {1, 1})) == std::vector<Shape>{Shape(Segment({0, 0}, {1, 1}))});
+    CHECK(pgl::pieces(Shape()).empty());
+}
+
+TEST_CASE("Shape converts between point types and visits its alternative") {
+    using Point = pgl::Point<int>;
+    using DoublePoint = pgl::Point<double>;
+    using Segment = pgl::Segment<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using Shape = pgl::Shape<Point>;
+    using DoubleShape = pgl::Shape<DoublePoint>;
+
+    const Shape triangle = Triangle({0, 0}, {4, 0}, {0, 4});
+    const DoubleShape converted(triangle);
+    REQUIRE(converted.holds<pgl::Triangle<DoublePoint>>());
+    CHECK(converted.asHeld<pgl::Triangle<DoublePoint>>() == pgl::Triangle<DoublePoint>({0, 0}, {4, 0}, {0, 4}));
+    CHECK(DoubleShape(Shape()).holdsEmptyShape());
+
+    // A concrete shape over another point or label type converts into the
+    // alternative of its kind, explicitly.
+    const pgl::Segment<Point, int> labelled(Point(0, 0), Point(1, 1), 7);
+    const DoubleShape segment(labelled);
+    CHECK(segment.holds<pgl::Segment<DoublePoint>>());
+    static_assert(!std::is_convertible_v<Segment, DoubleShape>);
+    static_assert(std::is_constructible_v<DoubleShape, Segment>);
+
+    // visit calls the function with the stored alternative.
+    CHECK(triangle.visit([](const auto& value) {
+              return pgl::detail::shapeName<std::remove_cvref_t<decltype(value)>>;
+          }) == "Triangle");
+    Shape moved = triangle;
+    moved.visit([](auto& value) { value += Point(1, 1); });
+    CHECK(moved == Shape(Triangle({1, 1}, {5, 1}, {1, 5})));
 }
 
 TEST_CASE("Shape measures a distance to a Disk in a floating result type") {
@@ -1820,4 +2074,252 @@ TEST_CASE("Shape measures a distance to a Disk in a floating result type") {
     static_assert(std::is_same_v<decltype(disk.distanceLInf<float>(Point(0, 0))), float>);
     const Shape origin = Point(0, 0);
     CHECK(origin.distanceL1<pgl::ERational>(disk) > pgl::ERational(0));
+}
+
+TEST_CASE("Shape forwards the queries about a linear shape's defining data") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using OrientedSegment = pgl::OrientedSegment<Point>;
+    using Line = pgl::Line<Point>;
+    using Ray = pgl::Ray<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Shape segment = Segment({0, 0}, {4, 2});
+    CHECK_FALSE(segment.isVertical());
+    CHECK_FALSE(segment.isHorizontal());
+    CHECK(Shape(Segment({1, 0}, {1, 5})).isVertical());
+    CHECK(Shape(Segment({0, 3}, {5, 3})).isHorizontal());
+    CHECK(segment.slope() == pgl::ERational(1, 2));
+    CHECK(segment.slope<double>() == doctest::Approx(0.5));
+    CHECK(segment.min() == Point(0, 0));
+    CHECK(segment.max() == Point(4, 2));
+    CHECK(segment.squaredLength() == 20);
+    CHECK(segment.lengthL1() == 6);
+    CHECK(segment.lengthLInf() == 4);
+    CHECK(segment.midpoint() == pgl::Point<pgl::ERational>(2, 1));
+
+    // The oriented shapes name their endpoints instead, and reverse.
+    const Shape oriented = OrientedSegment({4, 2}, {0, 0});
+    CHECK(oriented.source() == Point(4, 2));
+    CHECK(oriented.target() == Point(0, 0));
+    CHECK(oriented.opposite() == Shape(OrientedSegment({0, 0}, {4, 2})));
+    CHECK(oriented.opposite().holdsOrientedSegment());
+    CHECK(oriented.orientation(Point(0, 5)) == std::partial_ordering::less);
+    CHECK(oriented.leftHalfplane() == OrientedSegment({4, 2}, {0, 0}).leftHalfplane());
+    CHECK(oriented.rightHalfplane() == OrientedSegment({4, 2}, {0, 0}).rightHalfplane());
+
+    const Shape line = Line({0, 0}, {4, 2});
+    CHECK(line.halfplaneAbove() == Line({0, 0}, {4, 2}).halfplaneAbove());
+    CHECK(line.halfplaneBelow() == Line({0, 0}, {4, 2}).halfplaneBelow());
+
+    // Each throws for an alternative that has no such data.
+    const Shape triangle = pgl::Triangle<Point>({0, 0}, {4, 0}, {0, 4});
+    CHECK_THROWS_AS((void)triangle.isVertical(), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)triangle.slope(), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)triangle.source(), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)triangle.min(), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)triangle.squaredLength(), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)triangle.midpoint(), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)triangle.opposite(), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)triangle.orientation(Point(0, 5)), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)triangle.leftHalfplane(), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)Shape(Ray({0, 0}, {1, 0})).midpoint(), pgl::unsupported_operation);
+    try {
+        (void)triangle.slope();
+        FAIL("a triangle has no slope");
+    } catch (const pgl::unsupported_operation& error) {
+        CHECK(std::string(error.what()) == "pgl::Shape: slope(Triangle) is not supported");
+    }
+}
+
+TEST_CASE("Shape forwards the local predicates about defining data") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Line = pgl::Line<Point>;
+    using Polygon = pgl::Polygon<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Shape segment = Segment({0, 0}, {4, 2});
+    CHECK(segment.verticesContain(Point(0, 0)));
+    CHECK_FALSE(segment.verticesContain(Point(2, 1)));
+    CHECK(segment.containsEndpoint(Point(4, 2)));
+    CHECK(segment.containsCollinear(Point(2, 1)));
+    CHECK(segment.collinear(Point(2, 1)));
+    CHECK(segment.parallel(Line({0, 0}, {2, 1})));
+    CHECK_FALSE(segment.parallel(Line({0, 0}, {1, 0})));
+
+    // The argument may be a Shape, and so may both sides.
+    CHECK(segment.verticesContain(Shape(Point(0, 0))));
+    CHECK(segment.parallel(Shape(Line({0, 0}, {2, 1}))));
+    CHECK(Segment({0, 0}, {4, 2}).parallel(Shape(Line({0, 0}, {2, 1}))));
+    CHECK(Segment({0, 0}, {4, 2}).verticesContain(Shape(Point(0, 0))));
+
+    // Two lines that compare equal may still be written down differently.
+    const Shape line = Line({0, 0}, {4, 2});
+    CHECK(line.verticesContain(Point(0, 0)));
+    CHECK_FALSE(line.verticesContain(Point(8, 4)));
+    CHECK(Line({0, 0}, {4, 2}) == Line({0, 0}, {8, 4}));
+
+    // A region's interior against a segment's, and the witness predicate.
+    const Shape polygon = Polygon({{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+    CHECK(polygon.interiorContainsInterior(Segment({1, 1}, {3, 3})));
+    CHECK(polygon.interiorContainsInterior(Shape(Segment({1, 1}, {3, 3}))));
+    CHECK_FALSE(polygon.interiorContainsInterior(Segment({0, 0}, {4, 0})));
+    CHECK(polygon.pointInsideInteriorContainedIn(pgl::Rectangle<Point>({-1, -1}, {5, 5})));
+    CHECK_FALSE(polygon.pointInsideInteriorContainedIn(pgl::Rectangle<Point>({8, 8}, {9, 9})));
+
+    // A pair with no implementation throws, naming both sides.
+    CHECK_THROWS_AS((void)polygon.parallel(line), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)segment.interiorContainsInterior(segment), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)segment.verticesContain(line), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)Shape().pointInsideInteriorContainedIn(polygon), pgl::unsupported_operation);
+    try {
+        (void)segment.verticesContain(line);
+        FAIL("verticesContain takes a point");
+    } catch (const pgl::unsupported_operation& error) {
+        CHECK(std::string(error.what()) == "pgl::Shape: verticesContain(Segment, Line) is not supported");
+    }
+}
+
+TEST_CASE("Shape forwards the remaining measures and constructed points") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using Disk = pgl::Disk<Point>;
+    using Convex = pgl::Convex<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    // twiceArea and diameter default to division_result_t, unlike the concrete
+    // shapes, because a HalfplaneIntersection and a Disk need the division.
+    const Shape triangle = Triangle({0, 0}, {4, 0}, {0, 4});
+    static_assert(std::is_same_v<decltype(triangle.twiceArea()), pgl::ERational>);
+    CHECK(triangle.twiceArea() == pgl::ERational(16));
+    CHECK(triangle.twiceArea<int>() == 16);
+    CHECK(triangle.twiceArea<int>() == Triangle({0, 0}, {4, 0}, {0, 4}).twiceArea());
+
+    const Shape rectangle = Rectangle({0, 0}, {4, 2});
+    CHECK(rectangle.diameter<int>() == Rectangle({0, 0}, {4, 2}).diameter());
+    CHECK(rectangle.center() == pgl::Point<pgl::ERational>(2, 1));
+    CHECK(rectangle.circumcircle() == Rectangle({0, 0}, {4, 2}).circumcircle());
+    CHECK(rectangle.pointInside() == Rectangle({0, 0}, {4, 2}).pointInside());
+    CHECK(rectangle.contains(pgl::Point<pgl::ERational>(rectangle.pointInside())));
+
+    const Shape convex = Convex({{0, 0}, {4, 0}, {4, 3}, {0, 3}});
+    CHECK(convex.verticesCentroid() == pgl::Point<pgl::ERational>(2, pgl::ERational(3, 2)));
+
+    // The floating box and the lattice points of a bounded shape.
+    CHECK(rectangle.fbox<double>() == Rectangle({0, 0}, {4, 2}).fbox<double>());
+    CHECK(Shape(Segment({0, 0}, {4, 2})).latticePoints().size() == 3);
+    CHECK(Shape(Segment({0, 0}, {4, 2})).latticePoints() ==
+          Segment({0, 0}, {4, 2}).latticePoints());
+
+    // Counting vertices spread over rings, where size() has no answer.
+    const auto region = Triangle({0, 0}, {4, 0}, {0, 4}).asPolygonWithHoles();
+    CHECK(Shape(region).vertexCount() == 3);
+    CHECK_THROWS_AS((void)Shape(region).size(), pgl::unsupported_operation);
+
+    CHECK(Shape(pgl::Polyline<Point>({{0, 0}, {2, 1}, {4, 0}})).isSimple());
+    CHECK_FALSE(Shape(pgl::Polyline<Point>({{0, 0}, {4, 4}, {0, 4}, {4, 0}})).isSimple());
+
+    // Each throws for an alternative without it.
+    CHECK_THROWS_AS((void)Shape(Point(1, 1)).twiceArea(), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)triangle.center(), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)triangle.verticesCentroid(), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)triangle.isSimple(), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)triangle.vertexCount(), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)Shape(pgl::Line<Point>({0, 0}, {1, 1})).fbox(), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)Shape(pgl::Line<Point>({0, 0}, {1, 1})).latticePoints(),
+                    pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)Shape(pgl::Line<Point>({0, 0}, {1, 1})).diameter(),
+                    pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)Shape().pointInside(), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)Shape(Disk(Point(0, 0), 2)).circumcircle(), pgl::unsupported_operation);
+}
+
+TEST_CASE("Shape forwards the conversions to another shape") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using OrientedSegment = pgl::OrientedSegment<Point>;
+    using Line = pgl::Line<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Shape segment = Segment({0, 0}, {4, 2});
+    CHECK(segment.asLine() == Segment({0, 0}, {4, 2}).asLine());
+    CHECK(segment.asPolyline() == Segment({0, 0}, {4, 2}).asPolyline());
+    CHECK(segment.asHalfplaneIntersection() == Segment({0, 0}, {4, 2}).asHalfplaneIntersection());
+    CHECK(Shape(OrientedSegment({0, 0}, {4, 2})).asOrientedLine() ==
+          OrientedSegment({0, 0}, {4, 2}).asOrientedLine());
+
+    const Shape rectangle = Rectangle({0, 0}, {4, 2});
+    CHECK(rectangle.asPolygon() == Rectangle({0, 0}, {4, 2}).asPolygon());
+    CHECK(rectangle.asPolygonSet() == Rectangle({0, 0}, {4, 2}).asPolygonSet());
+    CHECK(rectangle.asConvex() == Rectangle({0, 0}, {4, 2}).asConvex());
+
+    // An alternative that is already the target type comes back as it is.
+    CHECK(Shape(Line({0, 0}, {4, 2})).asLine() == Line({0, 0}, {4, 2}));
+    CHECK(Shape(Triangle({0, 0}, {4, 0}, {0, 4}).asHalfplaneIntersection()).asConvex() ==
+          pgl::Convex<Point>({{0, 0}, {4, 0}, {0, 4}}));
+
+    CHECK_THROWS_AS((void)rectangle.asLine(), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)segment.asPolygon(), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)segment.asConvex(), pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)Shape(Line({0, 0}, {4, 2})).asOrientedLine(), pgl::unsupported_operation);
+}
+
+TEST_CASE("Shape forwards duality, giving back a Shape of the other kind") {
+    using Point = pgl::Point<int>;
+    using Line = pgl::Line<Point>;
+    using Shape = pgl::Shape<Point>;
+    using ExactShape = pgl::Shape<pgl::Point<pgl::ERational>>;
+
+    // dual and polar swap a point for a line and a line for a point, so which
+    // alternative comes back is only known at run time.
+    const Shape point = Point(3, 7);
+    const ExactShape dualLine = point.dual();
+    CHECK(dualLine.holdsLine());
+    CHECK(dualLine.asHeldLine() == Point(3, 7).dual<pgl::ERational>());
+    CHECK(point.polar().holdsLine());
+
+    const Shape line = Line({0, 1}, {4, 3});
+    const ExactShape dualPoint = line.dual();
+    CHECK(dualPoint.holdsPoint());
+    CHECK(dualPoint.asHeldPoint() == Line({0, 1}, {4, 3}).dual());
+    CHECK(line.polar().holdsPoint());
+
+    CHECK_THROWS_AS((void)Shape(pgl::Segment<Point>({0, 0}, {4, 2})).dual(),
+                    pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)Shape(pgl::Segment<Point>({0, 0}, {4, 2})).polar(),
+                    pgl::unsupported_operation);
+}
+
+TEST_CASE("Shape forwards the decompositions and the rasterization of a region") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    // An L shape, so the partition has more than one piece.
+    const Polygon ell({{0, 0}, {4, 0}, {4, 2}, {2, 2}, {2, 4}, {0, 4}});
+    const Shape region = ell;
+    CHECK(region.convexPartition() == ell.convexPartition());
+    CHECK(region.convexPartition().size() > 1);
+    CHECK(region.convexCovering() == ell.convexCovering());
+    CHECK(region.triangulation().triangles().size() == ell.triangulation().triangles().size());
+    CHECK(region.asBitMatrix() == ell.asBitMatrix());
+    CHECK(region.asBitMatrix().count() == 12);
+
+    const Shape set = ell.asPolygonSet();
+    CHECK(set.convexPartition().size() > 1);
+    CHECK(set.asBitMatrix().count() == 12);
+
+    CHECK_THROWS_AS((void)Shape(pgl::Triangle<Point>({0, 0}, {4, 0}, {0, 4})).convexPartition(),
+                    pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)Shape(pgl::Triangle<Point>({0, 0}, {4, 0}, {0, 4})).convexCovering(),
+                    pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)Shape(pgl::Triangle<Point>({0, 0}, {4, 0}, {0, 4})).triangulation(),
+                    pgl::unsupported_operation);
+    CHECK_THROWS_AS((void)Shape(pgl::Triangle<Point>({0, 0}, {4, 0}, {0, 4})).asBitMatrix(),
+                    pgl::unsupported_operation);
 }

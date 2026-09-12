@@ -22,6 +22,8 @@ The coordinates are of type `int` by default, but [other types](types.md) includ
 
 All shapes support [many predicates](shape_methods.md#predicates) and several other [methods and operators](shape_methods.md). Fundamental [algorithms](algorithms.md) and [data structures](data_structures.md) are also provided.
 
+A shape whose kind is only known at run time is held in a [polymorphic wrapper](polymorphism.md), which forwards that same interface to whichever shape it stores.
+
 A `Canvas` class is provided for [easy visualization](canvas.md).
 
 We also include a [comparison against CGAL](cgal.md) to help you decide if pgl is the right choice for you.

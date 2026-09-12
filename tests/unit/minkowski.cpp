@@ -264,8 +264,8 @@ TEST_CASE("A concrete shape sums with a wrapper on either side") {
 
     const auto moved = point.minkowskiSum(wrapped);
     static_assert(std::is_same_v<std::remove_cvref_t<decltype(moved)>, pgl::Shape<>>);
-    CHECK(moved.isSegment());
-    CHECK(*moved.getIfSegment() == pgl::Segment<>(1, 2, 4, 2));
+    CHECK(moved.holdsSegment());
+    CHECK(*moved.getIfHoldsSegment() == pgl::Segment<>(1, 2, 4, 2));
     CHECK((point + wrapped) == moved);
 }
 
@@ -286,14 +286,14 @@ TEST_CASE("Shape dispatches on the stored alternatives at run time") {
 
     const auto convexSum = triangle.minkowskiSum(segment);
     static_assert(std::is_same_v<std::remove_cvref_t<decltype(convexSum)>, pgl::Shape<>>);
-    CHECK(convexSum.isConvex());
-    CHECK(*convexSum.getIfConvex() ==
+    CHECK(convexSum.holdsConvex());
+    CHECK(*convexSum.getIfHoldsConvex() ==
           pgl::Triangle<>(0, 0, 3, 0, 0, 3).minkowskiSum(pgl::Segment<>(0, 0, 1, 1)));
 
     // A point keeps the other alternative's type, here through the wrapper.
     const auto moved = triangle.minkowskiSum(point);
-    CHECK(moved.isTriangle());
-    CHECK(*moved.getIfTriangle() == pgl::Triangle<>(2, 5, 5, 5, 2, 8));
+    CHECK(moved.holdsTriangle());
+    CHECK(*moved.getIfHoldsTriangle() == pgl::Triangle<>(2, 5, 5, 5, 2, 8));
 
     // Mixing a wrapper with a concrete shape works in both directions.
     CHECK(triangle.minkowskiSum(pgl::Segment<>(0, 0, 1, 1)) == convexSum);
@@ -302,7 +302,7 @@ TEST_CASE("Shape dispatches on the stored alternatives at run time") {
 
     // A pair with no representable sum is only detectable at run time.
     CHECK_THROWS_AS(static_cast<void>(triangle.minkowskiSum(disk)), std::logic_error);
-    CHECK(disk.minkowskiSum(point).isDisk());
+    CHECK(disk.minkowskiSum(point).holdsDisk());
 }
 
 // The definition read as a query: `p ∈ A ⊕ B` exactly when `A` meets the

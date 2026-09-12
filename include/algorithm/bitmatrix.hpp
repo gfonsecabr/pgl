@@ -2713,6 +2713,23 @@ auto PolygonSet<PointType_, TLabel>::asBitMatrix() const {
     return BitMatrix<detail::grid_point_t<PointType_, ResultNumber>>(*this);
 }
 
+// The runtime Shape rasterizes whichever of the three alternatives it holds, in
+// the same grid type they would give, and throws for the rest.
+template <class PointType_>
+template <class ResultNumber>
+    requires(std::signed_integral<ResultNumber>)
+auto Shape<PointType_>::asBitMatrix() const {
+    using Result = BitMatrix<detail::grid_point_t<PointType_, ResultNumber>>;
+    return visit([](const auto& value) -> Result {
+        if constexpr (requires { value.template asBitMatrix<ResultNumber>(); }) {
+            return value.template asBitMatrix<ResultNumber>();
+        } else {
+            throw unsupported_operation("asBitMatrix",
+                                       detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+        }
+    });
+}
+
 namespace detail {
 
 /** @brief Tests every cell of a window and sets the ones the predicate keeps. */

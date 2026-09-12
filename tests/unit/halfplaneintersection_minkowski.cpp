@@ -277,8 +277,8 @@ TEST_CASE("The wrapper dispatches on the stored alternatives") {
 
     const auto sum = ray.minkowskiSum(triangle);
     static_assert(std::is_same_v<std::remove_cvref_t<decltype(sum)>, pgl::Shape<Point>>);
-    REQUIRE(sum.isHalfplaneIntersection());
-    CHECK(*sum.getIfHalfplaneIntersection() ==
+    REQUIRE(sum.holdsHalfplaneIntersection());
+    CHECK(*sum.getIfHoldsHalfplaneIntersection() ==
           pgl::Ray<Point>(Point(0, 0), Point(1, 0))
               .minkowskiSum(Triangle(Point(0, 0), Point(2, 1), Point(-1, 3))));
 
@@ -290,7 +290,7 @@ TEST_CASE("The wrapper dispatches on the stored alternatives") {
     // Over rational points there is nothing left to refuse.
     const pgl::Shape<QPoint> qregion = QRegion(Region{RectangleShape(0, 0, 2, 2)});
     const pgl::Shape<QPoint> qtriangle = pgl::Triangle<QPoint>(QPoint(0, 0), QPoint(3, 0), QPoint(0, 2));
-    CHECK(qregion.minkowskiSum(qtriangle).isHalfplaneIntersection());
+    CHECK(qregion.minkowskiSum(qtriangle).holdsHalfplaneIntersection());
 }
 
 TEST_CASE("Random unbounded sums agree with the definition") {

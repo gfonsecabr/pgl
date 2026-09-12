@@ -7111,4 +7111,48 @@ bool PolygonWithHoles<PointType_, TLabel>::pointInsideInteriorContainedIn(const 
     return (shape * 4).interiorContains((*this * 4).template pointInside<NumberType>());
 }
 
+// -----------------------------------------------------------------------------
+// The runtime Shape members that build a Triangulation. They live here rather
+// than in shape.hpp because Triangulation is defined downstream of it; each
+// forwards to the held alternative and throws for one that has no such answer.
+
+template <class PointType_>
+std::vector<Convex<PointType_>> Shape<PointType_>::convexPartition() const {
+    using Result = std::vector<Convex<PointType_>>;
+    return visit([](const auto& value) -> Result {
+        if constexpr (requires { value.convexPartition(); }) {
+            return value.convexPartition();
+        } else {
+            throw unsupported_operation("convexPartition",
+                                       detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+        }
+    });
+}
+
+template <class PointType_>
+std::vector<Convex<PointType_>> Shape<PointType_>::convexCovering() const {
+    using Result = std::vector<Convex<PointType_>>;
+    return visit([](const auto& value) -> Result {
+        if constexpr (requires { value.convexCovering(); }) {
+            return value.convexCovering();
+        } else {
+            throw unsupported_operation("convexCovering",
+                                       detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+        }
+    });
+}
+
+template <class PointType_>
+auto Shape<PointType_>::triangulation() const {
+    using Result = Triangulation<Triangle<PointType_>>;
+    return visit([](const auto& value) -> Result {
+        if constexpr (requires { value.triangulation(); }) {
+            return value.triangulation();
+        } else {
+            throw unsupported_operation("triangulation",
+                                       detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+        }
+    });
+}
+
 }  // namespace pgl

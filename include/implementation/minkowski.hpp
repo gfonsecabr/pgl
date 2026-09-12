@@ -731,12 +731,12 @@ constexpr auto minkowskiSumOf(const A& a, const B& b) {
         // pair whose sum is a HalfplaneIntersection over rational coordinates
         // has an answer, but not one a wrapper over integral points can hold.
         const auto sum = [](const auto& left, const auto& right) -> ResultShape {
-            if constexpr (requires { ResultShape(minkowskiSumOf(left, right)); }) {
+            // Implicitly: the explicit converting constructors of Shape would
+            // accept a result over another point type and round it.
+            if constexpr (requires { { minkowskiSumOf(left, right) } -> std::convertible_to<ResultShape>; }) {
                 return ResultShape(minkowskiSumOf(left, right));
             } else {
-                throw std::logic_error(
-                    "Shape::minkowskiSum is not defined for this pair of alternatives, or its "
-                    "result does not fit the wrapper's point type");
+                throw unsupportedPair("minkowskiSum", left, right);
             }
         };
         if constexpr (is_shape_v<A> && is_shape_v<B>) {

@@ -281,6 +281,136 @@ struct Halfplane {
     [[nodiscard]] constexpr bool samePointSet(const OtherShape& other) const;
 
     /**
+     * @name Operations against a runtime Shape
+     *
+     * Each takes a @ref Shape and answers as this shape answers against the
+     * alternative it holds, throwing @ref unsupported_operation for a pair with
+     * no implementation. A construction or distance is offered only when this
+     * shape has it against some alternative, so a call no alternative could
+     * answer does not compile. See implementation/shapedispatch.hpp.
+     */
+    ///@{
+    /** @brief Tests whether this shape contains the shape @p other holds. */
+    template <ShapeConcept OtherShape>
+    [[nodiscard]] constexpr bool contains(const OtherShape& other) const {
+        return detail::containsAny(*this, other);
+    }
+    /** @brief Tests whether this shape's boundary contains the shape @p other holds. */
+    template <ShapeConcept OtherShape>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherShape& other) const {
+        return detail::boundaryContainsAny(*this, other);
+    }
+    /** @brief Tests whether this shape's interior contains the shape @p other holds. */
+    template <ShapeConcept OtherShape>
+    [[nodiscard]] constexpr bool interiorContains(const OtherShape& other) const {
+        return detail::interiorContainsAny(*this, other);
+    }
+    /** @brief Tests whether this shape intersects the shape @p other holds. */
+    template <ShapeConcept OtherShape>
+    [[nodiscard]] constexpr bool intersects(const OtherShape& other) const {
+        return detail::intersectsAny(*this, other);
+    }
+    /** @brief Tests whether the interiors of this shape and the shape @p other holds intersect. */
+    template <ShapeConcept OtherShape>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherShape& other) const {
+        return detail::interiorsIntersectAny(*this, other);
+    }
+    /** @brief Tests whether removing this shape disconnects the shape @p other holds. */
+    template <ShapeConcept OtherShape>
+    [[nodiscard]] constexpr bool separates(const OtherShape& other) const {
+        return detail::separatesAny(*this, other);
+    }
+    /** @brief Tests whether this shape and the shape @p other holds separate each other. */
+    template <ShapeConcept OtherShape>
+    [[nodiscard]] constexpr bool crosses(const OtherShape& other) const {
+        return detail::crossesAny(*this, other);
+    }
+    /** @brief Returns the connected pieces of the intersection with the shape @p other holds. */
+    template <class ResultNumber = division_result_t<NumberType>, ShapeConcept OtherShape>
+        requires detail::Receives<detail::intersectionTag, Halfplane, OtherShape>
+    [[nodiscard]] constexpr auto intersection(const OtherShape& other) const {
+        return detail::intersectionAny<ResultNumber>(*this, other);
+    }
+    /** @brief Returns the regularized intersection with the shape @p other holds. */
+    template <class ResultNumber = division_result_t<NumberType>, ShapeConcept OtherShape>
+        requires detail::Receives<detail::regularizedIntersectionTag, Halfplane, OtherShape>
+    [[nodiscard]] auto regularizedIntersection(const OtherShape& other) const {
+        return detail::regularizedIntersectionAny<ResultNumber>(*this, other);
+    }
+    /** @brief Returns the regularized union with the shape @p other holds. */
+    template <class ResultNumber = division_result_t<NumberType>, ShapeConcept OtherShape>
+        requires detail::Receives<detail::regularizedUnionTag, Halfplane, OtherShape>
+    [[nodiscard]] auto regularizedUnion(const OtherShape& other) const {
+        return detail::regularizedUnionAny<ResultNumber>(*this, other);
+    }
+    /** @brief Returns the regularized difference with the shape @p other holds. */
+    template <class ResultNumber = division_result_t<NumberType>, ShapeConcept OtherShape>
+        requires detail::Receives<detail::differenceTag, Halfplane, OtherShape>
+    [[nodiscard]] auto difference(const OtherShape& other) const {
+        return detail::differenceAny<ResultNumber>(*this, other);
+    }
+    /** @brief Returns the regularized symmetric difference with the shape @p other holds. */
+    template <class ResultNumber = division_result_t<NumberType>, ShapeConcept OtherShape>
+        requires detail::Receives<detail::symmetricDifferenceTag, Halfplane, OtherShape>
+    [[nodiscard]] auto symmetricDifference(const OtherShape& other) const {
+        return detail::symmetricDifferenceAny<ResultNumber>(*this, other);
+    }
+    /** @brief Returns the squared Euclidean distance to the shape @p other holds. */
+    template <class ResultNumber = division_result_t<NumberType>, ShapeConcept OtherShape>
+        requires detail::Receives<detail::squaredDistanceTag, Halfplane, OtherShape>
+    [[nodiscard]] constexpr ResultNumber squaredDistance(const OtherShape& other) const {
+        return detail::squaredDistanceAny<ResultNumber>(*this, other);
+    }
+    /** @brief Returns the L1 distance to the shape @p other holds. */
+    template <class ResultNumber = division_result_t<NumberType>, ShapeConcept OtherShape>
+        requires detail::Receives<detail::distanceL1Tag, Halfplane, OtherShape>
+    [[nodiscard]] constexpr ResultNumber distanceL1(const OtherShape& other) const {
+        return detail::distanceL1Any<ResultNumber>(*this, other);
+    }
+    /** @brief Returns the LInf distance to the shape @p other holds. */
+    template <class ResultNumber = division_result_t<NumberType>, ShapeConcept OtherShape>
+        requires detail::Receives<detail::distanceLInfTag, Halfplane, OtherShape>
+    [[nodiscard]] constexpr ResultNumber distanceLInf(const OtherShape& other) const {
+        return detail::distanceLInfAny<ResultNumber>(*this, other);
+    }
+    /** @brief Returns the squared Euclidean Hausdorff distance to the shape @p other holds. */
+    template <class ResultNumber = division_result_t<NumberType>, ShapeConcept OtherShape>
+        requires detail::Receives<detail::squaredHausdorffDistanceTag, Halfplane, OtherShape>
+    [[nodiscard]] constexpr ResultNumber squaredHausdorffDistance(const OtherShape& other) const {
+        return detail::squaredHausdorffDistanceAny<ResultNumber>(*this, other);
+    }
+    /** @brief Returns the L1 Hausdorff distance to the shape @p other holds. */
+    template <class ResultNumber = division_result_t<NumberType>, ShapeConcept OtherShape>
+        requires detail::Receives<detail::hausdorffDistanceL1Tag, Halfplane, OtherShape>
+    [[nodiscard]] constexpr ResultNumber hausdorffDistanceL1(const OtherShape& other) const {
+        return detail::hausdorffDistanceL1Any<ResultNumber>(*this, other);
+    }
+    /** @brief Returns the LInf Hausdorff distance to the shape @p other holds. */
+    template <class ResultNumber = division_result_t<NumberType>, ShapeConcept OtherShape>
+        requires detail::Receives<detail::hausdorffDistanceLInfTag, Halfplane, OtherShape>
+    [[nodiscard]] constexpr ResultNumber hausdorffDistanceLInf(const OtherShape& other) const {
+        return detail::hausdorffDistanceLInfAny<ResultNumber>(*this, other);
+    }
+    /** @brief Returns the points realizing the distance to the shape @p other holds. */
+    template <class ResultNumber = division_result_t<NumberType>, ShapeConcept OtherShape>
+        requires detail::Receives<detail::closestPointsTag, Halfplane, OtherShape>
+    [[nodiscard]] constexpr auto closestPoints(const OtherShape& other) const {
+        return detail::closestPointsAny<ResultNumber>(*this, other);
+    }
+    /** @brief Returns the elements realizing the distance to the shape @p other holds. */
+    template <class ResultNumber = NumberType, ShapeConcept OtherShape>
+        requires detail::Receives<detail::closestSegmentsTag, Halfplane, OtherShape>
+    [[nodiscard]] constexpr auto closestSegments(const OtherShape& other) const {
+        return detail::closestSegmentsAny<ResultNumber>(*this, other);
+    }
+    /** @brief Tests whether some defining point of this shape is the point @p other holds. */
+    template <ShapeConcept OtherShape>
+    [[nodiscard]] constexpr bool verticesContain(const OtherShape& other) const {
+        return detail::verticesContainAny(*this, other);
+    }
+    ///@}
+
+    /**
      * @brief Provides an ordering compatible with half-plane equality.
      *
      * @param other Half-plane to compare with.
@@ -537,12 +667,6 @@ struct Halfplane {
     template<DiskConcept OtherDisk>
     [[nodiscard]] constexpr bool contains(const OtherDisk& other) const;
 
-    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
-    [[nodiscard]] constexpr bool contains(const Shape<PointType>& other) const;
-
-    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
-    [[nodiscard]] constexpr bool boundaryContains(const Shape<PointType>& other) const;
-
     // The empty set is a subset of every shape (contained in all of them) and
     // disjoint from all of them, so containment is true while separation is
     // false. These overloads let an EmptyShape flow through Shape's variant
@@ -641,9 +765,6 @@ struct Halfplane {
     [[nodiscard]] constexpr bool intersects(const OtherHalfplane& other) const;
 
     /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
-    [[nodiscard]] constexpr bool intersects(const Shape<PointType>& other) const;
-
-    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<typename OtherShape>
         requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Halfplane>)
     [[nodiscard]] constexpr bool intersects(const OtherShape& other) const {
@@ -696,9 +817,6 @@ struct Halfplane {
     [[nodiscard]] constexpr bool interiorsIntersect(const EmptyShape<EmptyPoint>&) const {
         return false;
     }
-
-    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
-    [[nodiscard]] constexpr bool interiorsIntersect(const Shape<PointType>& other) const;
 
     /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<LineConcept OtherLine>
@@ -881,9 +999,6 @@ struct Halfplane {
     template<DiskConcept OtherDisk>
     [[nodiscard]] constexpr bool separates(const OtherDisk& other) const;
 
-    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
-    [[nodiscard]] constexpr bool separates(const Shape<PointType>& other) const;
-
     // --- not-yet-implemented predicate pairs (throw); see implementation ---
     /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<PolygonConcept OtherPolygon>
@@ -930,9 +1045,6 @@ struct Halfplane {
     [[nodiscard]] constexpr bool crosses(const EmptyShape<EmptyPoint>&) const {
         return false;
     }
-
-    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
-    [[nodiscard]] constexpr bool crosses(const Shape<PointType>& other) const;
 
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
@@ -1145,45 +1257,6 @@ struct Halfplane {
         return other.template distanceL1<ResultNumber>(*this);
     }
 
-    /**
-     * @brief Returns the intersection of the two shapes (A ∩ B), re-dispatching
-     *        through the wrapper's own `intersection`.
-     *
-     * An intersection is symmetric, so this just calls @p other's own
-     * `intersection`, which visits its wrapped alternative and throws if the
-     * pair is unsupported.
-     *
-     * The point type is deduced from @p other so a plain concrete shape cannot
-     * reach this overload through an implicit conversion to `Shape`.
-     *
-     * @return The intersection wrapped in a `Shape`, rather than the tighter
-     *   type the concrete pair would answer with: which alternative @p other
-     *   holds is not known until run time, so neither is the result's.
-     */
-    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
-    [[nodiscard]] constexpr auto intersection(const Shape<OtherPoint>& other) const {
-        return other.template intersection<ResultNumber>(*this);
-    }
-
-    /** @brief Re-dispatches a regularized intersection through a runtime shape. */
-    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
-    [[nodiscard]] auto regularizedIntersection(const Shape<OtherPoint>& other) const {
-        return other.template regularizedIntersection<ResultNumber>(*this);
-    }
-
-    /**
-     * @brief Returns the distance to the given shape, using symmetry to
-     * re-dispatch through the wrapper's own `distanceL1`.
-     *
-     * Distance is symmetric, so this just calls @p other's own `distanceL1`,
-     * which visits its wrapped alternative and throws if the pair is
-     * unsupported.
-     */
-    template <class ResultNumber = double, PointConcept OtherPoint>
-    [[nodiscard]] constexpr auto distanceL1(const Shape<OtherPoint>& other) const {
-        return other.template distanceL1<ResultNumber>(*this);
-    }
-
     /** @brief Returns the Chebyshev (LInf) distance to the given shape. */
     template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceLInf(const OtherPoint& point) const;
@@ -1224,19 +1297,6 @@ struct Halfplane {
                          o.template distanceLInf<ResultNumber>(self);
                      })
     [[nodiscard]] constexpr auto distanceLInf(const OtherShape& other) const {
-        return other.template distanceLInf<ResultNumber>(*this);
-    }
-
-    /**
-     * @brief Returns the distance to the given shape, using symmetry to
-     * re-dispatch through the wrapper's own `distanceLInf`.
-     *
-     * Distance is symmetric, so this just calls @p other's own `distanceLInf`,
-     * which visits its wrapped alternative and throws if the pair is
-     * unsupported.
-     */
-    template <class ResultNumber = double, PointConcept OtherPoint>
-    [[nodiscard]] constexpr auto distanceLInf(const Shape<OtherPoint>& other) const {
         return other.template distanceLInf<ResultNumber>(*this);
     }
 

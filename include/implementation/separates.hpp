@@ -515,15 +515,6 @@ constexpr bool Segment<PointType, LabelType>::separates(const OtherDisk& other) 
            && other.interiorsIntersect(*this);
 }
 
-template <class PointType, class LabelType>
-constexpr bool Segment<PointType, LabelType>::separates(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->separates(value);
-        },
-        other.variant());
-}
-
 /**
  * @section predicates-triangle Triangle
  * Triangle boundary, containment, intersection, and cut predicates, including
@@ -689,15 +680,6 @@ constexpr bool Triangle<PointType, LabelType>::separates(const OtherDisk& other)
     return false;
 }
 
-template <class PointType, class LabelType>
-constexpr bool Triangle<PointType, LabelType>::separates(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->separates(value);
-        },
-        other.variant());
-}
-
 /**
  * @section predicates-oriented-segment OrientedSegment
  * Oriented-segment predicates. Most topology delegates to the unoriented
@@ -772,15 +754,6 @@ template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool OrientedSegment<PointType, LabelType>::separates(const OtherDisk& other) const {
     return this->asSegment().separates(other);
-}
-
-template <class PointType, class LabelType>
-constexpr bool OrientedSegment<PointType, LabelType>::separates(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->separates(value);
-        },
-        other.variant());
 }
 
 /**
@@ -882,15 +855,6 @@ constexpr bool Line<PointType, LabelType>::separates(const OtherDisk& other) con
     return other.interiorsIntersect(*this);
 }
 
-template <class PointType, class LabelType>
-constexpr bool Line<PointType, LabelType>::separates(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->separates(value);
-        },
-        other.variant());
-}
-
 /**
  * @section predicates-oriented-line OrientedLine
  * Oriented-line predicates. Shared topology is mostly delegated to the
@@ -965,15 +929,6 @@ template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool OrientedLine<PointType, LabelType>::separates(const OtherDisk& other) const {
     return this->asLine().separates(other);
-}
-
-template <class PointType, class LabelType>
-constexpr bool OrientedLine<PointType, LabelType>::separates(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->separates(value);
-        },
-        other.variant());
 }
 
 /**
@@ -1155,15 +1110,6 @@ constexpr bool Ray<PointType, LabelType>::separates(const OtherPolygon& other) c
     // infinity: only the source can leave a component end uncovered, so the
     // covered-component search is bounded below by the source alone.
     return detail::lineSectionSeparatesPolygon(source(), target(), other, false);
-}
-
-template <class PointType, class LabelType>
-constexpr bool Ray<PointType, LabelType>::separates(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->separates(value);
-        },
-        other.variant());
 }
 
 /**
@@ -1356,15 +1302,6 @@ constexpr bool Rectangle<PointType, LabelType>::separates(const OtherDisk& other
     return false;
 }
 
-template <class PointType, class LabelType>
-constexpr bool Rectangle<PointType, LabelType>::separates(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->separates(value);
-        },
-        other.variant());
-}
-
 /**
  * @section predicates-halfplane Halfplane
  * Half-plane containment, intersection, and topological predicates, together
@@ -1502,15 +1439,6 @@ constexpr bool Halfplane<PointType, LabelType>::separates(const OtherPolygon& ot
     }
     return false;
 
-}
-
-template <class PointType, class LabelType>
-constexpr bool Halfplane<PointType, LabelType>::separates(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->separates(value);
-        },
-        other.variant());
 }
 
 
@@ -1842,16 +1770,6 @@ template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Disk<PointType, LabelType>::separates(const OtherDisk&) const {
     return false;  // a disk never separates another disk
-}
-
-template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-constexpr bool Convex<PointType, LabelType>::separates(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->separates(value);
-        },
-        other.variant());
 }
 
 /**
@@ -3127,16 +3045,6 @@ constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const Oth
     return false;
 }
 
-template <class PointType, class LabelType, class Storage>
-template<PointConcept OtherPoint>
-constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->separates(value);
-        },
-        other.variant());
-}
-
 template <class Number, class Label>
 template<MonotoneChainConcept OtherChain>
 constexpr bool Point<Number, Label>::separates(const OtherChain& other) const {
@@ -3946,16 +3854,6 @@ constexpr bool Polyline<PointType, LabelType>::separates(const OtherChain& other
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Polyline<PointType, LabelType>::separates(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->separates(value);
-        },
-        other.variant());
-}
-
-template <class PointType, class LabelType>
 template<PolylineConcept OtherPolyline>
 constexpr bool OrientedSegment<PointType, LabelType>::separates(const OtherPolyline& other) const {
     return asSegment().separates(other);
@@ -4535,16 +4433,6 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const Othe
             detail::degenerateRegionCarrier(other));
     }
     return detail::regionSeparatesRegion(*this, other);
-}
-
-template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->separates(value);
-        },
-        other.variant());
 }
 
 template <class Number, class Label>
@@ -5780,21 +5668,6 @@ bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherHoledRegi
     return detail::convexAndRegionSeparate<false>(*this, other);
 }
 
-// ---------------------------------------------------------------------------
-// Runtime Shape argument: unwrap the stored alternative and re-dispatch. Every
-// alternative has a per-shape overload above, so no fallback is needed.
-
-template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-constexpr bool PolygonWithHoles<PointType, LabelType>::separates(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->separates(value);
-        },
-        other.variant());
-}
-
-
 template <class PointType, class LabelType>
 bool PolygonSet<PointType, LabelType>::isConnected() const {
     // Each component is connected on its own, so the set is connected exactly
@@ -5891,13 +5764,6 @@ template <class PointType, class LabelType>
 template <PolygonSetConcept OtherSet>
 bool PolygonSet<PointType, LabelType>::separates(const OtherSet& other) const {
     return detail::cellSeparates(other, *this);
-}
-
-template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-bool PolygonSet<PointType, LabelType>::separates(const Shape<OtherPoint>& other) const {
-    return std::visit([this](const auto& value) { return this->separates(value); },
-                      other.variant());
 }
 
 // Reverse direction: removing a lower-ranked shape from a set. Every one of

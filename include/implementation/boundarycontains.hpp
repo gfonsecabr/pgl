@@ -634,15 +634,6 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherDisk& oth
     return false;
 }
 
-template <class PointType, class LabelType>
-constexpr bool Disk<PointType, LabelType>::boundaryContains(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->boundaryContains(value);
-        },
-        other.variant());
-}
-
 
 // ---------------------------------------------------------------------------
 // Convex
@@ -836,16 +827,6 @@ constexpr bool Convex<PointType, LabelType>::boundaryContains(const OtherDisk& o
     return false;
 }
 
-template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-constexpr bool Convex<PointType, LabelType>::boundaryContains(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->boundaryContains(value);
-        },
-        other.variant());
-}
-
 
 // ---------------------------------------------------------------------------
 // Polygon
@@ -985,16 +966,6 @@ constexpr bool Polygon<PointType, LabelType>::boundaryContains(const OtherDisk& 
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType, LabelType>::boundaryContains(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->boundaryContains(value);
-        },
-        other.variant());
-}
-
-template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
 constexpr bool Convex<PointType, LabelType>::boundaryContains(const OtherPolygon& other) const {
     if (other.size() == 0) {
@@ -1061,93 +1032,6 @@ constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherDisk
     return other[0] == other[1] && other[1]==other[2] && boundaryContains(other[0]);
 }
 
-// ---------------------------------------------------------------------------
-// boundaryContains(Shape): runtime dispatch over the wrapped alternative, for
-// the shapes that did not previously expose a Shape overload.
-// ---------------------------------------------------------------------------
-
-template <class Number, class Label>
-constexpr bool Point<Number, Label>::boundaryContains(const Shape<Point<Number, Label>>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->boundaryContains(value);
-        },
-        other.variant());
-}
-
-template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::boundaryContains(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->boundaryContains(value);
-        },
-        other.variant());
-}
-
-template <class PointType, class LabelType>
-constexpr bool OrientedSegment<PointType, LabelType>::boundaryContains(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->boundaryContains(value);
-        },
-        other.variant());
-}
-
-template <class PointType, class LabelType>
-constexpr bool Line<PointType, LabelType>::boundaryContains(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->boundaryContains(value);
-        },
-        other.variant());
-}
-
-template <class PointType, class LabelType>
-constexpr bool OrientedLine<PointType, LabelType>::boundaryContains(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->boundaryContains(value);
-        },
-        other.variant());
-}
-
-template <class PointType, class LabelType>
-constexpr bool Ray<PointType, LabelType>::boundaryContains(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->boundaryContains(value);
-        },
-        other.variant());
-}
-
-template <class PointType, class LabelType>
-constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->boundaryContains(value);
-        },
-        other.variant());
-}
-
-template <class PointType, class LabelType>
-constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->boundaryContains(value);
-        },
-        other.variant());
-}
-
-template <class PointType, class LabelType>
-constexpr bool Triangle<PointType, LabelType>::boundaryContains(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->boundaryContains(value);
-        },
-        other.variant());
-}
-
 /**
  * @section predicates-monotonechain MonotoneChain
  * Weakly x-monotone chain predicates: the boundary of a chain is its two
@@ -1161,16 +1045,6 @@ constexpr bool MonotoneChain<PointType, LabelType, Storage>::boundaryContains(co
         return false;
     }
     return point == points_.front() + translation_ || point == points_.back() + translation_;
-}
-
-template <class PointType, class LabelType, class Storage>
-template<PointConcept OtherPoint>
-constexpr bool MonotoneChain<PointType, LabelType, Storage>::boundaryContains(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->boundaryContains(value);
-        },
-        other.variant());
 }
 
 template <class Number, class Label>
@@ -1270,16 +1144,6 @@ constexpr bool Polyline<PointType, LabelType>::boundaryContains(const OtherPoint
         return false;
     }
     return point == points_.front() + translation_ || point == points_.back() + translation_;
-}
-
-template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Polyline<PointType, LabelType>::boundaryContains(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->boundaryContains(value);
-        },
-        other.variant());
 }
 
 template <class Number, class Label>
@@ -1578,16 +1442,6 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(con
     }
     return std::visit([this](const auto& carrier) { return this->boundaryContains(carrier); },
                       detail::degenerateRegionCarrier(other));
-}
-
-template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->boundaryContains(value);
-        },
-        other.variant());
 }
 
 
@@ -2075,21 +1929,6 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(con
 }
 
 // ---------------------------------------------------------------------------
-// Runtime Shape argument: unwrap the stored alternative and re-dispatch. Every
-// alternative has a per-shape overload above, so no fallback is needed.
-
-template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const Shape<OtherPoint>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->boundaryContains(value);
-        },
-        other.variant());
-}
-
-
-// ---------------------------------------------------------------------------
 // PolygonSet
 //
 // `∂A = ⋃ ∂Aᵢ`: a point on a component's boundary is in the set's interior only
@@ -2148,13 +1987,6 @@ bool PolygonSet<PointType, LabelType>::boundaryContains(const OtherSet& other) c
         }
     }
     return true;
-}
-
-template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-bool PolygonSet<PointType, LabelType>::boundaryContains(const Shape<OtherPoint>& other) const {
-    return std::visit([this](const auto& value) { return this->boundaryContains(value); },
-                      other.variant());
 }
 
 }  // namespace pgl

@@ -405,12 +405,11 @@ constexpr auto minkowskiErosionOf(const A& a, const B& b) {
         // the erosion exists and fits the wrapper, and neither is known until
         // run time.
         const auto erode = [](const auto& left, const auto& right) -> ResultShape {
-            if constexpr (requires { ResultShape(minkowskiErosionOf(left, right)); }) {
+            // Implicitly, for the reason minkowskiSumOf gives.
+            if constexpr (requires { { minkowskiErosionOf(left, right) } -> std::convertible_to<ResultShape>; }) {
                 return ResultShape(minkowskiErosionOf(left, right));
             } else {
-                throw std::logic_error(
-                    "Shape::minkowskiErosion is not defined for this pair of alternatives, or "
-                    "its result does not fit the wrapper's point type");
+                throw unsupportedPair("minkowskiErosion", left, right);
             }
         };
         if constexpr (is_shape_v<A> && is_shape_v<B>) {

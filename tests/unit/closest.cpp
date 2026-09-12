@@ -220,11 +220,12 @@ TEST_CASE("an unbounded operand has a point witness but no element to name") {
     CHECK_FALSE(hasClosestPoints<pgl::Line<Coord>, pgl::Line<Coord>>);
     CHECK_FALSE(hasClosestPoints<pgl::Ray<Coord>, pgl::Halfplane<Coord>>);
 
-    // Curved, and the runtime wrapper, are out of both.
+    // Curved is out of both. The runtime wrapper takes every pair, and throws
+    // at run time for a pair of alternatives that has none.
     CHECK_FALSE(hasClosestSegments<pgl::Segment<Coord>, pgl::Disk<Coord>>);
     CHECK_FALSE(hasClosestPoints<pgl::Segment<Coord>, pgl::Disk<Coord>>);
     CHECK_FALSE(hasClosestPoints<pgl::Disk<Coord>, pgl::Segment<Coord>>);
-    CHECK_FALSE(hasClosestPoints<pgl::Shape<Coord>, pgl::Segment<Coord>>);
+    CHECK(hasClosestPoints<pgl::Shape<Coord>, pgl::Segment<Coord>>);
 }
 
 TEST_CASE("a ray's witness can fall strictly inside an element") {

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "implementation/distancelinf.hpp"
+#include "implementation/shapedispatch.hpp"
 #include "third_party/pdfgen.hpp"
 
 /**
@@ -536,79 +536,79 @@ class Canvas {
     /** @brief Appends a point using the current captured style. */
     template <class Number, class Label>
     Canvas& operator<<(const Point<Number, Label>& point) {
-        return push(Point<double>(point), point);
+        return push(Shape<Point<double>>(point), point);
     }
 
     /** @brief Appends a segment using the current captured style. */
     template <class PointType, class Label>
     Canvas& operator<<(const Segment<PointType, Label>& segment) {
-        return push(Segment<Point<double>>(segment), segment);
+        return push(Shape<Point<double>>(segment), segment);
     }
 
     /** @brief Appends an oriented segment using the current captured style. */
     template <class PointType, class Label>
     Canvas& operator<<(const OrientedSegment<PointType, Label>& segment) {
-        return push(OrientedSegment<Point<double>>(segment), segment);
+        return push(Shape<Point<double>>(segment), segment);
     }
 
     /** @brief Appends a line using the current captured style. */
     template <class PointType, class Label>
     Canvas& operator<<(const Line<PointType, Label>& line) {
-        return push(Line<Point<double>>(line), line);
+        return push(Shape<Point<double>>(line), line);
     }
 
     /** @brief Appends an oriented line using the current captured style. */
     template <class PointType, class Label>
     Canvas& operator<<(const OrientedLine<PointType, Label>& line) {
-        return push(OrientedLine<Point<double>>(line), line);
+        return push(Shape<Point<double>>(line), line);
     }
 
     /** @brief Appends a ray using the current captured style. */
     template <class PointType, class Label>
     Canvas& operator<<(const Ray<PointType, Label>& ray) {
-        return push(Ray<Point<double>>(ray), ray);
+        return push(Shape<Point<double>>(ray), ray);
     }
 
     /** @brief Appends a half-plane using the current captured style. */
     template <class PointType, class Label>
     Canvas& operator<<(const Halfplane<PointType, Label>& halfplane) {
-        return push(Halfplane<Point<double>>(halfplane), halfplane);
+        return push(Shape<Point<double>>(halfplane), halfplane);
     }
 
     /** @brief Appends a rectangle using the current captured style. */
     template <class PointType, class Label>
     Canvas& operator<<(const Rectangle<PointType, Label>& rectangle) {
-        return push(Rectangle<Point<double>>(rectangle), rectangle);
+        return push(Shape<Point<double>>(rectangle), rectangle);
     }
 
     /** @brief Appends a triangle using the current captured style. */
     template <class PointType, class Label>
     Canvas& operator<<(const Triangle<PointType, Label>& triangle) {
-        return push(Triangle<Point<double>>(triangle), triangle);
+        return push(Shape<Point<double>>(triangle), triangle);
     }
 
     /** @brief Appends a convex polygon using the current captured style. */
     template <class PointType, class Label>
     Canvas& operator<<(const Convex<PointType, Label>& convex) {
-        return push(Convex<Point<double>>(convex), convex);
+        return push(Shape<Point<double>>(convex), convex);
     }
 
     /** @brief Appends a disk using the current captured style. */
     template <class PointType, class Label>
     Canvas& operator<<(const Disk<PointType, Label>& disk) {
-        return push(Disk<Point<double>>(disk), disk);
+        return push(Shape<Point<double>>(disk), disk);
     }
 
     /** @brief Appends a (possibly non-convex) polygon using the current captured style. */
     template <class PointType, class Label>
     Canvas& operator<<(const Polygon<PointType, Label>& polygon) {
-        return push(Polygon<Point<double>>(polygon), polygon);
+        return push(Shape<Point<double>>(polygon), polygon);
     }
 
     /** @brief Appends a polygon with holes (one subpath per ring) using the current captured style. */
     template <class PointType, class Label>
     Canvas& operator<<(const PolygonWithHoles<PointType, Label>& region) {
-        return push(PolygonWithHoles<Point<double>>(region), region);
+        return push(Shape<Point<double>>(region), region);
     }
 
     /**
@@ -620,25 +620,25 @@ class Canvas {
      */
     template <class PointType, class Label>
     Canvas& operator<<(const PolygonSet<PointType, Label>& set) {
-        return push(PolygonSet<Point<double>>(set), set);
+        return push(Shape<Point<double>>(set), set);
     }
 
     /** @brief Appends an x-monotone chain (an SVG polyline) using the current captured style. */
     template <class PointType, class Label, class Storage>
     Canvas& operator<<(const MonotoneChain<PointType, Label, Storage>& chain) {
-        return push(MonotoneChain<Point<double>>(chain), chain);
+        return push(Shape<Point<double>>(chain), chain);
     }
 
     /** @brief Appends a polyline (an open, possibly self-intersecting chain) using the current captured style. */
     template <class PointType, class Label>
     Canvas& operator<<(const Polyline<PointType, Label>& polyline) {
-        return push(Polyline<Point<double>>(polyline), polyline);
+        return push(Shape<Point<double>>(polyline), polyline);
     }
 
     /** @brief Appends a half-plane intersection (clipped to the viewport, like a half-plane) using the current captured style. */
     template <class PointType, class Label>
     Canvas& operator<<(const HalfplaneIntersection<PointType, Label>& region) {
-        return push(HalfplaneIntersection<Point<double>>(region), region);
+        return push(Shape<Point<double>>(region), region);
     }
 
     /**
@@ -1203,9 +1203,8 @@ class Canvas {
 
     bool needsArrowheadDefinition() const {
         for (const Element& element : elements_) {
-            if (element.shape.template holdsAlternative<OrientedSegment<Point<double>>>() ||
-                element.shape.template holdsAlternative<OrientedLine<Point<double>>>() ||
-                element.shape.template holdsAlternative<Ray<Point<double>>>()) {
+            if (element.shape.holdsOrientedSegment() || element.shape.holdsOrientedLine() ||
+                element.shape.holdsRay()) {
                 return true;
             }
         }

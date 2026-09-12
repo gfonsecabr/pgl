@@ -247,7 +247,7 @@ static void evalPredicates(const EShape& a, const EShape& b, bool ab[7], bool ba
 // A short human description of an intersection result shape.
 static QString describe(const EShape& s) {
     if (s.empty()) return "empty (disjoint)";
-    if (const EPoint* p = s.getIf<EPoint>()) {
+    if (const EPoint* p = s.getIfHolds<EPoint>()) {
         return QString("Point (%1, %2)")
             .arg(static_cast<double>(p->x()))
             .arg(static_cast<double>(p->y()));
@@ -498,12 +498,12 @@ void Canvas::drawEShape(QPainter& p, const EShape& s, const QColor& stroke,
     p.setPen(pen);
     p.setBrush(fill);
 
-    if (const EPoint* pt = s.getIf<EPoint>()) {
+    if (const EPoint* pt = s.getIfHolds<EPoint>()) {
         p.setBrush(stroke);
         p.drawEllipse(w2s(toWorldF(*pt)), penW + 2.5, penW + 2.5);
         return;
     }
-    if (const auto* d = s.getIf<pgl::Disk<EPoint>>()) {
+    if (const auto* d = s.getIfHolds<pgl::Disk<EPoint>>()) {
         QPointF c = toWorldF(d->center());
         double r = std::sqrt(static_cast<double>(d->squaredRadius()));
         QPointF cs = w2s(c);
@@ -538,16 +538,16 @@ void Canvas::drawEShape(QPainter& p, const EShape& s, const QColor& stroke,
         p.setBrush(fill);
     };
 
-    const bool isSeg = s.holdsAlternative<pgl::Segment<EPoint>>();
-    const bool isOSeg = s.holdsAlternative<pgl::OrientedSegment<EPoint>>();
-    const bool isLine = s.holdsAlternative<pgl::Line<EPoint>>();
-    const bool isOLine = s.holdsAlternative<pgl::OrientedLine<EPoint>>();
-    const bool isRay = s.holdsAlternative<pgl::Ray<EPoint>>();
-    const bool isHP = s.holdsAlternative<pgl::Halfplane<EPoint>>();
+    const bool isSeg = s.holds<pgl::Segment<EPoint>>();
+    const bool isOSeg = s.holds<pgl::OrientedSegment<EPoint>>();
+    const bool isLine = s.holds<pgl::Line<EPoint>>();
+    const bool isOLine = s.holds<pgl::OrientedLine<EPoint>>();
+    const bool isRay = s.holds<pgl::Ray<EPoint>>();
+    const bool isHP = s.holds<pgl::Halfplane<EPoint>>();
     // Polyline and the (weakly x-monotone) MonotoneChain are open chains: draw
     // them as an unfilled polyline, without the closing edge a polygon adds.
-    const bool isOpen = s.holdsAlternative<pgl::Polyline<EPoint>>() ||
-                        s.holdsAlternative<pgl::MonotoneChain<EPoint>>();
+    const bool isOpen = s.holds<pgl::Polyline<EPoint>>() ||
+                        s.holds<pgl::MonotoneChain<EPoint>>();
 
     if (isSeg || isOSeg) {
         p.drawLine(W2S(w[0]), W2S(w[1]));

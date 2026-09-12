@@ -550,22 +550,22 @@ TEST_CASE("A runtime Shape erodes when the pair of alternatives has an answer") 
     const AnyShape eroded = box.minkowskiErosion(tri);
     // The erosion needs no division for this pair, so the wrapper holds it where
     // the polyhedral *sum* of the same pair would not fit.
-    REQUIRE(eroded.isHalfplaneIntersection());
-    CHECK(eroded.getIfHalfplaneIntersection()->asConvex<pgl::ERational>() ==
+    REQUIRE(eroded.holdsHalfplaneIntersection());
+    CHECK(eroded.getIfHoldsHalfplaneIntersection()->asConvex<pgl::ERational>() ==
           pgl::Convex<EPoint>(pgl::Rectangle<EPoint>(EPoint(0, 0), EPoint(8, 8))));
 
     // A translation keeps the stored alternative, as it does for the sum.
     const AnyShape translated = box.minkowskiErosion(AnyShape(Point(1, 2)));
-    REQUIRE(translated.isRectangle());
-    CHECK(*translated.getIfRectangle() == RectangleShape(-1, -2, 9, 8));
+    REQUIRE(translated.holdsRectangle());
+    CHECK(*translated.getIfHoldsRectangle() == RectangleShape(-1, -2, 9, 8));
 
     // A mixed spelling, and a concrete operand.
     CHECK(box.minkowskiErosion(Triangle(Point(0, 0), Point(2, 0), Point(0, 2)))
-              .getIfHalfplaneIntersection()
+              .getIfHoldsHalfplaneIntersection()
               ->isBounded());
     CHECK(RectangleShape(0, 0, 10, 10)
               .minkowskiErosion(tri)
-              .getIfHalfplaneIntersection()
+              .getIfHoldsHalfplaneIntersection()
               ->isBounded());
 
     // The pairs with no single-shape answer throw, exactly as the sum's do.

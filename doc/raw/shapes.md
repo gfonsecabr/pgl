@@ -75,11 +75,11 @@ Other degenerate shapes have no meaningful behavior and are called **undefined**
 
 A third state is the **empty set**: `Rectangle`, `Convex`, `Polygon`, `PolygonWithHoles`, `PolygonSet`, and `HalfplaneIntersection` can each cover no point at all, which `empty` reports. An empty shape is well defined, not undefined: it behaves exactly as `EmptyShape` in every predicate, so it is contained in every shape (`contains`, `boundaryContains`, and `interiorContains` all accept it), it meets none (`intersects`, `interiorsIntersect`, and `crosses` are all `false` for it), it `separates` only a `PolygonSet` already in pieces, and it contains nothing but itself. It has no vertices, so `size()` is `0` and iteration yields nothing; it has zero area, so `isDegenerate` is `true`. The empty state is what lets these shapes answer "no points" without a `std::optional` wrapper.
 
-A shape satisfying `isPoint` covers exactly a point and `getIfPoint()` returns the point. Similarly a shape satisfying `isSegment` covers exactly the point set of a segment that is obtained with `getIfSegment()`. Degenerate shapes that dropped below their natural dimension are **entirely boundary with empty interior**. So `boundaryContains` on a collapsed shape coincides with `contains`, while `interiorContains` and `interiorsIntersect` are always `false`. (The one exception to this reading is the polymorphic `Shape`, whose `isPoint` / `getIfPoint` family tests the stored alternative rather than the geometry — see [Polymorphism with `Shape`](#polymorphism-with-shape).)
+A shape satisfying `isPoint` covers exactly a point and `getIfPoint()` returns the point. Similarly a shape satisfying `isSegment` covers exactly the point set of a segment that is obtained with `getIfSegment()`. Degenerate shapes that dropped below their natural dimension are **entirely boundary with empty interior**. So `boundaryContains` on a collapsed shape coincides with `contains`, while `interiorContains` and `interiorsIntersect` are always `false`. The polymorphic `Shape` answers these as the shape it holds.
 
 ### Polymorphism with `Shape`
 
-Shapes are grouped into a polymorphic class `Shape` that use `std::variant` for polymorphism.
+Shapes are grouped into a polymorphic class `Shape` that uses `std::variant` for polymorphism, so a shape whose kind is only known at run time is still a value with the whole common interface. It has a page of its own: [polymorphism](polymorphism.md).
 
 ```C++
 pgl::Shape p = pgl::Point(3,7);
@@ -90,84 +90,6 @@ if (r.contains(p))
 if (r.intersects(s))
     std::cout << r << " intersects " << s << std::endl;
 ```
-
-Like every other shape, `Shape` is templated on a point type, `pgl::Shape<pgl::Point<int>>` by default. All alternatives share that same point type: a `Shape<Point<int>>` can hold a `Segment<Point<int>>` but not a `Segment<Point<double>>`.
-
-```C++
-pgl::Shape<pgl::Point<double>> e;   // holds EmptyShape
-e.empty();                          // true
-e = pgl::Disk<pgl::Point<double>>(...);
-e.empty();                          // false
-```
-
-- `s.empty()`: Returns true if the wrapped shape covers no point. The `EmptyShape` alternative always does, and every other alternative that has an empty state of its own — `Rectangle`, `Convex`, `Polygon`, `PolygonWithHoles`, `PolygonSet`, `HalfplaneIntersection`, `Polyline`, `MonotoneChain` — answers its own `empty()`, so a `Shape` holding an empty `Rectangle` is empty too. An alternative defined by the points it covers is never empty.
-
-```C++
-pgl::Shape r = pgl::Rectangle<>();  // the empty rectangle
-r.empty();                          // true: the rectangle covers no point
-r.isRectangle();                    // true: the Rectangle alternative is stored
-```
-
-A `Shape` is constructed or assigned from any supported alternative, and the stored value can be inspected or extracted again:
-
-```C++
-pgl::Shape s = pgl::Segment(1,4,2,9);
-s.holdsAlternative<pgl::Segment<>>();          // true
-if (const pgl::Segment<> *q = s.getIf<pgl::Segment<>>())
-    std::cout << *q << std::endl;              // nullptr if another alternative is stored
-auto t = static_cast<pgl::Segment<>>(s);       // throws std::bad_variant_access on mismatch
-```
-
-Every alternative also has a named shorthand for that pair, which avoids repeating the type: `isPoint()` / `getIfPoint()`, `isSegment()` / `getIfSegment()`, and likewise `isOrientedSegment`, `isLine`, `isOrientedLine`, `isRay`, `isHalfplane`, `isRectangle`, `isTriangle`, `isDisk`, `isConvex`, `isMonotoneChain`, `isPolyline`, `isPolygon`, `isHalfplaneIntersection`, `isPolygonWithHoles`, and `isPolygonSet`. `getIf...` returns a pointer into the stored variant — `nullptr` when another alternative is active — in a `const` and a mutable overload. The `EmptyShape` alternative has no such pair; use `holdsAlternative<pgl::EmptyShape<>>()` — `empty()` asks the geometric question, and is also true for, say, a stored empty `Rectangle`.
-
-```C++
-pgl::Shape s = pgl::Segment(1,4,2,9);
-s.isSegment();                                 // same as s.holdsAlternative<pgl::Segment<>>()
-if (const pgl::Segment<> *q = s.getIfSegment())
-    std::cout << *q << std::endl;
-```
-
-Note that on `Shape` these test **which alternative is stored**, not the geometry of the stored value. This is a different question from the same-named methods on the concrete shapes, where `isPoint()` asks whether the shape's point set is a single point ([Degeneracies](#degeneracies)). A `Shape` holding a triangle whose three vertices coincide reports `isTriangle()`, not `isPoint()`; reach through to ask the geometric question:
-
-```C++
-pgl::Shape c = pgl::Triangle(2,2,2,2,2,2);     // collapsed to a point
-c.isTriangle();                                // true
-c.isPoint();                                   // false: the Point alternative is not stored
-c.getIfTriangle()->isPoint();                  // true: the triangle covers a single point
-```
-
-For anything not forwarded by `Shape` itself, `s.variant()` exposes the underlying `std::variant` so you can call `std::visit` directly.
-
-`Shape` is also constructible from a `std::variant` of shapes, or a `std::optional` of one — the return types of the typed [intersection](shape_methods.md#intersection) methods — which lets an ambiguous result be stored in a single object without unwrapping it by hand:
-
-```C++
-auto i = pgl::Shape(a.intersection(b)); // point, segment or empty
-```
-
-`Shape` forwards the common shape interface to the stored alternative by visitation:
-
-- Predicates: `contains`, `boundaryContains`, `interiorContains`, `intersects`, `interiorsIntersect`, `separates`, `crosses`.
-- Constructions and measures: `intersection`, `regularizedUnion`, `difference`, `symmetricDifference`, `squaredDistance`, `squaredHausdorffDistance`, `distanceL1`, `distanceLInf`, `hausdorffDistanceL1`, `hausdorffDistanceLInf`, `bbox`.
-- Access: `size`, `get`, `operator[]`, `index`, `isDegenerate`, `empty`, and the per-alternative `is...` / `getIf...` accessors above.
-- Transformations: `+=`, `-=`, `*=`, `/=` (and the corresponding free operators), `rotate90`/`rotated90`, and the axis scaling methods.
-
-Every one of these accepts either another `Shape` or a concrete shape, so the two styles can be mixed freely — and the concrete shapes accept a `Shape` in turn, forwarding to the wrapper so the pair is resolved at run time whichever side it is written on:
-
-```C++
-pgl::Shape r = pgl::Rectangle(1,4,2,9);
-r.intersects(pgl::Segment(0,0,5,5));   // concrete argument
-pgl::Segment(0,0,5,5).intersection(r); // concrete receiver, wrapped argument
-```
-
-The forwarding direction is where the two differ in one respect. A concrete receiver only takes a `Shape` for an operation it has at all: every shape has an `intersection`, so every one takes the wrapper there, but only the six bounded polygonal regions have a `regularizedUnion`, a `difference` or a `symmetricDifference`, so `segment.regularizedUnion(shape)` stays a compile error rather than becoming a call that is certain to throw. And the answer comes back in the wrapper's shape, not the receiver's — `segment.intersection(shape)` is a `Shape`, where `segment.intersection(otherSegment)` is the tight `std::optional<std::variant<Point, Segment>>`, because which alternative the argument holds is not known until run time.
-
-Because the alternative pair is only known at run time, operations that do not exist for every pair report failure at run time rather than at compile time. For example, `bbox` throws `std::logic_error` for unbounded alternatives (`Line`, `Halfplane`...). The element accessors throw for the same reason: `size`, `get`, `operator[]` and `index` need one indexable sequence of points, which the `Point` alternative (whose elements are coordinates), the `HalfplaneIntersection` alternative (whose elements are half-planes), the `PolygonWithHoles` alternative (whose vertices are spread over its rings) and the `PolygonSet` alternative (whose vertices are spread over its components) do not have. Reach through with `getIf...` and use the concrete shape's own accessors.
-
-`PolygonSet` is the one alternative whose point set need not be connected, and it is there for what that buys: an `intersection` of two regions that comes apart into several pieces is a single `Shape` again, holding the whole set. A result that stays in one piece is still unwrapped to the tighter `PolygonWithHoles` alternative, so the alternative you get depends on the geometry rather than on the operand types — the same way an intersection of two segments comes back as a `Point` or as a `Segment`.
-
-`regularizedUnion`, `difference`, `regularizedIntersection` and `symmetricDifference` are the exceptions to that re-wrapping, and return a `PolygonSet` rather than a `Shape`. They can afford to: every pair that has one of those [boolean operations](shape_methods.md#boolean-operations) at all answers with a set of regions, so the static type is already exact and there is nothing to unwrap. `regularizedUnion` and `symmetricDifference` succeed exactly when **both** alternatives are bounded polygonal regions — a `Rectangle`, `Triangle`, `Convex`, `Polygon`, `PolygonWithHoles` or `PolygonSet` — for all thirty-six ordered pairs of them, and throw `std::logic_error` for every other pair, including one holding an `EmptyShape`: the empty set is a union's identity, so `empty ∪ A` would have to be `A` itself, which is a `PolygonSet` only when `A` is already a region. `regularizedIntersection` is available when a `PolygonWithHoles` or `PolygonSet` participates with a supported area operand; the separately named `intersection` remains the literal point-set operation. `difference` is the one that is not symmetric, so which side of the wrapper a shape is written on decides what is removed from what — and its grid is not square either: the receiver must be one of the six, but the subtrahend may also be a `Halfplane` or a `HalfplaneIntersection`, since $A \setminus B$ is bounded as soon as $A$ is. Written the other way round it throws.
-
-- Other methods:
 
 
 ### Point
