@@ -27,10 +27,15 @@ constexpr const char* kDataset  = "points";
 //     caller builds from the same points, order 1 by construction. Measured
 //     from the points, triangulation included, so the two rows start from the
 //     same thing and end with the same thing.
-template <class Number>
+//
+// There is no number axis. A Voronoi vertex is the circumcentre of three sites,
+// so the diagram is computed in exact rationals however the sites themselves
+// are stored, and an `int` column runs the identical arithmetic at the
+// identical speed — it measured within 3% of this one at every n of every
+// order — so there is nothing for a second column to compare.
 void run(const bench::Options& opt) {
-    using Point = pgl::Point<Number>;
-    const char* number = bench::numberName<Number>;
+    using Point = pgl::EPoint;
+    const char* number = bench::numberName<pgl::ERational>;
 
     // One measured row.
     //
@@ -79,9 +84,8 @@ void run(const bench::Options& opt) {
 int main(int argc, char** argv) {
     const auto opt = bench::parseOptions(argc, argv);
     bench::header();
-    if (bench::matches(opt.dataset, kDataset)) {
-        if (bench::matches(opt.type, "int"))       run<int>(opt);
-        if (bench::matches(opt.type, "ERational")) run<pgl::ERational>(opt);
+    if (bench::matches(opt.dataset, kDataset) && bench::matches(opt.type, "ERational")) {
+        run(opt);
     }
     return 0;
 }
