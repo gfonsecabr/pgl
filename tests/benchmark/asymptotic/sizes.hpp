@@ -182,8 +182,7 @@ constexpr auto kUnionTriangles = linearSizes(10000);
 // the maxima fall roughly as 1/(2k - 1). No one maximum could serve all three —
 // order 4 is out of room long before order 1 is — so there is one list per
 // order, each anchored to itself. The order-1 list carries the category's real
-// range, and is swept twice: `Triangulation::voronoiDiagram` reaches the same
-// diagram and is measured at every n the free function is.
+// range.
 //
 // Exact rationals are the only column: the diagram is computed in them whatever
 // the sites are stored as, so an `int` sweep would measure the same work twice.
