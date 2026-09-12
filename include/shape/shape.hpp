@@ -1501,7 +1501,7 @@ struct Shape {
      * @return The Minkowski sum, in the tightest type that represents it.
      */
     template <class OtherShape>
-        requires MinkowskiSummableConcept<Shape<PointType>, OtherShape>
+        requires MinkowskiSummableConcept<Shape<PointType_>, OtherShape>
     [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
 
     /**
@@ -1527,7 +1527,7 @@ struct Shape {
      * @return The erosion, in the tightest type that represents it.
      */
     template <class OtherShape>
-        requires MinkowskiSummableConcept<Shape<PointType>, OtherShape>
+        requires MinkowskiSummableConcept<Shape<PointType_>, OtherShape>
     [[nodiscard]] constexpr auto minkowskiErosion(const OtherShape& other) const;
 
     /**
