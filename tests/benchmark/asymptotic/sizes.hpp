@@ -184,6 +184,12 @@ constexpr auto kUnionTriangles = linearSizes(10000);
 // order, each anchored to itself. The order-1 list carries the category's real
 // range.
 //
+// The farthest-point diagram reuses the order-1 list rather than an anchor of
+// its own. Only the h hull vertices own a cell, so at 16000 it is nowhere near
+// the one-second anchor and could run orders of magnitude further — but it
+// shares a chart with the three orders, and a list that long would crush them
+// against its left edge.
+//
 // Exact rationals are the only column: the diagram is computed in them whatever
 // the sites are stored as, so an `int` sweep would measure the same work twice.
 constexpr auto kVoronoiOrder1 = linearSizes(16000);

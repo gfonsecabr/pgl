@@ -57,9 +57,9 @@ for. A few do not have one and are left without a reference rather than given a
 misleading one: closest pair, sort by angle, the visibility graph, and the
 Voronoi diagrams — CGAL's `Voronoi_diagram_2` stores no subdivision, and its
 `lower_envelope_3` builds one by lifting the sites into 3D, so neither races
-what pgl does; nor is there an order-k diagram in CGAL to put against orders 2
-and 4. The rest exist to check pgl's answers against something that is not more
-pgl, and to put a reference curve on the chart. A cell may carry more than one: CGAL solves the
+what pgl does; nor is there an order-k or a farthest-point diagram in CGAL to
+put against orders 2 and 4 or the farthest one. The rest exist to check pgl's
+answers against something that is not more pgl, and to put a reference curve on the chart. A cell may carry more than one: CGAL solves the
 Minkowski sum both by decomposition, the strategy pgl uses, and by reduced
 convolution, which pgl has no counterpart for — the first says how pgl's
 implementation of an idea compares, the second says what the other idea costs.

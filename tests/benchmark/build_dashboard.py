@@ -232,7 +232,7 @@ DATASET_ORDER = ["points", "small segments", "large segments", "polygon edges",
                  "polygon", "large + large", "large + small", "triangles"]
 PROBLEM_ORDER = ["build", "buildPointLocation", "locate", "locateFace",
                  "closest pair", "convex hull", "sort by angle", "Delaunay",
-                 "kd-tree", "order 1", "order 2", "order 4",
+                 "kd-tree", "order 1", "order 2", "order 4", "farthest",
                  "intersections", "crossings",
                  "count in Rectangle", "count in Triangle", "nearest neighbor",
                  "visibility graph", "visible vertices",
