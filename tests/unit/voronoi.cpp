@@ -42,6 +42,11 @@ using WeightedSite = pgl::Disk<Site>;
 using OrderDiagram = pgl::Arrangement<pgl::EPoint, std::vector<Site>>;
 using PowerDiagram = pgl::Arrangement<pgl::EPoint, std::vector<WeightedSite>>;
 
+// The ordinary entry points label a face with the one site that owns it, so
+// their diagrams carry the element itself: `Diagram` above for points, this for
+// disks.
+using PowerCells = pgl::Arrangement<pgl::EPoint, WeightedSite>;
+
 WeightedSite D(int x, int y, int radius) {
     return WeightedSite(P(x, y), radius);
 }
@@ -368,9 +373,13 @@ TEST_CASE("voronoiDiagram of one site is the whole plane") {
     CHECK(ordinary.label(Diagram::FaceId(0)) == sites.front());
 
     const std::vector<WeightedSite> disk{D(3, -2, 5)};
-    const PowerDiagram powerCell = pgl::powerDiagram(disk);
+    const PowerDiagram powerCell = pgl::powerDiagram(disk, 1);
     REQUIRE(powerCell.faceCount() == 1);
     CHECK(powerCell.label(PowerDiagram::FaceId(0)) == disk);
+    const PowerCells ordinaryCell = pgl::powerDiagram(disk);
+    static_assert(std::same_as<typename PowerCells::LabelType, WeightedSite>);
+    REQUIRE(ordinaryCell.faceCount() == 1);
+    CHECK(ordinaryCell.label(PowerCells::FaceId(0)) == disk.front());
 }
 
 TEST_CASE("powerDiagram weighs each site by its squared radius") {
@@ -378,7 +387,7 @@ TEST_CASE("powerDiagram weighs each site by its squared radius") {
     // disk pushes past the midpoint towards the lighter one: 16 of squared
     // radius moves it from x = 5 to x = 29/5, so the heavier disk owns more.
     const std::vector<WeightedSite> disks{D(0, 0, 4), D(10, 0, 0)};
-    const PowerDiagram diagram = pgl::powerDiagram(disks);
+    const PowerDiagram diagram = pgl::powerDiagram(disks, 1);
 
     REQUIRE(diagram.edgeCount() == 1);
     CHECK(diagram.faceCount() == 2);
@@ -386,6 +395,12 @@ TEST_CASE("powerDiagram weighs each site by its squared radius") {
           std::vector<WeightedSite>{disks[0]});
     CHECK(diagram.label(diagram.locateFace(pgl::EPoint(6, 0))) ==
           std::vector<WeightedSite>{disks[1]});
+
+    const PowerCells cells = pgl::powerDiagram(disks);
+    CHECK(cells.edgeCount() == diagram.edgeCount());
+    CHECK(cells.faceCount() == diagram.faceCount());
+    CHECK(cells.label(cells.locateFace(pgl::EPoint(5, 0))) == disks[0]);
+    CHECK(cells.label(cells.locateFace(pgl::EPoint(6, 0))) == disks[1]);
 
     const auto edge = diagram.edges().front();
     REQUIRE(std::holds_alternative<PowerDiagram::LineType>(edge));
@@ -400,7 +415,12 @@ TEST_CASE("A disk its neighbours swallow owns no power cell") {
     // The two heavy disks meet on x = 10, right over the light one's center, so
     // the light one is nearest nowhere and the two cells cover the plane.
     const std::vector<WeightedSite> disks{D(0, 0, 12), D(10, 0, 0), D(20, 0, 12)};
-    const PowerDiagram diagram = pgl::powerDiagram(disks);
+    const PowerDiagram diagram = pgl::powerDiagram(disks, 1);
+
+    const PowerCells cells = pgl::powerDiagram(disks);
+    REQUIRE(cells.faceCount() == 2);
+    CHECK(cells.label(cells.locateFace(pgl::EPoint(9, 0))) == disks[0]);
+    CHECK(cells.label(cells.locateFace(pgl::EPoint(11, 0))) == disks[2]);
 
     REQUIRE(diagram.edgeCount() == 1);
     REQUIRE(diagram.faceCount() == 2);
@@ -418,7 +438,7 @@ TEST_CASE("powerDiagram of radius-zero disks is the Voronoi diagram of their cen
         disks.emplace_back(site, 0);
     }
     const OrderDiagram fromPoints = pgl::voronoiDiagram(sites, 1);
-    const PowerDiagram fromDisks = pgl::powerDiagram(disks);
+    const PowerDiagram fromDisks = pgl::powerDiagram(disks, 1);
 
     CHECK(fromDisks.vertexCount() == fromPoints.vertexCount());
     CHECK(fromDisks.edgeCount() == fromPoints.edgeCount());

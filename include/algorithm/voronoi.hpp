@@ -1112,23 +1112,31 @@ using voronoi_dual_t =
  *
  * Sites with no triangle to dualize — fewer than three of them, or all equal or
  * all collinear — have no dual to borrow, and take the bisector construction of
- * the order-`k` entry point at `k = 1` instead.
+ * the order-`k` entry point at `k = 1` instead. So does every disk site: a power
+ * cell is bounded by radical axes rather than bisectors, and the triangulation
+ * whose dual it is weighs its sites, which this one does not.
+ *
+ * @param name The caller's name, for the message of an empty input.
  */
 template <class ResultNumber, std::ranges::input_range SiteRange>
-    requires PointConcept<std::ranges::range_value_t<SiteRange>>
-voronoi_dual_t<ResultNumber, SiteRange> ordinaryDiagram(const SiteRange& sites) {
+    requires(PointConcept<std::ranges::range_value_t<SiteRange>> ||
+             DiskConcept<std::ranges::range_value_t<SiteRange>>)
+voronoi_dual_t<ResultNumber, SiteRange> ordinaryDiagram(const SiteRange& sites,
+                                                        const char* name) {
     using Element = std::ranges::range_value_t<SiteRange>;
     using Number = voronoi_number_t<ResultNumber, Element>;
     using Diagram = voronoi_dual_t<ResultNumber, SiteRange>;
 
     std::vector<Element> elements(std::ranges::begin(sites), std::ranges::end(sites));
     if (elements.empty()) {
-        throw std::invalid_argument("pgl::voronoiDiagram: no sites to make a diagram of");
+        throw std::invalid_argument(std::string(name) + ": no sites to make a diagram of");
     }
 
-    const Triangulation<Triangle<Element>> triangulation(elements);
-    if (triangulation.numTriangles() != 0) {
-        return triangulation.template voronoiDiagram<Number>();
+    if constexpr (PointConcept<Element>) {
+        const Triangulation<Triangle<Element>> triangulation(elements);
+        if (triangulation.numTriangles() != 0) {
+            return triangulation.template voronoiDiagram<Number>();
+        }
     }
 
     std::vector<VoronoiSite<Number>> lifted;
@@ -1251,7 +1259,7 @@ template <class ResultNumber = void, std::ranges::input_range SiteRange>
     requires PointConcept<std::ranges::range_value_t<SiteRange>>
 [[nodiscard]] detail::voronoi_dual_t<ResultNumber, SiteRange> voronoiDiagram(
     const SiteRange& sites) {
-    return detail::ordinaryDiagram<ResultNumber>(sites);
+    return detail::ordinaryDiagram<ResultNumber>(sites, "pgl::voronoiDiagram");
 }
 
 /**
@@ -1302,8 +1310,7 @@ template <class ResultNumber = void, std::ranges::input_range SiteRange>
 }
 
 /**
- * @brief Computes the power diagram, or the order-`k` power diagram, of a set
- *        of disks.
+ * @brief Computes the power diagram of a set of disks.
  *
  * The power (Laguerre) diagram is @ref voronoiDiagram with the squared distance
  * to a site replaced by the power distance `|x - center|^2 - radius^2`, which
@@ -1313,11 +1320,46 @@ template <class ResultNumber = void, std::ranges::input_range SiteRange>
  * which a point site can do. Disks of equal radius give the Voronoi diagram of
  * their centers.
  *
- * Labels and order are as in @ref voronoiDiagram, but neither the Delaunay dual
- * nor Lee's refinement is available: a disk's center need not lie in its own
- * cell, and a light disk can own a region buried inside a heavy one's cell,
- * which no neighbor of that cell names. So every order, `k` of 1 included, cuts
- * each of the `O(n^2)` bisectors against every site, at `O(n^3 log n)`.
+ * Every face is labeled with the one disk that owns it, as an element of the
+ * input container. Unlike the ordinary @ref voronoiDiagram there is no Delaunay
+ * dual to borrow — the triangulation whose dual a power diagram is weighs its
+ * sites — so this cuts each of the `O(n^2)` bisectors against every site, at
+ * `O(n^3 log n)`.
+ *
+ * @tparam ResultNumber Coordinate type of the arrangement vertices. The default
+ *         is exact and overflow-free for integral input.
+ * @tparam SiteRange Range of @ref pgl::Disk.
+ * @param sites Sites of the diagram. Disks sharing a center are allowed; the
+ *        heavier one then owns everything the lighter one would have.
+ * @return The unbounded arrangement of the diagram, every face labeled with its
+ *         disk. A disk owning no cell labels no face.
+ * @throws std::invalid_argument if there are no sites.
+ * @see The overload below for the order-`k` power diagram.
+ */
+template <class ResultNumber = void, std::ranges::input_range SiteRange>
+    requires DiskConcept<std::ranges::range_value_t<SiteRange>>
+[[nodiscard]] detail::voronoi_dual_t<ResultNumber, SiteRange> powerDiagram(
+    const SiteRange& sites) {
+    return detail::ordinaryDiagram<ResultNumber>(sites, "pgl::powerDiagram");
+}
+
+/**
+ * @brief Computes the order-`k` power diagram of a set of disks.
+ *
+ * The power (Laguerre) diagram is @ref voronoiDiagram with the squared distance
+ * to a site replaced by the power distance `|x - center|^2 - radius^2`, which
+ * is what a radius weighs a disk by. Its bisectors are still lines and its
+ * cells still convex polygons, but a disk that its neighbors swallow may own no
+ * cell at all, and a disk's center may lie outside its own cell — neither of
+ * which a point site can do. Disks of equal radius give the Voronoi diagram of
+ * their centers.
+ *
+ * Labels and order are as in the order-`k` @ref voronoiDiagram, but neither the
+ * Delaunay dual nor Lee's refinement is available: a disk's center need not lie
+ * in its own cell, and a light disk can own a region buried inside a heavy
+ * one's cell, which no neighbor of that cell names. So every order, `k` of 1
+ * included, cuts each of the `O(n^2)` bisectors against every site, at
+ * `O(n^3 log n)`.
  *
  * @tparam ResultNumber Coordinate type of the arrangement vertices. The default
  *         is exact and overflow-free for integral input.
@@ -1332,7 +1374,7 @@ template <class ResultNumber = void, std::ranges::input_range SiteRange>
 template <class ResultNumber = void, std::ranges::input_range SiteRange>
     requires DiskConcept<std::ranges::range_value_t<SiteRange>>
 [[nodiscard]] detail::voronoi_diagram_t<ResultNumber, SiteRange> powerDiagram(
-    const SiteRange& sites, int k = 1) {
+    const SiteRange& sites, int k) {
     return detail::diagramOf<ResultNumber>(sites, k, "pgl::powerDiagram");
 }
 
