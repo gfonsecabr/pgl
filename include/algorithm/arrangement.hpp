@@ -4772,22 +4772,34 @@ template <TriangleConcept TriangleType, SegmentConcept SegmentType>
 template <class ResultNumber>
 Arrangement<Point<ResultNumber>, typename Triangulation<TriangleType, SegmentType>::PointType>
 Triangulation<TriangleType, SegmentType>::voronoiDiagram() const {
-    assert(!empty() && "Triangulation::voronoiDiagram requires a nonempty triangulation");
+    return dualDiagram<ResultNumber>([](const PointType& site) { return site; });
+}
+
+template <TriangleConcept TriangleType, SegmentConcept SegmentType>
+template <class ResultNumber, class MakeLabel>
+auto Triangulation<TriangleType, SegmentType>::dualDiagram(MakeLabel&& labelOf) const
+    -> Arrangement<Point<ResultNumber>, std::invoke_result_t<MakeLabel&, const PointType&>> {
+    assert(!empty() && "Triangulation::dualDiagram requires a nonempty triangulation");
 
     using ResultPoint = Point<ResultNumber>;
-    using Diagram = Arrangement<ResultPoint, PointType>;
+    using Label = std::invoke_result_t<MakeLabel&, const PointType&>;
+    using Diagram = Arrangement<ResultPoint, Label>;
     using HalfedgeId = typename Diagram::HalfedgeId;
+
+    const auto siteLabel = [&](VertexIndex vertex) {
+        return labelOf(vertices_[static_cast<std::size_t>(vertex)]);
+    };
 
     std::vector<std::array<VertexIndex, 2>> dualOf;
     std::vector<Shape<ResultPoint>> duals = dualEdges<ResultNumber>(&dualOf);
 
     if (!everyEdgeLocallyDelaunay()) {
         // The circumcentric dual of a triangulation that is not Delaunay, which
-        // is what this method promises for connectivity outside its
-        // precondition. Here the duals of two primal edges do cross — that is
-        // what a non-locally-Delaunay edge means — so the overlay has to cut
-        // them, and there is no promising it otherwise: a subdivision assembled
-        // from crossing edges as though they were disjoint is not one, and every
+        // is what this method promises for connectivity outside the Delaunay
+        // case. Here the duals of two primal edges do cross — that is what a
+        // non-locally-Delaunay edge means — so the overlay has to cut them, and
+        // there is no promising it otherwise: a subdivision assembled from
+        // crossing edges as though they were disjoint is not one, and every
         // later query reads a structure that does not describe the plane.
         //
         // Its faces then outnumber the vertices and none of them is a Voronoi
@@ -4802,7 +4814,7 @@ Triangulation<TriangleType, SegmentType>::voronoiDiagram() const {
              ++vertex) {
             const auto face =
                 diagram.locateFace(ResultPoint(vertices_[static_cast<std::size_t>(vertex)]));
-            diagram.label(face) = vertices_[static_cast<std::size_t>(vertex)];
+            diagram.label(face) = siteLabel(vertex);
         }
         diagram.clearPointLocation();
         return diagram;
@@ -4820,6 +4832,10 @@ Triangulation<TriangleType, SegmentType>::voronoiDiagram() const {
     // the other names the face across. One orientation predicate per edge, in
     // place of a trapezoidal index built to locate the sites and then thrown
     // away — which cost more than the diagram it indexed.
+    //
+    // The sites are collected per face and the labels made afterwards, one per
+    // face: a face is reached once per edge of its boundary, and a label can be
+    // any size its maker likes.
     const auto siteLeftOf = [&](HalfedgeId h, VertexIndex u, VertexIndex v) {
         return std::visit(
             [&](const auto& geometry) {
@@ -4839,6 +4855,7 @@ Triangulation<TriangleType, SegmentType>::voronoiDiagram() const {
             diagram[h]);
     };
 
+    std::vector<VertexIndex> siteOfFace(diagram.faceCount(), NO_VERTEX);
     for (std::size_t h = 0; h < diagram.halfedgeCount(); h += 2) {
         const HalfedgeId halfedge(static_cast<std::uint32_t>(h));
         const std::span<const std::uint32_t> origins = diagram.originsOf(halfedge);
@@ -4846,9 +4863,14 @@ Triangulation<TriangleType, SegmentType>::voronoiDiagram() const {
         const std::array<VertexIndex, 2>& primal = dualOf[origins.front()];
         const VertexIndex left = siteLeftOf(halfedge, primal[0], primal[1]);
         const VertexIndex right = left == primal[0] ? primal[1] : primal[0];
-        diagram.label(diagram.face(halfedge)) = vertices_[static_cast<std::size_t>(left)];
-        diagram.label(diagram.face(diagram.twin(halfedge))) =
-            vertices_[static_cast<std::size_t>(right)];
+        siteOfFace[diagram.face(halfedge).index()] = left;
+        siteOfFace[diagram.face(diagram.twin(halfedge)).index()] = right;
+    }
+    for (std::size_t f = 0; f < siteOfFace.size(); ++f) {
+        if (siteOfFace[f] != NO_VERTEX) {
+            diagram.label(typename Diagram::FaceId(static_cast<std::uint32_t>(f))) =
+                siteLabel(siteOfFace[f]);
+        }
     }
 
     return diagram;

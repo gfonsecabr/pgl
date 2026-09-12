@@ -27,6 +27,8 @@
  */
 
 #include <algorithm>
+#include <cassert>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <numeric>
@@ -390,12 +392,18 @@ typename Diagram::PointType voronoiHalfedgeDirection(const Diagram& diagram,
  * rather than interior to an edge, so the pair is either inside the `k` nearest
  * or outside it, never split by it.
  */
-template <class Number, class Element>
-void labelVoronoiFaces(Arrangement<Point<Number>, std::vector<Element>>& diagram,
+template <class Number, class Label, class Element>
+void labelVoronoiFaces(Arrangement<Point<Number>, Label>& diagram,
                        const std::vector<VoronoiSite<Number>>& sites,
                        const std::vector<Element>& elements, int k) {
-    using Diagram = Arrangement<Point<Number>, std::vector<Element>>;
+    using Diagram = Arrangement<Point<Number>, Label>;
+    // A diagram labeled by the bare element is the ordinary one, whose faces
+    // have a single owner each; every other order labels by the vector.
+    constexpr bool singleOwner = std::same_as<Label, Element>;
+    static_assert(singleOwner || std::same_as<Label, std::vector<Element>>,
+                  "a Voronoi face is labeled by its owner or by the vector of them");
     const std::size_t wanted = static_cast<std::size_t>(k);
+    assert((!singleOwner || wanted == 1) && "a single-owner label needs order 1");
 
     std::vector<std::pair<Number, Number>> keys(sites.size());
     std::vector<std::size_t> order(sites.size());
@@ -418,12 +426,16 @@ void labelVoronoiFaces(Arrangement<Point<Number>, std::vector<Element>>& diagram
         const auto cut = order.begin() + static_cast<std::ptrdiff_t>(wanted);
         std::partial_sort(order.begin(), cut, order.end(), nearer);
         std::sort(order.begin(), cut);
-        std::vector<Element> owners;
-        owners.reserve(wanted);
-        for (std::size_t s = 0; s < wanted; ++s) {
-            owners.push_back(elements[order[s]]);
+        if constexpr (singleOwner) {
+            diagram.label(face) = elements[order[0]];
+        } else {
+            Label owners;
+            owners.reserve(wanted);
+            for (std::size_t s = 0; s < wanted; ++s) {
+                owners.push_back(elements[order[s]]);
+            }
+            diagram.label(face) = std::move(owners);
         }
-        diagram.label(face) = std::move(owners);
     };
 
     if (diagram.halfedgeCount() == 0) {
@@ -1072,11 +1084,75 @@ using voronoi_number_t =
     std::conditional_t<std::is_void_v<ResultNumber>,
                        division_result_t<typename Element::NumberType>, ResultNumber>;
 
-/** @brief The arrangement @ref pgl::voronoiDiagram and @ref pgl::powerDiagram return. */
+/** @brief The arrangement the order-`k` @ref pgl::voronoiDiagram and @ref pgl::powerDiagram return. */
 template <class ResultNumber, class SiteRange>
 using voronoi_diagram_t =
     Arrangement<Point<voronoi_number_t<ResultNumber, std::ranges::range_value_t<SiteRange>>>,
                 std::vector<std::ranges::range_value_t<SiteRange>>>;
+
+/** @brief The arrangement the ordinary @ref pgl::voronoiDiagram returns. */
+template <class ResultNumber, class SiteRange>
+using voronoi_dual_t =
+    Arrangement<Point<voronoi_number_t<ResultNumber, std::ranges::range_value_t<SiteRange>>>,
+                std::ranges::range_value_t<SiteRange>>;
+
+/**
+ * @brief The ordinary diagram: the Delaunay dual, borrowed from a triangulation
+ *        of the sites; see @ref pgl::voronoiDiagram for the contract.
+ *
+ * A point is interior to its own cell and the cells tile the plane, so the
+ * ordinary diagram *is* the dual of the Delaunay triangulation, and the way to
+ * compute one is to build the other and dualize it — which @ref
+ * pgl::Triangulation::voronoiDiagram already does, down to labeling each face
+ * with the site whose cell it is. Building the triangulation from the caller's
+ * own points rather than from copies stripped of their labels is what makes that
+ * label the caller's element: a point's label is metadata that equality,
+ * ordering and hashing all ignore, so it rides along without reaching any
+ * predicate the triangulation runs.
+ *
+ * Sites with no triangle to dualize — fewer than three of them, or all equal or
+ * all collinear — have no dual to borrow, and take the bisector construction of
+ * the order-`k` entry point at `k = 1` instead.
+ */
+template <class ResultNumber, std::ranges::input_range SiteRange>
+    requires PointConcept<std::ranges::range_value_t<SiteRange>>
+voronoi_dual_t<ResultNumber, SiteRange> ordinaryDiagram(const SiteRange& sites) {
+    using Element = std::ranges::range_value_t<SiteRange>;
+    using Number = voronoi_number_t<ResultNumber, Element>;
+    using Diagram = voronoi_dual_t<ResultNumber, SiteRange>;
+
+    std::vector<Element> elements(std::ranges::begin(sites), std::ranges::end(sites));
+    if (elements.empty()) {
+        throw std::invalid_argument("pgl::voronoiDiagram: no sites to make a diagram of");
+    }
+
+    const Triangulation<Triangle<Element>> triangulation(elements);
+    if (triangulation.numTriangles() != 0) {
+        return triangulation.template voronoiDiagram<Number>();
+    }
+
+    std::vector<VoronoiSite<Number>> lifted;
+    lifted.reserve(elements.size());
+    for (const Element& element : elements) {
+        lifted.push_back(voronoiSiteOf<Number>(element));
+    }
+
+    std::vector<Shape<Point<Number>>> curves;
+    std::vector<std::pair<Number, int>> events;
+    const auto emit = [&](const VoronoiBisector<Number>& bisector,
+                          const std::optional<Number>& from, const std::optional<Number>& to) {
+        voronoiAppendRun(curves, bisector, from, to);
+    };
+    for (std::size_t i = 0; i + 1 < lifted.size(); ++i) {
+        for (std::size_t j = i + 1; j < lifted.size(); ++j) {
+            voronoiPairEdges(lifted, i, j, 1, events, emit);
+        }
+    }
+
+    Diagram diagram(curves, true);
+    labelVoronoiFaces(diagram, lifted, elements, 1);
+    return diagram;
+}
 
 /**
  * @brief The diagram both public entry points compute; see them for the
@@ -1144,15 +1220,48 @@ voronoi_diagram_t<ResultNumber, SiteRange> diagramOf(const SiteRange& sites, int
 }  // namespace detail
 
 /**
- * @brief Computes the Voronoi diagram, or the order-`k` diagram, of a set of
- *        points.
+ * @brief Computes the Voronoi diagram of a set of points.
+ *
+ * Every face of the result is labeled with the one site nearest to it, as an
+ * element of the input container. The arrangement's edge labels are
+ * default-constructed and have no meaning.
+ *
+ * This is the dual of the Delaunay triangulation of the sites, and it is
+ * computed that way: the triangulation is built and
+ * @ref Triangulation::voronoiDiagram dualizes it, so a caller who already holds
+ * a triangulation of the same points should call that directly and skip
+ * building a second one. Sites with no triangle to dualize — fewer than three of
+ * them, or all equal or all collinear — fall back to the bisector construction
+ * the order-`k` overload describes, at `k = 1`.
+ *
+ * Complexity: `O(n log n)`.
+ *
+ * @tparam ResultNumber Coordinate type of the arrangement vertices. The default
+ *         is exact and overflow-free for integral input.
+ * @tparam SiteRange Range of @ref pgl::Point.
+ * @param sites Sites of the diagram. Repeated sites share a cell, which then
+ *        carries one of them.
+ * @return The unbounded arrangement of the diagram, every face labeled with its
+ *         site.
+ * @throws std::invalid_argument if there are no sites.
+ * @see The overload below for the order-`k` diagram, and @ref powerDiagram for
+ *      weighted sites.
+ */
+template <class ResultNumber = void, std::ranges::input_range SiteRange>
+    requires PointConcept<std::ranges::range_value_t<SiteRange>>
+[[nodiscard]] detail::voronoi_dual_t<ResultNumber, SiteRange> voronoiDiagram(
+    const SiteRange& sites) {
+    return detail::ordinaryDiagram<ResultNumber>(sites);
+}
+
+/**
+ * @brief Computes the order-`k` diagram of a set of points.
  *
  * Every face of the result is labeled with the `k` sites nearest to it, as
  * elements of the input container and ordered by their position in it — a
- * one-element vector when `k` is 1, which is the ordinary Voronoi diagram and
- * reproduces @ref Triangulation::voronoiDiagram, and in fact computes it that
- * way. The arrangement's edge labels are default-constructed and have no
- * meaning.
+ * one-element vector when `k` is 1, where the overload above computes the same
+ * diagram and labels each face with the site itself. The arrangement's edge
+ * labels are default-constructed and have no meaning.
  *
  * A face of the order-`k` diagram is the region where one set of `k` sites is
  * nearer than every other site; the sites of neighboring faces differ by a
@@ -1188,7 +1297,7 @@ voronoi_diagram_t<ResultNumber, SiteRange> diagramOf(const SiteRange& sites, int
 template <class ResultNumber = void, std::ranges::input_range SiteRange>
     requires PointConcept<std::ranges::range_value_t<SiteRange>>
 [[nodiscard]] detail::voronoi_diagram_t<ResultNumber, SiteRange> voronoiDiagram(
-    const SiteRange& sites, int k = 1) {
+    const SiteRange& sites, int k) {
     return detail::diagramOf<ResultNumber>(sites, k, "pgl::voronoiDiagram");
 }
 

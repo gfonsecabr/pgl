@@ -679,6 +679,33 @@ struct Triangulation {
     [[nodiscard]] Arrangement<Point<ResultNumber>, PointType> voronoiDiagram() const;
 
     /**
+     * @brief The same dual, with each face labeled by what @p labelOf makes of
+     *        the vertex whose cell it is.
+     *
+     * @ref voronoiDiagram is this with the vertex itself for a label, and
+     * everything that method says about the two kinds of connectivity — the
+     * Voronoi diagram of a Delaunay triangulation, the circumcentric dual of one
+     * that is not, and what the labels mean in each case — holds here unchanged.
+     * This is the form for a caller whose sites carry something the mesh does
+     * not: @ref pgl::voronoiDiagram reaches its order-1 diagram through it,
+     * labeling each cell with the element of the container it was handed.
+     *
+     * `labelOf` is called once per labeled face, so a label may cost whatever it
+     * needs to; a face left unlabeled — which only the circumcentric dual has —
+     * keeps a default-constructed one.
+     *
+     * @tparam ResultNumber Coordinate type of the arrangement vertices. The
+     *         default is exact and overflow-free for integral input.
+     * @param labelOf Called as `labelOf(site)` with a stored @ref PointType; its
+     *        return type is the arrangement's label type.
+     * @pre The triangulation is not empty.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, class MakeLabel>
+    [[nodiscard]] auto dualDiagram(MakeLabel&& labelOf) const
+        -> Arrangement<Point<ResultNumber>,
+                       std::invoke_result_t<MakeLabel&, const PointType&>>;
+
+    /**
      * @brief Returns the edges of that Voronoi diagram, unassembled.
      *
      * These are the segments and rays @ref voronoiDiagram overlays, in no

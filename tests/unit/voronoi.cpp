@@ -8,6 +8,7 @@
 #include <optional>
 #include <set>
 #include <stdexcept>
+#include <string>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -207,17 +208,27 @@ TEST_CASE("voronoiDiagram of points reproduces the Delaunay dual") {
     };
     const pgl::Triangulation triangulation(sites);
     const Diagram dual = triangulation.voronoiDiagram();
-    const OrderDiagram diagram = pgl::voronoiDiagram(sites);
+    const Diagram ordinary = pgl::voronoiDiagram(sites);
+    const OrderDiagram diagram = pgl::voronoiDiagram(sites, 1);
 
+    // The no-order call labels a face with the site itself and is the member's
+    // own dual; the order-k call at k = 1 reaches the same diagram by the
+    // refinement route, and labels by the vector every order shares.
+    static_assert(std::same_as<typename Diagram::LabelType, Site>);
     static_assert(std::same_as<typename OrderDiagram::PointType, pgl::EPoint>);
     static_assert(std::same_as<typename OrderDiagram::LabelType, std::vector<Site>>);
+    CHECK(ordinary.vertices() == dual.vertices());
+    CHECK(ordinary.edgeCount() == dual.edgeCount());
+    CHECK(ordinary.faceCount() == dual.faceCount());
     CHECK(diagram.vertexCount() == dual.vertexCount());
     CHECK(diagram.edgeCount() == dual.edgeCount());
     CHECK(diagram.faceCount() == dual.faceCount());
     CHECK(diagram.vertices() == dual.vertices());
     CHECK_FALSE(diagram.hasPointLocation());
+    CHECK_FALSE(ordinary.hasPointLocation());
 
     for (const Site& site : sites) {
+        CHECK(ordinary.label(ordinary.locateFace(exact(site))) == site);
         CHECK(diagram.label(diagram.locateFace(exact(site))) == std::vector<Site>{site});
         CHECK(diagram.label(diagram.locateFace(exact(site))).front() ==
               dual.label(dual.locateFace(exact(site))));
@@ -258,6 +269,28 @@ TEST_CASE("The Delaunay dual is already an arrangement") {
         CHECK(dual.halfedgeCount() == split.halfedgeCount());
         CHECK(dual.vertices() == split.vertices());
         CHECK(dual.faceCount() == sites.size());
+    }
+}
+
+TEST_CASE("The ordinary diagram labels faces with the caller's own elements") {
+    // The no-order call dualizes a triangulation built from the caller's points
+    // rather than from copies of their coordinates, which is what lets a face
+    // carry the element as handed over — a point's label included. A label is
+    // metadata that equality, ordering and hashing all ignore, so it reaches no
+    // predicate the triangulation runs and simply rides along.
+    using Tagged = pgl::Point<int, std::string>;
+    const std::vector<Tagged> sites{
+        Tagged(0, 0, "sw"), Tagged(12, 0, "se"), Tagged(12, 12, "ne"),
+        Tagged(0, 12, "nw"), Tagged(6, 6, "middle"),
+    };
+    const auto diagram = pgl::voronoiDiagram(sites);
+    static_assert(std::same_as<typename decltype(diagram)::LabelType, Tagged>);
+
+    REQUIRE(diagram.faceCount() == sites.size());
+    for (const Tagged& site : sites) {
+        const auto face = diagram.locateFace(pgl::EPoint(site.x(), site.y()));
+        CHECK(diagram.label(face) == site);
+        CHECK(diagram.label(face).label() == site.label());
     }
 }
 
@@ -306,23 +339,33 @@ TEST_CASE("The dual of a non-Delaunay triangulation is a circumcentric dual") {
 }
 
 TEST_CASE("voronoiDiagram of collinear points has no Delaunay dual to borrow") {
-    // No triangle to dualize, so this takes the bisector route instead.
+    // No triangle to dualize, so both overloads take the bisector route instead.
     const std::vector<Site> sites{P(0, 0), P(4, 0), P(10, 0)};
-    const OrderDiagram diagram = pgl::voronoiDiagram(sites);
+    const OrderDiagram diagram = pgl::voronoiDiagram(sites, 1);
+    const Diagram ordinary = pgl::voronoiDiagram(sites);
 
     CHECK(diagram.vertexCount() == 0);
     CHECK(diagram.edgeCount() == 2);
     CHECK(diagram.faceCount() == 3);
+    CHECK(ordinary.vertexCount() == 0);
+    CHECK(ordinary.edgeCount() == 2);
+    CHECK(ordinary.faceCount() == 3);
+    for (const Site& site : sites) {
+        CHECK(ordinary.label(ordinary.locateFace(exact(site))) == site);
+    }
     checkAgainstDefinition(sites, 1, 8);
 }
 
 TEST_CASE("voronoiDiagram of one site is the whole plane") {
     const std::vector<Site> sites{P(3, -2)};
-    const OrderDiagram diagram = pgl::voronoiDiagram(sites);
+    const OrderDiagram diagram = pgl::voronoiDiagram(sites, 1);
+    const Diagram ordinary = pgl::voronoiDiagram(sites);
 
     CHECK(diagram.edgeCount() == 0);
     REQUIRE(diagram.faceCount() == 1);
     CHECK(diagram.label(OrderDiagram::FaceId(0)) == sites);
+    REQUIRE(ordinary.faceCount() == 1);
+    CHECK(ordinary.label(Diagram::FaceId(0)) == sites.front());
 
     const std::vector<WeightedSite> disk{D(3, -2, 5)};
     const PowerDiagram powerCell = pgl::powerDiagram(disk);
@@ -374,7 +417,7 @@ TEST_CASE("powerDiagram of radius-zero disks is the Voronoi diagram of their cen
     for (const Site& site : sites) {
         disks.emplace_back(site, 0);
     }
-    const OrderDiagram fromPoints = pgl::voronoiDiagram(sites);
+    const OrderDiagram fromPoints = pgl::voronoiDiagram(sites, 1);
     const PowerDiagram fromDisks = pgl::powerDiagram(disks);
 
     CHECK(fromDisks.vertexCount() == fromPoints.vertexCount());
