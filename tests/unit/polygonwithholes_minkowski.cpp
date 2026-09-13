@@ -648,11 +648,16 @@ TEST_CASE("minkowskiSum: the boundary decomposition agrees with the convex one")
     agrees(holed);
 
     // The dispatcher does still reach the decomposition: a boundary that turns
-    // only a few times against an operand with area is what it is for.
+    // only a few times, around a hole whose every corner a convex partition has
+    // to cut at, is what it is for.
     {
-        const auto operand = pgl::detail::minkowskiAsConvex(summands[0]);
-        auto runs = pgl::detail::minkowskiBoundaryRuns(holed);
-        REQUIRE(pgl::detail::minkowskiBoundaryPays(holed, operand, runs));
+        const PolygonShape dodecagon({Point(34, 24), Point(33, 29), Point(29, 33), Point(24, 34),
+                                      Point(19, 33), Point(15, 29), Point(14, 24), Point(15, 19),
+                                      Point(19, 15), Point(24, 14), Point(29, 15), Point(33, 19)});
+        const Region roundHole(box(0, 0, 48, 48), std::vector<PolygonShape>{dodecagon});
+        auto runs = pgl::detail::minkowskiBoundaryRuns(roundHole);
+        REQUIRE(pgl::detail::minkowskiBoundaryPays(roundHole, runs));
+        agrees(roundHole);
     }
 
     // A slit is the one boundary the decomposition has to decline: two of the

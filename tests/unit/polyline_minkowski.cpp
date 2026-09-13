@@ -891,10 +891,9 @@ TEST_CASE("minkowskiSum: a chain's boundary decomposition agrees with its edges"
 
     for (const PolylineShape& chain : {staircase, monotone}) {
         for (const Triangle& summand : summands) {
-            const auto operand = pgl::detail::minkowskiAsConvex(summand);
             auto runs = pgl::detail::minkowskiBoundaryRuns(chain);
             REQUIRE(runs.size() < chain.size() - 1);  // fewer runs than edges, or why bother
-            REQUIRE(pgl::detail::minkowskiBoundaryPays(chain, operand, runs));
+            REQUIRE(pgl::detail::minkowskiBoundaryPays(chain, runs));
 
             auto boundary = chain.minkowskiSum<pgl::ERational>(summand);
             const auto perEdge = pgl::detail::decomposedMinkowskiSum<EPoint>(chain, summand);
@@ -907,12 +906,40 @@ TEST_CASE("minkowskiSum: a chain's boundary decomposition agrees with its edges"
     // decompositions produce the very same pieces and the cheaper one is taken.
     // The answer is the same either way; what is being pinned is the choice.
     const PolylineShape zigzag({Point(0, 0), Point(5, 1), Point(1, 2), Point(6, 3), Point(2, 4)});
-    const auto operand = pgl::detail::minkowskiAsConvex(summands[0]);
     const auto zigzagRuns = pgl::detail::minkowskiBoundaryRuns(zigzag);
     CHECK(zigzagRuns.size() == zigzag.size() - 1);
-    CHECK_FALSE(pgl::detail::minkowskiBoundaryPays(zigzag, operand, zigzagRuns));
+    CHECK_FALSE(pgl::detail::minkowskiBoundaryPays(zigzag, zigzagRuns));
     auto zigzagSum = zigzag.minkowskiSum<pgl::ERational>(summands[0]);
     const auto zigzagRef = pgl::detail::decomposedMinkowskiSum<EPoint>(zigzag, summands[0]);
     REQUIRE(zigzagRef.componentCount() == 1);
     CHECK(zigzagSum == zigzagRef.component(0));
+}
+
+TEST_CASE("minkowskiSum: a polygon summand decomposed against the whole chain agrees with its edges") {
+    // Against a non-convex polygon the chain need not be taken one edge at a
+    // time either: the polygon can be cut into convex pieces and the whole chain
+    // summed against each, which is the one-sided decomposition. Whether that is
+    // taken is a tuning decision, so the construction is invoked directly and
+    // checked against the all-pairs one; the dispatcher is only checked to still
+    // reach it for a chain of many edges over a polygon no larger than it, and to
+    // decline it for a long chain of few edges against the same polygon.
+    const PolygonShape comb({Point(0, 0), Point(12, 0), Point(12, 2), Point(10, 2), Point(10, 9),
+                             Point(8, 9), Point(8, 2), Point(6, 2), Point(6, 9), Point(4, 9),
+                             Point(4, 2), Point(2, 2), Point(2, 9), Point(0, 9)});
+    const PolylineShape dense({Point(0, 0), Point(12, 1), Point(0, 3), Point(12, 5), Point(0, 7),
+                               Point(12, 9), Point(0, 11), Point(12, 12), Point(6, 6), Point(3, 9),
+                               Point(9, 10)});
+    const PolylineShape sparse({Point(0, 0), Point(30, 6), Point(60, 0)});
+
+    for (const PolylineShape& chain : {dense, sparse}) {
+        const auto pieces = pgl::detail::minkowskiOneSidedPieces<EPoint>(comb, chain);
+        const auto oneSided = pgl::regularizedUnionOf<EPoint>(pieces, true);
+        const auto perEdge = pgl::detail::decomposedMinkowskiSum<EPoint>(chain, comb);
+        CHECK(oneSided == perEdge);
+        REQUIRE(perEdge.componentCount() == 1);
+        CHECK(chain.minkowskiSum<pgl::ERational>(comb) == perEdge.component(0));
+        CHECK(comb.minkowskiSum<pgl::ERational>(chain) == perEdge.component(0));
+    }
+    CHECK(pgl::detail::minkowskiOneSidedDecomposesLeft(comb, dense));
+    CHECK_FALSE(pgl::detail::minkowskiOneSidedDecomposesLeft(comb, sparse));
 }

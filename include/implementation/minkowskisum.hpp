@@ -47,10 +47,11 @@
  *   triangulated, on the identity `A ⊕ B = (A + q₀) ∪ (∂A ⊕ B)`; each run's sum
  *   is the chain sweep below, which needs no arrangement at all. See
  *   @ref pgl::detail::minkowskiBoundaryPieces.
- * - **Neither convex, both with area** — only *one* of them is decomposed, and
- *   the whole of the other is summed against each of its pieces by the
- *   constructions above. That leaves `a` regions to unite where the all-pairs
- *   decomposition left `a·b` convex pieces.
+ * - **Neither convex, at least one with area** — only *one* of them is
+ *   decomposed, and the whole of the other is summed against each of its pieces
+ *   by the constructions above. That leaves `a` regions to unite where the
+ *   all-pairs decomposition left `a·b` convex pieces. A chain is never the one
+ *   decomposed: its edges are pieces as long as the chain's own stretches.
  *   See @ref pgl::detail::minkowskiConvolvedPieces,
  *   @ref pgl::detail::minkowskiOneSidedPieces, and
  *   @ref pgl::detail::minkowskiOneSidedDecomposesLeft for which operand pays.
@@ -1301,42 +1302,28 @@ std::size_t minkowskiReflexCount(const Ring& ring, bool isHole) {
 }
 
 /**
- * @brief The convex pieces @ref minkowskiConvexPieces will cut @p shape into, and
- *        how many vertices they carry between them — both estimated without
- *        triangulating anything.
+ * @brief How many convex pieces @ref minkowskiConvexPieces will cut @p shape
+ *        into, estimated without triangulating anything.
  *
  * A chain is its own answer: one two-vertex piece per edge. A polygon or a region
  * goes to @ref Triangulation::convexPartition, whose piece count is `r + 1` for
  * `r` reflex vertices (@ref minkowskiReflexCount) plus one more per hole, since a
- * hole has to be cut open before the partition can reach round it. Those pieces
- * share their diagonals in pairs and use the boundary once, so between them they
- * carry `E + 2·d` vertices for the `d = pieces − 1 + holes` diagonals a partition
- * of a region with holes needs.
+ * hole has to be cut open before the partition can reach round it.
  */
 template <class Shape>
-std::pair<std::size_t, std::size_t> minkowskiPieceEstimate(const Shape& shape) {
+std::size_t minkowskiPieceEstimate(const Shape& shape) {
     if constexpr (is_polygon_v<Shape> || is_polygon_with_holes_v<Shape>) {
-        std::size_t edges = 0;
-        std::size_t reflex = 0;
-        std::size_t holes = 0;
         if constexpr (is_polygon_with_holes_v<Shape>) {
-            edges = shape.outer().size();
-            reflex = minkowskiReflexCount(shape.outer(), false);
-            holes = shape.holes().size();
+            std::size_t reflex = minkowskiReflexCount(shape.outer(), false);
             for (const auto& hole : shape.holes()) {
-                edges += hole.size();
                 reflex += minkowskiReflexCount(hole, true);
             }
+            return reflex + 1 + shape.holes().size();
         } else {
-            edges = shape.size();
-            reflex = minkowskiReflexCount(shape, false);
+            return minkowskiReflexCount(shape, false) + 1;
         }
-        const std::size_t pieces = reflex + 1 + holes;
-        return {pieces, edges + 2 * (pieces - 1 + holes)};
     } else {
-        const std::size_t edges = shape.size() > 1 ? shape.size() - 1 : 0;
-        const std::size_t pieces = edges > 0 ? edges : 1;
-        return {pieces, 2 * pieces};
+        return shape.size() > 1 ? shape.size() - 1 : 1;
     }
 }
 
@@ -1344,75 +1331,41 @@ std::pair<std::size_t, std::size_t> minkowskiPieceEstimate(const Shape& shape) {
  * @brief Tests whether decomposing @p shape's boundary into @p runs is cheaper
  *        than decomposing it into convex pieces.
  *
- * Both decompositions end in the same arrangement, whose cost tracks the number
- * of edges it is handed, so that is what the two are compared on. For an
- * `m`-vertex operand and a boundary of `E` edges falling into `k` runs:
+ * Both decompositions end in one union of their pieces, and what that union
+ * costs follows how many pieces overlap rather than how many edges they carry:
+ * since @ref regularizedUnionOf unites heavily overlapping pieces a group at a
+ * time, an edge count stopped predicting which of the two is faster. So the two
+ * are compared on pieces:
  *
- * - the boundary decomposition gives `2·E + k·m`, since a run of `e` edges sums
- *   to a polygon bounded above and below by those `e` edges' sweeps and closed off
- *   by the operand's own `m` at either end;
- * - the convex decomposition sums each piece with the linear merge, so a piece of
- *   `kᵢ` vertices gives one of `kᵢ + m`, and the `p` pieces give
- *   `Σkᵢ + p·m` between them — both of which @ref minkowskiPieceEstimate reads off
- *   the boundary without triangulating it.
+ * - the boundary decomposition has one piece per monotone run, plus, for a shape
+ *   with area, the shape itself translated, which carries every one of its rings
+ *   into the union and is counted once per ring;
+ * - the convex decomposition has the @ref minkowskiPieceEstimate of the shape.
  *
- * That second line used to say `p·(m + 3)` for `p = n − 2` triangles, which was
- * the decomposition of the day. It is a convex *partition* now, so `p` tracks the
- * **reflex** vertices rather than all of them — half as many on a random simple
- * polygon, and one on a shape that is nearly convex — and the pieces carry the
- * boundary once between them instead of three vertices each. Both corrections
- * push the same way: the convex decomposition is cheaper than this test used to
- * think, so the boundary decomposition has to be better than it used to have to
- * be. A nearly convex receiver is where that bites, and it is exactly where the
- * old estimate was worst: an `L` against an `m`-gon is two convex pieces summing
- * to `8 + 2m` edges, where the triangle count called it four pieces and `4m + 12`.
+ * A run's piece is dearer than a convex one — it spans the whole run, so it
+ * overlaps more of the others, and it is built over `Rational<BigInt>` where a
+ * convex piece sum stays in the operands' integers — and the boundary
+ * decomposition is taken only when it has fewer than **half** as many pieces.
  *
- * A run of a single edge produces *the very same piece* either way, so a chain
- * that turns at every vertex — `k = E` — gains nothing at all and the two
- * estimates meet, as they should.
- *
- * The `6/5` is what makes this a real comparison rather than a tie-break there.
- * The boundary decomposition's pieces can carry a vertex at a crossing of two of
- * their own sub-sums, so they are built over `Rational<BigInt>` where a convex
- * piece sum stays in the operands' integers; that was measured at **1.17x per
- * edge** on exactly the `k = E` case, where the two produce identical pieces and
- * one of them is needlessly exact. So the decomposition has to save about a fifth
- * of the edges before it is worth taking, which on a chain works out at `k` under
- * roughly three quarters of `E`.
- *
- * That ratio has been swept, over twelve cases that reach this test — five
- * receiver shapes against a triangle, a rectangle and a convex operand, plus the
- * region pairs whose construction-3 inner sums ask the same question — at
- * `5/6 → 1/3, 1/2, 2/3, 1, 5/4, 3/2, 2, 3`. The answer is a **plateau and a
- * cliff**: everything from `1/3` to `1` lands within run-to-run noise of
- * everything else, and `5/4` costs **26%** on the spot, every case above it with
- * it. So the value hardly matters as long as it stays under 1, and what it must
- * not do is reach it. `1` itself measured about 1.7% better than `5/6` and is not
- * worth taking: it is the cliff edge, it leaves no margin at all, and it prices
- * the rational arithmetic above at exactly nothing.
- *
- * The estimate stays conservative for a receiver with area, whose convex
- * decomposition has to triangulate before it can produce a single piece — a cost
- * counted nowhere here, and the reason the plateau reaches as high as it does.
+ * That factor was fitted on 578 receivers per coordinate type (`int` and
+ * `ERational`): random, spiral, wavy, staircase and zigzag polylines, and holed
+ * regions with random, round and dented rings, against triangles, rectangles and
+ * convex operands of 3 to 1000 vertices at three scales, with both branches timed
+ * on every one. Chosen this way the sum runs within 3–5% of always picking the
+ * faster branch, against 5–22% for the edge-count rule it replaced; anything from
+ * about `0.4` to `0.6` does nearly as well. The rule is not optional either way:
+ * never decomposing the boundary is up to 22x slower on an arc, always
+ * decomposing it up to 3x slower on a region with jagged holes.
  */
-template <class Shape, class ConvexOperand, class Runs>
-bool minkowskiBoundaryPays(const Shape& shape, const ConvexOperand& other, const Runs& runs) {
-    const std::size_t operandEdges = other.size();
-    std::size_t edges = 0;
+template <class Shape, class Runs>
+bool minkowskiBoundaryPays(const Shape& shape, const Runs& runs) {
+    std::size_t pieces = runs.size();
     if constexpr (is_polygon_with_holes_v<Shape>) {
-        edges = shape.outer().size();
-        for (const auto& hole : shape.holes()) {
-            edges += hole.size();
-        }
+        pieces += 1 + shape.holes().size();
     } else if constexpr (is_polygon_v<Shape>) {
-        edges = shape.size();  // a ring has one edge per vertex
-    } else {
-        edges = shape.size() > 1 ? shape.size() - 1 : 0;
+        pieces += 1;
     }
-    const auto [pieces, pieceVertices] = minkowskiPieceEstimate(shape);
-    const std::size_t convexEdges = pieceVertices + pieces * operandEdges;
-    const std::size_t boundaryEdges = 2 * edges + runs.size() * operandEdges;
-    return 6 * boundaryEdges < 5 * convexEdges;
+    return 2 * pieces < minkowskiPieceEstimate(shape);
 }
 
 // -----------------------------------------------------------------------------
@@ -1433,7 +1386,7 @@ PolygonSet<ResultPoint> regularizedMinkowskiSum(const ShapeA& a,
  *     A ⊕ B  =  ⋃ᵢ (Aᵢ ⊕ B)      whenever  A = ⋃ᵢ Aᵢ.
  *
  * Each `Aᵢ ⊕ B` has a convex operand and so is a sum the engine already does
- * well — construction 1, 3 or 5 of @ref regularizedMinkowskiSum, never this one,
+ * well — construction 1, 2, 3 or 5 of @ref regularizedMinkowskiSum, never this one,
  * which is what makes the recursion finite. What comes back is `|A|` regions
  * where the all-pairs decomposition produced `|A|·|B|` convex pieces, and the
  * cost of the sum is the arrangement of them:
@@ -1454,6 +1407,13 @@ PolygonSet<ResultPoint> regularizedMinkowskiSum(const ShapeA& a,
  * Which operand to decompose is @ref minkowskiOneSidedDecomposesLeft, and it is
  * not a free choice: getting it backwards is worse than not decomposing at all.
  *
+ * A simple polygon @p b is summed by @ref minkowskiConvolvedPieces instead, so
+ * what reaches this one is a @p b that is a **chain** or a region that kept a
+ * hole. The second is all but theoretical against an @p a with area:
+ * @ref holeFilteredFor keeps a hole only as wide and as tall as the other
+ * operand's box, so two regions both keep one only when all four boxes have the
+ * same extents — each hole touching all four sides of its own box.
+ *
  * The pieces come out over the exact type for the same reason
  * @ref minkowskiBoundaryPieces' do — each is itself the output of an arrangement,
  * so its vertices need not be on the operands' lattice — and this construction is
@@ -1471,35 +1431,12 @@ std::vector<PolygonWithHoles<ExactPoint>> minkowskiOneSidedPieces(const ShapeA& 
 }
 
 /**
- * @brief How many convex pieces @ref minkowskiConvexPieces will cut an operand
- *        into, near enough to choose a side by.
- *
- * One per vertex, and deliberately *not* the reflex-vertex estimate
- * @ref minkowskiPieceEstimate gives — which is the accurate count, and is what
- * @ref minkowskiBoundaryPays plans against. What is wanted here is only the
- * *ratio* of the two operands' counts, and substituting the accurate one was
- * measured neutral on a random pair and slightly negative on the asymmetric case
- * it was meant for: a nearly convex operand against a jagged one, at three
- * relative sizes, where it moved the choice and did not improve it. So the crude
- * count stays until there is a case that wants the other.
- */
-template <class Shape>
-std::size_t minkowskiPieceCount(const Shape& shape) {
-    if constexpr (is_polygon_with_holes_v<Shape>) {
-        return shape.vertexCount();
-    } else {
-        return shape.size();
-    }
-}
-
-/**
  * @brief Tells which operand @ref minkowskiOneSidedPieces should decompose.
  *
- * Both operands have area by the time this is asked — see the call site — so the
- * choice is a real one, and getting it backwards is worse than never decomposing
- * at all: on a pair whose extents differ by 32 the two directions were measured
- * 30x apart, one of them 7x faster than the all-pairs decomposition and the other
- * 4x slower. What decides is how much the pieces
+ * Getting it backwards is worse than never decomposing at all: on a pair whose
+ * extents differ by 32 the two directions were measured 30x apart, one of them 7x
+ * faster than the all-pairs decomposition and the other 4x slower. What decides
+ * is how much the pieces
  * cross each other, since that is what the arrangement is charged for. The pieces
  * of `⋃ᵢ (Aᵢ ⊕ B)` are copies of `B` fattened by a triangle and scattered over
  * `A`, so two of them meet only where their own triangles lie within `diam(B)` of
@@ -1515,6 +1452,20 @@ std::size_t minkowskiPieceCount(const Shape& shape) {
  * area**, then: the one whose triangles are coarsest relative to its own size,
  * which is the one whose pieces scatter furthest apart.
  *
+ * The piece counts are @ref minkowskiPieceEstimate's, which follow the reflex
+ * vertices. A plain vertex count once did as well, back when the whole operand
+ * was summed against each piece by decomposition too; against the convolution it
+ * does not, and the estimate cut the worst wrong choice on random, dented and
+ * star-shaped polygon pairs from 2.3x to 1.3x.
+ *
+ * The same test serves a **chain** against an operand with area, where only the
+ * operand with area may be decomposed: a chain's pieces are its edges, which can
+ * span the whole chain, so when the test would pick the chain the all-pairs
+ * decomposition runs instead. Its reading is the same — a long chain against a
+ * small polygon puts every piece's sum across all of the others, and decomposing
+ * the polygon there was measured up to 60x slower than all-pairs, where a chain
+ * with many edges over a polygon no larger than it runs up to 30x faster.
+ *
  * Area is read off the bounding box rather than measured. A sliver's own area
  * says its pieces are tiny where what matters is that they are strung out along
  * its length, and the box is the same one @ref holeFilteredFor already asks for.
@@ -1525,8 +1476,8 @@ std::size_t minkowskiPieceCount(const Shape& shape) {
  */
 template <class ShapeA, class ShapeB>
 bool minkowskiOneSidedDecomposesLeft(const ShapeA& a, const ShapeB& b) {
-    return static_cast<long double>(minkowskiPieceCount(a)) * b.bbox().template area<long double>() <=
-           static_cast<long double>(minkowskiPieceCount(b)) * a.bbox().template area<long double>();
+    return static_cast<long double>(minkowskiPieceEstimate(a)) * b.bbox().template area<long double>() <=
+           static_cast<long double>(minkowskiPieceEstimate(b)) * a.bbox().template area<long double>();
 }
 
 // -----------------------------------------------------------------------------
@@ -1785,29 +1736,33 @@ std::vector<PolygonWithHoles<ExactPoint>> minkowskiConvolvedPieces(const Decompo
  *    operand, and nothing divided before the arrangement — so it takes
  *    floating-point coordinates as readily as exact ones.
  * 3. **One convex operand with area, exact coordinates, and a boundary worth
- *    decomposing** — the identity of @ref minkowskiBoundaryPieces: `k + 1` pieces
- *    where the triangulation gave `a − 2`, none of them needing a triangulation
- *    to find. What reaches it is what construction 2 cannot take: a chain, which
- *    has no area to wind around, and a region that kept a hole. Three things can
+ *    decomposing** — the identity of @ref minkowskiBoundaryPieces: one piece per
+ *    monotone run where the convex partition gave one per reflex vertex, none of
+ *    them needing a triangulation to find. What reaches it is what construction 2
+ *    cannot take: a chain, which has no area to wind around, and a region that
+ *    kept a hole. Three things can
  *    send it on, and each is a separate judgement: a **slit** in a region
  *    operand, which the coverage classifier cannot read; **floating-point**
  *    coordinates, where the decomposition's divisions cost more accuracy than it
  *    is worth; and a boundary that **turns too often** for the decomposition to
  *    save anything (@ref minkowskiBoundaryPays).
- * 4. **Neither convex, both with area, exact coordinates** — decompose *one* of
- *    them, and sum the whole of the other against each of its pieces: by
+ * 4. **Neither convex, at least one with area, exact coordinates** — decompose
+ *    *one* of them, and sum the whole of the other against each of its pieces: by
  *    construction 2 when the whole is a simple polygon
- *    (@ref minkowskiConvolvedPieces), by construction 1 or 3 otherwise
+ *    (@ref minkowskiConvolvedPieces), by construction 1, 2, 3 or 5 otherwise
  *    (@ref minkowskiOneSidedPieces). The union it ends in is over `a` regions
  *    where the all-pairs decomposition left `a·b` convex pieces. Exact
- *    coordinates because its pieces come out of arrangements of
- *    their own. Area on *both* sides because the scatter it trades on needs small
- *    pieces, which a chain's edges are not; see the call site.
+ *    coordinates because its pieces come out of arrangements of their own. Only
+ *    an operand with area is ever decomposed, since the scatter this trades on
+ *    needs pieces small relative to the operand, which a chain's edges are not;
+ *    a chain against an operand with area therefore takes it only where
+ *    @ref minkowskiOneSidedDecomposesLeft picks the operand with area.
  * 5. **Neither** — @ref decomposedMinkowskiSum, the all-pairs convex decomposition,
  *    unchanged and still what every pair falls back to. It is reached by a
- *    floating-point pair of non-convex operands, by any pair with a chain or a
- *    segment in it, and — one level down — by construction 4's own pieces where
- *    one of them is a slit.
+ *    floating-point pair of non-convex operands, by a segment against a
+ *    non-convex operand, by two chains, by every pair construction 3 or 4
+ *    declines, and — one level down — by construction 4's own pieces where one of
+ *    them is a slit.
  *
  * Holes the sum would fill in anyway are dropped first, before any of the five
  * — see @ref holeFilteredFor — which is also what lets a holed region reach
@@ -1873,7 +1828,7 @@ PolygonSet<ResultPoint> regularizedMinkowskiSum(const ShapeA& a,
         if (rightConvex && minkowskiHasArea(right) && minkowskiHasSimpleBoundary(left)) {
             const auto convexRight = minkowskiAsConvex(right);
             auto runs = minkowskiBoundaryRuns(left);
-            if (minkowskiBoundaryPays(left, convexRight, runs)) {
+            if (minkowskiBoundaryPays(left, runs)) {
                 return regularizedUnionOf<ResultPoint>(
                     minkowskiBoundaryPieces<ExactPoint>(left, convexRight, std::move(runs)), true);
             }
@@ -1883,7 +1838,7 @@ PolygonSet<ResultPoint> regularizedMinkowskiSum(const ShapeA& a,
         if (leftConvex && minkowskiHasArea(left) && minkowskiHasSimpleBoundary(right)) {
             const auto convexLeft = minkowskiAsConvex(left);
             auto runs = minkowskiBoundaryRuns(right);
-            if (minkowskiBoundaryPays(right, convexLeft, runs)) {
+            if (minkowskiBoundaryPays(right, runs)) {
                 return regularizedUnionOf<ResultPoint>(
                     minkowskiBoundaryPieces<ExactPoint>(right, convexLeft, std::move(runs)), true);
             }
@@ -1892,21 +1847,15 @@ PolygonSet<ResultPoint> regularizedMinkowskiSum(const ShapeA& a,
 
     // Neither operand is convex, so one of them is decomposed and the other is
     // not. The recursion this opens is one level deep: every sum below has a
-    // `Convex` operand and so is answered by construction 1, 2 or 3, or — for a
-    // piece with no area, which only a slit produces — by construction 5.
+    // `Convex` operand and so is answered by construction 1, 2 or 3, or by
+    // construction 5 — for a piece with no area, which only a slit produces, and
+    // for a chain whose boundary construction 3 declines.
     //
-    // Both operands must have **area**, and that is what the construction turns
-    // on rather than a size or a vertex count. Its whole advantage is that the
-    // pieces scatter instead of piling up, and that needs a decomposition into
-    // pieces *small* relative to the operand — which triangles of a triangulation
-    // are and the edges of a chain are not. A 32-vertex chain over the large
-    // coordinate range has edges as long as the chain itself, so every piece of
-    // its sum spans the whole answer and they all cross each other; measured
-    // against a region of the same extent that is 3x *slower* than construction 5,
-    // whichever of the two is decomposed. The same chain against a *small* polygon
-    // is 22x faster, so there is something here for a criterion that can tell a
-    // chain's pieces apart by length — but extent alone does not do it, since two
-    // large regions gain 1.75x where a large chain and a large region lose.
+    // Only an operand with **area** is decomposed. The construction's whole
+    // advantage is that the pieces scatter instead of piling up, and that needs
+    // pieces *small* relative to the operand — which a convex partition's are and
+    // the edges of a chain need not be: an edge can span the whole chain, and then
+    // every piece of the sum spans the whole answer and crosses all the others.
     if constexpr (exactPieces) {
         if (!leftConvex && !rightConvex && minkowskiHasArea(left) &&
             minkowskiHasArea(right)) {
@@ -1928,6 +1877,22 @@ PolygonSet<ResultPoint> regularizedMinkowskiSum(const ShapeA& a,
                 decomposeLeft ? minkowskiOneSidedPieces<ExactPoint>(left, right)
                               : minkowskiOneSidedPieces<ExactPoint>(right, left),
                 true);
+        }
+        // A chain against an operand with area. The operand's pieces are summed
+        // against the whole chain when they are the coarser of the two for their
+        // extent; when the chain's edges are, it is the chain that would have to
+        // be decomposed, and that is what construction 5 already does. The operand
+        // with area is asked about first so that a tie goes its way whichever
+        // side it arrived on, and the two spellings of a pair take one path.
+        if (!leftConvex && !rightConvex && minkowskiHasArea(left) != minkowskiHasArea(right)) {
+            const bool leftHasArea = minkowskiHasArea(left);
+            if (leftHasArea ? minkowskiOneSidedDecomposesLeft(left, right)
+                            : minkowskiOneSidedDecomposesLeft(right, left)) {
+                return regularizedUnionOf<ResultPoint>(
+                    leftHasArea ? minkowskiOneSidedPieces<ExactPoint>(left, right)
+                                : minkowskiOneSidedPieces<ExactPoint>(right, left),
+                    true);
+            }
         }
     }
 
