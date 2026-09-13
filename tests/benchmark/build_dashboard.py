@@ -228,8 +228,8 @@ CATEGORY_ORDER = ["Triangulation", "Arrangement",
                   "Segment intersections", "Point constructions", "Point search",
                   "Segment search", "Visibility", "Minkowski sum",
                   "Regularized union", "Voronoi diagram"]
-DATASET_ORDER = ["points", "small segments", "large segments", "polygon edges",
-                 "polygon", "large + large", "large + small", "triangles"]
+DATASET_ORDER = ["points", "small segments", "sheared", "large segments",
+                 "polygon edges", "polygon", "large + large", "large + small", "triangles"]
 PROBLEM_ORDER = ["build", "buildPointLocation", "locate", "locateFace",
                  "closest pair", "convex hull", "sort by angle", "Delaunay",
                  "kd-tree", "order 1", "order 2", "order 4", "farthest",

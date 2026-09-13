@@ -70,6 +70,7 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
 template <class Number>
 void run(const bench::Options& opt) {
     sweepDataset<Number>(opt, "small segments", bench::kSegmentsSmall, bench::smallSegments);
+    sweepDataset<Number>(opt, "sheared",        bench::kSegmentsSmall, bench::shearedSegments);
     sweepDataset<Number>(opt, "large segments", bench::kSegmentsLarge, bench::largeSegments);
     sweepDataset<Number>(opt, "polygon edges",  bench::kSegmentsPolygon, bench::polygonEdges);
 }

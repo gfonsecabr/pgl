@@ -64,6 +64,20 @@ inline std::vector<IntSegment> largeSegments(int n) {
     return randomLargeBishape<IntSegment>(n);
 }
 
+// smallSegments(n) under the shear (x, y) -> (x, 10x + y). The map is affine,
+// so exactly the same pairs meet, in the same way, but the segments turn nearly
+// vertical and their y-extents stretch tenfold: pairs whose bounding boxes
+// overlap outnumber the crossings many times over, where the unsheared small
+// segments have about as many of one as of the other.
+inline std::vector<IntSegment> shearedSegments(int n) {
+    std::vector<IntSegment> segments = smallSegments(n);
+    for (auto& s : segments) {
+        s = IntSegment(IntPoint(s[0].x(), 10 * s[0].x() + s[0].y()),
+                       IntPoint(s[1].x(), 10 * s[1].x() + s[1].y()));
+    }
+    return segments;
+}
+
 // n large random triangles, as on the pairs page: each spans the disk it is
 // scattered over, so a set of them overlaps heavily.
 inline std::vector<IntTriangle> largeTriangles(int n) {
