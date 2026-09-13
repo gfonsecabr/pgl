@@ -7,6 +7,7 @@
 #include <compare>
 #include <concepts>
 #include <sstream>
+#include <string>
 #include <unordered_set>
 #include <variant>
 #include <vector>
@@ -734,3 +735,26 @@ TEST_CASE("Polyline latticePoints concatenates the edges without repeating a poi
 }
 
 }  // namespace
+
+TEST_CASE("Polyline vertex access keeps the vertex labels") {
+    using LabelPoint = pgl::Point<int, std::string>;
+    using LabelShape = pgl::Polyline<LabelPoint>;
+
+    LabelShape shape(std::vector<LabelPoint>{LabelPoint(0, 0, "a"), LabelPoint(4, 0, "b"), LabelPoint(0, 3, "c")});
+    shape += LabelPoint(1, 1);
+    CHECK(shape[0] == LabelPoint(0 + 1, 0 + 1));
+    CHECK(shape[1].label() == "b");
+    CHECK(shape.get(-1).label() == "c");
+    CHECK((*shape.begin()).label() == "a");
+    CHECK(shape.begin()[2].label() == "c");
+
+    std::vector<std::string> labels;
+    for (const auto& vertex : shape) {
+        labels.push_back(vertex.label());
+    }
+    CHECK(labels == std::vector<std::string>{"a", "b", "c"});
+
+    const LabelShape collapsed(std::vector<LabelPoint>{LabelPoint(2, 2, "p"), LabelPoint(2, 2, "p")});
+    REQUIRE(collapsed.getIfPoint());
+    CHECK(collapsed.getIfPoint()->label() == "p");
+}

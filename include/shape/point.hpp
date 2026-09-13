@@ -131,6 +131,17 @@ namespace detail {
         }
     }
 
+    /**
+     * @brief Returns @p vertex moved by @p translation, keeping its label.
+     *
+     * `vertex + translation` would build a new, unlabeled point.
+     */
+    template <class PointType>
+    constexpr PointType translatedVertex(PointType vertex, const PointType& translation) {
+        vertex += translation;
+        return vertex;
+    }
+
     /** @brief The point type @p PointType with coordinates of type @p Number. */
     template <class PointType, class Number>
     using with_number_t = Point<Number, typename PointType::LabelType>;

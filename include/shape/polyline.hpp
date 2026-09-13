@@ -198,7 +198,7 @@ struct Polyline {
      */
     constexpr const PointType operator[](std::size_t index) const {
         assert(index < size());
-        return points_[index] + translation_;
+        return detail::translatedVertex(points_[index], translation_);
     }
 
     /**
@@ -600,7 +600,7 @@ struct Polyline {
         if (!isPoint()) {
             return std::nullopt;
         }
-        return points_.front() + translation_;
+        return detail::translatedVertex(points_.front(), translation_);
     }
 
     /**
@@ -2625,9 +2625,9 @@ struct Polyline {
         Iterator() = default;
         Iterator(BaseIterator it, PointType x) : it(it), x(x) {}
 
-        // Dereference returns value + x
+        // Dereference returns the labeled vertex moved by x
         PointType operator*() const {
-            return *it + x;
+            return detail::translatedVertex(*it, x);
         }
 
         // Pre-increment
@@ -2683,7 +2683,7 @@ struct Polyline {
 
         // Array subscript operator
         PointType operator[](difference_type n) const {
-            return *(it + n) + x;
+            return detail::translatedVertex(*(it + n), x);
         }
     };
 }; // struct Polyline
