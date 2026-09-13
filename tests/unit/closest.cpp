@@ -334,7 +334,7 @@ TEST_CASE("random shapes agree with squaredDistance") {
         for (int i = 0; i < 6; ++i) {
             vertices.push_back(point());
         }
-        return pgl::Convex<Coord>(pgl::convexHull(vertices), true);
+        return pgl::Convex<Coord>(pgl::convexHull(vertices), pgl::trusted);
     };
     auto polyline = [&point] {
         std::vector<Coord> vertices;

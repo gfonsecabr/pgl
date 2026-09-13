@@ -215,9 +215,9 @@ class ShapeTree {
         if (std::isnan(xmin) || std::isnan(ymin) || std::isnan(xmax) || std::isnan(ymax)) {
             const double lo = -detail::numeric_limits<double>::infinity();
             const double hi = detail::numeric_limits<double>::infinity();
-            return FilterBox(lo, lo, hi, hi, true);
+            return FilterBox(lo, lo, hi, hi, pgl::trusted);
         }
-        return FilterBox(xmin, ymin, xmax, ymax, true);
+        return FilterBox(xmin, ymin, xmax, ymax, pgl::trusted);
     }
 
     template <class Q>

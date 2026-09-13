@@ -844,9 +844,9 @@ TEST_CASE("The empty rectangle is the empty set of points") {
 
         // Every inverted pair normalizes to the one canonical empty value, so
         // equality, ordering, and hashing keep working.
-        CHECK(Rectangle(Point(5, 5), Point(1, 1), true) == empty);
-        CHECK(Rectangle(3, 7, 3, 2, true) == empty);
-        CHECK(std::hash<Rectangle>{}(Rectangle(Point(5, 5), Point(1, 1), true)) ==
+        CHECK(Rectangle(Point(5, 5), Point(1, 1), pgl::trusted) == empty);
+        CHECK(Rectangle(3, 7, 3, 2, pgl::trusted) == empty);
+        CHECK(std::hash<Rectangle>{}(Rectangle(Point(5, 5), Point(1, 1), pgl::trusted)) ==
               std::hash<Rectangle>{}(empty));
 
         // Without the minmax flag the corners are normalized instead, so the

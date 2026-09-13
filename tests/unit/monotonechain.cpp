@@ -43,7 +43,7 @@ TEST_CASE("MonotoneChain construction normalizes to the canonical sorted chain")
 
     SUBCASE("trusted input is stored as given") {
         const std::vector<Point> pts{Point(0, 0), Point(1, 2), Point(2, 1)};
-        const Chain chain(pts, true);
+        const Chain chain(pts, pgl::trusted);
         CHECK(chain == Chain(pts));
     }
 

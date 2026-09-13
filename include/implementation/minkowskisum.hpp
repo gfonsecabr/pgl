@@ -276,7 +276,7 @@ decltype(auto) holeFilteredFor(const Shape& shape, const OtherShape& other) {
                 kept.push_back(hole);
             }
         }
-        return Shape(shape.outer(), std::move(kept), true);
+        return Shape(shape.outer(), std::move(kept), pgl::trusted);
     } else {
         return (shape);  // nothing that could have a hole in it
     }
@@ -1031,7 +1031,7 @@ Polygon<ResultPoint> chainMinkowskiSum(const ChainType& chain, const ConvexOpera
     // rational result type is the one costly thing left in this construction: its
     // running denominator is the common multiple of every crossing's.
     std::rotate(walk.begin(), std::min_element(walk.begin(), walk.end()), walk.end());
-    return Polygon<ResultPoint>(std::move(walk), true);
+    return Polygon<ResultPoint>(std::move(walk), pgl::trusted);
 }
 
 // -----------------------------------------------------------------------------
@@ -1181,10 +1181,10 @@ std::vector<PolygonWithHoles<ExactPoint>> minkowskiBoundaryPieces(
     pieces.reserve(runs.size() + 1);
 
     for (std::vector<ShapePoint>& run : runs) {
-        const MonotoneChain<ShapePoint> chain(std::move(run), true);
+        const MonotoneChain<ShapePoint> chain(std::move(run), pgl::trusted);
         ExactPolygon sum = chainMinkowskiSum<ExactPoint>(chain, other);
         if (sum.size() >= 3) {
-            pieces.emplace_back(std::move(sum), std::vector<ExactPolygon>{}, true);
+            pieces.emplace_back(std::move(sum), std::vector<ExactPolygon>{}, pgl::trusted);
         }
     }
 
@@ -1209,7 +1209,7 @@ std::vector<PolygonWithHoles<ExactPoint>> minkowskiBoundaryPieces(
                                        static_cast<ExactNumber>(detail::asNumber<SumNumber>(vertex.y()) +
                                                                 q0.y()));
                 }
-                return ExactPolygon(std::move(moved), true);
+                return ExactPolygon(std::move(moved), pgl::trusted);
             };
             if constexpr (is_polygon_with_holes_v<Shape>) {
                 std::vector<ExactPolygon> holes;
@@ -1217,9 +1217,9 @@ std::vector<PolygonWithHoles<ExactPoint>> minkowskiBoundaryPieces(
                 for (const auto& hole : shape.holes()) {
                     holes.push_back(translated(hole));
                 }
-                pieces.emplace_back(translated(shape.outer()), std::move(holes), true);
+                pieces.emplace_back(translated(shape.outer()), std::move(holes), pgl::trusted);
             } else {
-                pieces.emplace_back(translated(shape), std::vector<ExactPolygon>{}, true);
+                pieces.emplace_back(translated(shape), std::vector<ExactPolygon>{}, pgl::trusted);
             }
         }
     }

@@ -3236,7 +3236,7 @@ private:
             // Counterclockwise and rotated onto its smallest vertex is exactly
             // the canonical form, so the polygon needs no normalization.
             std::rotate(ring.begin(), std::min_element(ring.begin(), ring.end()), ring.end());
-            out.emplace_back(std::move(ring), /*trusted=*/true);
+            out.emplace_back(std::move(ring), pgl::trusted);
         }
     }
 

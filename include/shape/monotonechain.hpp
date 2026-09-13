@@ -171,23 +171,23 @@ struct MonotoneChain {
     /**
      * @brief Creates a chain from a range of points.
      *
-     * The points are treated as a set: unless @p trusted is set, they are
+     * The points are treated as a set: unless @p trust is @ref trusted, they are
      * sorted lexicographically and duplicates are removed, producing the
      * canonical weakly x-monotone chain through them.
      *
      * @tparam Range Input range whose elements can be converted to @ref PointType.
      * @param points Range of vertices in any order.
-     * @param trusted Set to true if the points are already sorted and unique.
+     * @param trust @ref trusted if the points are already sorted and unique.
      */
     template<std::ranges::input_range Range = std::initializer_list<PointType>>
     requires std::ranges::common_range<Range> &&
              std::convertible_to<std::ranges::range_value_t<Range>, PointType> &&
              detail::ownsChainStorage<Storage, PointType>
-    constexpr explicit MonotoneChain(Range&& points, bool trusted = false) {
+    constexpr explicit MonotoneChain(Range&& points, Trust trust = untrusted) {
         for (const auto& p : points) {
             points_.push_back(p);
         }
-        if (!trusted) {
+        if (!trust) {
             normalize();
         }
         assert(std::is_sorted(points_.begin(), points_.end()) &&
@@ -200,7 +200,7 @@ struct MonotoneChain {
      *
      * The view cannot sort or deduplicate memory it does not own, so the input
      * must already be in canonical form — sorted lexicographically with no
-     * duplicates (the @p trusted contract of the owning constructors). The
+     * duplicates (the @ref trusted contract of the owning constructors). The
      * caller retains ownership of the underlying storage and is responsible for
      * keeping it alive for the lifetime of the view.
      *
@@ -210,7 +210,7 @@ struct MonotoneChain {
     template<std::ranges::contiguous_range Range>
     requires (!detail::ownsChainStorage<Storage, PointType>) &&
              std::constructible_from<Storage, Range&&>
-    constexpr explicit MonotoneChain(Range&& points, bool /*trusted*/ = true)
+    constexpr explicit MonotoneChain(Range&& points, Trust = trusted)
         : points_(std::forward<Range>(points)) {
         assert(std::is_sorted(points_.begin(), points_.end()) &&
                std::adjacent_find(points_.begin(), points_.end()) == points_.end());
@@ -221,13 +221,13 @@ struct MonotoneChain {
      *
      * The values are consumed in pairs `(x0, y0, x1, y1, …)`, each pair forming
      * one vertex, so the list must hold an even number of values. Unless
-     * @p trusted is set, the vertices are sorted lexicographically and
+     * @p trust is @ref trusted, the vertices are sorted lexicographically and
      * duplicates are removed.
      *
      * @param coords Interleaved x/y coordinates of the vertices.
-     * @param trusted Set to true if the points are already sorted and unique.
+     * @param trust @ref trusted if the points are already sorted and unique.
      */
-    constexpr explicit MonotoneChain(std::initializer_list<NumberType> coords, bool trusted = false)
+    constexpr explicit MonotoneChain(std::initializer_list<NumberType> coords, Trust trust = untrusted)
         requires detail::ownsChainStorage<Storage, PointType>
     {
         assert(coords.size() % 2 == 0);
@@ -237,7 +237,7 @@ struct MonotoneChain {
             NumberType y = *it++;
             points_.emplace_back(x, y);
         }
-        if (!trusted) {
+        if (!trust) {
             normalize();
         }
         assert(std::is_sorted(points_.begin(), points_.end()) &&

@@ -80,21 +80,21 @@ struct Polygon {
      * @brief Creates a polygon from a range of points.
      *
      * The points must be given in the order they appear along the boundary.
-     * Unless @p trusted is set, the vertices are normalized to the canonical
+     * Unless @p trust is @ref trusted, the vertices are normalized to the canonical
      * form (counterclockwise, lexicographically smallest vertex first).
      *
      * @tparam Range Input range whose elements can be converted to @ref PointType.
      * @param points Range of boundary points in order.
-     * @param trusted Set to true if the points are already in canonical form.
+     * @param trust @ref trusted if the points are already in canonical form.
      */
     template<std::ranges::input_range Range = std::initializer_list<PointType>>
     requires std::ranges::common_range<Range> &&
              std::convertible_to<std::ranges::range_value_t<Range>, PointType>
-    constexpr explicit Polygon(Range&& points, bool trusted = false) {
+    constexpr explicit Polygon(Range&& points, Trust trust = untrusted) {
         for (const auto& p : points) {
             points_.push_back(p);
         }
-        if (!trusted) {
+        if (!trust) {
             normalize();
         }
     }
@@ -104,13 +104,13 @@ struct Polygon {
      *
      * The values are consumed in pairs `(x0, y0, x1, y1, …)`, each pair forming
      * one boundary vertex in order, so the list must hold an even number of
-     * values. Unless @p trusted is set, the vertices are normalized to the
+     * values. Unless @p trust is @ref trusted, the vertices are normalized to the
      * canonical form (counterclockwise, lexicographically smallest vertex first).
      *
      * @param coords Interleaved x/y coordinates of the boundary vertices.
-     * @param trusted Set to true if the points are already in canonical form.
+     * @param trust @ref trusted if the points are already in canonical form.
      */
-    constexpr explicit Polygon(std::initializer_list<NumberType> coords, bool trusted = false) {
+    constexpr explicit Polygon(std::initializer_list<NumberType> coords, Trust trust = untrusted) {
         assert(coords.size() % 2 == 0);
         points_.reserve(coords.size() / 2);
         for (auto it = coords.begin(); it != coords.end(); ) {
@@ -118,7 +118,7 @@ struct Polygon {
             NumberType y = *it++;
             points_.emplace_back(x, y);
         }
-        if (!trusted) {
+        if (!trust) {
             normalize();
         }
     }
@@ -3493,7 +3493,7 @@ struct Polygon {
             if (!up) {
                 std::reverse(buffer_.begin() + static_cast<std::ptrdiff_t>(bufStart), buffer_.end());
             }
-            chains_.emplace_back(std::span<const PT>(buffer_.data() + bufStart, len), /*trusted=*/true);
+            chains_.emplace_back(std::span<const PT>(buffer_.data() + bufStart, len), trusted);
             ++produced_;
             return chains_.back();
         }

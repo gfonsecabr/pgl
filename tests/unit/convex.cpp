@@ -991,7 +991,7 @@ TEST_CASE("Convex::smallestEnclosingRectangle handles degenerate sizes") {
     // Collinear vertices only reach the sweep through the trusted constructor;
     // the flush rectangle has zero height and collapses onto them, which the
     // region represents exactly, as touching constraints.
-    const Convex collinear(std::vector<BPoint>{{0, 0}, {2, 1}, {4, 2}}, true);
+    const Convex collinear(std::vector<BPoint>{{0, 0}, {2, 1}, {4, 2}}, pgl::trusted);
     const auto flat = collinear.smallestEnclosingRectangle();
     REQUIRE(flat.isSegment());
     CHECK(flat.getIfSegment<ExactRational>() ==
@@ -1227,7 +1227,7 @@ TEST_CASE("Convex::smallestEnclosingSlab handles degenerate sizes") {
     // Collinear vertices only reach the sweep through the trusted constructor;
     // the slab has zero width and collapses onto the line carrying them, which
     // the region represents exactly, as two opposite touching constraints.
-    const Convex collinear(std::vector<BPoint>{{0, 0}, {2, 1}, {4, 2}}, true);
+    const Convex collinear(std::vector<BPoint>{{0, 0}, {2, 1}, {4, 2}}, pgl::trusted);
     const auto flat = collinear.smallestEnclosingSlab();
     REQUIRE(flat.size() == 2);
     CHECK(flat.isLine());
@@ -1237,7 +1237,7 @@ TEST_CASE("Convex::smallestEnclosingSlab handles degenerate sizes") {
     // Repeated vertices, likewise reachable only through the trusted
     // constructor, leave every edge without a direction. The width is still the
     // zero of the point the polygon covers, not a division by zero.
-    const Convex repeated(std::vector<BPoint>{{2, 2}, {2, 2}, {2, 2}}, true);
+    const Convex repeated(std::vector<BPoint>{{2, 2}, {2, 2}, {2, 2}}, pgl::trusted);
     CHECK(repeated.squaredMinimumWidth() == pgl::ERational(0));
     CHECK(repeated.minimumWidth() == doctest::Approx(0.0));
 }
@@ -2194,7 +2194,7 @@ TEST_CASE("Convex unites with Convex into a set of regions") {
         REQUIRE(result.componentCount() == 1);
         // The staircase is strictly inside its own hull, which is what makes a
         // set of regions rather than a Convex the only type that holds it.
-        const Convex hull(pgl::convexHull(result.component(0).outer().vertices()), /*trusted=*/true);
+        const Convex hull(pgl::convexHull(result.component(0).outer().vertices()), pgl::trusted);
         CHECK(result.twiceArea() < hull.twiceArea());
         CHECK(hull.contains(Point(5, 1)));       // in the hull of the two squares
         CHECK(!result.contains(Point(5, 1)));    // and in neither of them

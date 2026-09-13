@@ -192,13 +192,13 @@ struct Convex {
      *
      * @tparam Range Input range whose elements can be converted to @ref PointType.
      * @param points Range of points to enclose.
-     * @param trusted Set to true if the points are already convex hull vertices starting from the leftmost and ccw.
+     * @param trust @ref trusted if the points are already convex hull vertices starting from the leftmost and ccw.
      */
     template<std::ranges::input_range Range = std::initializer_list<PointType>>
     requires std::ranges::common_range<Range> &&
              std::convertible_to<std::ranges::range_value_t<Range>, PointType>
-    constexpr explicit Convex(Range&& points, bool trusted = false) {
-        if (trusted) {
+    constexpr explicit Convex(Range&& points, Trust trust = untrusted) {
+        if (trust) {
             points_.reserve(points.size());
             for (const auto &p : points) {
                 points_.push_back(p);
@@ -227,9 +227,9 @@ struct Convex {
      * one point, so the list must hold an even number of values.
      *
      * @param coords Interleaved x/y coordinates of the points to enclose.
-     * @param trusted Set to true if the points are already convex hull vertices starting from the leftmost and ccw.
+     * @param trust @ref trusted if the points are already convex hull vertices starting from the leftmost and ccw.
      */
-    constexpr explicit Convex(std::initializer_list<NumberType> coords, bool trusted = false) {
+    constexpr explicit Convex(std::initializer_list<NumberType> coords, Trust trust = untrusted) {
         assert(coords.size() % 2 == 0);
         std::vector<PointType> points;
         points.reserve(coords.size() / 2);
@@ -238,7 +238,7 @@ struct Convex {
             NumberType y = *it++;
             points.emplace_back(x, y);
         }
-        if (trusted) {
+        if (trust) {
             points_ = std::move(points);
         }
         else {
@@ -861,7 +861,7 @@ struct Convex {
      */
     constexpr MonotoneChain<PointType> lowerHull() const {
         if (size() <= 1) {
-            return MonotoneChain<PointType>(vertices(), true);
+            return MonotoneChain<PointType>(vertices(), pgl::trusted);
         }
         // Vertices are stored counterclockwise from the lexicographic minimum,
         // so walking up to the lexicographic maximum traverses the lower chain,
@@ -872,7 +872,7 @@ struct Convex {
         for (std::size_t i = 0; i <= maximum; ++i) {
             chain.push_back((*this)[i]);
         }
-        return MonotoneChain<PointType>(chain, true);
+        return MonotoneChain<PointType>(chain, pgl::trusted);
     }
 
     /**
@@ -888,7 +888,7 @@ struct Convex {
      */
     constexpr MonotoneChain<PointType> upperHull() const {
         if (size() <= 1) {
-            return MonotoneChain<PointType>(vertices(), true);
+            return MonotoneChain<PointType>(vertices(), pgl::trusted);
         }
         // The upper chain is the rest of the boundary: the lexicographic maximum
         // back to vertex 0 (the lexicographic minimum). Reading it backwards —
@@ -902,7 +902,7 @@ struct Convex {
         for (std::size_t i = n; i > maximum; --i) {
             chain.push_back((*this)[i - 1]);
         }
-        return MonotoneChain<PointType>(chain, true);
+        return MonotoneChain<PointType>(chain, pgl::trusted);
     }
 
     /**

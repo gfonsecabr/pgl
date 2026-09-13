@@ -417,9 +417,9 @@ It knows how to convert itself to:
 
 ### Rectangle
 
-The class template `Rectangle` represents an axis-aligned rectangle. While it is stored internally as only two vertices (minimum and maximum x and y coordinates), it behaves as a polygon with four vertices. It can be constructed for any number of points in a container and will construct the bounding box rectangle. If only two points are given, the container is optional. If the two points are respectively the minimum x and y and the maximum x and y, then an optional argument set to true avoids the bounding box calculation.
+The class template `Rectangle` represents an axis-aligned rectangle. While it is stored internally as only two vertices (minimum and maximum x and y coordinates), it behaves as a polygon with four vertices. It can be constructed for any number of points in a container and will construct the bounding box rectangle. If only two points are given, the container is optional. A last argument `pgl::trusted` stores two given corners as the minimum and the maximum, so the first must not exceed the second in either coordinate; inverted corners give the empty rectangle.
 
-A default-constructed rectangle is **empty**: it stores the corners `(0,0)` and `(-1,-1)`, so its maximum falls below its minimum and it covers no point. Normalizing two opposite corners never reaches that state, so it is produced only by `Rectangle()`, by the `minmax` constructor given inverted corners (which normalizes any such pair to the one canonical empty value), and by the operations that answer with a rectangle covering nothing — the bounding box of an empty range or of an empty shape, for instance. Inserting into an empty rectangle does not grow those placeholder corners: `r.insert(p)` makes `r` the single point `p`.
+A default-constructed rectangle is **empty**: it stores the corners `(0,0)` and `(-1,-1)`, so its maximum falls below its minimum and it covers no point. Normalizing two opposite corners never reaches that state, so it is produced only by `Rectangle()`, by the `pgl::trusted` constructor given inverted corners (which normalizes any such pair to the one canonical empty value), and by the operations that answer with a rectangle covering nothing — the bounding box of an empty range or of an empty shape, for instance. Inserting into an empty rectangle does not grow those placeholder corners: `r.insert(p)` makes `r` the single point `p`.
 
 ```C++
 pgl::Rectangle r({{1,3},{2,4},{3,1},{5,4},{2,3}});
@@ -488,7 +488,7 @@ Disk does not have the `intersection` method and cannot be scaled on a single ax
 
 The class template `MonotoneChain` represents an x-monotone polyline: a polyline whose vertices are strictly increasing in the lexicographic order (smaller x first, breaking ties by smaller y). A chain with $n$ vertices has $n-1$ edges and no closing edge, so it is an open curve and is automatically simple. Its boundary is its two extreme vertices and its interior is everything else.
 
-A chain may be constructed from any container of points, which will be sorted automatically and duplicates removed. The input is treated as a point set, not as a pre-linked chain, so any permutation of the same points yields the same chain. If the points are already sorted and unique, a second parameter true can be given to avoid sorting the points again.
+A chain may be constructed from any container of points, which will be sorted automatically and duplicates removed. The input is treated as a point set, not as a pre-linked chain, so any permutation of the same points yields the same chain. A last argument `pgl::trusted` stores the points as given, which must then already be sorted and unique.
 
 We use the term above to refer to larger y coordinates and below to refer to smaller y coordinates. A chain `P` with $n$ vertices has methods such as:
 
@@ -536,7 +536,7 @@ A polyline `P` with $n$ vertices has methods such as:
 
 ### Convex
 
-The class template `Convex` represents a convex polygon. It can be constructed for any number of points in a container and will construct the convex hull. The vertices are stored in counterclockwise order starting from the minimum vertex (minimum x, breaking ties by minimum y). If the container already has the vertices in order, a second constructor parameter can be set to true to avoid computing the convex hull.
+The class template `Convex` represents a convex polygon. It can be constructed for any number of points in a container and will construct the convex hull. The vertices are stored in counterclockwise order starting from the minimum vertex (minimum x, breaking ties by minimum y). A last argument `pgl::trusted` stores the points as given, which must then already be the convex hull vertices in that order.
 
 A convex polygon `c` has methods such as:
 
@@ -572,7 +572,7 @@ If the convex polygon `c` has $n$ vertices, then:
 
 ### Polygon
 
-The class template `Polygon` represents a simple polygon. It can be constructed for any number of points in a container that must be given in the order they appear on the polygon. The vertices are accessed in counterclockwise order starting from the minimum vertex (minimum x, breaking ties by minimum y).
+The class template `Polygon` represents a simple polygon. It can be constructed for any number of points in a container that must be given in the order they appear on the polygon. The vertices are accessed in counterclockwise order starting from the minimum vertex (minimum x, breaking ties by minimum y). A last argument `pgl::trusted` stores the points as given, which must then already be in that order.
 
 A polygon `P` has methods such as:
 
@@ -601,7 +601,7 @@ For all $i$, the hole $H_i$ must satisfy $H_i \subseteq P$. Every pair of distin
 
 The boundary of $A$ is the union of the boundary of $P$ and the boundary of every hole $H_i$. Notice that $A$ is connected but its interior may not be.
 
-The outer boundary and every hole are ordinary [`Polygon`](#polygon) values, each in `Polygon`'s own canonical form (counterclockwise, lexicographically smallest vertex first) — holes are *not* stored reversed. Equality, ordering and hashing do not depend on the order the holes were given in.
+The outer boundary and every hole are ordinary [`Polygon`](#polygon) values, each in `Polygon`'s own canonical form (counterclockwise, lexicographically smallest vertex first) — holes are *not* stored reversed. Equality, ordering and hashing do not depend on the order the holes were given in. A last argument `pgl::trusted` stores the holes as given, which must then already be sorted, with no zero-area hole.
 
 ```C++
 pgl::Polygon<> outer({0,0, 10,0, 10,10, 0,10});
@@ -668,7 +668,7 @@ std::cout << holed.componentCount() << ' ' << holed.holeCount() << ' ' << holed.
 pgl::PolygonSet<> smaller = holed.difference(pgl::Rectangle(0,0,2,2));  // and again
 ```
 
-The components are kept sorted by `PolygonWithHoles::operator<=>`, so equality, ordering and hashing do not depend on the order they were given in. A component with no area covers nothing that survives regularization and is dropped, and duplicates are erased. The components are deliberately **not** nested: a component stranded inside another's hole is stored beside it, not within it, which is what the cell engine emits and what a flat set can say.
+The components are kept sorted by `PolygonWithHoles::operator<=>`, so equality, ordering and hashing do not depend on the order they were given in. A component with no area covers nothing that survives regularization and is dropped, and duplicates are erased. A last argument `pgl::trusted` stores the components as given, which must then already be sorted and distinct, with no zero-area component. The components are deliberately **not** nested: a component stranded inside another's hole is stored beside it, not within it, which is what the cell engine emits and what a flat set can say.
 
 As with [`Polygon`](#polygon) and [`PolygonWithHoles`](#polygon-with-holes), structural validity is a documented precondition rather than an enforced invariant. A set is valid when every component is, when the component interiors are pairwise disjoint, and when no two components share a stretch of edge — they may meet only at finitely many points. `isValid` checks all three on demand.
 
@@ -682,7 +682,7 @@ A set `A` with $k$ components and $n$ vertices in total has methods such as:
 - `A.vertexCount()` / `A.vertices()` / `A.edges()` / `A.orientedEdges()`: The totals over every ring of every component, with the same meaning they have on a region.
 - `A.holeCount()` / `A.hasHoles()`: The total number of holes over all components, and whether there are any.
 - `A.empty()`: Returns true if the set has no components at all.
-- `A.isDegenerate()` / `A.isPoint()` / `A.isSegment()` / `A.isUndefined()`: A canonical set drops its zero-area components, so a degenerate set is exactly an empty one; only a set adopted with `trusted` can answer otherwise.
+- `A.isDegenerate()` / `A.isPoint()` / `A.isSegment()` / `A.isUndefined()`: A canonical set drops its zero-area components, so a degenerate set is exactly an empty one; only a set adopted with `pgl::trusted` can answer otherwise.
 - `A.isConnected()`: Returns true if the set is connected as a point set. This is the library's first shape that need not be — two components that never touch are two pieces — and it is what the [cut predicates](shape_methods.md#predicates) ask before dismissing a remover that misses the set.
 - `A.isPinched()`: Returns true if two components touch each other anywhere. A set whose components stay apart is a disjoint union of closed sets at positive distance, and then every predicate folds componentwise exactly. Memoized.
 - `A.isValid()`: Tests the whole structural contract above.
@@ -706,7 +706,7 @@ A set `A` with $k$ components and $n$ vertices in total has methods such as:
 
 The class template `HalfplaneIntersection` represents the intersection of a finite set of closed half-planes: a convex region that, unlike `Convex`, may be unbounded (a wedge, a strip, a half-plane, or the whole plane) and may be empty. Its vertices are generally not representable in the coordinate type of the defining half-planes: integer half-planes routinely bound regions with rational vertices, so constructive accessors return ERational coordinates for an integral receiver. An explicit result type such as `k.vertex<pgl::Rational<int64_t>>(i)` is available.
 
-The half-planes are stored sorted counterclockwise by boundary direction, with no redundant half-plane and at most one half-plane per direction. A default-constructed `HalfplaneIntersection` is the **whole plane** (the intersection of no half-planes) — the opposite convention of `Convex()`, which is the empty set. It can also be constructed from a range of half-planes, or from a `Halfplane`, `Rectangle`, `Triangle`, or `Convex`.
+The half-planes are stored sorted counterclockwise by boundary direction, with no redundant half-plane and at most one half-plane per direction. A default-constructed `HalfplaneIntersection` is the **whole plane** (the intersection of no half-planes) — the opposite convention of `Convex()`, which is the empty set. It can also be constructed from a range of half-planes, or from a `Halfplane`, `Rectangle`, `Triangle`, or `Convex`. A last argument `pgl::trusted` stores a range as given, which must then already be sorted, non-redundant, and bound a region with nonempty interior.
 
 A half-plane intersection `k` has methods such as:
 

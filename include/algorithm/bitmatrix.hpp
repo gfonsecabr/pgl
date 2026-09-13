@@ -123,7 +123,7 @@ template <class GridPointType, class OtherPointType, class TLabel>
     for (const OtherPointType& vertex : ring) {
         vertices.push_back(gridPoint<GridPointType>(vertex));
     }
-    return Polygon<GridPointType>(std::move(vertices), true);
+    return Polygon<GridPointType>(std::move(vertices), pgl::trusted);
 }
 
 /** @brief Converts a region onto the integer grid, ring by ring. */
@@ -136,7 +136,7 @@ template <class GridPointType, class OtherPointType, class TLabel>
         holes.push_back(gridRing<GridPointType>(hole));
     }
     return PolygonWithHoles<GridPointType>(gridRing<GridPointType>(region.outer()), std::move(holes),
-                                           true);
+                                           pgl::trusted);
 }
 
 /** @brief Converts a set onto the integer grid, component by component. */
@@ -147,7 +147,7 @@ template <class GridPointType, class OtherPointType, class TLabel>
     for (const auto& component : set.components()) {
         components.push_back(gridRegion<GridPointType>(component));
     }
-    return PolygonSet<GridPointType>(std::move(components), true);
+    return PolygonSet<GridPointType>(std::move(components), pgl::trusted);
 }
 
 /**
@@ -1881,7 +1881,7 @@ private:
     /** @brief The unit square a cell covers. */
     [[nodiscard]] static RectangleType cellSquare(const PointType& cell) {
         return RectangleType(cell, PointType(cell.x() + NumberType(1), cell.y() + NumberType(1)),
-                             true);
+                             pgl::trusted);
     }
 
     static std::size_t wordsPerRow(int width) {
@@ -2635,7 +2635,7 @@ private:
         const RectangleType a = left.window(), b = right.window();
         return RectangleType(PointType(std::min(a.min().x(), b.min().x()), std::min(a.min().y(), b.min().y())),
                              PointType(std::max(a.max().x(), b.max().x()), std::max(a.max().y(), b.max().y())),
-                             true);
+                             pgl::trusted);
     }
 
     static RectangleType overlapWindow(const BitMatrix& left, const BitMatrix& right) {
@@ -2645,7 +2645,7 @@ private:
         const RectangleType a = left.window(), b = right.window();
         return RectangleType(PointType(std::max(a.min().x(), b.min().x()), std::max(a.min().y(), b.min().y())),
                              PointType(std::min(a.max().x(), b.max().x()), std::min(a.max().y(), b.max().y())),
-                             true);
+                             pgl::trusted);
     }
 
     PointType origin_{};
@@ -2742,7 +2742,7 @@ BitMatrix<PointType> rasterize(const Rectangle<PointType>& window, Predicate kee
             const Number x = result.origin().x() + static_cast<Number>(i);
             const Number y = result.origin().y() + static_cast<Number>(j);
             if (keep(Rectangle<PointType>(PointType(x, y),
-                                          PointType(x + Number(1), y + Number(1)), true))) {
+                                          PointType(x + Number(1), y + Number(1)), pgl::trusted))) {
                 result.set(x, y);
             }
         }

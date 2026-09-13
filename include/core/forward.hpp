@@ -19,6 +19,33 @@
 namespace pgl {
 
 /**
+ * @brief Whether a constructor may adopt its input as already canonical.
+ *
+ * The last parameter of the constructors that normalize their input. The
+ * default, @ref untrusted, normalizes; @ref trusted stores the input as given
+ * and makes its canonical form a precondition. A plain `bool` or integer does
+ * not convert to it, so the choice is always spelled out at the call site;
+ * `Trust(flag)` states a choice made at run time.
+ */
+class Trust {
+public:
+    constexpr explicit Trust(bool isTrusted) noexcept : trusted_(isTrusted) {}
+
+    constexpr explicit operator bool() const noexcept { return trusted_; }
+
+    friend constexpr bool operator==(Trust, Trust) noexcept = default;
+
+private:
+    bool trusted_;
+};
+
+/** @brief Adopt the input as already canonical. See @ref Trust. */
+inline constexpr Trust trusted{true};
+
+/** @brief Normalize the input. See @ref Trust. */
+inline constexpr Trust untrusted{false};
+
+/**
  * @brief Sentinel label type used by unlabeled points.
  */
 struct NoLabel;

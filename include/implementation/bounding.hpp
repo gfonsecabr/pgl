@@ -16,7 +16,7 @@ namespace pgl {
 
 template <class Number, class Label>
 constexpr Rectangle<Point<Number, Label>> Point<Number, Label>::bbox() const {
-    return Rectangle<Point<Number, Label>>(*this, *this, true);
+    return Rectangle<Point<Number, Label>>(*this, *this, pgl::trusted);
 }
 
 template <class Number, class Label>
@@ -27,7 +27,7 @@ constexpr Rectangle<Point<ResultNumber>> Point<Number, Label>::fbox() const {
         detail::lowerFloatingBound<ResultNumber>(y()),
         detail::upperFloatingBound<ResultNumber>(x()),
         detail::upperFloatingBound<ResultNumber>(y()),
-        true);
+        pgl::trusted);
 }
 
 template <class Number, class Label>
@@ -71,9 +71,9 @@ constexpr ResultNumber Segment<PointType, LabelType>::upperCoordinateBound(const
 template <class PointType, class LabelType>
 constexpr Rectangle<PointType> Segment<PointType, LabelType>::bbox() const {
     if (min().y() < max().y()) {
-        return Rectangle<PointType>(min().x(), min().y(), max().x(), max().y(), true);
+        return Rectangle<PointType>(min().x(), min().y(), max().x(), max().y(), pgl::trusted);
     }
-    return Rectangle<PointType>(min().x(), max().y(), max().x(), min().y(), true);
+    return Rectangle<PointType>(min().x(), max().y(), max().x(), min().y(), pgl::trusted);
 }
 
 template <class PointType, class LabelType>
@@ -86,7 +86,7 @@ constexpr Rectangle<Point<ResultNumber>> Segment<PointType, LabelType>::fbox() c
     if (ymin > ymax) {
         std::swap(ymin, ymax);
     }
-    return Rectangle<Point<ResultNumber>>(xmin, ymin, xmax, ymax, true);
+    return Rectangle<Point<ResultNumber>>(xmin, ymin, xmax, ymax, pgl::trusted);
 }
 
 template <class PointType, class LabelType>
@@ -149,7 +149,7 @@ constexpr Rectangle<Point<ResultNumber>> Rectangle<PointType, LabelType>::fbox()
         detail::lowerFloatingBound<ResultNumber>(min().y()),
         detail::upperFloatingBound<ResultNumber>(max().x()),
         detail::upperFloatingBound<ResultNumber>(max().y()),
-        true);
+        pgl::trusted);
 }
 
 template <class PointType, class LabelType>
@@ -412,7 +412,7 @@ constexpr const Rectangle<PointType>& Convex<PointType, LabelType>::bbox() const
             [](const PointType& p) { return p.y(); })->y(),
         points_[0].y());
 
-    return bbox_ = Rectangle<PointType>(min_x, min_y, max_x, max_y, true) + translation_;
+    return bbox_ = Rectangle<PointType>(min_x, min_y, max_x, max_y, pgl::trusted) + translation_;
 }
 
 template <class PointType, class LabelType>

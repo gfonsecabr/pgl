@@ -155,7 +155,7 @@ constexpr auto minkowskiTranslated(const ShapeT& shape,
         } else if constexpr (is_rectangle_v<ShapeT>) {
             // Translation preserves the corner order, so the result needs no
             // normalizing -- and an empty rectangle stays empty.
-            return Rectangle<ResultPoint, Label>(moved(shape.min()), moved(shape.max()), true);
+            return Rectangle<ResultPoint, Label>(moved(shape.min()), moved(shape.max()), pgl::trusted);
         } else if constexpr (is_triangle_v<ShapeT>) {
             return Triangle<ResultPoint, Label>(moved(shape.a()), moved(shape.b()), moved(shape.c()));
         } else if constexpr (is_disk_v<ShapeT>) {
@@ -709,7 +709,7 @@ constexpr auto minkowskiConvexSum(const A& a, const B& b) {
     // walk above starts from the bottom-most one instead.
     std::rotate(boundary.begin(), std::min_element(boundary.begin(), boundary.end()),
                 boundary.end());
-    return Convex<ResultPoint>(std::move(boundary), true);
+    return Convex<ResultPoint>(std::move(boundary), pgl::trusted);
 }
 
 /**
@@ -760,7 +760,7 @@ constexpr auto minkowskiSumOf(const A& a, const B& b) {
             return Rectangle<ResultPoint>();
         }
         return Rectangle<ResultPoint>(minkowskiSumOf(a.min(), b.min()),
-                                      minkowskiSumOf(a.max(), b.max()), true);
+                                      minkowskiSumOf(a.max(), b.max()), pgl::trusted);
     } else if constexpr (is_halfplane_v<A> && !UnboundedConvexConcept<B>) {
         // A half-plane absorbs anything bounded, convex or not, and stays one.
         return minkowskiHalfplaneSum(a, b);

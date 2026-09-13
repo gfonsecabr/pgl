@@ -68,7 +68,7 @@ TEST_CASE("PolygonSet construction and component access") {
 
     SUBCASE("a trusted range is adopted verbatim") {
         // Deliberately out of canonical order: `trusted` promises it is not.
-        const RegionSet set(std::vector{Region(squareB()), Region(squareA())}, true);
+        const RegionSet set(std::vector{Region(squareB()), Region(squareA())}, pgl::trusted);
         REQUIRE(set.componentCount() == 2);
         CHECK(set.component(0) == Region(squareB()));
     }
@@ -491,7 +491,7 @@ TEST_CASE("PolygonSet structural queries") {
     }
 
     SUBCASE("regularized drops a component without area") {
-        const RegionSet degenerate(std::vector{Region(PolygonShape({0, 0, 4, 0, 8, 0}))}, true);
+        const RegionSet degenerate(std::vector{Region(PolygonShape({0, 0, 4, 0, 8, 0}))}, pgl::trusted);
         REQUIRE(degenerate.componentCount() == 1);
         CHECK(degenerate.regularized<int>().empty());
     }

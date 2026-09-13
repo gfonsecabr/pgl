@@ -279,15 +279,15 @@ struct HalfplaneIntersection {
      * construction and the converting constructor below carry that state over.
      *
      * @param halfplanes Range of half-planes to intersect.
-     * @param trusted Set to true if the half-planes are already sorted by
+     * @param trust @ref trusted if the half-planes are already sorted by
      * boundary pseudo-angle, mutually non-redundant, feasible, and define a
      * region with nonempty interior.
      */
     template <std::ranges::input_range Range = std::initializer_list<HalfplaneType>>
         requires std::convertible_to<std::ranges::range_value_t<Range>, HalfplaneType> &&
                  (!detail::is_halfplane_intersection_v<Range>)
-    constexpr explicit HalfplaneIntersection(Range&& halfplanes, bool trusted = false) {
-        if (trusted) {
+    constexpr explicit HalfplaneIntersection(Range&& halfplanes, Trust trust = untrusted) {
+        if (trust) {
             for (const auto& h : halfplanes) {
                 halfplanes_.push_back(h);
             }

@@ -126,7 +126,7 @@ struct Rectangle {
      * points, their labels are preserved. Otherwise synthesized corners use
      * default-constructed labels.
      *
-     * Passing @p minmax stores the corners as given, which is also the only way
+     * Passing @ref trusted stores the corners as given, which is also the only way
      * to build an empty rectangle other than @ref Rectangle(): corners that
      * invert on either axis are not swapped back but read as the empty set, and
      * normalized to its one canonical representation so that all empty
@@ -134,10 +134,10 @@ struct Rectangle {
      *
      * @param first First opposite corner.
      * @param second Second opposite corner.
-     * @param minmax True if we know that first.x() < second.x() and first.y() < second.y()
+     * @param trust @ref trusted if first.x() <= second.x() and first.y() <= second.y()
      */
-    constexpr Rectangle(PointType first, PointType second, bool minmax = false) {
-        if (minmax) {
+    constexpr Rectangle(PointType first, PointType second, Trust trust = untrusted) {
+        if (trust) {
             if (second.x() < first.x() || second.y() < first.y()) {
                 points_ = emptyCorners();
                 return;
@@ -178,15 +178,15 @@ struct Rectangle {
      * @param y1 Y coordinate of the first corner.
      * @param x2 X coordinate of the second corner.
      * @param y2 Y coordinate of the second corner.
-     * @param minmax True if we know that x1 < x2 and y1 < y2
+     * @param trust @ref trusted if x1 <= x2 and y1 <= y2
      */
-    constexpr Rectangle(NumberType x1, NumberType y1, NumberType x2, NumberType y2, bool minmax = false)
-        : Rectangle(PointType(x1, y1), PointType(x2, y2), minmax) {}
+    constexpr Rectangle(NumberType x1, NumberType y1, NumberType x2, NumberType y2, Trust trust = untrusted)
+        : Rectangle(PointType(x1, y1), PointType(x2, y2), trust) {}
 
     template<PointConcept OtherPointType, class OtherLabelType>
         requires(std::constructible_from<PointType, const OtherPointType&>)
     constexpr Rectangle(const Rectangle<OtherPointType, OtherLabelType>& other)
-        : Rectangle(PointType(other.min()), PointType(other.max()), true) {
+        : Rectangle(PointType(other.min()), PointType(other.max()), trusted) {
         label_ = detail::copyLabel<LabelType>(other);
     }
 
@@ -308,7 +308,7 @@ struct Rectangle {
      *
      * A rectangle is empty when its stored maximum corner falls below its
      * minimum one. Normalizing two opposite corners never produces that state,
-     * so it is reached only by @ref Rectangle(), by the `minmax` constructor,
+     * so it is reached only by @ref Rectangle(), by the `trusted` constructor,
      * and by the operations that answer with a rectangle covering nothing --
      * all of which store the one canonical empty pair `(0,0),(-1,-1)`. An empty
      * rectangle behaves as @ref EmptyShape: it has no vertices, no area, and

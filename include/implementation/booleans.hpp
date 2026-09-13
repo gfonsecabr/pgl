@@ -196,7 +196,7 @@ PolygonSet<ResultPoint> regularizedCellsFromKeep(
             converted.emplace_back(vertex);
         }
         constexpr bool exact = std::is_same_v<ResultPoint, ExactPoint>;
-        return ResultPolygon(std::move(converted), /*trusted=*/exact);
+        return ResultPolygon(std::move(converted), pgl::Trust(exact));
     };
 
     for (auto& entry : ringsOfPiece) {
@@ -217,7 +217,7 @@ PolygonSet<ResultPoint> regularizedCellsFromKeep(
                 std::reverse(ring.begin(), ring.end());
             }
             std::rotate(ring.begin(), std::min_element(ring.begin(), ring.end()), ring.end());
-            (orientation > 0 ? outers : holes).emplace_back(std::move(ring), /*trusted=*/true);
+            (orientation > 0 ? outers : holes).emplace_back(std::move(ring), pgl::trusted);
         }
         if (outers.empty()) {
             continue;
@@ -258,7 +258,7 @@ PolygonSet<ResultPoint> regularizedCellsFromKeep(
                 std::sort(holesOfOuter[i].begin(), holesOfOuter[i].end());
             }
             result.emplace_back(convert(outers[i].vertices()), std::move(holesOfOuter[i]),
-                                /*trusted=*/exact);
+                                pgl::Trust(exact));
         }
     }
     // The pieces have pairwise disjoint interiors and share no stretch of edge —
@@ -266,7 +266,7 @@ PolygonSet<ResultPoint> regularizedCellsFromKeep(
     // boundary walk — so they are a canonical PolygonSet once sorted, and the
     // set adopts them without measuring a single area again.
     std::sort(result.begin(), result.end());
-    return PolygonSet<ResultPoint>(std::move(result), /*trusted=*/true);
+    return PolygonSet<ResultPoint>(std::move(result), pgl::trusted);
 }
 
 /**

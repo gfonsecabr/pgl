@@ -473,7 +473,7 @@ constexpr auto minkowskiErosionOf(const A& a, const B& b) {
         if (high.x() < low.x() || high.y() < low.y()) {
             return ResultRectangle();
         }
-        return ResultRectangle(low, high, true);
+        return ResultRectangle(low, high, pgl::trusted);
     } else if constexpr (is_halfplane_v<A> && !UnboundedConvexConcept<B>) {
         // A half-plane absorbs anything bounded and stays one.
         return minkowskiHalfplaneErosion(a, b);
@@ -594,7 +594,7 @@ PolygonSet<ResultPoint> regularizedMinkowskiErosion(const ShapeA& a, const Shape
     const ExactPoint high(
         std::max(exact(boxA.max().x()), exact(boxA.max().x()) + exact(boxB.max().x())) + one,
         std::max(exact(boxA.max().y()), exact(boxA.max().y()) + exact(boxB.max().y())) + one);
-    const Rectangle<ExactPoint> window(low, high, true);
+    const Rectangle<ExactPoint> window(low, high, pgl::trusted);
 
     const PolygonSet<ExactPoint> outside =
         regularizedDifference<ExactPoint>(window.asPolygon(), booleanOperand(a));

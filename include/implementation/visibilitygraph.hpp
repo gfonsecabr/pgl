@@ -827,7 +827,7 @@ Triangulation<TriangleType_, SegmentType_>::regularizedVisiblePolygon(
     // constructor need not settle the orientation — which for a rational
     // coordinate type costs more than everything above.
     std::rotate(ring.begin(), std::min_element(ring.begin(), ring.end()), ring.end());
-    return Polygon<ResultPoint>(ring, true);
+    return Polygon<ResultPoint>(ring, pgl::trusted);
 }
 
 // -----------------------------------------------------------------------------

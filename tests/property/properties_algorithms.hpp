@@ -311,7 +311,7 @@ inline Result sortAroundTracesASimpleRing(const std::vector<PointShape>& points)
     }
 
     pgl::sortAround(rest, center);
-    const detail::PolygonShape ring(rest, true);  // Trust the order: that is the claim.
+    const detail::PolygonShape ring(rest, pgl::trusted);  // Trust the order: that is the claim.
     if (ring.isDegenerate()) {
         return skipped();
     }

@@ -120,18 +120,18 @@ struct PolygonWithHoles {
      * @param outer The outer boundary.
      * @param holes The holes; each must lie inside @p outer with interiors
      *        pairwise disjoint (a precondition, see @ref isValid).
-     * @param trusted When `true`, adopt @p holes as given without dropping
-     *        degenerate rings or sorting. Only pass `true` for a range that is
-     *        already in canonical form.
+     * @param trust With @ref trusted, adopt @p holes as given without dropping
+     *        degenerate rings or sorting. Only pass @ref trusted for a range
+     *        that is already in canonical form.
      */
     template <std::ranges::input_range HoleRange>
         requires detail::is_polygon_v<std::ranges::range_value_t<HoleRange>>
-    constexpr PolygonWithHoles(PolygonType outer, HoleRange&& holes, bool trusted = false)
+    constexpr PolygonWithHoles(PolygonType outer, HoleRange&& holes, Trust trust = untrusted)
         : outer_(std::move(outer)) {
         for (const auto& hole : holes) {
             holes_.emplace_back(hole);
         }
-        if (!trusted) {
+        if (!trust) {
             normalize();
         }
     }

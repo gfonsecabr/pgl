@@ -1158,7 +1158,7 @@ constexpr auto Rectangle<PointType, LabelType>::intersection(const OtherHalfplan
     for (std::size_t i = 0; i < count; ++i) {
         vertices.push_back(clipped[(first + i) % count]);
     }
-    return ResultType(ResultConvex(std::move(vertices), /*trusted=*/true));
+    return ResultType(ResultConvex(std::move(vertices), pgl::trusted));
 }
 
 // -----------------------------------------------------------------------------
@@ -1539,7 +1539,7 @@ constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::Lab
     }
     if (fSteps + 1 == n) {
         // The whole convex lies in the closed half-plane; return it unchanged.
-        ResultConvex whole(*this, /*trusted=*/true);
+        ResultConvex whole(*this, pgl::trusted);
         if (whole.size() == 1) return whole[0];
         if (whole.size() == 2) return ResultSegment(whole[0], whole[1]);
         return whole;

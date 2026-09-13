@@ -201,18 +201,18 @@ struct PolygonSet {
      * @param components The components; their interiors must be pairwise
      *        disjoint and no two may share a stretch of edge (a precondition,
      *        see @ref isValid).
-     * @param trusted When `true`, adopt @p components as given without dropping
-     *        degenerate ones, sorting, or removing duplicates. Only pass `true`
-     *        for a range that is already in canonical form — over rational
+     * @param trust With @ref trusted, adopt @p components as given without
+     *        dropping degenerate ones, sorting, or removing duplicates. Only pass
+     *        @ref trusted for a range that is already in canonical form — over rational
      *        coordinates the area test alone dominates the construction.
      */
     template <std::ranges::input_range ComponentRange>
         requires detail::is_polygon_with_holes_v<std::ranges::range_value_t<ComponentRange>>
-    constexpr PolygonSet(ComponentRange&& components, bool trusted = false) {
+    constexpr PolygonSet(ComponentRange&& components, Trust trust = untrusted) {
         for (const auto& component : components) {
             components_.emplace_back(component);
         }
-        if (!trusted) {
+        if (!trust) {
             normalize();
         }
     }

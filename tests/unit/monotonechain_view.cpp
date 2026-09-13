@@ -40,7 +40,7 @@ TEST_CASE("MonotoneChainView borrows an external vertex buffer") {
     }
 
     SUBCASE("a view compares equal to the owning chain over the same points") {
-        const Chain owning(pts, /*trusted=*/true);
+        const Chain owning(pts, pgl::trusted);
         const View view(pts);
         CHECK(view == owning);
         CHECK(owning == view);
@@ -58,7 +58,7 @@ TEST_CASE("MonotoneChainView borrows an external vertex buffer") {
 
 TEST_CASE("MonotoneChainView answers read-only predicates like an owning chain") {
     const std::vector<Point> pts{Point(0, 0), Point(2, 2), Point(4, 0)};
-    const Chain owning(pts, /*trusted=*/true);
+    const Chain owning(pts, pgl::trusted);
     const View view(pts);
 
     SUBCASE("contains / isBelow / yAtX agree") {
@@ -95,7 +95,7 @@ TEST_CASE("MonotoneChainView supports O(1) translation without touching the buff
     CHECK(pts[0] == Point(0, 0));
 
     // A translated view still equals the correspondingly translated owning chain.
-    const Chain owning(pts, /*trusted=*/true);
+    const Chain owning(pts, pgl::trusted);
     CHECK(view == (owning + Point(10, 5)));
 }
 
@@ -107,7 +107,7 @@ TEST_CASE("MonotoneChainView value-returning transforms yield owning chains") {
     // The result owns its vertices (a vector-backed chain), not a span.
     static_assert(std::is_same_v<decltype(rotated), const Chain>);
 
-    const Chain owning(pts, /*trusted=*/true);
+    const Chain owning(pts, pgl::trusted);
     CHECK(rotated == owning.rotated90());
 
     const auto scaled = view.scaledUpX(3);

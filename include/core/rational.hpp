@@ -851,11 +851,11 @@ public:
     // user-defined conversion, i.e. for a class-type Int such as BigInt.
     template <class I>
         requires (pgl::detail::extended_integral<I> || std::same_as<I, Int>)
-    constexpr Rational operator+(const I& x) const { return *this + Rational(Int(x), true); }
+    constexpr Rational operator+(const I& x) const { return *this + Rational(Int(x), Int(1), true); }
 
     template <class I>
         requires (pgl::detail::extended_integral<I> || std::same_as<I, Int>)
-    constexpr Rational operator-(const I& x) const { return *this - Rational(Int(x), true); }
+    constexpr Rational operator-(const I& x) const { return *this - Rational(Int(x), Int(1), true); }
 
     template <class I>
         requires (pgl::detail::extended_integral<I> || std::same_as<I, Int>)

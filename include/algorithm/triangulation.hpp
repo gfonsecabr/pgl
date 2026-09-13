@@ -1686,7 +1686,7 @@ struct Triangulation {
         // a contained boundary must not have enclosed a hole.
         if (!holeWitnesses_.empty()) {
             const std::vector<PointType> hullVertices(hull.begin(), hull.begin() + hullSize);
-            const Convex<PointType> convexHull(hullVertices, true);
+            const Convex<PointType> convexHull(hullVertices, pgl::trusted);
             for (const TriangleType& witness : holeWitnesses_) {
                 if (convexHull.contains(witness)) {
                     return false;
@@ -1998,7 +1998,7 @@ struct Triangulation {
                 continue;  // no area, so nothing of the domain to carry
             }
             std::rotate(kept.begin(), std::min_element(kept.begin(), kept.end()), kept.end());
-            pieces.push_back(Convex<PointType>(kept, /*trusted=*/true));
+            pieces.push_back(Convex<PointType>(kept, pgl::trusted));
         }
         std::sort(pieces.begin(), pieces.end());
         return pieces;
@@ -2191,7 +2191,7 @@ struct Triangulation {
             assert(kept.size() >= 3);
             std::rotate(kept.begin(), std::min_element(kept.begin(), kept.end()), kept.end());
             candidates.push_back(
-                Candidate{std::move(fusedTriangles), Convex<PointType>(kept, /*trusted=*/true)});
+                Candidate{std::move(fusedTriangles), Convex<PointType>(kept, pgl::trusted)});
         }
 
         // Maintain each candidate's uncovered gain through the inverse
