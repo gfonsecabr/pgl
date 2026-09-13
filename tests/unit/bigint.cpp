@@ -441,3 +441,43 @@ TEST_CASE("Division and remainder of wide values satisfy the division identity")
     CHECK(pow2(130) + BigInt(1) > wide);
     CHECK(pow2(200) > pow2(130) * pow2(69));
 }
+
+TEST_CASE("gcd agrees with the Euclidean definition across the word boundaries") {
+    using pgl::BigInt;
+    const auto pow2 = [](int k) { return pgl::detail::pow2(k); };
+    // The reference: Euclid's loop over `%`, which is what the fast path
+    // replaces while both operands are inline.
+    const auto euclid = [](BigInt a, BigInt b) {
+        a = a.abs();
+        b = b.abs();
+        while (b != 0) {
+            BigInt r = a % b;
+            a = b;
+            b = r;
+        }
+        return a;
+    };
+    const BigInt values[] = {BigInt(0), BigInt(1), BigInt(6), BigInt(-6), BigInt(35),
+                             pow2(63), pow2(64), pow2(64) + BigInt(1), pow2(64) * BigInt(3),
+                             pow2(100) * BigInt(15), pow2(126), pow2(126) * BigInt(-1),
+                             pow2(127) - BigInt(1), BigInt(12345678901234567LL) * BigInt(9876543210LL),
+                             pow2(70) * BigInt(6), pow2(90) * BigInt(10), pow2(130) * BigInt(21),
+                             pow2(200) + BigInt(1)};
+    for (const BigInt& a : values) {
+        for (const BigInt& b : values) {
+            const BigInt g = pgl::detail::gcd(a.abs(), b.abs());
+            CHECK(g == euclid(a, b));
+            if (g != 0) {
+                CHECK(a % g == 0);
+                CHECK(b % g == 0);
+            }
+        }
+    }
+    std::mt19937_64 rng(7);
+    for (int i = 0; i < 2000; ++i) {
+        const BigInt common = BigInt(static_cast<std::int64_t>(rng() >> 20)) + BigInt(1);
+        const BigInt a = common * BigInt(static_cast<std::int64_t>(rng() >> 1)) * BigInt(static_cast<std::int64_t>(rng() >> 40));
+        const BigInt b = common * BigInt(static_cast<std::int64_t>(rng() >> 2));
+        CHECK(pgl::detail::gcd(a, b) == euclid(a, b));
+    }
+}

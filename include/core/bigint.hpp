@@ -16,6 +16,7 @@
  * compound assignment, increment/decrement, conversions, and stream I/O.
  */
 
+#include <bit>
 #include <cassert>
 #include <cmath>
 #include <compare>
@@ -25,6 +26,7 @@
 #include <functional>
 #include <iostream>
 #include <limits>
+#include <numeric>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -946,6 +948,65 @@ public:
 
 /// @brief Free-function absolute value, matching the integer helpers.
 inline BigInt abs(const BigInt& v) { return v.abs(); }
+
+namespace detail {
+
+/**
+ * @brief Greatest common divisor of two BigInts, on machine words while both
+ *        fit in one.
+ *
+ * The generic Euclid loop takes a `%` per step, which even on the inline store
+ * is a 128-bit division at a few tens of nanoseconds, some forty times over for
+ * the fractions an arrangement reduces. A binary gcd over the unsigned 128-bit
+ * magnitudes needs only shifts and subtractions, and drops to the hardware
+ * 64-bit gcd as soon as both halves have emptied. A limb-held operand takes the
+ * generic loop, whose first remainder brings it back inline.
+ */
+inline BigInt gcd(BigInt a, BigInt b) {
+#if defined(__SIZEOF_INT128__)
+    if (a.fitsInt128() && b.fitsInt128()) {
+        const auto magnitude = [](const BigInt& value) {
+            const pgl::int128 v = static_cast<pgl::int128>(value);
+            return v < 0 ? static_cast<__uint128_t>(-v) : static_cast<__uint128_t>(v);
+        };
+        __uint128_t x = magnitude(a);
+        __uint128_t y = magnitude(b);
+        if (x == 0 || y == 0) {
+            return BigInt(static_cast<pgl::int128>(x | y));
+        }
+        const auto trailingZeros = [](__uint128_t v) {
+            const auto low = static_cast<std::uint64_t>(v);
+            return low != 0 ? std::countr_zero(low)
+                            : 64 + std::countr_zero(static_cast<std::uint64_t>(v >> 64));
+        };
+        const int shift = trailingZeros(x | y);
+        x >>= trailingZeros(x);
+        while ((x >> 64) != 0 || (y >> 64) != 0) {
+            y >>= trailingZeros(y);
+            if (x > y) {
+                std::swap(x, y);
+            }
+            y -= x;
+            if (y == 0) {
+                return BigInt(static_cast<pgl::int128>(x << shift));
+            }
+        }
+        const std::uint64_t word = std::gcd(static_cast<std::uint64_t>(x), static_cast<std::uint64_t>(y));
+        return BigInt(static_cast<pgl::int128>(static_cast<__uint128_t>(word) << shift));
+    }
+#endif
+    if (a == b) {
+        return a;
+    }
+    while (b != 0) {
+        BigInt remainder = a % b;
+        a = std::move(b);
+        b = std::move(remainder);
+    }
+    return a;
+}
+
+}  // namespace detail
 
 }  // namespace pgl
 
