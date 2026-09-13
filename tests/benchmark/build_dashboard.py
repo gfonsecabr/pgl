@@ -263,6 +263,9 @@ PROBLEM_ORDER = ["build", "buildPointLocation", "locate", "locateFace",
                  "count in Rectangle", "count in Triangle", "nearest neighbor",
                  "visibility graph", "visible vertices",
                  "Minkowski sum", "union"]
+# The public entry point of a category comes first, so it is the algorithm a
+# problem opens on; the named algorithms it chooses between follow.
+ALGORITHM_ORDER = ["findIntersections", "findCrossings"]
 
 # A CGAL entry may be the independent reference for one specific pgl algorithm,
 # rather than for every algorithm that solves the same problem.
@@ -342,7 +345,7 @@ def build_asymptotic(history: str, repo_base: str, bench_root: str):
             for machine, keys in entry["_data"].items()
         }
         orders = {"dataset": DATASET_ORDER, "problem": PROBLEM_ORDER,
-                  "algorithm": [], "type": TYPE_ORDER}
+                  "algorithm": ALGORITHM_ORDER, "type": TYPE_ORDER}
         result = {
             "dimensions": {d: sorted(vals, key=order_key(orders[d]))
                            for d, vals in entry["dims"].items()},
