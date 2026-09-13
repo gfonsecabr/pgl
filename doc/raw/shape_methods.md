@@ -193,7 +193,7 @@ pgl::EPolygonSet again  = holed.difference(pgl::Rectangle(0,0,2,2));
 pgl::EPolygonSet merged = again.regularizedUnion(holed);
 ```
 
-To unite a range of regions in one arrangement, use `regularizedUnionOf` and
+To unite a range of regions at once, use `regularizedUnionOf` and
 specify the result point type. The range may hold any one of the six bounded
 region types:
 

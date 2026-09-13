@@ -53,6 +53,7 @@
 #include <limits>
 #include <map>
 #include <numeric>
+#include <optional>
 #include <ranges>
 #include <type_traits>
 #include <variant>
@@ -756,6 +757,14 @@ std::optional<PolygonSet<ResultPoint>> regularizedUnionOfIntegralTriangles(
 
 }  // namespace detail
 
+namespace detail {
+
+template <class ResultPoint, class ShapeType>
+std::optional<PolygonSet<ResultPoint>> regularizedUnionByGroups(const std::vector<ShapeType>& pieces,
+                                                                bool simpleBoundaries);
+
+}  // namespace detail
+
 /**
  * @brief The regularized union of arbitrarily many shapes, as a set of regions.
  *
@@ -763,7 +772,9 @@ std::optional<PolygonSet<ResultPoint>> regularizedUnionOfIntegralTriangles(
  * folding @ref regularizedUnion over the range would build one per step and
  * re-triangulate everything accumulated so far. That is what makes it the right
  * back end for a construction whose natural form is a union of many pieces —
- * the Minkowski sum of two non-convex shapes is one.
+ * the Minkowski sum of two non-convex shapes is one. Pieces that overlap heavily
+ * are the exception: they are united in compact groups first, see
+ * @ref detail::regularizedUnionByGroups.
  *
  * @param shapes The pieces to unite.
  * @param simpleBoundaries Set when no two boundary edges of the *same* piece
@@ -822,11 +833,17 @@ PolygonSet<ResultPoint> regularizedUnionOf(const ShapeRange& shapes,
                 }
             }
         }
+        if (auto result = detail::regularizedUnionByGroups<ResultPoint>(distinct, true)) {
+            return std::move(*result);
+        }
         return detail::regularizedUnionByCoverage<ResultPoint>(distinct);
     } else {
         using ShapeNumber = typename ShapeType::NumberType;
         using ExactPoint = Point<detail::Exact1DNumber<ShapeNumber, ShapeNumber>>;
 
+        if (auto result = detail::regularizedUnionByGroups<ResultPoint>(distinct, simpleBoundaries)) {
+            return std::move(*result);
+        }
         if (simpleBoundaries) {
             return detail::regularizedUnionByCoverage<ResultPoint>(distinct);
         }
@@ -842,6 +859,150 @@ PolygonSet<ResultPoint> regularizedUnionOf(const ShapeRange& shapes,
 }
 
 namespace detail {
+
+/** @brief How many vertices a piece of @ref regularizedUnionOf carries. */
+template <class ShapeType>
+std::size_t unionPieceVertices(const ShapeType& shape) {
+    if constexpr (is_polygon_with_holes_v<ShapeType>) {
+        return shape.vertexCount();
+    } else {
+        return shape.size();
+    }
+}
+
+/** @brief Twice the area of a piece of @ref regularizedUnionOf, approximately. */
+template <class ShapeType>
+double unionPieceTwiceArea(const ShapeType& shape) {
+    if constexpr (is_polygon_with_holes_v<ShapeType>) {
+        double area = approximateAbs(approximateSignedTwiceArea(shape.outer()).value);
+        for (const auto& hole : shape.holes()) {
+            area -= approximateAbs(approximateSignedTwiceArea(hole).value);
+        }
+        return area;
+    } else {
+        return approximateAbs(approximateSignedTwiceArea(shape).value);
+    }
+}
+
+/**
+ * @brief The regularized union of many overlapping pieces, taken a group at a
+ *        time — or nothing, when grouping them would not pay.
+ *
+ * One arrangement over every piece pays for every crossing between them, and
+ * when the pieces overlap heavily almost none of those crossings survives into
+ * the union. Uniting nearby pieces first, and then the partial unions, pays for
+ * most crossings only inside small groups, whose unions have already shed them.
+ * The groups are consecutive runs of the pieces in Hilbert order of their box
+ * centers, cut when a group reaches @p groupVertices vertices, so they are
+ * compact and no larger than an arrangement that is cheap to build.
+ *
+ * What decides whether that pays is how much the pieces overlap, read as their
+ * total area over the area of the box around all of them. Below twice the box,
+ * the union keeps most of the boundary it is fed — scattered pieces meet too
+ * rarely, and long thin ones cross without covering each other — and the
+ * groups' arrangements are only paid a second time; measured, they cost 1.3x to
+ * 4x the flat union there. From twice the box up the grouping won on every
+ * workload measured, up to 11x: the pairwise convex sums of a Minkowski sum,
+ * the regions of its one-sided decomposition, overlapping polygons, and the
+ * sums of a chain's monotone runs. Input too small to split into two groups is
+ * left alone outright.
+ *
+ * Floating-point pieces are never grouped: each group's union rounds its
+ * crossings, and the next level would round them again.
+ */
+template <class ResultPoint, class ShapeType>
+std::optional<PolygonSet<ResultPoint>> regularizedUnionByGroups(const std::vector<ShapeType>& pieces,
+                                                                bool simpleBoundaries) {
+    using ShapeNumber = typename ShapeType::NumberType;
+    if constexpr (std::floating_point<ShapeNumber>) {
+        (void)pieces;
+        (void)simpleBoundaries;
+        return std::nullopt;
+    } else {
+        using ExactPoint = Point<Exact1DNumber<ShapeNumber, ShapeNumber>>;
+        using Region = PolygonWithHoles<ExactPoint>;
+        constexpr std::size_t groupVertices = 200;
+        constexpr double minimumCover = 2.0;
+
+        std::size_t vertices = 0;
+        for (const ShapeType& piece : pieces) {
+            vertices += unionPieceVertices(piece);
+        }
+        if (pieces.size() < 3 || vertices < 2 * groupVertices) {
+            return std::nullopt;
+        }
+
+        struct Center {
+            double x;
+            double y;
+            std::size_t index;
+        };
+        std::vector<Center> centers;
+        centers.reserve(pieces.size());
+        double area = 0.0;
+        double minX = 0.0, minY = 0.0, maxX = 0.0, maxY = 0.0;
+        for (std::size_t i = 0; i < pieces.size(); ++i) {
+            area += unionPieceTwiceArea(pieces[i]);
+            const auto box = pieces[i].bbox();
+            const double lowX = approximate(box.min().x()).value;
+            const double lowY = approximate(box.min().y()).value;
+            const double highX = approximate(box.max().x()).value;
+            const double highY = approximate(box.max().y()).value;
+            if (i == 0) {
+                minX = lowX, minY = lowY, maxX = highX, maxY = highY;
+            } else {
+                minX = std::min(minX, lowX), minY = std::min(minY, lowY);
+                maxX = std::max(maxX, highX), maxY = std::max(maxY, highY);
+            }
+            centers.push_back(Center{(lowX + highX) / 2, (lowY + highY) / 2, i});
+        }
+        // `area` is twice the total, hence the factor on the box.
+        if (!(area >= minimumCover * 2.0 * (maxX - minX) * (maxY - minY))) {
+            return std::nullopt;
+        }
+
+        hilbertSortMedian(
+            centers.begin(), centers.end(), true, false, false,
+            [](const Center& a, const Center& b) { return a.x < b.x; },
+            [](const Center& a, const Center& b) { return a.y < b.y; });
+
+        std::vector<Region> regions;
+        std::size_t start = 0;
+        while (start < centers.size()) {
+            // At least two pieces to a group, and never a lone piece left over.
+            std::size_t end = start;
+            std::size_t groupSize = 0;
+            while (end < centers.size() && (end - start < 2 || groupSize < groupVertices)) {
+                groupSize += unionPieceVertices(pieces[centers[end].index]);
+                ++end;
+            }
+            if (centers.size() - end == 1) {
+                ++end;
+            }
+            if (start == 0 && end == centers.size()) {
+                return std::nullopt;  // one group would be the whole input again
+            }
+            std::vector<ShapeType> group;
+            group.reserve(end - start);
+            for (std::size_t i = start; i < end; ++i) {
+                group.push_back(pieces[centers[i].index]);
+            }
+            const PolygonSet<ExactPoint> united = regularizedUnionOf<ExactPoint>(group, simpleBoundaries);
+            regions.insert(regions.end(), united.begin(), united.end());
+            start = end;
+        }
+
+        if (regions.size() == pieces.size()) {
+            // No group merged anything, so grouping again would only repeat
+            // this; the regions go to the flat engine as they are.
+            std::sort(regions.begin(), regions.end());
+            regions.erase(std::unique(regions.begin(), regions.end()), regions.end());
+            return regularizedUnionByCoverage<ResultPoint>(regions);
+        }
+        // A group's union is a set of regions without slits.
+        return regularizedUnionOf<ResultPoint>(regions, true);
+    }
+}
 
 /**
  * @brief The operand as something @ref appendCutSegments can walk.

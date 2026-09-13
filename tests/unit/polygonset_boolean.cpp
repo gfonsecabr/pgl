@@ -287,3 +287,64 @@ TEST_CASE("PolygonSet boolean results are valid sets") {
         CHECK(result.twiceArea() == pgl::ERational(32 - 8));
     }
 }
+
+TEST_CASE("regularizedUnionOf groups heavily overlapping pieces without changing the answer") {
+    // Enough overlapping pieces that the union is taken a group at a time, which
+    // must agree with the single arrangement over all of them.
+    using ConvexShape = pgl::Convex<Point>;
+    using EPoint = pgl::EPoint;
+    using ERegion = pgl::PolygonWithHoles<EPoint>;
+
+    // Octagons on a jittered grid, each wide enough to cover several neighbours,
+    // so the pieces cover their box many times over.
+    std::vector<ConvexShape> octagons;
+    std::vector<PolygonShape> polygons;
+    std::vector<ERegion> regions;
+    for (int i = 0; i < 12; ++i) {
+        for (int j = 0; j < 12; ++j) {
+            const int x = 7 * i + (i * j) % 3;
+            const int y = 7 * j + (i + 2 * j) % 4;
+            const std::vector<Point> ring{Point(x + 10, y), Point(x + 20, y), Point(x + 30, y + 10),
+                                          Point(x + 30, y + 20), Point(x + 20, y + 30),
+                                          Point(x + 10, y + 30), Point(x, y + 20), Point(x, y + 10)};
+            octagons.emplace_back(ring);
+            polygons.emplace_back(ring);
+            regions.emplace_back(pgl::Polygon<EPoint>(ring));
+        }
+    }
+    // A square with a hole, away from the octagons, whose hole nothing covers.
+    const ERegion holed(pgl::Polygon<EPoint>({EPoint(200, 200), EPoint(260, 200), EPoint(260, 260),
+                                               EPoint(200, 260)}),
+                        std::vector<pgl::Polygon<EPoint>>{pgl::Polygon<EPoint>(
+                            {EPoint(220, 220), EPoint(240, 220), EPoint(240, 240), EPoint(220, 240)})});
+
+    // The flat engine, for reference.
+    const auto flat = pgl::detail::regularizedUnionByCoverage<EPoint>(regions);
+    REQUIRE(flat.componentCount() == 1);
+
+    // Each input type reaches the grouping, and answers as the flat engine does.
+    CHECK(pgl::detail::regularizedUnionByGroups<EPoint>(octagons, true).has_value());
+    CHECK(pgl::regularizedUnionOf<EPoint>(octagons) == flat);
+    CHECK(pgl::regularizedUnionOf<EPoint>(polygons) == flat);          // witness engine
+    CHECK(pgl::regularizedUnionOf<EPoint>(polygons, true) == flat);    // coverage engine
+    CHECK(pgl::regularizedUnionOf<EPoint>(regions, true) == flat);
+
+    // A separate holed piece keeps its hole and its own component.
+    std::vector<ERegion> withHole(regions);
+    withHole.push_back(holed);
+    const auto separated = pgl::regularizedUnionOf<EPoint>(withHole, true);
+    CHECK(separated == pgl::detail::regularizedUnionByCoverage<EPoint>(withHole));
+    REQUIRE(separated.componentCount() == 2);
+    CHECK(separated.component(0).holeCount() + separated.component(1).holeCount() == 1);
+
+    // Scattered pieces are left to the single arrangement.
+    std::vector<ConvexShape> scattered;
+    for (int i = 0; i < 60; ++i) {
+        const int x = 100 * i;
+        scattered.emplace_back(std::vector<Point>{Point(x, 0), Point(x + 10, 0), Point(x + 10, 10),
+                                                  Point(x, 10), Point(x + 5, -3), Point(x + 5, 13),
+                                                  Point(x - 3, 5), Point(x + 13, 5)});
+    }
+    CHECK_FALSE(pgl::detail::regularizedUnionByGroups<EPoint>(scattered, true).has_value());
+    CHECK(pgl::regularizedUnionOf<EPoint>(scattered).componentCount() == 60);
+}
