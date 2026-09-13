@@ -1424,6 +1424,18 @@ function asymChart(canvas, name, category, state, machine, depth) {
           labels: {
             boxWidth: 14, usePointStyle: true,
             filter: (item, data) => data.datasets[item.datasetIndex].legendEntry,
+            // With usePointStyle, Chart.js styles each swatch from the point,
+            // which has no dash, so every CGAL reference would show a solid
+            // line. The dash is what tells a curve's references apart.
+            generateLabels: (chart) =>
+              Chart.defaults.plugins.legend.labels.generateLabels(chart).map((item) => {
+                const dataset = chart.data.datasets[item.datasetIndex];
+                if (dataset.borderDash) {
+                  item.lineDash = dataset.borderDash;
+                  item.lineWidth = dataset.borderWidth;
+                }
+                return item;
+              }),
           },
         },
         tooltip: {
