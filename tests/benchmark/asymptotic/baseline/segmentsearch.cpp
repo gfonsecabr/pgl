@@ -17,6 +17,12 @@
 // otherwise pay for it -- so build() is called inside the timed region, and the
 // query rows are measured against a tree that is already standing.
 //
+// Each primitive caches its segment (CacheDatum = Tag_true) rather than reading
+// it back through the iterator: that is the faster tree for both queries under
+// both kernels. It builds faster under EPECK too, and about 8% slower under
+// EPICK, where the build row still measures it -- the build of the tree that
+// answers the queries.
+//
 // The sweep runs under both kernels -- EPICK as the reference for pgl's `int`
 // column, EPECK for `ERational`. The counts are exact under either: the
 // hierarchy's bounding boxes are already double intervals rounded outwards
@@ -54,7 +60,7 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
 
     using Segment   = typename K::Segment_2;
     using Iterator  = typename std::vector<Segment>::const_iterator;
-    using Primitive = CGAL::AABB_segment_primitive_2<K, Iterator>;
+    using Primitive = CGAL::AABB_segment_primitive_2<K, Iterator, CGAL::Tag_true>;
     using Traits    = CGAL::AABB_traits_2<K, Primitive>;
     using Tree      = CGAL::AABB_tree<Traits>;
 

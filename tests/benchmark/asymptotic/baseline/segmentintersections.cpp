@@ -46,21 +46,27 @@
 #include "cgal.hpp"
 #include "../sizes.hpp"
 
+#include <CGAL/Arr_non_caching_segment_traits_2.h>
 #include <CGAL/Surface_sweep_2_algorithms.h>
 
 #include <span>
+#include <type_traits>
 #include <vector>
 
 namespace {
 
-template <class K>
+// The sweep's traits, chosen per dataset for speed. The caching segment traits
+// are CGAL's default and 4-8x faster wherever segments cross. The polygon edges
+// barely meet, and there the non-caching traits are about 20% faster under
+// EPECK; under EPICK they gain nothing there and crash on the crossing datasets.
+template <class K, class Traits = CGAL::Arr_segment_traits_2<K>>
 void sweepDataset(const bench::Options& opt, const char* dataset,
                   std::span<const int> sizes,
                   std::vector<bench::IntSegment> (*generate)(int)) {
     if (!bench::matches(opt.dataset, dataset)) return;
 
-    using Traits = CGAL::Arr_segment_traits_2<K>;
     using Curve  = typename Traits::Curve_2;
+    const Traits traits;
     const char* number = bench::cgal::numberName<K>;
 
     for (const int n : bench::sweep(sizes, opt)) {
@@ -78,7 +84,7 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
             const double us = bench::timeOnce(result, [&] {
                 std::vector<typename K::Point_2> hits;
                 CGAL::compute_intersection_points(curves.begin(), curves.end(),
-                                                  std::back_inserter(hits), true);
+                                                  std::back_inserter(hits), true, traits);
                 return hits.size();
             });
             bench::emit("Segment intersections", dataset, "intersections",
@@ -92,7 +98,7 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
             const double us = bench::timeOnce(result, [&] {
                 std::vector<typename K::Point_2> hits;
                 CGAL::compute_intersection_points(curves.begin(), curves.end(),
-                                                  std::back_inserter(hits), false);
+                                                  std::back_inserter(hits), false, traits);
                 return hits.size();
             });
             bench::emit("Segment intersections", dataset, "crossings",
@@ -107,7 +113,12 @@ void run(const bench::Options& opt) {
     if (!bench::cgal::selected<K>(opt)) return;
     sweepDataset<K>(opt, "small segments", bench::kSegmentsSmall, bench::smallSegments);
     sweepDataset<K>(opt, "large segments", bench::kSegmentsLarge, bench::largeSegments);
-    sweepDataset<K>(opt, "polygon edges",  bench::kSegmentsPolygon, bench::polygonEdges);
+    if (std::is_same_v<K, bench::cgal::Kernel>) {
+        sweepDataset<K, CGAL::Arr_non_caching_segment_traits_2<K>>(
+            opt, "polygon edges", bench::kSegmentsPolygon, bench::polygonEdges);
+    } else {
+        sweepDataset<K>(opt, "polygon edges", bench::kSegmentsPolygon, bench::polygonEdges);
+    }
 }
 
 }  // namespace

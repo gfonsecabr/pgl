@@ -20,20 +20,33 @@
 // is measured: CGAL's Kd_tree constructor only stores the points, and the
 // hierarchy is built on the first query. build() is therefore called inside the
 // timed region, so the row measures the work pgl's constructor does rather than
-// a copy of a vector.
+// a copy of a vector. Nor is it CGAL's default tree: it is each of the trees the
+// Point search queries run on, and the row reports the fastest of their builds
+// (see kdtree.hpp).
 #include "cgal.hpp"
+#include "kdtree.hpp"
 #include "../sizes.hpp"
 
 #include <CGAL/Delaunay_triangulation_2.h>
-#include <CGAL/Kd_tree.h>
-#include <CGAL/Search_traits_2.h>
 #include <CGAL/convex_hull_2.h>
 
+#include <algorithm>
 #include <iterator>
 #include <span>
 #include <vector>
 
 namespace {
+
+/** Time to store the points and build one of the tuned kd-trees. */
+template <class K, class Splitter>
+double buildTime(const std::vector<typename K::Point_2>& pts, int bucket,
+                 long long& result) {
+    return bench::timeOnce(result, [&] {
+        bench::cgal::KdTree<K, Splitter> tree(pts.begin(), pts.end(), Splitter(bucket));
+        tree.build();
+        return static_cast<long long>(tree.size());
+    });
+}
 
 template <class K>
 void run(const bench::Options& opt) {
@@ -42,8 +55,7 @@ void run(const bench::Options& opt) {
 
     using Point         = typename K::Point_2;
     using Triangulation = CGAL::Delaunay_triangulation_2<K>;
-    using SearchTraits  = CGAL::Search_traits_2<K>;
-    using Tree          = CGAL::Kd_tree<SearchTraits>;
+    using Tuning        = bench::cgal::KdTreeTuning<K>;
 
     // One problem of the category: its own size list, its own one-shot
     // construction, and a signature computed inside the timed region so the
@@ -75,12 +87,21 @@ void run(const bench::Options& opt) {
                 triangulation.insert(pts.begin(), pts.end());
                 return static_cast<long long>(triangulation.number_of_faces());
             });
-    forEach("kd-tree", "CGAL::Kd_tree", bench::kPointTree,
-            [](const std::vector<Point>& pts) -> long long {
-                Tree tree(pts.begin(), pts.end());
-                tree.build();
-                return static_cast<long long>(tree.size());
-            });
+    if (bench::matches(opt.problem, "kd-tree")) {
+        for (const int n : bench::sweep(bench::kPointTree, opt)) {
+            const auto pts = bench::cgal::points<K>(bench::points(n));
+            long long result = 0;
+            const double us = std::min({
+                buildTime<K, typename Tuning::RectangleSplitter>(
+                    pts, Tuning::rectangleBucket, result),
+                buildTime<K, typename Tuning::TriangleSplitter>(
+                    pts, Tuning::triangleBucket, result),
+                buildTime<K, typename Tuning::NearestSplitter>(
+                    pts, Tuning::nearestBucket, result)});
+            bench::emit("Point constructions", "points", "kd-tree", "CGAL::Kd_tree",
+                        number, n, result, us);
+        }
+    }
 }
 
 }  // namespace

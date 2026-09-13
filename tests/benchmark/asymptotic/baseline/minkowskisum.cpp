@@ -1,4 +1,4 @@
-// @desc: CGAL reference for the Minkowski sum category, two of them, over the
+// @desc: CGAL reference for the Minkowski sum category, three of them, over the
 // same operands.
 //
 // The first is minkowski_sum_2 with a triangulation-based decomposition: the
@@ -10,12 +10,19 @@
 // them together separates "pgl's decomposition is slower than CGAL's" from
 // "decomposition is the slower approach".
 //
-// Both report the total number of boundary vertices, which is what pgl's driver
-// reports. The two CGAL rows must agree with each other and with pgl's at every
+// The third is minkowski_sum_2 with Hertel–Mehlhorn convex pieces, CGAL's
+// fastest decomposition here. It is not pgl's strategy; it is there because the
+// reference races CGAL at its best. Reduced convolution is the fastest of CGAL's
+// methods up to roughly n = 150 on these datasets, and this row overtakes it
+// above that.
+//
+// All report the total number of boundary vertices, which is what pgl's driver
+// reports. The CGAL rows must agree with each other and with pgl's at every
 // size.
 #include "cgal.hpp"
 #include "../sizes.hpp"
 
+#include <CGAL/Polygon_convex_decomposition_2.h>
 #include <CGAL/Polygon_triangulation_decomposition_2.h>
 #include <CGAL/Polygon_with_holes_2.h>
 #include <CGAL/minkowski_sum_2.h>
@@ -25,6 +32,7 @@
 namespace {
 
 using Decomposition = CGAL::Polygon_triangulation_decomposition_2<bench::cgal::Kernel>;
+using ConvexPieces  = CGAL::Hertel_Mehlhorn_convex_decomposition_2<bench::cgal::Kernel>;
 
 void sweepDataset(const bench::Options& opt, const char* dataset,
                   std::span<const int> sizes, bool bothSwept) {
@@ -53,10 +61,21 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
                 CGAL::minkowski_sum_by_reduced_convolution_2(a, b));
         });
         bench::require(convolved == decomposed,
-                       "CGAL's two Minkowski sums disagree on the vertex count");
+                       "CGAL's Minkowski sums disagree on the vertex count");
         bench::emit("Minkowski sum", dataset, "Minkowski sum",
                     "CGAL::minkowski_sum_by_reduced_convolution_2",
                     bench::cgal::kNumber, n, convolved, convolvedUs);
+
+        long long convex = 0;
+        const double convexUs = bench::timeOnce(convex, [&] {
+            ConvexPieces pieces;
+            return bench::cgal::vertexCount(CGAL::minkowski_sum_2(a, b, pieces));
+        });
+        bench::require(convex == decomposed,
+                       "CGAL's Minkowski sums disagree on the vertex count");
+        bench::emit("Minkowski sum", dataset, "Minkowski sum",
+                    "CGAL::minkowski_sum_2 (Hertel_Mehlhorn)", bench::cgal::kNumber,
+                    n, convex, convexUs);
     }
 }
 

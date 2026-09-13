@@ -2,7 +2,7 @@
 // random points, answering the same rectangle, triangle and nearest-neighbour
 // queries pgl's ShapeTree answers.
 //
-// Three things need saying about how the rows below are made comparable.
+// Four things need saying about how the rows below are made comparable.
 //
 // CGAL's kd-tree builds lazily -- the constructor only stores the points, and
 // the hierarchy appears on the first query. `build()` is therefore called
@@ -16,6 +16,10 @@
 // misses the triangle, take a whole subtree whose rectangle lies inside it,
 // test the rest point by point. Both tests are exact.
 //
+// The tree is not CGAL's default one. Each query runs on the splitter and
+// bucket size that answer it fastest, a tree of its own, and the build row
+// reports the fastest build among those trees; see kdtree.hpp.
+//
 // The sweep runs under both kernels -- EPICK as the reference for pgl's `int`
 // column, EPECK for `ERational`. The counting rows are exact under either: a
 // node's splitting value is a construction, but it is only ever compared
@@ -25,18 +29,19 @@
 // the squared distances it orders stay under 10^9 on this dataset, and they
 // are what the row's signature sums.
 #include "cgal.hpp"
+#include "kdtree.hpp"
 #include "../sizes.hpp"
 
 #include <CGAL/Fuzzy_iso_box.h>
-#include <CGAL/Kd_tree.h>
 #include <CGAL/Kd_tree_rectangle.h>
 #include <CGAL/Orthogonal_k_neighbor_search.h>
-#include <CGAL/Search_traits_2.h>
 #include <CGAL/intersections.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <deque>
 #include <iterator>
+#include <limits>
 #include <type_traits>
 #include <vector>
 
@@ -129,13 +134,18 @@ void run(const bench::Options& opt) {
     if (!bench::cgal::selected<K>(opt)) return;
     const char* number = bench::cgal::numberName<K>;
 
-    using Traits = CGAL::Search_traits_2<K>;
-    using Tree   = CGAL::Kd_tree<Traits>;
-    using Box    = CGAL::Fuzzy_iso_box<Traits>;
-    using Search = CGAL::Orthogonal_k_neighbor_search<Traits>;
+    using Tuning        = bench::cgal::KdTreeTuning<K>;
+    using Traits        = CGAL::Search_traits_2<K>;
+    using RectangleTree = bench::cgal::KdTree<K, typename Tuning::RectangleSplitter>;
+    using TriangleTree  = bench::cgal::KdTree<K, typename Tuning::TriangleSplitter>;
+    using NearestTree   = bench::cgal::KdTree<K, typename Tuning::NearestSplitter>;
+    using Box           = CGAL::Fuzzy_iso_box<Traits>;
+    using Search        = CGAL::Orthogonal_k_neighbor_search<
+        Traits, CGAL::Euclidean_distance<Traits>, typename Tuning::NearestSplitter,
+        NearestTree>;
 
-    static_assert(std::is_same_v<typename Search::Tree, Tree>,
-                  "the neighbour search must query the same tree the build row measured");
+    static_assert(std::is_same_v<typename Search::Tree, NearestTree>,
+                  "the neighbour search must query the tree the build row measured");
 
     // The query batches, converted once: the same shapes, in the same order,
     // that the pgl driver hands its tree.
@@ -158,20 +168,25 @@ void run(const bench::Options& opt) {
         const auto pts = bench::cgal::points<K>(bench::points(n));
         long long result = 0;
 
-        Tree tree(pts.begin(), pts.end());
-        const double buildUs = bench::timeOnce(result, [&] {
-            tree.build();
-            return tree.size();
-        });
-        if (bench::matches(opt.problem, "build")) {
-            bench::emit("Point search", "points", "build", "CGAL::Kd_tree",
-                        number, n, result, buildUs);
-        }
-        bench::require(tree.is_built(), "the kd-tree was never built");
+        // One tree per query, and the fastest of their builds is the build row.
+        // Each batch is timed once, so the state of the tree it runs on shows:
+        // a tree left cold behind another tree's build pays for that in its
+        // first queries. So each tree is built immediately before its own batch
+        // and freed after it, and the nearest-neighbour tree first answers the
+        // two counting batches untimed -- the state pgl's single tree is in when
+        // its nearest-neighbour batch runs, after the counting ones.
+        double buildUs = std::numeric_limits<double>::infinity();
+        const auto build = [&](auto& tree) {
+            buildUs = std::min(buildUs, bench::timeOnce(result, [&] {
+                tree.build();
+                return tree.size();
+            }));
+            bench::require(tree.is_built(), "the kd-tree was never built");
+        };
 
         // As in pgl's driver, the signature is the total count over the batch,
         // so it is directly comparable with the ShapeTree rows'.
-        const auto measure = [&](const char* problem, const auto& shapes) {
+        const auto measure = [&](const char* problem, const auto& tree, const auto& shapes) {
             if (!bench::matches(opt.problem, problem)) return;
             const double us = bench::timeOnce(result, [&] {
                 std::size_t total = 0;
@@ -183,35 +198,56 @@ void run(const bench::Options& opt) {
             bench::emit("Point search", "points", problem, "CGAL::Kd_tree::search",
                         number, n, result, us / bench::kQueryBatch);
         };
-        measure("count in Rectangle", boxes);
-        measure("count in Triangle", triangles);
-
-        if (bench::matches(opt.problem, "nearest neighbor")) {
-            const double us = bench::timeOnce(result, [&] {
-                double sum = 0;
-                for (const auto& q : queries) {
-                    Search search(tree, q, 1);
-                    sum += CGAL::to_double(search.begin()->second);
-                }
-                return sum;
-            });
-            // The same checksum over the answers' distances the pgl driver
-            // takes, and the same output column: a nearest neighbour is one
-            // point however large the tree is, so these rows report the tree
-            // they searched.
-            //
-            // Summing the distance rather than the point is what makes this
-            // row match to the digit like every other one. A query equidistant
-            // from two points has two correct answers and the two libraries
-            // need not pick the same one -- over the checked-in sweep that
-            // happens to a query or two of the thousand at any size -- but
-            // both answers are the same distance from the query, and that is
-            // the number being summed. The search already computed it, so
-            // reading it costs the baseline nothing.
-            bench::emit("Point search", "points", "nearest neighbor",
-                        "CGAL::Orthogonal_k_neighbor_search", number,
-                        n, result, static_cast<long long>(tree.size()),
-                        us / bench::kQueryBatch);
+        {
+            RectangleTree tree(pts.begin(), pts.end(),
+                               typename Tuning::RectangleSplitter(Tuning::rectangleBucket));
+            build(tree);
+            measure("count in Rectangle", tree, boxes);
+        }
+        {
+            TriangleTree tree(pts.begin(), pts.end(),
+                              typename Tuning::TriangleSplitter(Tuning::triangleBucket));
+            build(tree);
+            measure("count in Triangle", tree, triangles);
+        }
+        {
+            NearestTree tree(pts.begin(), pts.end(),
+                             typename Tuning::NearestSplitter(Tuning::nearestBucket));
+            build(tree);
+            if (bench::matches(opt.problem, "nearest neighbor")) {
+                for (const auto& q : boxes) countIn(tree, q);
+                for (const auto& q : triangles) countIn(tree, q);
+                const double us = bench::timeOnce(result, [&] {
+                    double sum = 0;
+                    for (const auto& q : queries) {
+                        Search search(tree, q, 1);
+                        sum += CGAL::to_double(search.begin()->second);
+                    }
+                    return sum;
+                });
+                // The same checksum over the answers' distances the pgl driver
+                // takes, and the same output column: a nearest neighbour is one
+                // point however large the tree is, so these rows report the
+                // tree they searched.
+                //
+                // Summing the distance rather than the point is what makes this
+                // row match to the digit like every other one. A query
+                // equidistant from two points has two correct answers and the
+                // two libraries need not pick the same one -- over the checked-
+                // in sweep that happens to a query or two of the thousand at
+                // any size -- but both answers are the same distance from the
+                // query, and that is the number being summed. The search
+                // already computed it, so reading it costs the baseline
+                // nothing.
+                bench::emit("Point search", "points", "nearest neighbor",
+                            "CGAL::Orthogonal_k_neighbor_search", number,
+                            n, result, static_cast<long long>(tree.size()),
+                            us / bench::kQueryBatch);
+            }
+        }
+        if (bench::matches(opt.problem, "build")) {
+            bench::emit("Point search", "points", "build", "CGAL::Kd_tree",
+                        number, n, static_cast<long long>(pts.size()), buildUs);
         }
     }
 }

@@ -1,8 +1,8 @@
-// @desc: CGAL reference for the Union category: General_polygon_set_2 over the
-// same operands. The signature is the total number of boundary vertices in
-// CGAL's result, the same output-size measure reported by pgl's driver. It is
-// not expected to match pgl exactly: the libraries canonicalize collinear
-// boundary vertices differently.
+// @desc: CGAL reference for the Union category: CGAL's Boolean set operations
+// over the same operands. The signature is the total number of boundary
+// vertices in CGAL's result, the same output-size measure reported by pgl's
+// driver. It is not expected to match pgl exactly: the libraries canonicalize
+// collinear boundary vertices differently.
 #include "cgal.hpp"
 #include "../sizes.hpp"
 
@@ -42,12 +42,16 @@ int main(int argc, char** argv) {
             const auto b = bench::cgal::polygon(bench::randomPolygon(n, 2));
             long long result = 0;
             const double us = bench::timeOnce(result, [&] {
-                PolygonSet set(a);
-                set.join(b);
-                return vertexCount(set);
+                // The free join's default UsePolylines = Tag_true: about 10%
+                // faster here than the segment traits the member join uses.
+                Region joined;
+                if (!CGAL::join(a, b, joined)) {
+                    return static_cast<long long>(a.size() + b.size());
+                }
+                return bench::cgal::vertexCount(joined);
             });
             bench::emit("Regularized union", "large + large", "union",
-                        "CGAL::General_polygon_set_2::join", bench::cgal::kNumber,
+                        "CGAL::join", bench::cgal::kNumber,
                         n, result, us);
         }
     }
@@ -72,8 +76,12 @@ int main(int argc, char** argv) {
             }
             long long result = 0;
             const double us = bench::timeOnce(result, [&] {
+                // Not the free join: its default UsePolylines = Tag_true is
+                // about 40% slower on triangles than these segment traits. The
+                // third argument is the divide-and-conquer fan-in, undocumented
+                // and 5 by default; 3 is the fastest here.
                 PolygonSet set;
-                set.join(pieces.begin(), pieces.end());
+                set.join(pieces.begin(), pieces.end(), 3);
                 return vertexCount(set);
             });
             bench::emit("Regularized union", "triangles", "union",

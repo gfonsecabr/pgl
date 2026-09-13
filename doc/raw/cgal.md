@@ -121,6 +121,7 @@ The results below are sorted by `ERational` / EPECK ratio, from the cases where 
 - **Pgl is optimized for this benchmark.** When we want to improve pgl's performance, we often use this benchmark as the measuring stick, for example to tune certain internal parameters, so the comparison favors pgl.
 - **Some comparisons favor pgl by construction.** CGAL ships no triangle query item for `Kd_tree`, so the baseline wrote one — the "count in Triangle" rows race pgl against benchmark code driving CGAL, not against a CGAL facility, and that is the row where pgl's `int` column looks best.
 - **Orthogonal range counting over points is deliberately absent.** pgl looks very good on it, but CGAL ships `Range_tree_2` for exactly that query and the benchmark does not run it; racing a kd-tree instead would prove nothing.
+- **CGAL functions and parameters.** Often CGAL has many different functions for the same construction. For example, the union of polygons may use `General_polygon_set_2::join` or a free `join` function with 9 different signatures, an `UsePolylines` parameter, and an undocummented `k` parameter that says how many polygons are joined at each step. We tried our best to optimize among all these possibilities to make the comparison fair.
 
 ### Interface
 
