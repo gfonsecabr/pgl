@@ -228,6 +228,7 @@ def main() -> int:
 
     # ── CGAL baseline: overwritten, never appended ───────────────────────────
     baseline_path = Path(args.baseline)
+    baseline_written = False
     if baseline_path.exists():
         data = json.loads(baseline_path.read_text())
         if data.get("meta", {}).get("sizes_override"):
@@ -246,8 +247,13 @@ def main() -> int:
             target.write_text(json.dumps(data, ensure_ascii=False, indent=2))
             print(f"  asymptotic-baseline.json: {len(data.get('results', []))} rows "
                   f"({'merged' if args.merge_baseline else 'overwritten'})")
+            baseline_written = True
 
+    # A baseline-only run appends nothing and still has a snapshot to commit, so
+    # only a run that recorded nothing at all is a failure.
     if not buckets:
+        if baseline_written:
+            return 0
         print("no records to append.", file=sys.stderr)
         return 1
 
