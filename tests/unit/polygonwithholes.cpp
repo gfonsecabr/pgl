@@ -672,3 +672,37 @@ TEST_CASE("PolygonWithHoles latticePoints drops the points inside a hole, not th
         CHECK(region.contains(point));
     }
 }
+
+TEST_CASE("PolygonWithHoles degeneracy is exact over arbitrary-precision coordinates") {
+    // Over an arbitrary-precision type the zero-area test settles a region with
+    // area in floating point, and only a sum the bound cannot call reaches the
+    // exact one. Both halves have to give the exact answer.
+    using EPoint = pgl::EPoint;
+    using ERegion = pgl::EPolygonWithHoles;
+    using EPolygon = pgl::EPolygon;
+    const pgl::ERational third(1, 3);
+
+    const ERegion ordinary(EPolygon({EPoint(0, 0), EPoint(third, 0), EPoint(third, third), EPoint(0, third)}));
+    CHECK_FALSE(ordinary.isDegenerate());
+    CHECK_FALSE(ordinary.outer().isDegenerate());
+
+    // A sliver of twice-area one at coordinates near 10^15: every shoelace term
+    // is around 10^30, far past what double resolves, and the sum is still not
+    // zero.
+    const pgl::ERational big(1000000000000000LL);
+    const EPolygon sliver({EPoint(0, 0), EPoint(big + 1, big), EPoint(big, big - 1)});
+    CHECK_FALSE(sliver.isDegenerate());
+    CHECK_FALSE(ERegion(sliver).isDegenerate());
+
+    // The same three points pushed onto one line have no area at all.
+    const EPolygon flat({EPoint(0, 0), EPoint(big + 1, big + 1), EPoint(big, big)});
+    CHECK(flat.isDegenerate());
+
+    // A hole that takes almost everything leaves the region its area.
+    const ERegion framed(EPolygon({EPoint(0, 0), EPoint(3, 0), EPoint(3, 3), EPoint(0, 3)}),
+                         std::vector<EPolygon>{EPolygon({EPoint(third, third), EPoint(3 - third, third),
+                                                         EPoint(3 - third, 3 - third),
+                                                         EPoint(third, 3 - third)})});
+    CHECK(framed.holeCount() == 1);
+    CHECK_FALSE(framed.isDegenerate());
+}

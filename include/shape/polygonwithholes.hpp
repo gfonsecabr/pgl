@@ -612,6 +612,20 @@ struct PolygonWithHoles {
      */
     [[nodiscard]] constexpr bool isDegenerate() const {
         using Exact = detail::promoted_number_t<NumberType>;
+        if constexpr (detail::filtersSign<Exact>) {
+            // Each ring's magnitude is as well bracketed as its signed sum, so
+            // the region's area is too.
+            const auto magnitude = [](const detail::Approximate& ring) {
+                return detail::Approximate{detail::approximateAbs(ring.value), ring.error};
+            };
+            detail::Approximate total = magnitude(detail::approximateSignedTwiceArea(outer_.points_));
+            for (const auto& hole : holes_) {
+                total = total - magnitude(detail::approximateSignedTwiceArea(hole.points_));
+            }
+            if (detail::approximateSign(total) != std::partial_ordering::unordered) {
+                return false;
+            }
+        }
         return twiceArea<Exact>() == Exact(0);
     }
 

@@ -11,6 +11,8 @@
  */
 
 #include <compare>
+#include <cstddef>
+#include <iterator>
 #include <type_traits>
 #include <vector>
 
@@ -210,6 +212,33 @@ constexpr Approximate approximate(const Number& value) {
 template <class PointType>
 constexpr ApproximatePoint approximatePoint(const PointType& point) {
     return {approximate(point.x()), approximate(point.y())};
+}
+
+/**
+ * @brief The shoelace sum of a closed ring, approximated with an error bound.
+ *
+ * The terms are taken about the first vertex, so each factor is a coordinate
+ * difference and the bound scales with the ring's extent rather than with its
+ * distance from the origin. What it is for is the zero-area test: a ring with
+ * any area at all is decided here, and only a degenerate one — or one too thin
+ * to call — pays for the exact sum.
+ */
+template <class PointRange>
+constexpr Approximate approximateSignedTwiceArea(const PointRange& points) {
+    Approximate sum;
+    const std::size_t n = std::size(points);
+    if (n < 3) {
+        return sum;
+    }
+    const ApproximatePoint base = approximatePoint(points[0]);
+    ApproximatePoint previous = approximatePoint(points[1]);
+    for (std::size_t i = 2; i < n; ++i) {
+        const ApproximatePoint current = approximatePoint(points[i]);
+        sum = sum + ((previous.x - base.x) * (current.y - base.y) -
+                     (previous.y - base.y) * (current.x - base.x));
+        previous = current;
+    }
+    return sum;
 }
 
 /**

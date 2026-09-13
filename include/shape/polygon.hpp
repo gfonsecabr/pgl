@@ -1450,9 +1450,10 @@ struct Polygon {
      * in one shape are exactly the pairs @ref MinkowskiSummableConcept accepts,
      * and this overload set takes the rest.
      *
-     * Complexity: one convex merge per pair of triangles of the two operands'
-     * triangulations, then a constrained triangulation over the arrangement of
-     * all of them.
+     * Complexity: against a convex operand, one arrangement over the two
+     * boundaries' convolution; against a non-convex polygon, one such
+     * arrangement per convex piece of one operand, then the union of their
+     * results. `Θ(a²b²)` in the worst case, the size of the sum's arrangement.
      *
      * @tparam ResultNumber The number type for the result.
      * @param other The shape to sum with.
@@ -3280,6 +3281,10 @@ struct Polygon {
     static constexpr std::size_t hashUnset_ = pgl::detail::numeric_limits<std::size_t>::max();
     mutable std::size_t hash_ = hashUnset_;
     friend struct std::hash<Polygon>;
+    // A region's zero-area test filters its rings' shoelace sums from the stored
+    // vertices, which the translation does not change.
+    template <class, class>
+    friend struct PolygonWithHoles;
 
     // Drops the memoized caches; call after any operation that mutates the
     // polygon's vertices. A pure translation does not need to drop bbox_ (it
@@ -3352,6 +3357,12 @@ struct Polygon {
      */
     constexpr bool hasNoArea() const {
         using Exact = detail::promoted_number_t<NumberType>;
+        if constexpr (detail::filtersSign<Exact>) {
+            if (detail::approximateSign(detail::approximateSignedTwiceArea(points_)) !=
+                std::partial_ordering::unordered) {
+                return false;
+            }
+        }
         return signedTwiceArea<Exact>() == Exact(0);
     }
 
