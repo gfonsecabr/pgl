@@ -1726,6 +1726,7 @@ public:
         std::size_t scanned = 0;  ///< Pairs overlapping along the swept axis.
         std::size_t tested = 0;   ///< Pairs whose boxes overlap.
         std::size_t found = 0;    ///< Pairs reported.
+        std::size_t swept = 0;    ///< Boxes whose comparisons are done, of all of them.
     };
 
     SegmentPairScan(const std::vector<Segment> &segments, SegmentPairRelation relation)
@@ -1856,7 +1857,7 @@ public:
             }
             scanned += b - a - 1;
             if (a % consultEvery == consultEvery - 1 &&
-                abandon(Progress{scanned, tested, found})) {
+                abandon(Progress{scanned, tested, found, a + 1})) {
                 return false;
             }
         }
@@ -2038,11 +2039,12 @@ constexpr SegmentPairCosts segmentPairCosts() {
  * A random sample of pairs estimates how many overlap along each axis, how
  * many boxes overlap and how many pairs meet, which prices a scan along the
  * better axis against @ref BentleyOttmann. When the scan is chosen it runs
- * under a budget: it is abandoned as soon as its work exceeds what the sweep
- * would spend on the input size and the pairs found so far. The scan therefore
- * never costs more than a constant times the sweep, whatever the estimate said,
- * and on inputs whose boxes rarely overlap without their segments meeting it
- * is several times cheaper.
+ * under a budget: it is abandoned once the work still ahead of it, projected
+ * from how far it has got, exceeds what the whole sweep would spend, or once
+ * its work reaches a few times what the sweep would spend on the pairs found
+ * so far. The scan therefore never costs more than a constant times the sweep,
+ * whatever the estimate said, and on inputs whose boxes rarely overlap without
+ * their segments meeting it is several times cheaper.
  *
  * @param test Called as `test(scan, i, j)`, with the positions of two segments
  *        whose boxes overlap, lesser first; returns whether they meet. A caller
@@ -2112,13 +2114,29 @@ bool visitSegmentPairs(const std::vector<Segment> &segments, SegmentPairRelation
         return false;
     }
 
+    // The scan is abandoned for what is still ahead of it, not for what it has
+    // spent: the work already done is paid for whichever way the rest goes, so
+    // a scan nearly through an input where the two methods cost about the same
+    // is worth finishing. What remains is projected from the share of boxes
+    // swept so far, and the sweep is priced at the pairs projected the same
+    // way. The projection can be fooled by an input whose work bunches up at
+    // the end of the sweep order, so the scan is also stopped outright once it
+    // has spent a few times what the sweep would cost for the pairs it has
+    // actually found, which keeps the whole within a constant of the sweep.
+    constexpr double spendingCap = 3.0;
     const bool finished = scan.scan(alongY, visit, [&](const typename Scan::Progress &progress) {
         if (firstFound()) {
             return true;
         }
         const double spent = costs.scanned * static_cast<double>(progress.scanned) +
                              costs.tested * static_cast<double>(progress.tested);
-        return spent > sweepSegments + costs.sweepPair * static_cast<double>(progress.found) * bits;
+        const double found = static_cast<double>(progress.found);
+        if (spent > spendingCap * (sweepSegments + costs.sweepPair * found * bits)) {
+            return true;
+        }
+        const double share = static_cast<double>(progress.swept) / n;
+        const double remaining = spent * (1 - share) / share;
+        return remaining > sweepSegments + costs.sweepPair * (found / share) * bits;
     });
     return finished || firstFound();
 }
