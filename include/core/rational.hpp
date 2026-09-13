@@ -874,7 +874,7 @@ public:
     }
 
     friend constexpr Rational operator+(Int x, const Rational& r) { return r + x; }
-    friend constexpr Rational operator-(Int x, const Rational& r) { return r + (-x); }
+    friend constexpr Rational operator-(Int x, const Rational& r) { return -r + x; }
     friend constexpr Rational operator*(Int x, const Rational& r) { return r * x; }
     friend constexpr Rational operator/(Int x, const Rational& r) {
         return x == 1 ? r.reciprocal() : Rational(x) / r;

@@ -668,3 +668,13 @@ TEST_CASE("lowerBound and upperBound bracket the exact value even when the quoti
     CHECK(((p.y() <=> box.min().y()) >= 0));
     CHECK(((p.y() <=> box.max().y()) <= 0));
 }
+
+TEST_CASE_TEMPLATE("An integer minus a rational subtracts in that order", Int, int32_t, int64_t, pgl::int128,
+                   pgl::BigInt) {
+    const pgl::Rational<Int> third(Int(1), Int(3));
+    CHECK(Int(3) - third == pgl::Rational<Int>(Int(8), Int(3)));
+    CHECK(third - Int(3) == pgl::Rational<Int>(Int(-8), Int(3)));
+    CHECK(Int(0) - third == -third);
+    CHECK(Int(-2) - pgl::Rational<Int>(Int(-5), Int(2)) == pgl::Rational<Int>(Int(1), Int(2)));
+    CHECK(3 - third == pgl::Rational<Int>(Int(8), Int(3)));
+}
