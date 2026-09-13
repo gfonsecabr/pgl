@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <utility>
 #include <vector>
 
@@ -666,6 +667,95 @@ TEST_CASE("minkowskiSum: the boundary decomposition agrees with the convex one")
     CHECK(slitSum == slitRef.component(0));
 }
 
+TEST_CASE("minkowskiSum: the convolution agrees with the convex decomposition") {
+    // A simple polygon against a convex operand with area is read off the two
+    // boundaries' convolution: the points it winds around a positive number of
+    // times. Nothing is triangulated on that path, so it is checked against the
+    // all-pairs decomposition, which shares none of its code.
+    //
+    // The receivers are chosen for the configurations the winding walk has to get
+    // right: edges parallel to the summand's (every axis-aligned receiver against
+    // the rectangle), collinear consecutive vertices, reflex vertices where the
+    // cycle turns back through the summand, and a C whose sum closes a hole.
+    const PolygonShape comb({Point(0, 0), Point(12, 0), Point(12, 2), Point(10, 2), Point(10, 9),
+                             Point(8, 9), Point(8, 2), Point(6, 2), Point(6, 9), Point(4, 9),
+                             Point(4, 2), Point(2, 2), Point(2, 9), Point(0, 9)});
+    const PolygonShape staircase({Point(0, 0), Point(9, 0), Point(9, 9), Point(7, 9), Point(7, 6),
+                                  Point(5, 6), Point(5, 4), Point(3, 4), Point(3, 2),
+                                  Point(0, 2)});
+    const PolygonShape collinear({Point(0, 0), Point(3, 0), Point(6, 0), Point(6, 3), Point(3, 1),
+                                  Point(0, 3)});
+    const PolygonShape arrow({Point(0, 0), Point(5, 2), Point(10, 0), Point(5, 7)});
+    const std::vector<PolygonShape> receivers{comb, staircase, collinear, arrow,
+                                              uShape(), cShape(), lShape()};
+    const std::vector<Convex> summands{
+        Convex({Point(0, 0), Point(3, 0), Point(0, 3)}),
+        Convex({Point(0, 0), Point(2, 0), Point(2, 1), Point(0, 1)}),
+        Convex({Point(-1, -2), Point(2, 0), Point(0, 2)}),
+        Convex({Point(0, 0), Point(2, -1), Point(4, 0), Point(4, 2), Point(2, 3), Point(0, 2)}),
+        Convex({Point(0, 0), Point(5, 2), Point(3, 3)})};
+
+    for (const PolygonShape& receiver : receivers) {
+        for (const Convex& summand : summands) {
+            const auto reference = pgl::detail::decomposedMinkowskiSum<EPoint>(receiver, summand);
+            CHECK(pgl::detail::minkowskiConvolutionSum<EPoint>(receiver, summand) == reference);
+            REQUIRE(reference.componentCount() == 1);
+            CHECK(receiver.template minkowskiSum<pgl::ERational>(summand) == reference.component(0));
+            CHECK(summand.template minkowskiSum<pgl::ERational>(receiver) == reference.component(0));
+        }
+    }
+
+    // The C closes into an annulus against a summand wide enough to plug its cut,
+    // and the hole is a face the cycle winds around zero times from inside.
+    {
+        const auto sum = cShape().minkowskiSum<pgl::ERational>(Convex({Point(0, 0), Point(0, 3), Point(1, 3)}));
+        CHECK(sum.holeCount() == 1);
+    }
+
+    // Two non-convex operands: one is decomposed and the other convolved against
+    // every piece, whichever the dispatcher chooses to decompose.
+    for (const PolygonShape& a : receivers) {
+        for (const PolygonShape& b : {comb, staircase, cShape()}) {
+            const auto reference = pgl::detail::decomposedMinkowskiSum<EPoint>(a, b);
+            CHECK(pgl::regularizedUnionOf<EPoint>(
+                      pgl::detail::minkowskiConvolvedPieces<EPoint>(a, b)) == reference);
+            CHECK(pgl::regularizedUnionOf<EPoint>(
+                      pgl::detail::minkowskiConvolvedPieces<EPoint>(b, a)) == reference);
+            REQUIRE(reference.componentCount() == 1);
+            CHECK(a.template minkowskiSum<pgl::ERational>(b) == reference.component(0));
+        }
+    }
+
+    // A region with a hole is decomposed, never convolved: its hole can survive
+    // inside `A ∩ (x − B)`, where the winding number would miss it.
+    for (const PolygonShape& b : {comb, staircase}) {
+        const auto reference = pgl::detail::decomposedMinkowskiSum<EPoint>(annulus(), b);
+        REQUIRE(reference.componentCount() == 1);
+        CHECK(annulus().minkowskiSum<pgl::ERational>(b) == reference.component(0));
+    }
+}
+
+TEST_CASE("minkowskiSum: the convolution takes a two-vertex piece") {
+    // A segment piece has two half-turn wedges, each of which has to own the
+    // direction along its entering edge or the walk never leaves it. The cycle is
+    // still the sum's: a simple polygon meets a segment in intervals, which have
+    // no holes either.
+    const std::vector<PolygonShape> receivers{uShape(), cShape(), lShape(), box(0, 0, 4, 4)};
+    const std::vector<Segment> summands{Segment(Point(0, 0), Point(3, 0)), Segment(Point(0, 0), Point(0, 5)),
+                                        Segment(Point(-1, -1), Point(2, 2)), Segment(Point(0, 0), Point(4, 1))};
+    for (const PolygonShape& receiver : receivers) {
+        for (const Segment& summand : summands) {
+            std::vector<pgl::Segment<EPoint>> segments;
+            std::vector<char> forward;
+            const Convex piece({summand.min(), summand.max()});
+            REQUIRE(piece.size() == 2);
+            pgl::detail::minkowskiConvolution<EPoint>(receiver, piece, segments, forward);
+            CHECK(pgl::detail::regularizedPositiveWinding<EPoint>(segments, forward) ==
+                  pgl::detail::decomposedMinkowskiSum<EPoint>(receiver, summand));
+        }
+    }
+}
+
 TEST_CASE("minkowskiSum: monotone runs cover a walk exactly once") {
     // The runs are what the boundary decomposition sums, so their union has to be
     // the walk itself: every edge in exactly one run, and each run strictly
@@ -705,4 +795,46 @@ TEST_CASE("minkowskiSum: monotone runs cover a walk exactly once") {
         edges += run.size() - 1;
     }
     CHECK(edges == zigzag.size() - 1);
+}
+
+TEST_CASE_TEMPLATE("minkowskiSum: wide integer coordinates sum exactly through the boundary runs", Number,
+                   long long, std::int64_t, pgl::int128) {
+    // A region that keeps its hole against a convex operand is summed along its
+    // boundary's monotone runs, whose crossings are fractions in the coordinates
+    // widened twice — a BigInt for 64-bit coordinates, which once divided as an
+    // integer and truncated (43/3, 26/3) to (14, 43/5) and (6, 42/5) to (6, 8).
+    // The same shapes in `int` are the reference.
+    using WidePoint = pgl::Point<Number>;
+    const auto ring = [](const std::vector<Point>& points) {
+        std::vector<WidePoint> wide;
+        for (const Point& point : points) {
+            wide.emplace_back(Number(point.x()), Number(point.y()));
+        }
+        return wide;
+    };
+    const std::vector<Point> outer{Point(0, 1), Point(3, 1), Point(5, 1), Point(7, 0), Point(8, 6),
+                                   Point(7, 5), Point(6, 6), Point(3, 7), Point(3, 6), Point(2, 4),
+                                   Point(1, 6), Point(0, 4), Point(1, 5)};
+    const std::vector<Point> hole{Point(1, 2), Point(6, 1), Point(4, 4)};
+    const std::vector<Point> summand{Point(3, 2), Point(5, 2), Point(8, 3)};
+
+    const Region narrow(PolygonShape(outer), std::vector<PolygonShape>{PolygonShape(hole)});
+    const Convex narrowSummand(summand);
+    const pgl::PolygonWithHoles<WidePoint> region(pgl::Polygon<WidePoint>(ring(outer)),
+                                                  std::vector<pgl::Polygon<WidePoint>>{pgl::Polygon<WidePoint>(ring(hole))});
+    const pgl::Convex<WidePoint> wideSummand(ring(summand));
+
+    const auto reference = narrow.minkowskiSum<pgl::ERational>(narrowSummand);
+    CHECK(region.template minkowskiSum<pgl::ERational>(wideSummand) == reference);
+    CHECK(wideSummand.template minkowskiSum<pgl::ERational>(region) == reference);
+    const auto& vertices = reference.outer().vertices();
+    CHECK(std::find(vertices.begin(), vertices.end(),
+                    EPoint(pgl::ERational(43, 3), pgl::ERational(26, 3))) != vertices.end());
+
+    // A chain receiver takes the same runs.
+    const std::vector<Point> zigzag{Point(0, 0), Point(3, 5), Point(6, 0), Point(9, 5)};
+    const Convex triangle({Point(0, 0), Point(3, 1), Point(1, 3)});
+    CHECK(pgl::Polyline<WidePoint>(ring(zigzag)).template minkowskiSum<pgl::ERational>(pgl::Convex<WidePoint>(
+              ring({Point(0, 0), Point(3, 1), Point(1, 3)}))) ==
+          pgl::Polyline<Point>(zigzag).minkowskiSum<pgl::ERational>(triangle));
 }

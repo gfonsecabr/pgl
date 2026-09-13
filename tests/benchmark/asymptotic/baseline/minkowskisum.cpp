@@ -1,20 +1,23 @@
 // @desc: CGAL reference for the Minkowski sum category, three of them, over the
 // same operands.
 //
-// The first is minkowski_sum_2 with a triangulation-based decomposition: the
-// same strategy pgl uses, so that row compares two implementations of one idea
-// rather than two ideas. The second is the reduced convolution method, which
-// pgl has no counterpart for — it builds the convolution cycle of the two
-// boundaries and extracts the sum from its arrangement, never decomposing
-// either operand — and it is there to say what the other idea costs. Reading
-// them together separates "pgl's decomposition is slower than CGAL's" from
-// "decomposition is the slower approach".
+// pgl mixes the two ideas CGAL keeps apart. It cuts one operand into
+// Hertel–Mehlhorn convex pieces and leaves the other whole, sums the whole
+// operand against each piece by their convolution, and unites those regions a
+// few at a time. CGAL decomposes both operands and unites every pairwise convex
+// sum, or convolves the two whole boundaries and decomposes neither.
 //
-// The third is minkowski_sum_2 with Hertel–Mehlhorn convex pieces, CGAL's
-// fastest decomposition here. It is not pgl's strategy; it is there because the
-// reference races CGAL at its best. Reduced convolution is the fastest of CGAL's
-// methods up to roughly n = 150 on these datasets, and this row overtakes it
-// above that.
+// The first row is minkowski_sum_2 with a triangulation-based decomposition of
+// both operands, the plainest form of the decomposition idea. The second is the
+// reduced convolution method, which builds the convolution cycle of the two
+// whole boundaries and extracts the sum from its arrangement; pgl convolves only
+// against convex pieces, where the winding number alone decides the sum. The
+// third is minkowski_sum_2 with Hertel–Mehlhorn convex pieces, CGAL's fastest
+// decomposition here and the closest to pgl, whose pieces are the same ones.
+//
+// The reference races CGAL at its best, which is whichever row is fastest at a
+// size: reduced convolution up to roughly n = 150 on these datasets, and the
+// Hertel–Mehlhorn decomposition above that.
 //
 // All report the total number of boundary vertices, which is what pgl's driver
 // reports. The CGAL rows must agree with each other and with pgl's at every

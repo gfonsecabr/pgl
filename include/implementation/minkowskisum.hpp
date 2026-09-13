@@ -33,27 +33,33 @@
  *
  * It is also the *last* thing @ref pgl::detail::regularizedMinkowskiSum tries,
  * because it charges for both operands' concavity whether or not either has any.
- * Three cheaper constructions come first. The first two turn on a **convex**
+ * Four cheaper constructions come first. The first three turn on a **convex**
  * operand rather than on a type:
  *
  * - **Both operands convex** — a `Polygon` or a hole-free region can be, and then
  *   the answer is just the linear merge of `minkowski.hpp`, in `O(a + b)`.
- * - **One operand convex** — the other's *boundary* is decomposed into
- *   x-monotone runs instead of its area being triangulated, on the identity
- *   `A ⊕ B = (A + q₀) ∪ (∂A ⊕ B)`; each run's sum is the chain sweep below, which
- *   needs no arrangement at all. See @ref pgl::detail::minkowskiBoundaryPieces.
+ * - **One operand convex, the other a simple polygon** — the two boundaries'
+ *   *convolution*, a cycle of lattice segments whose winding number is positive
+ *   exactly on the sum, read off one arrangement of it. Nothing is decomposed.
+ *   See @ref pgl::detail::minkowskiConvolutionSum.
+ * - **One operand convex, the other a chain or a holed region** — the other's
+ *   *boundary* is decomposed into x-monotone runs instead of its area being
+ *   triangulated, on the identity `A ⊕ B = (A + q₀) ∪ (∂A ⊕ B)`; each run's sum
+ *   is the chain sweep below, which needs no arrangement at all. See
+ *   @ref pgl::detail::minkowskiBoundaryPieces.
  * - **Neither convex, both with area** — only *one* of them is decomposed, and
- *   the whole of the other is summed against each of its pieces by the two
- *   constructions above. That leaves the arrangement `a` regions to unite where
- *   the all-pairs decomposition left it `a·b` convex pieces, and the pieces it
- *   does leave scatter instead of piling up. See
+ *   the whole of the other is summed against each of its pieces by the
+ *   constructions above. That leaves `a` regions to unite where the all-pairs
+ *   decomposition left `a·b` convex pieces.
+ *   See @ref pgl::detail::minkowskiConvolvedPieces,
  *   @ref pgl::detail::minkowskiOneSidedPieces, and
  *   @ref pgl::detail::minkowskiOneSidedDecomposesLeft for which operand pays.
  *
  * None changes the worst case — a boundary that turns at every vertex has one
- * monotone run per edge, and the one-sided decomposition still ends in an
- * arrangement of `Θ(a·b)` edges — and none is a special case in the contract: all
- * four return the same answer, and the paragraphs below describe all of them.
+ * monotone run per edge, a convolution as many segments as the two boundaries
+ * have pairs, and the one-sided decomposition still ends in an arrangement of
+ * `Θ(a·b)` edges — and none is a special case in the contract: all five return
+ * the same answer, and the paragraphs below describe all of them.
  *
  * Two consequences worth stating, because they are what tells this entry point
  * apart from the convex-shape-valued one:
@@ -136,6 +142,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <iterator>
 #include <type_traits>
 #include <utility>
@@ -1426,7 +1433,7 @@ PolygonSet<ResultPoint> regularizedMinkowskiSum(const ShapeA& a,
  *     A ⊕ B  =  ⋃ᵢ (Aᵢ ⊕ B)      whenever  A = ⋃ᵢ Aᵢ.
  *
  * Each `Aᵢ ⊕ B` has a convex operand and so is a sum the engine already does
- * well — construction 1, 2 or 4 of @ref regularizedMinkowskiSum, never this one,
+ * well — construction 1, 3 or 5 of @ref regularizedMinkowskiSum, never this one,
  * which is what makes the recursion finite. What comes back is `|A|` regions
  * where the all-pairs decomposition produced `|A|·|B|` convex pieces, and the
  * cost of the sum is the arrangement of them:
@@ -1522,11 +1529,247 @@ bool minkowskiOneSidedDecomposesLeft(const ShapeA& a, const ShapeB& b) {
            static_cast<long double>(minkowskiPieceCount(b)) * a.bbox().template area<long double>();
 }
 
+// -----------------------------------------------------------------------------
+// The convolution of a convex operand with a simple polygon.
+
+/**
+ * @brief Tests whether an operand's point set is a single simple polygon: the
+ *        closed region one simple ring bounds, with no hole and no slit.
+ *
+ * A `Polygon` is one by its precondition, and a region is one once no hole is
+ * left in it — a slit is a stretch two rings cover, so a single ring has none.
+ */
+template <class Shape>
+bool minkowskiIsSimplePolygon(const Shape& shape) {
+    if constexpr (is_polygon_v<Shape>) {
+        return true;
+    } else if constexpr (is_polygon_with_holes_v<Shape>) {
+        return shape.holes().empty();
+    } else {
+        return false;
+    }
+}
+
+/** @brief The one ring of an operand @ref minkowskiIsSimplePolygon accepts. */
+template <class Shape>
+const auto& minkowskiSimpleRing(const Shape& shape) {
+    if constexpr (is_polygon_with_holes_v<Shape>) {
+        return shape.outer();
+    } else {
+        return shape;
+    }
+}
+
+/**
+ * @brief The convolution cycle of a simple polygon with a convex polygon, as
+ *        directed segments.
+ *
+ * Walking @p ring counterclockwise, each edge is translated by the vertex of
+ * @p piece extreme in the direction of that edge's outward normal, and at each
+ * vertex where the ring turns, the edges of @p piece whose directions the turn
+ * sweeps past are inserted between the two translates — forward for a left turn,
+ * backward for a right one. That is the cycle Guibas, Ramshaw and Stolfi call the
+ * convolution, and every one of its vertices is a sum of two input vertices, so
+ * it is exact in the sum's own coordinates: nothing is divided.
+ *
+ * The extreme vertex is kept as an index `k` into the piece, and a direction `v`
+ * belongs to it when `v` lies in the half-open wedge `[dₖ₋₁, dₖ)` between the
+ * piece's edge into vertex `k` and its edge out of it. The piece is convex, so
+ * those wedges tile the directions without overlap — a segment's two wedges are
+ * half a turn each — and the turn at a vertex of the ring, never a full half
+ * turn, the ring being simple, moves `k` monotonically to the wedge of the next
+ * edge.
+ *
+ * @pre @p ring is counterclockwise and simple; @p piece is a counterclockwise
+ *      convex polygon with area, or a segment given by its two endpoints.
+ * @param segments Receives one segment per cycle edge.
+ * @param forward Receives, per segment, whether the cycle runs from its
+ *        lexicographically smaller endpoint to its larger one.
+ */
+template <class SumPoint, class Ring, class Piece>
+void minkowskiConvolution(const Ring& ring, const Piece& piece,
+                          std::vector<Segment<SumPoint>>& segments,
+                          std::vector<char>& forward) {
+    using SumNumber = typename SumPoint::NumberType;
+    std::vector<SumPoint> p;
+    p.reserve(piece.size());
+    for (const auto& vertex : piece) {
+        p.emplace_back(asNumber<SumNumber>(vertex.x()), asNumber<SumNumber>(vertex.y()));
+    }
+    std::vector<SumPoint> r;
+    r.reserve(ring.size());
+    for (const auto& vertex : ring) {
+        r.emplace_back(asNumber<SumNumber>(vertex.x()), asNumber<SumNumber>(vertex.y()));
+    }
+    const std::size_t m = p.size();
+    const std::size_t n = r.size();
+    if (m < 2 || n < 3) {
+        return;
+    }
+
+    // Whether the direction of the ring edge `from → to` lies in the wedge of
+    // piece vertex `k`: strictly between the edges into and out of the vertex,
+    // or along the edge into it. Spelled that way rather than as two
+    // non-strict tests so that a wedge of exactly half a turn — both wedges of
+    // a two-vertex piece — still owns its first direction.
+    const auto inWedge = [&](const SumPoint& from, const SumPoint& to, std::size_t k) {
+        const SumPoint& before = p[(k + m - 1) % m];
+        const SumPoint& vertex = p[k];
+        const SumPoint& after = p[(k + 1) % m];
+        const auto entering = crossSign(before, vertex, from, to);
+        if (entering == 0) {
+            return dotSign(before, vertex, from, to) > 0;
+        }
+        return entering > 0 && crossSign(from, to, vertex, after) > 0;
+    };
+    const auto emit = [&](const SumPoint& at, const SumPoint& start, const SumPoint& end) {
+        const SumPoint from(at.x() + start.x(), at.y() + start.y());
+        const SumPoint to(at.x() + end.x(), at.y() + end.y());
+        forward.push_back(static_cast<char>(from < to));
+        segments.emplace_back(from, to);
+    };
+
+    std::size_t k = 0;
+    while (!inWedge(r[n - 1], r[0], k)) {
+        k = (k + 1) % m;
+    }
+    for (std::size_t j = 0; j < n; ++j) {
+        const SumPoint& previous = r[(j + n - 1) % n];
+        const SumPoint& vertex = r[j];
+        const SumPoint& next = r[(j + 1) % n];
+        const bool left = crossSign(previous, vertex, vertex, next) >= 0;
+        while (!inWedge(vertex, next, k)) {
+            const std::size_t step = left ? (k + 1) % m : (k + m - 1) % m;
+            emit(vertex, p[k], p[step]);
+            k = step;
+        }
+        emit(p[k], vertex, next);
+    }
+}
+
+/**
+ * @brief The regularized set of points around which a family of directed
+ *        segments winds a positive number of times.
+ *
+ * The winding number changes by one across each directed segment — down when
+ * crossing it from its left to its right — so one walk of the arrangement's face
+ * adjacency graph from the unbounded face, where it is zero, settles every face.
+ * That is @ref regularizedUnionByCoverage with the parity bit replaced by a
+ * signed count, which is what lets the segments cross and overlap freely.
+ */
+template <class ResultPoint, class SumPoint>
+PolygonSet<ResultPoint> regularizedPositiveWinding(const std::vector<Segment<SumPoint>>& segments,
+                                                   const std::vector<char>& forward) {
+    using SumNumber = typename SumPoint::NumberType;
+    using ExactPoint = Point<Exact1DNumber<SumNumber, SumNumber>>;
+    using HalfedgeId = typename Arrangement<ExactPoint>::HalfedgeId;
+
+    const Arrangement<ExactPoint> arrangement(segments);
+    const std::size_t faceCount = arrangement.faceCount();
+    const std::size_t halfedgeCount = arrangement.halfedgeCount();
+
+    std::vector<std::uint32_t> faceEdgeBegin(faceCount + 1, 0);
+    for (std::uint32_t i = 0; i < halfedgeCount; ++i) {
+        ++faceEdgeBegin[arrangement.face(HalfedgeId(i)).index() + 1];
+    }
+    for (std::size_t i = 0; i < faceCount; ++i) {
+        faceEdgeBegin[i + 1] += faceEdgeBegin[i];
+    }
+    std::vector<std::uint32_t> faceEdge(halfedgeCount, 0);
+    {
+        std::vector<std::uint32_t> cursor(faceEdgeBegin.begin(), faceEdgeBegin.end() - 1);
+        for (std::uint32_t i = 0; i < halfedgeCount; ++i) {
+            faceEdge[cursor[arrangement.face(HalfedgeId(i)).index()]++] = i;
+        }
+    }
+
+    std::vector<std::int64_t> winding(faceCount, 0);
+    std::vector<char> seen(faceCount, 0);
+    std::vector<std::uint32_t> stack;
+    // Face 0 is the unbounded one, around which nothing winds.
+    stack.push_back(0);
+    seen[0] = 1;
+    while (!stack.empty()) {
+        const std::uint32_t face = stack.back();
+        stack.pop_back();
+        for (std::uint32_t c = faceEdgeBegin[face]; c < faceEdgeBegin[face + 1]; ++c) {
+            const HalfedgeId h(faceEdge[c]);
+            const std::uint32_t other = arrangement.face(arrangement.twin(h)).index();
+            if (seen[other] != 0) {
+                continue;
+            }
+            // `face` is on the left of `h`, so stepping across it leaves every
+            // segment running the same way as `h` on the left.
+            const bool increasing = arrangement[arrangement.source(h)] < arrangement[arrangement.target(h)];
+            std::int64_t change = 0;
+            for (const std::uint32_t origin : arrangement.originsOf(h)) {
+                change += (forward[origin] != 0) == increasing ? -1 : 1;
+            }
+            winding[other] = winding[face] + change;
+            seen[other] = 1;
+            stack.push_back(other);
+        }
+    }
+
+    std::vector<char> keep(faceCount, 0);
+    for (std::size_t i = 0; i < faceCount; ++i) {
+        keep[i] = static_cast<char>(winding[i] > 0);
+    }
+    return regularizedCellsFromKeep<ResultPoint>(arrangement, keep);
+}
+
+/**
+ * @brief `A ⊕ B` for a simple polygon @p shape and a convex @p piece with area,
+ *        read off their convolution.
+ *
+ * The winding number of the convolution cycle about a point `x` is the number of
+ * connected components of `A ∩ (x − B)`, less its holes. With `B` convex that
+ * intersection has no holes — a loop of it bounds a disk inside `A`, which is
+ * simply connected, and inside `x − B`, which is convex — so the winding number
+ * is positive exactly when the intersection is non-empty, which is exactly when
+ * `x ∈ A ⊕ B`. Neither half of that argument survives a second non-convex
+ * operand, and that is why this takes a convex one.
+ *
+ * The cycle carries `n` edges of the polygon plus one edge of the piece for each
+ * time the polygon's normal sweeps past it, forward or back, and all of them are
+ * lattice segments when the operands are: the arrangement they feed is fed
+ * integers, where the convex decomposition fed it one convex sum per triangle.
+ */
+template <class ResultPoint, class Shape, class Piece>
+PolygonSet<ResultPoint> minkowskiConvolutionSum(const Shape& shape, const Piece& piece) {
+    using SumPoint = minkowskiPoint_t<Shape, Piece>;
+    std::vector<Segment<SumPoint>> segments;
+    std::vector<char> forward;
+    minkowskiConvolution<SumPoint>(minkowskiSimpleRing(shape), piece, segments, forward);
+    return regularizedPositiveWinding<ResultPoint>(segments, forward);
+}
+
+/**
+ * @brief The regions of `A ⊕ B` for a simple polygon @p whole and an operand
+ *        @p decomposed with area: @p whole summed against each convex piece of
+ *        @p decomposed by their convolution.
+ *
+ * A piece without area — a slit of a region — has no convolution to speak of and
+ * is summed by @ref regularizedMinkowskiSum instead.
+ */
+template <class ExactPoint, class Decomposed, class Whole>
+std::vector<PolygonWithHoles<ExactPoint>> minkowskiConvolvedPieces(const Decomposed& decomposed,
+                                                                   const Whole& whole) {
+    std::vector<PolygonWithHoles<ExactPoint>> regions;
+    for (const auto& piece : minkowskiConvexPieces(decomposed)) {
+        const PolygonSet<ExactPoint> sum = piece.size() >= 3
+                                               ? minkowskiConvolutionSum<ExactPoint>(whole, piece)
+                                               : regularizedMinkowskiSum<ExactPoint>(whole, piece);
+        regions.insert(regions.end(), sum.begin(), sum.end());
+    }
+    return regions;
+}
+
 /**
  * @brief The regularized Minkowski sum `closure((A ⊕ B)°)`, represented
  *        internally as all of its regions.
  *
- * Four constructions, cheapest first, and which one runs is decided on the
+ * Five constructions, cheapest first, and which one runs is decided on the
  * operands' *values* rather than their types:
  *
  * 1. **Both convex** — one linear merge of the two edge-direction sequences, and
@@ -1535,37 +1778,42 @@ bool minkowskiOneSidedDecomposesLeft(const ShapeA& a, const ShapeB& b) {
  *    and it is worst-case optimal; what it adds is that a `Polygon` or a region
  *    that *happens* to be convex now takes it too, where it used to pay the full
  *    `Θ(a²b²)` for an `O(a + b)` answer.
- * 2. **One convex operand with area, exact coordinates, and a boundary worth
+ * 2. **One convex operand with area, the other a simple polygon** —
+ *    @ref minkowskiConvolutionSum: the two boundaries' convolution, and the points
+ *    it winds around. One arrangement of `O(a + b·k)` lattice segments for a
+ *    polygon whose normal sweeps `k` times around, no decomposition of either
+ *    operand, and nothing divided before the arrangement — so it takes
+ *    floating-point coordinates as readily as exact ones.
+ * 3. **One convex operand with area, exact coordinates, and a boundary worth
  *    decomposing** — the identity of @ref minkowskiBoundaryPieces: `k + 1` pieces
  *    where the triangulation gave `a − 2`, none of them needing a triangulation
- *    to find. The tight worst-case output bound for this pair is `Θ(a·b)` rather
- *    than `Θ(a²b²)`, so it is the pair with the most left on the table; the pieces
- *    are fewer and larger, which is what the arrangement is cheapest on. Three
- *    things can send it on, and each is a separate judgement: a **slit** in a
- *    region operand, which the coverage classifier cannot read; **floating-point**
+ *    to find. What reaches it is what construction 2 cannot take: a chain, which
+ *    has no area to wind around, and a region that kept a hole. Three things can
+ *    send it on, and each is a separate judgement: a **slit** in a region
+ *    operand, which the coverage classifier cannot read; **floating-point**
  *    coordinates, where the decomposition's divisions cost more accuracy than it
  *    is worth; and a boundary that **turns too often** for the decomposition to
  *    save anything (@ref minkowskiBoundaryPays).
- * 3. **Neither convex, both with area, exact coordinates** —
- *    @ref minkowskiOneSidedPieces: decompose *one* of them, and sum the whole of
- *    the other against each of its pieces with construction 1 or 2. The union it
- *    ends in is over `a` regions where the all-pairs decomposition left `a·b`
- *    convex pieces, and over regions that mostly do not reach each other — worth
- *    1.75x–9.3x over construction 4 across every region pair measured. Exact
- *    coordinates for the same reason construction 2 needs them: its pieces come
- *    out of arrangements of their own. Area on *both* sides because the scatter
- *    it trades on needs small pieces, which a chain's edges are not; see the call
- *    site.
- * 4. **Neither** — @ref decomposedMinkowskiSum, the all-pairs convex decomposition,
+ * 4. **Neither convex, both with area, exact coordinates** — decompose *one* of
+ *    them, and sum the whole of the other against each of its pieces: by
+ *    construction 2 when the whole is a simple polygon
+ *    (@ref minkowskiConvolvedPieces), by construction 1 or 3 otherwise
+ *    (@ref minkowskiOneSidedPieces). The union it ends in is over `a` regions
+ *    where the all-pairs decomposition left `a·b` convex pieces. Exact
+ *    coordinates because its pieces come out of arrangements of
+ *    their own. Area on *both* sides because the scatter it trades on needs small
+ *    pieces, which a chain's edges are not; see the call site.
+ * 5. **Neither** — @ref decomposedMinkowskiSum, the all-pairs convex decomposition,
  *    unchanged and still what every pair falls back to. It is reached by a
- *    floating-point pair, by any pair with a chain or a segment in it, and — one
- *    level down — by construction 3's own pieces where one of them is a slit.
+ *    floating-point pair of non-convex operands, by any pair with a chain or a
+ *    segment in it, and — one level down — by construction 4's own pieces where
+ *    one of them is a slit.
  *
- * Holes the sum would fill in anyway are dropped first, before any of the four
+ * Holes the sum would fill in anyway are dropped first, before any of the five
  * — see @ref holeFilteredFor — which is also what lets a holed region reach
- * construction 1 or 2 at all.
+ * constructions 1 and 2 at all.
  *
- * None of the four changes the worst case, which stays `Θ(a²b²)`: two boundaries
+ * None of the five changes the worst case, which stays `Θ(a²b²)`: two boundaries
  * that turn at every vertex cross that many times however the pieces are cut.
  * What they change is everything either side of that.
  */
@@ -1593,10 +1841,21 @@ PolygonSet<ResultPoint> regularizedMinkowskiSum(const ShapeA& a,
             PolygonWithHoles<ResultPoint>(Polygon<ResultPoint>(sum.asPolygon())));
     }
 
+    // A convex operand with area against a simple polygon is the convolution of
+    // the two, read off one arrangement of lattice segments.
+    if (rightConvex && minkowskiHasArea(right) && minkowskiHasArea(left) &&
+        minkowskiIsSimplePolygon(left)) {
+        return minkowskiConvolutionSum<ResultPoint>(left, minkowskiAsConvex(right));
+    }
+    if (leftConvex && minkowskiHasArea(left) && minkowskiHasArea(right) &&
+        minkowskiIsSimplePolygon(right)) {
+        return minkowskiConvolutionSum<ResultPoint>(right, minkowskiAsConvex(left));
+    }
+
     // The sum is commutative, so it is the convex operand that decides and not
     // which side it arrived on. Only one of the two branches can fire: a pair that
-    // got past the test above has at most one convex operand, so the other is the
-    // one to decompose.
+    // got past the first test above has at most one convex operand, so the other
+    // is the one to decompose.
     //
     // Both branches are gated on the coordinates being exact, and that is not a
     // performance choice. A convex piece sum never divides — every one of its
@@ -1633,8 +1892,8 @@ PolygonSet<ResultPoint> regularizedMinkowskiSum(const ShapeA& a,
 
     // Neither operand is convex, so one of them is decomposed and the other is
     // not. The recursion this opens is one level deep: every sum below has a
-    // `Convex` operand and so is answered by construction 1 or 2, or — for a
-    // piece with no area, which only a slit produces — by construction 4.
+    // `Convex` operand and so is answered by construction 1, 2 or 3, or — for a
+    // piece with no area, which only a slit produces — by construction 5.
     //
     // Both operands must have **area**, and that is what the construction turns
     // on rather than a size or a vertex count. Its whole advantage is that the
@@ -1643,7 +1902,7 @@ PolygonSet<ResultPoint> regularizedMinkowskiSum(const ShapeA& a,
     // are and the edges of a chain are not. A 32-vertex chain over the large
     // coordinate range has edges as long as the chain itself, so every piece of
     // its sum spans the whole answer and they all cross each other; measured
-    // against a region of the same extent that is 3x *slower* than construction 4,
+    // against a region of the same extent that is 3x *slower* than construction 5,
     // whichever of the two is decomposed. The same chain against a *small* polygon
     // is 22x faster, so there is something here for a criterion that can tell a
     // chain's pieces apart by length — but extent alone does not do it, since two
@@ -1651,10 +1910,24 @@ PolygonSet<ResultPoint> regularizedMinkowskiSum(const ShapeA& a,
     if constexpr (exactPieces) {
         if (!leftConvex && !rightConvex && minkowskiHasArea(left) &&
             minkowskiHasArea(right)) {
-            auto pieces = minkowskiOneSidedDecomposesLeft(left, right)
-                              ? minkowskiOneSidedPieces<ExactPoint>(left, right)
-                              : minkowskiOneSidedPieces<ExactPoint>(right, left);
-            return regularizedUnionOf<ResultPoint>(pieces, true);
+            // A simple polygon on either side is summed whole by convolution,
+            // so it is the other side that is decomposed; with one on both sides
+            // the choice is the same one the general construction makes.
+            const bool leftWhole = minkowskiIsSimplePolygon(left);
+            const bool rightWhole = minkowskiIsSimplePolygon(right);
+            const bool decomposeLeft = leftWhole == rightWhole
+                                           ? minkowskiOneSidedDecomposesLeft(left, right)
+                                           : rightWhole;
+            if (decomposeLeft ? rightWhole : leftWhole) {
+                return regularizedUnionOf<ResultPoint>(
+                    decomposeLeft ? minkowskiConvolvedPieces<ExactPoint>(left, right)
+                                  : minkowskiConvolvedPieces<ExactPoint>(right, left),
+                    true);
+            }
+            return regularizedUnionOf<ResultPoint>(
+                decomposeLeft ? minkowskiOneSidedPieces<ExactPoint>(left, right)
+                              : minkowskiOneSidedPieces<ExactPoint>(right, left),
+                true);
         }
     }
 
