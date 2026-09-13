@@ -26,6 +26,7 @@ pgl::Segment<pgl::Point<double>> s = {p,q};
 ```
 
 You may use integer, floating-point, rational, or custom numeric coordinate types as long as they support the required arithmetic.
+Floating-point coordinates are accepted at your own risk: predicates on them are subject to rounding, and robustness to floating-point rounding is untested. Use integer or rational coordinates for exact results.
 If performance is not critical, you may use arbitrary precision rational numbers everywhere with `ERational`, `EPoint`, `ESegment`, etc.
 
 Operations that may construct fractional coordinates deduce the return number type. For an integral receiver this is `ERational`; floating-point and already-rational receivers retain their own coordinate type. Operations that may be irrational default to `double`. These defaults depend only on the receiver; mixed-coordinate calls can select a different result type explicitly.
@@ -90,6 +91,8 @@ The geometric [predicates](shape_methods.md#predicates) do not use division anyw
 - `pgl::int128` is promoted to [`pgl::BigInt`](#large-integers)
 - `float` is promoted to `double`
 - `double` is promoted to `long double`
+
+Promoting a floating-point type delays rounding but does not prevent it, and under MSVC `long double` is the same type as `double`.
 
 Promotion goes by width, so it covers every signed built-in integer type, `char`, `short`, `int`, `long` and `long long` included, whichever of them a fixed-width alias happens to name on your platform.
 

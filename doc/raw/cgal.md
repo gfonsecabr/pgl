@@ -73,6 +73,7 @@ Neither library is a rearrangement of the other. The choices below run through e
 - **Number types per shape, and converted implicitly.** A shape carries its own number type and mixes with another in one expression, which is what makes it practical to reach for `ERational` only where it is needed. CGAL fixes the number type in the kernel, and the conversion between two kernels is the user's to write.
 - **One `Point`.** pgl does not distinguish points from vectors and directions; CGAL's `Point_2`, `Vector_2` and `Direction_2` keep the affine distinction in the type system.
 - **Predicates answer yes or no.** Where CGAL returns one of three sides from `bounded_side` or `oriented_side`, pgl gives the boundary and the interior their own named predicates and each returns a `bool`.
+- **The library chooses the algorithm.** Instead of offering many algorithms and parameters to solve the same problem as CGAL does, the library hides the algorithm and parameter choice from the user. Worst-case complexity guarantees are still given, though. For example, when listing all $k$ intersections among $n$ segments in $O((n+k) \log n)$ time, the library may start with a brute force approach that would take $O(n^2)$ time (with a smaller multiplicative constant), but switch to a sweep line approach if it estimates $k$ to be small.
 - **Degeneracy is a state of the shape, not a precondition on the operation.** A degenerate shape that still means something carries that meaning: a collinear `Triangle` is the segment it covers, but with an empty interior. Every predicate answers the limit case, and `isDegenerate`{Triangle}, `isPoint`{Triangle} and `isSegment`{Triangle} report it. Undefined behavior is reserved for the shapes with no limit at all — a `Line` through two equal points, a `Disk` through three collinear ones — and `isUndefined`{Line} tests for them in advance. CGAL constructs the same degenerate objects and offers `is_degenerate`, but the operations on them carry preconditions, such as *`t` is not degenerate* on `Triangle_2::bounded_side`, that are documented rather than enforced: a collinear triangle reports every collinear point of the plane on its bounded side.
 - **Values, not handles.** Every shape is comparable and hashable and goes straight into a `std::set` or `std::unordered_set`, and a `Triangulation` is addressed by the points themselves rather than by handles into it. CGAL is navigated with handles and circulators throughout.
 - **Monolithic, not modular.** One header and one set of conventions, against dozens of packages each with its own traits and concepts: less to learn, and much less to swap out.
@@ -84,7 +85,7 @@ The numbers come from the [asymptotic benchmarks](https://gfonsecabr.github.io/p
 #### Methodology
 
 - Both libraries are handed the identical input: the benchmark generates every dataset once, with `int` coordinates, and converts. The CGAL drivers live in `tests/benchmark/asymptotic/baseline/` beside the pgl ones.
-- Each ratio is pgl time divided by CGAL time, taking the best algorithm each library offers on average over the size range, except that pgl searches never use `IntervalTree` (despite being faster in several benchmarks, it is much slower when there are many segments that do not intersect but whose bounding boxes do). **Below 1 means pgl is faster.** The table gives the median over the 32 sizes of the sweep and, in parentheses, the full range. A row covering more than one dataset averages the per-dataset medians, and its range spans them all.
+- Each ratio is pgl time divided by CGAL time, taking the best algorithm each library offers on average over the size range, except that pgl searches never use `IntervalTree` (despite being faster in several benchmarks, it is much slower when there are many segments that do not intersect but whose bounding boxes do). **Below 1 means pgl is faster.** The table gives the median over the 32 sizes of the input range and, in parentheses, the full range. A row covering more than one dataset averages the per-dataset medians, and its range spans them all.
 - The two ratio columns are independent measurements, not one scaled by the other: each races a pgl number type against a comparable CGAL kernel.
 - Rows are ordered by the like-for-like `ERational` column, the one every row has, from CGAL's widest lead to pgl's.
 - One run, one machine, `g++ -std=c++23 -O2 -DNDEBUG`, CGAL 6.1.2.
@@ -114,9 +115,9 @@ The results below are sorted by `ERational` / EPECK ratio, from the cases where 
 | Arrangement point location query | ${\color{#006400}\textsf{0.52×}}\textsf{ (0.36–0.92)}$ | — | `a.locateFace(p)`{Arrangement} | <code>Arr_trapezoid_ric_<wbr>point_location<wbr>::locate</code> |
 | Regularized union, triangles | ${\color{#006400}\textsf{0.25×}}\textsf{ (0.23–0.68)}$ | — | `regularizedUnionOf(v)` | <code>General_polygon_set_2<wbr>::join</code> |
 
-\* CGAL's sweep runs under EPICK here, which is not exact. pgl's `int` sweep is exact and 0.64× (0.49–0.93) against EPECK.
+\* CGAL's sweep line runs under EPICK here, which is not exact. pgl's `int` sweep line is exact and 0.64× (0.49–0.93) against EPECK.
 
-† CGAL runs its fastest method over the whole sweep, the Hertel–Mehlhorn decomposition. Its reduced convolution is faster below about 150 vertices.
+† CGAL runs its fastest method over the whole input range, the Hertel–Mehlhorn decomposition. Its reduced convolution is faster below about 150 vertices.
 
 #### What the numbers do not say
 

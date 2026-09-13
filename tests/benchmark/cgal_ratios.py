@@ -62,7 +62,7 @@ SEGMENT_DATASETS = ("small segments", "large segments", "polygon edges")
 
 ROWS = [
     ("Segment intersection",
-     [cell("segmentintersections", d, "intersections", {"Bentley-Ottmann"})
+     [cell("segmentintersections", d, "intersections", {"findIntersections"})
       for d in SEGMENT_DATASETS],
      "`findIntersections(v)`",
      "<code>compute_<wbr>intersection_points</code>"),
@@ -150,9 +150,9 @@ FOOTNOTE = {("Segment intersection", 1): "\\*", ("Minkowski sum", 0): "†"}
 # Keep NOTE's wording in step with doc/raw/cgal.md — it is the page's sentence,
 # not this script's.
 FOOTNOTE_EXACT = ("Segment intersection", "int", "EPECK")
-NOTE = ("\\* CGAL's sweep runs under EPICK here, which is not exact. "
-        "pgl's `int` sweep is exact and {ratio} against EPECK.")
-MINKOWSKI_NOTE = ("† CGAL runs its fastest method over the whole sweep, the "
+NOTE = ("\\* CGAL's sweep line runs under EPICK here, which is not exact. "
+        "pgl's `int` sweep line is exact and {ratio} against EPECK.")
+MINKOWSKI_NOTE = ("† CGAL runs its fastest method over the whole input range, the "
                   "Hertel–Mehlhorn decomposition. Its reduced convolution is "
                   "faster below about 150 vertices.")
 

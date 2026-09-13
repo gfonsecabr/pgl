@@ -136,7 +136,7 @@ inline Result hullIsConvex(const std::vector<PointShape>& points) {
  *
  * Both the crossing pairs and the full intersection pairs, for the
  * Bentley-Ottmann sweep line and for the bounding-box sweep of
- * @ref pgl::xyCrossings, and the boolean `detectCrossings` short-circuit
+ * @ref pgl::detail::xyCrossings, and the boolean `detectCrossings` short-circuit
  * alongside them — a sweep that agrees on the list but disagrees on whether the
  * list is empty has still gone wrong.
  */
@@ -147,7 +147,7 @@ inline Result sweepMatchesBruteForce(const std::vector<PointShape>& points) {
     }
 
     auto sweptCrossings = pgl::findCrossings(segments);
-    auto bruteCrossings = pgl::bruteForceCrossings(segments);
+    auto bruteCrossings = pgl::detail::bruteForceCrossings(segments);
     std::sort(sweptCrossings.begin(), sweptCrossings.end());
     std::sort(bruteCrossings.begin(), bruteCrossings.end());
     PGLPROP_CHECK(sweptCrossings == bruteCrossings,
@@ -156,7 +156,7 @@ inline Result sweepMatchesBruteForce(const std::vector<PointShape>& points) {
                       std::to_string(bruteCrossings.size()));
 
     auto sweptIntersections = pgl::findIntersections(segments);
-    auto bruteIntersections = pgl::bruteForceIntersections(segments);
+    auto bruteIntersections = pgl::detail::bruteForceIntersections(segments);
     std::sort(sweptIntersections.begin(), sweptIntersections.end());
     std::sort(bruteIntersections.begin(), bruteIntersections.end());
     PGLPROP_CHECK(sweptIntersections == bruteIntersections,
@@ -164,14 +164,14 @@ inline Result sweepMatchesBruteForce(const std::vector<PointShape>& points) {
                       std::to_string(sweptIntersections.size()) + " pairs, bruteForceIntersections " +
                       std::to_string(bruteIntersections.size()));
 
-    auto sweptBoxCrossings = pgl::xyCrossings(segments);
+    auto sweptBoxCrossings = pgl::detail::xyCrossings(segments);
     std::sort(sweptBoxCrossings.begin(), sweptBoxCrossings.end());
     PGLPROP_CHECK(sweptBoxCrossings == bruteCrossings,
                   "segments from " + showPoints(points) + " ; xyCrossings reports " +
                       std::to_string(sweptBoxCrossings.size()) + " pairs, bruteForceCrossings " +
                       std::to_string(bruteCrossings.size()));
 
-    auto sweptBoxIntersections = pgl::xyIntersections(segments);
+    auto sweptBoxIntersections = pgl::detail::xyIntersections(segments);
     std::sort(sweptBoxIntersections.begin(), sweptBoxIntersections.end());
     PGLPROP_CHECK(sweptBoxIntersections == bruteIntersections,
                   "segments from " + showPoints(points) + " ; xyIntersections reports " +

@@ -92,8 +92,8 @@ TEST_CASE_TEMPLATE("xyCrossings agrees with bruteForceCrossings", Point,
                    pgl::Point<int>, pgl::Point<double>, pgl::Point<pgl::Rational<int>>) {
     for (unsigned seed = 1; seed <= 20; ++seed) {
         auto segs = randomSegments<Point>(40, seed);
-        auto swept = pgl::xyCrossings(segs);
-        auto brute = pgl::bruteForceCrossings(segs);
+        auto swept = pgl::detail::xyCrossings(segs);
+        auto brute = pgl::detail::bruteForceCrossings(segs);
         sortPairs(swept);
         sortPairs(brute);
         CHECK(swept == brute);
@@ -104,8 +104,8 @@ TEST_CASE_TEMPLATE("xyIntersections agrees with bruteForceIntersections", Point,
                    pgl::Point<int>, pgl::Point<double>, pgl::Point<pgl::Rational<int>>) {
     for (unsigned seed = 1; seed <= 20; ++seed) {
         auto segs = randomSegments<Point>(40, seed);
-        auto swept = pgl::xyIntersections(segs);
-        auto brute = pgl::bruteForceIntersections(segs);
+        auto swept = pgl::detail::xyIntersections(segs);
+        auto brute = pgl::detail::bruteForceIntersections(segs);
         sortPairs(swept);
         sortPairs(brute);
         CHECK(swept == brute);
@@ -118,28 +118,28 @@ TEST_CASE("xy sweeps handle degenerate configurations") {
 
     SUBCASE("empty and single-segment input") {
         std::vector<SegmentType> none;
-        CHECK(pgl::xyCrossings(none).empty());
-        CHECK(pgl::xyIntersections(none).empty());
+        CHECK(pgl::detail::xyCrossings(none).empty());
+        CHECK(pgl::detail::xyIntersections(none).empty());
 
         std::vector<SegmentType> one{{0, 0, 4, 4}};
-        CHECK(pgl::xyCrossings(one).empty());
-        CHECK(pgl::xyIntersections(one).empty());
+        CHECK(pgl::detail::xyCrossings(one).empty());
+        CHECK(pgl::detail::xyIntersections(one).empty());
     }
 
     SUBCASE("boxes touching in a single abscissa") {
         // Two segments meeting end to end: the boxes share only the line x = 4,
         // which the sweep must still compare.
         std::vector<SegmentType> segs{{0, 0, 4, 4}, {4, 4, 8, 0}};
-        CHECK(pgl::xyCrossings(segs).empty());
-        CHECK(pgl::xyIntersections(segs).size() == 1);
+        CHECK(pgl::detail::xyCrossings(segs).empty());
+        CHECK(pgl::detail::xyIntersections(segs).size() == 1);
     }
 
     SUBCASE("vertical segments") {
         // A degenerate (zero-width) box has its opening and closing event at the
         // same abscissa; the vertical pair still has to be reported.
         std::vector<SegmentType> segs{{2, 0, 2, 8}, {2, 4, 2, 12}, {0, 6, 4, 6}};
-        auto swept = pgl::xyIntersections(segs);
-        auto brute = pgl::bruteForceIntersections(segs);
+        auto swept = pgl::detail::xyIntersections(segs);
+        auto brute = pgl::detail::bruteForceIntersections(segs);
         sortPairs(swept);
         sortPairs(brute);
         CHECK(swept == brute);
@@ -148,13 +148,13 @@ TEST_CASE("xy sweeps handle degenerate configurations") {
 
     SUBCASE("collinear overlap and duplicated segments") {
         std::vector<SegmentType> segs{{0, 0, 6, 0}, {2, 0, 8, 0}, {0, 0, 6, 0}};
-        auto swept = pgl::xyIntersections(segs);
-        auto brute = pgl::bruteForceIntersections(segs);
+        auto swept = pgl::detail::xyIntersections(segs);
+        auto brute = pgl::detail::bruteForceIntersections(segs);
         sortPairs(swept);
         sortPairs(brute);
         CHECK(swept == brute);
         CHECK(swept.size() == 3);  // every pair overlaps, duplicates included
-        CHECK(pgl::xyCrossings(segs).empty());  // overlapping is not crossing
+        CHECK(pgl::detail::xyCrossings(segs).empty());  // overlapping is not crossing
     }
 
     SUBCASE("many segments sharing one endpoint") {
@@ -162,8 +162,8 @@ TEST_CASE("xy sweeps handle degenerate configurations") {
         for (int k = -5; k <= 5; ++k) {
             segs.emplace_back(0, 0, 10, k);
         }
-        auto swept = pgl::xyIntersections(segs);
-        auto brute = pgl::bruteForceIntersections(segs);
+        auto swept = pgl::detail::xyIntersections(segs);
+        auto brute = pgl::detail::bruteForceIntersections(segs);
         sortPairs(swept);
         sortPairs(brute);
         CHECK(swept == brute);
@@ -173,14 +173,14 @@ TEST_CASE("xy sweeps handle degenerate configurations") {
 TEST_CASE("xy sweeps scale past the pairwise scan") {
     using Point = pgl::Point<double>;
     auto segs = randomSegments<Point>(600, 7);
-    auto swept = pgl::xyIntersections(segs);
-    auto brute = pgl::bruteForceIntersections(segs);
+    auto swept = pgl::detail::xyIntersections(segs);
+    auto brute = pgl::detail::bruteForceIntersections(segs);
     sortPairs(swept);
     sortPairs(brute);
     CHECK(swept == brute);
 
-    auto sweptCrossings = pgl::xyCrossings(segs);
-    auto bruteCrossings = pgl::bruteForceCrossings(segs);
+    auto sweptCrossings = pgl::detail::xyCrossings(segs);
+    auto bruteCrossings = pgl::detail::bruteForceCrossings(segs);
     sortPairs(sweptCrossings);
     sortPairs(bruteCrossings);
     CHECK(sweptCrossings == bruteCrossings);
@@ -334,7 +334,7 @@ TEST_CASE("xy sweeps preserve segment labels, as the Bentley-Ottmann sweep does"
     for (const auto &s : segs)
         expected[s] = s.label();
 
-    auto crossings = pgl::xyCrossings(segs);
+    auto crossings = pgl::detail::xyCrossings(segs);
     REQUIRE(crossings.size() == 1);
     for (const auto &pair : crossings) {
         for (const auto &s : pair) {
@@ -343,7 +343,7 @@ TEST_CASE("xy sweeps preserve segment labels, as the Bentley-Ottmann sweep does"
         }
     }
 
-    auto intersections = pgl::xyIntersections(segs);
+    auto intersections = pgl::detail::xyIntersections(segs);
     REQUIRE(intersections.size() == 1);
     for (const auto &pair : intersections) {
         for (const auto &s : pair) {
@@ -362,7 +362,7 @@ TEST_CASE("xy sweeps preserve point labels") {
     segs.emplace_back(Point(0, 0, "a"), Point(10, 10, "a"));
     segs.emplace_back(Point(0, 10, "b"), Point(10, 0, "b"));
 
-    const auto crossings = pgl::xyCrossings(segs);
+    const auto crossings = pgl::detail::xyCrossings(segs);
     REQUIRE(crossings.size() == 1);
     for (const auto &s : crossings.front()) {
         CHECK(s.min().label() == s.max().label());

@@ -89,9 +89,9 @@ int main() {
     // segments = nonDegenerate(segments);
     // std::cout << segments.size() << " segments\n";
 
-    auto crossingsBF = pgl::bruteForceCrossings(segments);
+    auto crossingsBF = pgl::detail::bruteForceCrossings(segments);
     draw("bo_crossings_bruteforce.svg", segments, crossingsBF);
-    auto isecsBF= pgl::bruteForceIntersections(segments);
+    auto isecsBF= pgl::detail::bruteForceIntersections(segments);
     draw("bo_isecs_bruteforce.svg", segments, isecsBF);
 
     auto crossings = pgl::findCrossings(segments);

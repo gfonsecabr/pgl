@@ -1,5 +1,6 @@
-// @desc: All intersections and all crossings among n segments, by Bentley–
-// Ottmann and by the xy-sweep.
+// @desc: All intersections and all crossings among n segments, by
+// findIntersections / findCrossings (which choose their own method), by
+// Bentley–Ottmann alone and by the xy-sweep.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"
@@ -10,6 +11,17 @@
 namespace {
 
 constexpr const char* kCategory = "Segment intersections";
+
+// The Bentley–Ottmann sweep on its own. The public functions only fall back to
+// it where a scan over bounding boxes would cost more, so the row that has
+// always been labelled Bentley-Ottmann forces it.
+template <class Segment>
+auto sweepOnly(const std::vector<Segment>& segments, bool onlyCrossings) {
+    using Relation = pgl::detail::SegmentPairRelation;
+    return pgl::detail::findSegmentPairs<pgl::Rational<pgl::BigInt>>(
+        segments, onlyCrossings ? Relation::crosses : Relation::intersects,
+        pgl::detail::SegmentPairMethod::sweep);
+}
 
 template <class Number>
 void sweepDataset(const bench::Options& opt, const char* dataset,
@@ -24,23 +36,31 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
         long long result = 0;
 
         if (bench::matches(opt.problem, "intersections")) {
-            const double bo = bench::timeOnce(result,
+            const double chosen = bench::timeOnce(result,
                 [&] { return pgl::findIntersections(segments).size(); });
+            bench::emit(kCategory, dataset, "intersections", "findIntersections",
+                        number, n, result, chosen);
+            const double bo = bench::timeOnce(result,
+                [&] { return sweepOnly(segments, false).size(); });
             bench::emit(kCategory, dataset, "intersections", "Bentley-Ottmann",
                         number, n, result, bo);
             const double xy = bench::timeOnce(result,
-                [&] { return pgl::xyIntersections(segments).size(); });
+                [&] { return pgl::detail::xyIntersections(segments).size(); });
             bench::emit(kCategory, dataset, "intersections", "xy sweep",
                         number, n, result, xy);
         }
 
         if (bench::matches(opt.problem, "crossings")) {
-            const double bo = bench::timeOnce(result,
+            const double chosen = bench::timeOnce(result,
                 [&] { return pgl::findCrossings(segments).size(); });
+            bench::emit(kCategory, dataset, "crossings", "findCrossings",
+                        number, n, result, chosen);
+            const double bo = bench::timeOnce(result,
+                [&] { return sweepOnly(segments, true).size(); });
             bench::emit(kCategory, dataset, "crossings", "Bentley-Ottmann",
                         number, n, result, bo);
             const double xy = bench::timeOnce(result,
-                [&] { return pgl::xyCrossings(segments).size(); });
+                [&] { return pgl::detail::xyCrossings(segments).size(); });
             bench::emit(kCategory, dataset, "crossings", "xy sweep",
                         number, n, result, xy);
         }

@@ -21,21 +21,17 @@
 
 Given a container of $n$ line segments, we provide several functions to compute their intersections and crossings.
 
-- `findIntersections(V)` returns all intersecting pairs of segments from the container `V` using the Bentley-Ottmann sweep-line algorithm. It runs in $O((n+k) \log n)$ time where $n$ is the input size and $k$ is the output size.
+- `findIntersections(V)` returns all intersecting pairs of segments from the container `V`. It runs in $O((n+k) \log n)$ time where $n$ is the input size and $k$ is the output size.
 
-- `findCrossings(V)` returns all crossing pairs of segments from the container `V` using the Bentley-Ottmann sweep-line algorithm. It runs in $O((n+k) \log n)$ time where $n$ is the input size and $k$ is the output size.
+- `findCrossings(V)` returns all crossing pairs of segments from the container `V`. It runs in $O((n+k) \log n)$ time where $n$ is the input size and $k$ is the output size.
 
-- `bruteForceIntersections(V)` returns all intersecting pairs of segments from the container `V` using the naive brute force solution that verifies each pair. It takes $O(n^2)$ time but is faster when there are many intersections.
+- `findInteriorIntersections(V)` returns all pairs of segments from the container `V` whose interiors intersect, as `interiorsIntersect` defines it: pairs that cross and pairs that overlap along a segment of positive length. It runs in $O((n+k) \log n)$ time where $n$ is the input size and $k$ is the output size.
 
-- `bruteForceCrossings(V)` returns all crossing pairs of segments from the container `V` using the naive brute force solution that verifies each pair. It takes $O(n^2)$ time but is faster when there are many crossings.
+- `detectIntersections(V)` returns true if there are two intersecting segments in the container `V` in $O(n \log n)$ time.
 
-- `xyIntersections(V)` returns all intersecting pairs of segments from the container `V`, exactly as `bruteForceIntersections` does but in the order a sweep meets them. A vertical line sweeps the bounding-box abscissas while an [interval tree](data_structures.md) over the y-extents holds the segments it currently meets, so only the pairs whose bounding boxes overlap are tested. It takes $O((n+k) \log n)$ time where $k$ is the number of such pairs. Unlike `findIntersections` it needs no exact arithmetic and accepts floating-point coordinates.
+- `detectCrossings(V)` returns true if there are two crossing segments in the container `V` in $O(n \log n)$ time.
 
-- `xyCrossings(V)` returns all crossing pairs of segments from the container `V`, exactly as `bruteForceCrossings` does but in the order the same bounding-box sweep meets them, in $O((n+k) \log n)$ time where $k$ is the number of pairs of overlapping bounding boxes. It also accepts floating-point coordinates.
-
-- `detectIntersections(V)` returns true if there are two intersecting segments in the container `V` using the Bentley-Ottmann sweep-line algorithm. It runs in $O(n \log n)$ time.
-
-- `detectCrossings(V)` returns true if there are two crossing segments in the container `V` using the Bentley-Ottmann sweep-line algorithm. It runs in $O(n \log n)$ time.
+- `detectInteriorIntersections(V)` returns true if the interiors of two segments in the container `V` intersect in $O(n \log n)$ time.
 
 The pair-returning functions all keep the input segment type, labels on the segments and on their points included, which is the usual way to recover which input a reported pair came from.
 

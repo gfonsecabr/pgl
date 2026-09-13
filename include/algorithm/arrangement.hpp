@@ -235,11 +235,11 @@ public:
      * each boundary cycle in the face holding it — and the splitting step is
      * `O((n + k) log n)` in the distinct input segments and the pairs of them
      * that meet, so the whole construction follows the size of what it
-     * produces. The split reaches that bound by trying a bounding-box filter
-     * first, which is several times cheaper per pair than a sweep line and is
-     * what sparse input actually pays, and falling back on Bentley--Ottmann
-     * when that filter exceeds a budget set by what the sweep would have
-     * cost.
+     * produces. The split finds its pairs as @ref pgl::findIntersections
+     * does: a sample of the input decides between a bounding-box scan, which
+     * is several times cheaper per pair than a sweep line and is what sparse
+     * input actually pays, and Bentley--Ottmann, and a scan that exceeds a
+     * budget set by what the sweep would have cost is abandoned for it.
      *
      * The nesting is the one step with two implementations rather than one, so
      * the bound deserves a word: @ref halfedgesLeftOf answers the batch of `Q`
@@ -1896,21 +1896,14 @@ private:
      * over. The pieces are still emitted once per contributing shape, so
      * @ref internVertices sees the same multiset it would without it.
      *
-     * Pairs are enumerated by a box filter first: the groups are visited left
-     * to right, those whose x-projection is still open are kept in an active
-     * list, a y-extent comparison rejects what overlaps in x but misses in y,
-     * and only the survivors are intersected exactly. On the Minkowski workload
-     * that is worth 2x at a thousand cut segments and close to 4x at seventeen
-     * thousand, because the boxes are sparse: at the largest shape-pair cell it
-     * cuts 143M pair tests to 3.1M.
-     *
-     * The filter has no bound to offer, so it runs on a budget set by what a
-     * sweep line would cost on the same input, and blowing it hands the job to
-     * @ref pgl::detail::BentleyOttmann — `O((n + k) log n)` in the distinct
-     * input segments and the pairs that really meet. The restart wastes at most
-     * a constant factor, so the quadratic term is gone: the box filter keeps
-     * sparse input cheap and the sweep line bounds everything else. See the
-     * budget's own comment below for what it is worth per workload.
+     * Pairs are enumerated by @ref detail::visitSegmentPairs, the method behind
+     * @ref pgl::findIntersections. It scans the bounding boxes along whichever
+     * axis a sample of pairs says overlaps less, and intersects exactly only
+     * the pairs whose boxes overlap; the scan has no bound to offer, so it runs
+     * on a budget set by what a sweep line would cost, and the sample or the
+     * budget hands the job to @ref pgl::detail::BentleyOttmann —
+     * `O((n + k) log n)` in the distinct input segments and the pairs that
+     * really meet — where boxes overlap without their segments meeting.
      *
      * Whichever enumerates them, a tested pair gets the same exact treatment
      * the all-pairs scan gave it, and the pairs never tested are the ones that
@@ -1945,29 +1938,6 @@ private:
         }
         group.push_back(segments.size());
         const std::size_t count = group.size() - 1;
-
-        // A segment's endpoints are in lexicographic order, so min().x() is the
-        // left end of its x-projection and max().x() the right one, with nothing
-        // to compute. The y-extent is not ordered, hence the explicit minmax.
-        std::vector<NumberType> right, low, high;
-        right.reserve(count);
-        low.reserve(count);
-        high.reserve(count);
-        for (std::size_t i = 0; i < count; ++i) {
-            const Segment<PointType>& current = segments[group[i]].segment;
-            right.push_back(current.max().x());
-            const auto [lo, hi] = std::minmax(current.min().y(), current.max().y());
-            low.push_back(lo);
-            high.push_back(hi);
-        }
-
-        std::vector<std::uint32_t> order(count);
-        for (std::size_t i = 0; i < count; ++i) {
-            order[i] = static_cast<std::uint32_t>(i);
-        }
-        std::sort(order.begin(), order.end(), [&](std::uint32_t a, std::uint32_t b) {
-            return segments[group[a]].segment.min().x() < segments[group[b]].segment.min().x();
-        });
 
         std::vector<std::vector<PointType>> cuts(count);
         std::vector<std::optional<IntegralSegment>> integral;
@@ -2021,17 +1991,13 @@ private:
             }
         }
 
-        // How many of the tested pairs turned out to meet, which is the size of
-        // what a sweep would have reported and so what the box filter's budget
-        // below is measured against.
-        std::size_t met = 0;
-
+        // Records where two groups meet in both their cut lists, and says
+        // whether they do.
         const auto meet = [&](std::size_t a, std::size_t b) {
             const auto add = [&](const auto& piece) {
                 if (!piece) {
-                    return;
+                    return false;
                 }
-                ++met;
                 if (const auto* point = std::get_if<0>(&*piece)) {
                     cuts[a].emplace_back(*point);
                     cuts[b].emplace_back(*point);
@@ -2042,145 +2008,53 @@ private:
                         cuts[b].emplace_back(end);
                     }
                 }
+                return true;
             };
 
+            // Two segments that share an endpoint and are not collinear meet
+            // only at that endpoint, which both cut lists already hold, so
+            // there is nothing to construct. On the overlays of convex pieces a
+            // Minkowski sum builds, that is most of the pairs that meet at all.
+            const auto onlyAtSharedEnd = [](const auto& p, const auto& q) {
+                const bool shared = p.min() == q.min() || p.min() == q.max() ||
+                                    p.max() == q.min() || p.max() == q.max();
+                return shared && (orientationSign(p.min(), p.max(), q.min()) != 0 ||
+                                  orientationSign(p.min(), p.max(), q.max()) != 0);
+            };
             if constexpr (mayNeedIntegralNarrowing) {
                 if (integral[a] && integral[b]) {
-                    add(integral[a]->template intersection<NumberType>(*integral[b]));
-                    return;
+                    if (onlyAtSharedEnd(*integral[a], *integral[b])) {
+                        return true;
+                    }
+                    return add(integral[a]->template intersection<NumberType>(*integral[b]));
                 }
             }
-            add(segments[group[a]].segment.template intersection<NumberType>(
-                segments[group[b]].segment));
-        };
-
-        // Which pairs to test, and how to stop the cheapest way of finding them
-        // from being the slowest.
-        //
-        // The box filter below is the cheap one: a group is compared against
-        // the still-open projections in an active list, a y-extent test rejects
-        // what overlaps in x but misses in y, and the survivors are intersected
-        // exactly. A rejection is a couple of native comparisons, which is
-        // roughly a thousandth of what reaching a pair through a sweep line
-        // costs, so on input whose boxes are sparse nothing else comes close.
-        //
-        // It has no bound to offer, though. Groups whose projections all overlap
-        // leave the whole active list to be scanned per group, and groups whose
-        // boxes all overlap leave every pair to be intersected, both quadratic
-        // in the number of distinct input segments however few pairs actually
-        // meet: a thousand long near-horizontal segments stacked in y, or a
-        // thousand parallel diagonals in a narrow band, cross nowhere and cost
-        // half a million pair tests apiece.
-        //
-        // So the filter runs on a budget rather than on a guess about the
-        // caller. Each rejection costs one unit and each exact intersection
-        // sixteen — measured, conservatively, against a per-pair cost that runs
-        // from a nanosecond to a few hundred — and the budget is a fixed
-        // multiple of what a sweep line would spend on the same input, which is
-        // its `n + k` with `k` the pairs that really do meet. Exceed it and the
-        // input is one the filter has no advantage on, so the cut lists are
-        // reset and the pairs enumerated again by a sweep. The restart wastes at
-        // most a constant factor over having swept from the start, and buys back
-        // the quadratic term.
-        //
-        // Measured, the filter spends between 15 and 71 units per `n + k` on
-        // the workloads that reach here — random segments, polygon boundaries,
-        // two-polygon unions, Minkowski overlays — so 256 leaves it a factor of
-        // three and a half before it gives up anything. The two degenerate
-        // families above spend 4,000 and 34,000 and trip it early: at 16,000
-        // parallel diagonals the split goes from 2.1 s to 55 ms, and it is the
-        // slope that changed, not the constant.
-        //
-        // Below a few hundred groups the budget is not applied at all, because
-        // there is nothing there to win: the entire quadratic scan is a few tens
-        // of thousands of pair tests, which the sweep line's setup does not
-        // beat. Without the floor, sixty-four mutually overlapping boxes paid a
-        // tenth for a restart that gained nothing.
-        //
-        // A restart does throw away what the filter had already cut, so around
-        // the crossover — where sweeping is only just the better of the two —
-        // the wasted half of the budget can cost more than the escape saves. A
-        // thousand segments stacked in y run about a tenth slower than the
-        // filter alone would, some tens of microseconds. That band is narrow and
-        // its width is bounded by the budget; a few thousand segments in, the
-        // same family is several times faster and pulling away.
-        constexpr std::size_t meetCost = 16;
-        constexpr std::size_t budgetFactor = 256;
-        constexpr std::size_t budgetFloor = 256;
-        const bool budgeted = count >= budgetFloor;
-        std::size_t spent = 0;
-
-        // The active list is compacted by the same pass that tests it, so a
-        // group is dropped exactly once and expiry costs nothing beyond the
-        // comparison the test needed anyway. Returns false when the budget ran
-        // out, leaving the cut lists to be reset by the caller.
-        const auto boxFilter = [&] {
-            std::vector<std::uint32_t> active;
-            for (const std::uint32_t current : order) {
-                if (budgeted && spent > budgetFactor * (count + met)) {
-                    return false;
-                }
-                const NumberType& left = segments[group[current]].segment.min().x();
-                std::size_t write = 0;
-                for (std::size_t read = 0; read < active.size(); ++read) {
-                    const std::uint32_t other = active[read];
-                    bool expired;
-                    bool missesInY;
-                    if constexpr (mayNeedIntegralNarrowing) {
-                        if (integral[current] && integral[other]) {
-                            const IntegralSegment& currentSegment = *integral[current];
-                            const IntegralSegment& otherSegment = *integral[other];
-                            expired = otherSegment.max().x() < currentSegment.min().x();
-                            const auto [currentLow, currentHigh] =
-                                std::minmax(currentSegment.min().y(), currentSegment.max().y());
-                            const auto [otherLow, otherHigh] =
-                                std::minmax(otherSegment.min().y(), otherSegment.max().y());
-                            missesInY = otherHigh < currentLow || currentHigh < otherLow;
-                        } else {
-                            expired = right[other] < left;
-                            missesInY = high[other] < low[current] || high[current] < low[other];
-                        }
-                    } else {
-                        expired = right[other] < left;
-                        missesInY = high[other] < low[current] || high[current] < low[other];
-                    }
-                    if (expired) {
-                        continue;  // its projection closed before this one opened
-                    }
-                    active[write++] = other;
-                    ++spent;
-                    if (missesInY) {
-                        continue;  // boxes overlap in x but miss in y
-                    }
-                    spent += meetCost;
-                    meet(other, current);
-                }
-                active.resize(write);
-                active.push_back(current);
+            const Segment<PointType>& p = segments[group[a]].segment;
+            const Segment<PointType>& q = segments[group[b]].segment;
+            if (onlyAtSharedEnd(p, q)) {
+                return true;
             }
-            return true;
+            return add(p.template intersection<NumberType>(q));
         };
 
-        // The escapes, one per coordinate kind. Bentley--Ottmann follows the
-        // crossings themselves and is O((n + k) log n) whatever the boxes do,
-        // which is the bound the filter cannot promise; it needs exact
-        // arithmetic, so floating-point input falls back on the interval tree
-        // instead, which reaches the same overlapping-box pairs the filter
-        // would have but through a query rather than a scan of the active list.
-        // That is a weaker escape — the pairs are still every overlapping box,
-        // so parallel diagonals stay quadratic — and it is the one available
-        // when the sweep line is not.
-        // The escape, one per coordinate kind, over the distinct segments alone.
-        // Bentley--Ottmann follows the crossings themselves and is
-        // `O((n + k) log n)` whatever the boxes do, which is the bound the
-        // filter cannot promise. It needs exact arithmetic, so floating-point
-        // input escapes to the interval tree instead: that reaches the same
-        // overlapping-box pairs the filter would have, but through a query
-        // rather than a scan of the active list, which fixes the projections
-        // that all overlap and leaves the boxes that all overlap where they
-        // were. A weaker escape, and the one available when the sweep line is
-        // not.
-        const auto enumeratePairs = [&](const auto& unique) {
+        // Which pairs to test is decided as findIntersections decides it, by
+        // detail::visitSegmentPairs over the distinct segments: a scan over
+        // bounding boxes where a sample of the input says that is cheaper,
+        // under a budget set by what a sweep line would cost, and otherwise
+        // the sweep. The scan hands each pair whose boxes overlap straight to
+        // `meet`, so a pair is intersected once, not tested and then
+        // intersected.
+        //
+        // The sweep, when it is the one, is Bentley--Ottmann: it follows the
+        // crossings themselves and is `O((n + k) log n)` whatever the boxes
+        // do, which is the bound the scan cannot promise. It needs exact
+        // arithmetic, so floating-point input sweeps with the interval tree
+        // instead: that reaches the same overlapping-box pairs the scan would
+        // have, but through a query rather than a scan of one axis, which fixes
+        // the boxes that overlap on both axes separately and leaves the boxes
+        // that overlap outright where they were. A weaker escape, and the one
+        // available when the sweep line is not.
+        const auto sweepPairs = [&](const auto& unique) {
             if constexpr (std::floating_point<NumberType>) {
                 detail::visitXYSweepPairs(unique,
                                           [&](std::size_t a, std::size_t b) { meet(a, b); });
@@ -2204,14 +2078,31 @@ private:
             }
         };
 
-        const auto restart = [&] {
-            // Whatever the filter managed to cut, back to the endpoints alone.
+        const auto enumeratePairs = [&](const auto& unique) {
+            const bool scanned = detail::visitSegmentPairs(
+                unique, detail::SegmentPairRelation::intersects,
+                [&meet](const auto&, std::size_t a, std::size_t b) {
+                    return meet(a, b);
+                });
+            if (scanned) {
+                return;
+            }
+            // Whatever an abandoned scan managed to cut, back to the endpoints
+            // alone.
             for (std::size_t i = 0; i < count; ++i) {
                 const Segment<PointType>& segment = segments[group[i]].segment;
                 cuts[i].clear();
                 cuts[i].push_back(segment.min());
                 cuts[i].push_back(segment.max());
             }
+            sweepPairs(unique);
+        };
+
+        if (disjointInteriors) {
+            // Nothing to cut against: the caller has promised that the groups
+            // meet only at shared endpoints, which the endpoints already seeded
+            // into every cut list. Only the isolated points below are left.
+        } else {
             const bool allIntegral =
                 mayNeedIntegralNarrowing &&
                 std::ranges::all_of(integral,
@@ -2231,14 +2122,6 @@ private:
                 }
                 enumeratePairs(unique);
             }
-        };
-
-        if (disjointInteriors) {
-            // Nothing to cut against: the caller has promised that the groups
-            // meet only at shared endpoints, which the endpoints already seeded
-            // into every cut list. Only the isolated points below are left.
-        } else if (!boxFilter()) {
-            restart();
         }
 
         std::vector<Piece> pieces;

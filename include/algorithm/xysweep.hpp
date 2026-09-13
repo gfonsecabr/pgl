@@ -136,11 +136,6 @@ bool visitXYSweepPairs(const std::vector<Segment>& segments, Visitor visit) {
     return false;
 }
 
-}  // namespace pgl::detail
-
-
-namespace pgl {
-
 /**
  * @brief Finds all crossing segment pairs with a bounding-box sweep.
  *
@@ -149,7 +144,7 @@ namespace pgl {
  * bounding boxes overlap. Takes `O((n + k) log n)` time for `n` segments and
  * `k` bounding-box-overlapping pairs, so it is the faster of the two whenever
  * the boxes are not almost all overlapping, and it needs no exact arithmetic:
- * unlike @ref findCrossings it accepts floating-point coordinates.
+ * unlike @ref pgl::findCrossings it accepts floating-point coordinates.
  *
  * @tparam Rational Unused template parameter kept for API symmetry.
  * @tparam Container Container of segment-like values.
@@ -192,7 +187,7 @@ auto xyCrossings(const Container &segments) {
  * bounding boxes overlap. Takes `O((n + k) log n)` time for `n` segments and
  * `k` bounding-box-overlapping pairs, so it is the faster of the two whenever
  * the boxes are not almost all overlapping, and it needs no exact arithmetic:
- * unlike @ref findIntersections it accepts floating-point coordinates.
+ * unlike @ref pgl::findIntersections it accepts floating-point coordinates.
  *
  * @tparam Rational Unused template parameter kept for API symmetry.
  * @tparam Container Container of segment-like values.
@@ -226,6 +221,11 @@ auto xyIntersections(const Container &segments) {
 
     return ret;
 }
+
+}  // namespace pgl::detail
+
+
+namespace pgl {
 
 /**
  * @brief Tests whether the polygon boundary is simple.

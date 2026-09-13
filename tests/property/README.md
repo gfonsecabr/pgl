@@ -248,7 +248,7 @@ degenerate but defined, which is where most of what this harness finds lives.
 
 4. **Bentley–Ottmann double-reports with a zero-length segment.** For
    `{(0,0)--(0,0), (0,-1)--(0,0)}`, `findIntersections` returns 2 pairs and
-   `bruteForceIntersections` returns 1. A zero-length segment is defined
+   `detail::bruteForceIntersections` returns 1. A zero-length segment is defined
    (`isUndefined()` is false), so it is legitimate input.
 
 ### Unbounded regions

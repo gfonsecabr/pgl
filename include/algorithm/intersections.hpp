@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <cmath>
 #include <concepts>
 #include <cstdint>
 #include <functional>
@@ -20,6 +21,7 @@
 #include <numeric>
 #include <queue>
 #include <set>
+#include <stdexcept>
 #include <type_traits>
 #include <unordered_set>
 #include <utility>
@@ -312,6 +314,10 @@ class BentleyOttmann {
     // return stops the sweep. Empty unless an entry point needs one.
     std::function<bool(const Segment&, const Segment&)> onCrossing, onIntersection;
     bool onlyCrossings = true;
+    // With onlyCrossings: also report every pair overlapping collinearly along
+    // a stretch of positive length, which with the crossings are exactly the
+    // pairs whose relative interiors meet.
+    bool interiorsOnly = false;
     bool stopNow = false;
 
     bool addCrossing(Id a, Id b) {
@@ -1197,7 +1203,71 @@ class BentleyOttmann {
                 if (stopNow) {
                     break;
                 }
+            } else if (interiorsOnly) {
+                // A segment overlapping this one along a stretch of positive
+                // length is collinear with it and, being in the status at this
+                // abscissa, passes through its left endpoint. The status orders
+                // the segments through one point by slope, so those collinear
+                // with this one are the neighbours on either side of it until
+                // the first that is not, and nothing else needs asking. The ones
+                // that merely end here were taken out by this step's RIGHT
+                // events, and one that starts here too is met from whichever of
+                // the two goes in second.
+                const Ends &ends = endsOf[ev.s1];
+                const auto collinear = [this, &ends](Node it) {
+                    if (!it || it->value >= input->size()) {
+                        return false;
+                    }
+                    const Ends &other = endsOf[it->value];
+                    return pgl::detail::orientationSignOf(ends.lo, ends.hi, other.lo).value() == 0 &&
+                           pgl::detail::orientationSignOf(ends.lo, ends.hi, other.hi).value() == 0;
+                };
+                for (Node it = Tree::prev(it1); collinear(it) && !stopNow; it = Tree::prev(it)) {
+                    addIntersection(it->value, ev.s1);
+                }
+                for (Node it = Tree::next(it1); collinear(it) && !stopNow; it = Tree::next(it)) {
+                    addIntersection(it->value, ev.s1);
+                }
+                if (stopNow) {
+                    break;
+                }
             }
+        }
+    }
+
+    // The vertical segments at this abscissa that overlap along a stretch of
+    // positive length. Ordered by their lower ends, each is compared with the
+    // earlier ones still reaching above that end, which it overlaps, and the
+    // ones that do not reach are dropped for good, so the work is the pairs
+    // reported plus one drop per segment.
+    void processVERTICAL_overlaps(const std::vector<Event> &evts) {
+        if (evts.size() < 2) {
+            return;
+        }
+        std::vector<Id> order;
+        for (const Event &ev : evts) {
+            if (!seg(ev.s1).isDegenerate()) {
+                order.push_back(ev.s1);
+            }
+        }
+        std::sort(order.begin(), order.end(),
+                  [this](Id a, Id b) { return seg(a).min().y() < seg(b).min().y(); });
+        std::vector<Id> reaching;
+        for (const Id id : order) {
+            const auto &bottom = seg(id).min().y();
+            std::size_t write = 0;
+            for (std::size_t read = 0; read < reaching.size(); ++read) {
+                const Id other = reaching[read];
+                if (!(bottom < seg(other).max().y())) {
+                    continue;
+                }
+                reaching[write++] = other;
+                if (addIntersection(other, id)) {
+                    return;
+                }
+            }
+            reaching.resize(write);
+            reaching.push_back(id);
         }
     }
 
@@ -1212,6 +1282,14 @@ class BentleyOttmann {
         if (!onlyCrossings) {
             for (const Rank r : duplicated) {
                 if (addIntersection(byRank[r], byRank[r])) {
+                    return;
+                }
+            }
+        } else if (interiorsOnly) {
+            // Two copies of a segment with length share their whole interior;
+            // a point has none.
+            for (const Rank r : duplicated) {
+                if (!seg(byRank[r]).isDegenerate() && addIntersection(byRank[r], byRank[r])) {
                     return;
                 }
             }
@@ -1249,6 +1327,11 @@ class BentleyOttmann {
 
             // 10) Do all VERTICAL events
             processVERTICAL(events[(size_t)EventEnum::VERTICAL]);
+            if (interiorsOnly) {
+                processVERTICAL_overlaps(events[(size_t)EventEnum::VERTICAL]);
+                if (stopNow)
+                    break;
+            }
             if (!onlyCrossings) {
                 processVERTICAL_interior(events[(size_t)EventEnum::VERTICAL],
                                          events[(size_t)EventEnum::RIGHT],
@@ -1310,6 +1393,23 @@ public:
         }
 
         return pairsOf(intersectionKeys);
+    }
+
+    std::vector<CrossingPair> findInteriorIntersections(const std::vector<Segment> &segments) {
+        onlyCrossings = true;
+        interiorsOnly = true;
+        run(segments);
+        intersectionKeys.insert(intersectionKeys.end(), crossingsSet.begin(), crossingsSet.end());
+        return pairsOf(intersectionKeys);
+    }
+
+    bool detectInteriorIntersections(const std::vector<Segment> &segments) {
+        onlyCrossings = true;
+        interiorsOnly = true;
+        onCrossing = [] (const Segment &, const Segment &) {return true;};
+        onIntersection = [] (const Segment &, const Segment &) {return true;};
+        run(segments);
+        return !crossingsSet.empty() || !intersectionKeys.empty();
     }
 
     bool detectCrossings(const std::vector<Segment> &segments) {
@@ -1512,15 +1612,607 @@ auto sweepInNarrowestRational(const std::vector<Segment> &segments, Body body) {
     BentleyOttmann<Rational, Segment> sweep;
     return body(sweep, segments);
 }
+
+/**
+ * @brief Sorts pair keys in place, by radix over the bits they actually use.
+ *
+ * A key packs two ranks, each below the input size, so its high bits are
+ * mostly zero and a least-significant-digit radix sort needs only as many
+ * passes as the largest key has digits. Over a million reported pairs that is
+ * several times cheaper than a comparison sort, and the order is the same.
+ */
+inline void sortPairKeys(std::vector<std::uint64_t> &keys) {
+    if (keys.size() < 512) {
+        std::sort(keys.begin(), keys.end());
+        return;
+    }
+    constexpr int digitBits = 11;
+    constexpr std::size_t buckets = std::size_t(1) << digitBits;
+    const std::uint64_t largest = *std::max_element(keys.begin(), keys.end());
+    std::vector<std::uint64_t> buffer(keys.size());
+    for (int shift = 0; shift < 64 && (largest >> shift) != 0; shift += digitBits) {
+        std::array<std::size_t, buckets + 1> start{};
+        for (const std::uint64_t key : keys) {
+            ++start[((key >> shift) & (buckets - 1)) + 1];
+        }
+        for (std::size_t b = 1; b <= buckets; ++b) {
+            start[b] += start[b - 1];
+        }
+        for (const std::uint64_t key : keys) {
+            buffer[start[(key >> shift) & (buckets - 1)]++] = key;
+        }
+        keys.swap(buffer);
+    }
+}
+
+/**
+ * @brief A double interval certain to contain an exact coordinate.
+ *
+ * Built from the coordinate's filter approximation, whose error bound is
+ * widened once more for the rounding of the two subtractions here. A value
+ * too large for double comes back as the whole line, which keeps every box
+ * test that reads it conservative.
+ */
+template <class Number>
+std::pair<double, double> conservativeInterval(const Number &value) {
+    const Approximate approximation = approximate(value);
+    if (approximation.error == 0.0) {
+        return {approximation.value, approximation.value};
+    }
+    const double slack = approximation.error * approximateMargin +
+                         approximateAbs(approximation.value) * approximateRoundoff + 0x1p-1000;
+    const double lower = approximation.value - slack;
+    const double upper = approximation.value + slack;
+    if (!(lower >= -std::numeric_limits<double>::max()) ||
+        !(upper <= std::numeric_limits<double>::max())) {
+        return {-std::numeric_limits<double>::infinity(),
+                std::numeric_limits<double>::infinity()};
+    }
+    return {lower, upper};
+}
+
+/** @brief Which relation between two segments a pair search reports. */
+enum class SegmentPairRelation {
+    intersects,          ///< The segments share a point.
+    crosses,             ///< The segments cross properly.
+    interiorsIntersect,  ///< The relative interiors of the segments share a point.
+};
+
+/**
+ * @brief Every pair of segments that meets, by a sweep over bounding boxes.
+ *
+ * The boxes are held in double, conservatively rounded, so the filter that
+ * picks candidate pairs never compares an exact coordinate. The sweep runs
+ * along one axis: the boxes are sorted by their low end on it, and each box is
+ * compared with the ones that start before it ends, on the other axis, in a
+ * loop over flat arrays. Only the pairs whose boxes overlap reach the exact
+ * predicate, and over coordinates that filter, that predicate reads endpoint
+ * approximations taken once per segment rather than once per test.
+ *
+ * Its cost is the number of pairs whose extents overlap on the swept axis plus
+ * the number whose boxes overlap, which on most inputs is a small multiple of
+ * the output but can be quadratic on inputs with none: long parallel segments
+ * side by side overlap everywhere and meet nowhere. @ref sample measures
+ * both counts on random pairs, and @ref scan takes a callback that abandons the
+ * sweep once its work outgrows a budget, so a caller can hand such an input to
+ * @ref BentleyOttmann, whose cost does not depend on the boxes.
+ *
+ * @tparam Segment Segment type of the input.
+ */
+template <SegmentConcept Segment>
+class SegmentPairScan {
+    using Point = typename Segment::PointType;
+    using Number = typename Point::NumberType;
+    using Coordinate = sign_coordinate_t<Number, Number>;
+
+public:
+    using Id = std::uint32_t;
+    using IdPair = std::pair<Id, Id>;
+
+    /** @brief Whether the pair predicate reads stored approximations. */
+    static constexpr bool filters = filtersSign<Coordinate>;
+
+    /** @brief Counts over a random sample of pairs. */
+    struct Sample {
+        std::size_t pairs = 0;    ///< Pairs drawn.
+        std::size_t alongX = 0;   ///< Pairs whose x-extents overlap.
+        std::size_t alongY = 0;   ///< Pairs whose y-extents overlap.
+        std::size_t boxes = 0;    ///< Pairs whose boxes overlap.
+        std::size_t meeting = 0;  ///< Pairs the predicate accepts.
+    };
+
+    /** @brief Work a scan has done, as reported to its budget. */
+    struct Progress {
+        std::size_t scanned = 0;  ///< Pairs overlapping along the swept axis.
+        std::size_t tested = 0;   ///< Pairs whose boxes overlap.
+        std::size_t found = 0;    ///< Pairs reported.
+    };
+
+    SegmentPairScan(const std::vector<Segment> &segments, SegmentPairRelation relation)
+        : segments_(&segments), relation_(relation) {
+        const std::size_t count = segments.size();
+        if (count > std::numeric_limits<Id>::max()) {
+            throw std::length_error("segment pair scan exceeds its 32-bit segment capacity");
+        }
+        xlo_.resize(count);
+        xhi_.resize(count);
+        ylo_.resize(count);
+        yhi_.resize(count);
+        if (filters) {
+            approximations_.resize(2 * count);
+        }
+        for (std::size_t i = 0; i < count; ++i) {
+            const Point &lo = segments[i].min();
+            const Point &hi = segments[i].max();
+            if (filters) {
+                approximations_[2 * i] = approximatePoint(lo);
+                approximations_[2 * i + 1] = approximatePoint(hi);
+            }
+            // The endpoints are in lexicographic order, so x runs from lo to
+            // hi; y can run either way.
+            xlo_[i] = conservativeInterval(lo.x()).first;
+            xhi_[i] = conservativeInterval(hi.x()).second;
+            const auto [loBelow, loAbove] = conservativeInterval(lo.y());
+            const auto [hiBelow, hiAbove] = conservativeInterval(hi.y());
+            ylo_[i] = std::min(loBelow, hiBelow);
+            yhi_[i] = std::max(loAbove, hiAbove);
+        }
+    }
+
+    /**
+     * @brief Counts overlaps and meetings among @p count pairs drawn at random.
+     *
+     * The draw is seeded by the input size alone, so the same input always
+     * takes the same decisions.
+     */
+    Sample sample(std::size_t count) const {
+        Sample result;
+        const std::uint64_t n = xlo_.size();
+        if (n < 2) {
+            return result;
+        }
+        std::uint64_t state = 0x9E3779B97F4A7C15ULL ^ n;
+        const auto next = [&state] {
+            state += 0x9E3779B97F4A7C15ULL;
+            std::uint64_t z = state;
+            z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+            z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+            return z ^ (z >> 31);
+        };
+        // An index below `range`, from the top half of a draw, by multiplying
+        // rather than dividing.
+        const auto below = [&next](std::uint64_t range) {
+            return static_cast<Id>(((next() >> 32) * range) >> 32);
+        };
+        result.pairs = count;
+        for (std::size_t s = 0; s < count; ++s) {
+            const Id i = below(n);
+            Id j = below(n - 1);
+            j += j >= i;
+            const bool x = xlo_[i] <= xhi_[j] && xlo_[j] <= xhi_[i];
+            const bool y = ylo_[i] <= yhi_[j] && ylo_[j] <= yhi_[i];
+            result.alongX += x;
+            result.alongY += y;
+            if (x && y) {
+                ++result.boxes;
+                result.meeting += meets(i, j);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * @brief Hands every pair whose boxes overlap to @p test, lesser Id first.
+     *
+     * @param alongY Sweep along y rather than x.
+     * @param test Called as `test(i, j)` for each such pair; returns whether
+     *        the two meet, which is what the budget counts as found. It may do
+     *        whatever the caller needs with a pair that meets, @ref meets being
+     *        the plain answer.
+     * @param abandon Called with the @ref Progress so far after every few
+     *        boxes' comparisons; a `true` return stops the scan.
+     * @return `false` if @p abandon stopped the scan before every pair was
+     *         tested.
+     */
+    template <class Test, class Abandon>
+    bool scan(bool alongY, Test test, Abandon abandon) const {
+        const std::size_t count = xlo_.size();
+        const auto &lo = alongY ? ylo_ : xlo_;
+        const auto &hi = alongY ? yhi_ : xhi_;
+        const auto &acrossLo = alongY ? xlo_ : ylo_;
+        const auto &acrossHi = alongY ? xhi_ : yhi_;
+
+        std::vector<std::pair<double, Id>> order(count);
+        for (std::size_t i = 0; i < count; ++i) {
+            order[i] = {lo[i], static_cast<Id>(i)};
+        }
+        std::sort(order.begin(), order.end());
+        // The swept boxes in flat arrays, in sweep order, for the inner loop.
+        std::vector<double> sweptLo(count), sweptHi(count), otherLo(count), otherHi(count);
+        std::vector<Id> id(count);
+        for (std::size_t r = 0; r < count; ++r) {
+            const Id i = order[r].second;
+            sweptLo[r] = lo[i];
+            sweptHi[r] = hi[i];
+            otherLo[r] = acrossLo[i];
+            otherHi[r] = acrossHi[i];
+            id[r] = i;
+        }
+
+        // The counters stay local and the budget is consulted every few boxes,
+        // so that the inner loop does not pay for being observable.
+        constexpr std::size_t consultEvery = 32;
+        std::size_t scanned = 0, tested = 0, found = 0;
+        for (std::size_t a = 0; a < count; ++a) {
+            const double end = sweptHi[a];
+            const double below = otherLo[a];
+            const double above = otherHi[a];
+            std::size_t b = a + 1;
+            for (; b < count && sweptLo[b] <= end; ++b) {
+                if (otherLo[b] <= above && below <= otherHi[b]) {
+                    ++tested;
+                    found += test(std::min(id[a], id[b]), std::max(id[a], id[b])) ? 1 : 0;
+                }
+            }
+            scanned += b - a - 1;
+            if (a % consultEvery == consultEvery - 1 &&
+                abandon(Progress{scanned, tested, found})) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @brief Whether two segments stand in the scan's relation.
+     *
+     * Four orientation signs the filter proves settle all three predicates.
+     * Short of that, a proved sign on each side of one segment's line still
+     * rules the pair out, and a shared endpoint — the commonest reason for a
+     * sign the filter cannot prove — decides it without evaluating anything,
+     * except for interiors of collinear segments; what remains goes to the
+     * segment's own predicate.
+     */
+    bool meets(Id i, Id j) const {
+        const Segment &p = (*segments_)[i];
+        const Segment &q = (*segments_)[j];
+        if constexpr (filters) {
+            const auto a = filtered<Coordinate>(p.min(), approximations_, 2 * i);
+            const auto b = filtered<Coordinate>(p.max(), approximations_, 2 * i + 1);
+            const auto c = filtered<Coordinate>(q.min(), approximations_, 2 * j);
+            const auto d = filtered<Coordinate>(q.max(), approximations_, 2 * j + 1);
+            const auto s1 = orientationSignOf(a, b, c);
+            const auto s2 = orientationSignOf(a, b, d);
+            const auto s3 = orientationSignOf(c, d, a);
+            const auto s4 = orientationSignOf(c, d, b);
+            if (allDecided(s1, s2, s3, s4)) {
+                return s1.value() != s2.value() && s3.value() != s4.value();
+            }
+            if ((allDecided(s1, s2) && s1.value() == s2.value()) ||
+                (allDecided(s3, s4) && s3.value() == s4.value())) {
+                return false;
+            }
+            if (p.min() == q.min() || p.min() == q.max() || p.max() == q.min() ||
+                p.max() == q.max()) {
+                switch (relation_) {
+                case SegmentPairRelation::intersects:
+                    return true;
+                case SegmentPairRelation::crosses:
+                    return false;
+                case SegmentPairRelation::interiorsIntersect:
+                    // A proved sign is a nonzero one, so the two are not
+                    // collinear and meet only at the endpoint they share.
+                    if (s1.decided() || s2.decided() || s3.decided() || s4.decided()) {
+                        return false;
+                    }
+                    break;
+                }
+            }
+        }
+        switch (relation_) {
+        case SegmentPairRelation::intersects:
+            return p.intersects(q);
+        case SegmentPairRelation::crosses:
+            return p.crosses(q);
+        case SegmentPairRelation::interiorsIntersect:
+            break;
+        }
+        return p.interiorsIntersect(q);
+    }
+
+private:
+    const std::vector<Segment> *segments_;
+    SegmentPairRelation relation_;
+    std::vector<double> xlo_, xhi_, ylo_, yhi_;
+    std::vector<ApproximatePoint> approximations_;
+};
+
+/**
+ * @brief Puts meeting pairs, named by position, in the order and form
+ * @ref BentleyOttmann reports them.
+ *
+ * That order is by the two segments' ranks in the value order of the input,
+ * lesser first, with the copies of a repeated segment in input order. Where no
+ * segment repeats, a rank names one segment and the pairs sort as packed
+ * integer keys.
+ */
+template <SegmentConcept Segment>
+std::vector<std::array<Segment, 2>> orderedSegmentPairs(
+    const std::vector<Segment> &segments,
+    const std::vector<typename SegmentPairScan<Segment>::IdPair> &ids) {
+    using Id = typename SegmentPairScan<Segment>::Id;
+    const std::size_t count = segments.size();
+    std::vector<Id> byRank(count);
+    std::iota(byRank.begin(), byRank.end(), Id(0));
+    std::sort(byRank.begin(), byRank.end(),
+              [&segments](Id a, Id b) { return segments[a] < segments[b]; });
+    std::vector<Id> rank(count);
+    bool repeats = false;
+    Id current = 0;
+    for (std::size_t r = 0; r < count; ++r) {
+        if (r > 0) {
+            if (segments[byRank[r - 1]] < segments[byRank[r]]) {
+                ++current;
+            } else {
+                repeats = true;
+            }
+        }
+        rank[byRank[r]] = current;
+    }
+
+    std::vector<std::array<Segment, 2>> pairs;
+    pairs.reserve(ids.size());
+    if (!repeats) {
+        std::vector<std::uint64_t> keys;
+        keys.reserve(ids.size());
+        for (const auto &[i, j] : ids) {
+            const Id ri = rank[i], rj = rank[j];
+            keys.push_back(ri < rj ? (std::uint64_t(ri) << 32) | rj
+                                   : (std::uint64_t(rj) << 32) | ri);
+        }
+        sortPairKeys(keys);
+        for (const std::uint64_t key : keys) {
+            pairs.push_back({segments[byRank[key >> 32]], segments[byRank[key & 0xffffffffu]]});
+        }
+        return pairs;
+    }
+
+    struct Item {
+        std::uint64_t key;
+        Id first, second;
+    };
+    std::vector<Item> items;
+    items.reserve(ids.size());
+    for (auto [i, j] : ids) {
+        if (rank[j] < rank[i] || (rank[j] == rank[i] && j < i)) {
+            std::swap(i, j);
+        }
+        items.push_back({(std::uint64_t(rank[i]) << 32) | rank[j], i, j});
+    }
+    std::sort(items.begin(), items.end(), [](const Item &x, const Item &y) {
+        if (x.key != y.key) {
+            return x.key < y.key;
+        }
+        return x.first != y.first ? x.first < y.first : x.second < y.second;
+    });
+    for (const Item &item : items) {
+        pairs.push_back({segments[item.first], segments[item.second]});
+    }
+    return pairs;
+}
+
+/** @brief How @ref findSegmentPairs finds the pairs. */
+enum class SegmentPairMethod {
+    automatic,  ///< Whichever the input suggests is cheaper, with a fallback.
+    scan,       ///< @ref SegmentPairScan, run to completion.
+    sweep,      ///< @ref BentleyOttmann.
+};
+
+/**
+ * @brief Estimated nanoseconds per unit of work, for choosing a method.
+ *
+ * Measured on random, clustered, polygonal and adversarial segment sets over
+ * `int` and `ERational` coordinates. Only their ratios matter, and only
+ * roughly: a wrong choice near the break-even point costs little, and a badly
+ * wrong one is caught by the scan's budget.
+ */
+struct SegmentPairCosts {
+    double scanned;       ///< Per pair overlapping along the swept axis.
+    double tested;        ///< Per pair whose boxes overlap.
+    double sorted;        ///< Per segment per bit of the input size, for the scan's sort.
+    double sweepSegment;  ///< Per segment per bit of the input size, for the sweep.
+    double sweepPair;     ///< Per reported pair per bit of the input size, for the sweep.
+};
+
+/** @brief The @ref SegmentPairCosts of an input of @p Segment. */
+template <SegmentConcept Segment>
+constexpr SegmentPairCosts segmentPairCosts() {
+    return SegmentPairScan<Segment>::filters ? SegmentPairCosts{1.5, 40.0, 3.0, 150.0, 30.0}
+                                             : SegmentPairCosts{1.5, 7.0, 3.0, 45.0, 30.0};
+}
+
+/**
+ * @brief Tests the pairs of @p segments that can meet by a @ref SegmentPairScan,
+ * if the input favours that over the sweep.
+ *
+ * A random sample of pairs estimates how many overlap along each axis, how
+ * many boxes overlap and how many pairs meet, which prices a scan along the
+ * better axis against @ref BentleyOttmann. When the scan is chosen it runs
+ * under a budget: it is abandoned as soon as its work exceeds what the sweep
+ * would spend on the input size and the pairs found so far. The scan therefore
+ * never costs more than a constant times the sweep, whatever the estimate said,
+ * and on inputs whose boxes rarely overlap without their segments meeting it
+ * is several times cheaper.
+ *
+ * @param test Called as `test(scan, i, j)`, with the positions of two segments
+ *        whose boxes overlap, lesser first; returns whether they meet. A caller
+ *        that only wants the pairs returns `scan.meets(i, j)`, and one that
+ *        constructs something for each meeting pair can do that instead, in the
+ *        same call, and spare the second test.
+ * @param method @ref SegmentPairMethod::automatic, or a forced choice.
+ * @param stopAtFirst Stop the scan soon after @p test first reports a meeting
+ *        pair, for a caller that only asks whether there is one.
+ * @return `false` if the sweep is the cheaper way, in which case the caller is
+ *         to sweep instead and discard whatever @p test was already given.
+ */
+template <SegmentConcept Segment, class Test>
+bool visitSegmentPairs(const std::vector<Segment> &segments, SegmentPairRelation relation, Test test,
+                       SegmentPairMethod method = SegmentPairMethod::automatic,
+                       bool stopAtFirst = false) {
+    const std::size_t count = segments.size();
+    if (method == SegmentPairMethod::sweep) {
+        return false;
+    }
+    if (count < 2) {
+        return true;
+    }
+
+    using Scan = SegmentPairScan<Segment>;
+    const Scan scan(segments, relation);
+    std::size_t met = 0;
+    const auto visit = [&scan, &test, &met](typename Scan::Id i, typename Scan::Id j) {
+        const bool meets = static_cast<bool>(test(scan, i, j));
+        met += meets ? 1 : 0;
+        return meets;
+    };
+    const auto firstFound = [stopAtFirst, &met] { return stopAtFirst && met > 0; };
+    const double n = static_cast<double>(count);
+    const double pairs = n * (n - 1) / 2;
+    const std::size_t drawn =
+        static_cast<std::size_t>(std::min(pairs, std::clamp(n, 256.0, 1024.0)));
+    const typename Scan::Sample sample = scan.sample(drawn);
+    const bool alongY = sample.alongY < sample.alongX;
+
+    if (method == SegmentPairMethod::scan) {
+        return scan.scan(alongY, visit, [&firstFound](const auto &) { return firstFound(); }) ||
+               firstFound();
+    }
+
+    const SegmentPairCosts costs = segmentPairCosts<Segment>();
+    const double bits = std::max(1.0, std::log2(n));
+    const double share = pairs / static_cast<double>(std::max<std::size_t>(sample.pairs, 1));
+    const double axisPairs = static_cast<double>(std::min(sample.alongX, sample.alongY)) * share;
+    const double boxPairs = static_cast<double>(sample.boxes) * share;
+    // The sweep is priced at as many meeting pairs as the sample allows, not
+    // as many as it saw: three more than it caught is about a 95% bound on a
+    // count it caught none of. A sample of a thousand pairs catches no meeting
+    // pair at all on a sparse input that still has a hundred thousand, and
+    // pricing the sweep at zero pairs there hands it inputs the scan does
+    // several times faster; where the sample covers a good part of all pairs
+    // the bound is tight anyway. Near the break-even point the budget below
+    // settles the question with the pairs actually found.
+    constexpr double missedMeetings = 3.0;
+    const double meetingPairs = (static_cast<double>(sample.meeting) + missedMeetings) * share;
+
+    const double scanEstimate =
+        costs.sorted * n * bits + costs.scanned * axisPairs + costs.tested * boxPairs;
+    const double sweepSegments = costs.sweepSegment * n * bits;
+    const double sweepEstimate = sweepSegments + costs.sweepPair * meetingPairs * bits;
+    if (sweepEstimate < scanEstimate) {
+        return false;
+    }
+
+    const bool finished = scan.scan(alongY, visit, [&](const typename Scan::Progress &progress) {
+        if (firstFound()) {
+            return true;
+        }
+        const double spent = costs.scanned * static_cast<double>(progress.scanned) +
+                             costs.tested * static_cast<double>(progress.tested);
+        return spent > sweepSegments + costs.sweepPair * static_cast<double>(progress.found) * bits;
+    });
+    return finished || firstFound();
+}
+
+/**
+ * @brief Whether any pair among @p segments stands in @p relation, by the
+ * method the input favours.
+ *
+ * The scan stops at the first pair it finds, and the sweep at the first it
+ * reports, so an input with a pair early in either order answers quickly and
+ * one with none costs what finding all of them would.
+ */
+template <class Rational, SegmentConcept Segment>
+bool detectSegmentPair(const std::vector<Segment> &segments, SegmentPairRelation relation,
+                       SegmentPairMethod method = SegmentPairMethod::automatic) {
+    using Scan = SegmentPairScan<Segment>;
+    bool found = false;
+    const bool scanned = visitSegmentPairs(
+        segments, relation,
+        [&found](const Scan &scan, typename Scan::Id i, typename Scan::Id j) {
+            found = found || scan.meets(i, j);
+            return found;
+        },
+        method, true);
+    if (scanned) {
+        return found;
+    }
+    return sweepInNarrowestRational<Rational>(
+        segments, [relation](auto &bentleyOttmann, const auto &input) {
+            switch (relation) {
+            case SegmentPairRelation::intersects:
+                return bentleyOttmann.detectIntersections(input);
+            case SegmentPairRelation::crosses:
+                return bentleyOttmann.detectCrossings(input);
+            case SegmentPairRelation::interiorsIntersect:
+                break;
+            }
+            return bentleyOttmann.detectInteriorIntersections(input);
+        });
+}
+
+/**
+ * @brief All pairs among @p segments in @p relation, by the method the
+ * input favours, in @ref BentleyOttmann's order.
+ *
+ * @ref visitSegmentPairs decides, and scans when that is the cheaper way; the
+ * sweep does the rest. Either way the pairs come back in the order the sweep
+ * reports them.
+ */
+template <class Rational, SegmentConcept Segment>
+std::vector<std::array<Segment, 2>> findSegmentPairs(
+    const std::vector<Segment> &segments, SegmentPairRelation relation,
+    SegmentPairMethod method = SegmentPairMethod::automatic) {
+    using Scan = SegmentPairScan<Segment>;
+    std::vector<typename Scan::IdPair> found;
+    const bool scanned = visitSegmentPairs(
+        segments, relation,
+        [&found](const Scan &scan, typename Scan::Id i, typename Scan::Id j) {
+            if (!scan.meets(i, j)) {
+                return false;
+            }
+            found.emplace_back(i, j);
+            return true;
+        },
+        method);
+    if (scanned) {
+        return orderedSegmentPairs(segments, found);
+    }
+    return sweepInNarrowestRational<Rational>(
+        segments, [relation](auto &bentleyOttmann, const auto &input) {
+            switch (relation) {
+            case SegmentPairRelation::intersects:
+                return bentleyOttmann.findIntersections(input);
+            case SegmentPairRelation::crosses:
+                return bentleyOttmann.findCrossings(input);
+            case SegmentPairRelation::interiorsIntersect:
+                break;
+            }
+            return bentleyOttmann.findInteriorIntersections(input);
+        });
+}
 } // namespace pgl::detail
 
 namespace pgl {
 
 /**
- * @brief Finds all intersecting segment pairs with Bentley-Ottmann.
+ * @brief Finds all intersecting segment pairs.
  *
  * Runs in `O((n + k) log n)` where `n` is the number of input segments and
- * `k` is the number of reported pairs.
+ * `k` is the number of reported pairs. A sample of the input decides between
+ * a scan over bounding boxes and the Bentley-Ottmann sweep, and a scan that
+ * outgrows what the sweep would cost is abandoned for it; see
+ * @ref detail::findSegmentPairs. Either way the pairs come back in the same
+ * order, by the segments' places in the value order of the input.
  *
  * @tparam Rational Exact rational type used internally by the sweep line.
  * @tparam Container Container of segment-like values.
@@ -1533,16 +2225,15 @@ auto findIntersections(const Container &segments) {
     using Segment = Container::value_type;
     std::vector<Segment> v(segments.begin(),segments.end());
 
-    return pgl::detail::sweepInNarrowestRational<Rational>(v, [](auto &sweep, const auto &input) {
-        return sweep.findIntersections(input);
-    });
+    return pgl::detail::findSegmentPairs<Rational>(v, pgl::detail::SegmentPairRelation::intersects);
 }
 
 /**
- * @brief Finds all proper crossing segment pairs with Bentley-Ottmann.
+ * @brief Finds all proper crossing segment pairs.
  *
  * Runs in `O((n + k) log n)` where `n` is the number of input segments and
- * `k` is the number of reported crossing pairs.
+ * `k` is the number of reported crossing pairs, choosing its method as
+ * @ref findIntersections does.
  *
  * @tparam Rational Exact rational type used internally by the sweep line.
  * @tparam Container Container of segment-like values.
@@ -1555,16 +2246,57 @@ auto findCrossings(const Container &segments) {
     using Segment = Container::value_type;
     std::vector<Segment> v(segments.begin(),segments.end());
 
-    return pgl::detail::sweepInNarrowestRational<Rational>(v, [](auto &sweep, const auto &input) {
-        return sweep.findCrossings(input);
-    });
+    return pgl::detail::findSegmentPairs<Rational>(v, pgl::detail::SegmentPairRelation::crosses);
 }
 
 
 /**
+ * @brief Finds all segment pairs whose relative interiors intersect.
+ *
+ * Reports the pairs for which `Segment::interiorsIntersect` holds: those that
+ * cross properly and those that overlap collinearly along a stretch of positive
+ * length. Runs in `O((n + k) log n)` where `n` is the number of input segments
+ * and `k` is the number of reported pairs, choosing its method as
+ * @ref findIntersections does.
+ *
+ * @tparam Rational Exact rational type used internally by the sweep line.
+ * @tparam Container Container of segment-like values.
+ * @param segments Input segment container.
+ * @return Vector of segment pairs whose interiors intersect.
+ */
+template<class Rational = pgl::Rational<pgl::BigInt>, class Container>
+auto findInteriorIntersections(const Container &segments) {
+    using Segment = Container::value_type;
+    std::vector<Segment> v(segments.begin(),segments.end());
+
+    return pgl::detail::findSegmentPairs<Rational>(
+        v, pgl::detail::SegmentPairRelation::interiorsIntersect);
+}
+
+/**
+ * @brief Detects whether the relative interiors of any two segments intersect.
+ *
+ * Runs in `O(n log n)`, choosing its method as @ref findIntersections does and
+ * stopping at the first pair found.
+ *
+ * @tparam Rational Exact rational type used internally by the sweep line.
+ * @tparam Container Container of segment-like values.
+ * @param segments Input segment container.
+ * @return `true` if some pair satisfies `Segment::interiorsIntersect`.
+ */
+template<class Rational = pgl::Rational<pgl::BigInt>, class Container>
+bool detectInteriorIntersections(const Container &segments) {
+    using Segment = Container::value_type;
+    std::vector<Segment> v(segments.begin(),segments.end());
+
+    return pgl::detail::detectSegmentPair<Rational>(v, pgl::detail::SegmentPairRelation::interiorsIntersect);
+}
+
+/**
  * @brief Detects whether any two segments intersect.
  *
- * Runs in `O(n log n)` in the positive or negative detection mode used here.
+ * Runs in `O(n log n)`, choosing its method as @ref findIntersections does and
+ * stopping at the first pair found.
  *
  * @tparam Rational Exact rational type used internally by the sweep line.
  * @tparam Container Container of segment-like values.
@@ -1577,15 +2309,14 @@ bool detectIntersections(const Container &segments) {
     using Segment = Container::value_type;
     std::vector<Segment> v(segments.begin(),segments.end());
 
-    return pgl::detail::sweepInNarrowestRational<Rational>(v, [](auto &sweep, const auto &input) {
-        return sweep.detectIntersections(input);
-    });
+    return pgl::detail::detectSegmentPair<Rational>(v, pgl::detail::SegmentPairRelation::intersects);
 }
 
 /**
  * @brief Detects whether any two segments properly cross.
  *
- * Runs in `O(n log n)` in the positive or negative detection mode used here.
+ * Runs in `O(n log n)`, choosing its method as @ref findIntersections does and
+ * stopping at the first pair found.
  *
  * @tparam Rational Exact rational type used internally by the sweep line.
  * @tparam Container Container of segment-like values.
@@ -1598,10 +2329,10 @@ bool detectCrossings(const Container &segments) {
     using Segment = Container::value_type;
     std::vector<Segment> v(segments.begin(),segments.end());
 
-    return pgl::detail::sweepInNarrowestRational<Rational>(v, [](auto &sweep, const auto &input) {
-        return sweep.detectCrossings(input);
-    });
+    return pgl::detail::detectSegmentPair<Rational>(v, pgl::detail::SegmentPairRelation::crosses);
 }
+
+namespace detail {
 
 /**
  * @brief Finds all crossing segment pairs by brute force.
@@ -1667,6 +2398,39 @@ auto bruteForceIntersections(const Container &segments) {
 
     return ret;
 }
+
+/**
+ * @brief Finds all segment pairs whose relative interiors intersect, by brute
+ * force.
+ *
+ * Checks every unordered pair in quadratic time.
+ *
+ * @tparam Rational Unused template parameter kept for API symmetry.
+ * @tparam Container Container of segment-like values.
+ * @param segments Input segment container.
+ * @return Vector of segment pairs whose interiors intersect.
+ */
+template<class Rational = pgl::Rational<pgl::BigInt>, class Container>
+auto bruteForceInteriorIntersections(const Container &segments) {
+    using Point = Container::value_type::PointType;
+    std::vector<std::array<pgl::Segment<Point>,2>> ret;
+
+    for (auto it_i = segments.begin(); it_i != segments.end(); ++it_i) {
+        for (auto it_j = std::next(it_i); it_j != segments.end(); ++it_j) {
+            pgl::Segment<Point> s1 = *it_i;
+            pgl::Segment<Point> s2 = *it_j;
+            if (s1.interiorsIntersect(s2)) {
+                if (s2 < s1)
+                    std::swap(s1,s2);
+                ret.push_back({s1,s2});
+            }
+        }
+    }
+
+    return ret;
+}
+
+} // namespace detail
 
 template <class PointType_, class LabelType>
 template <class Rational>

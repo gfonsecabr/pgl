@@ -47,7 +47,7 @@ std::vector<pgl::Segment<Point>> randomSegments(size_t n1, size_t n2, size_t see
 // FIXME: Breaks for points with labels and rational coordinates?
 TEST_CASE_TEMPLATE("Find crossings among segments", Point, pgl::Point<int>) {
     auto segs = randomSegments<Point>(15,10);
-    auto bf = pgl::bruteForceCrossings(segs);
+    auto bf = pgl::detail::bruteForceCrossings(segs);
     auto bo = pgl::findCrossings(segs);
 
     CHECK(bf.size() == bo.size());
@@ -58,7 +58,7 @@ TEST_CASE_TEMPLATE("Find crossings among segments", Point, pgl::Point<int>) {
 
 TEST_CASE_TEMPLATE("Find intersections among segments", Point, pgl::Point<int>) {
     auto segs = randomSegments<Point>(15,10);
-    auto bf = pgl::bruteForceIntersections(segs);
+    auto bf = pgl::detail::bruteForceIntersections(segs);
     auto bo = pgl::findIntersections(segs);
 
     CHECK(bf.size() == bo.size());
@@ -163,19 +163,19 @@ TEST_CASE_TEMPLATE("Sweep agrees with brute force on large shared-endpoint coord
     auto sorted = [](auto v) { std::sort(v.begin(), v.end()); return v; };
 
     const auto crossings = sorted(pgl::findCrossings(segs));
-    const auto bruteCrossings = sorted(pgl::bruteForceCrossings(segs));
+    const auto bruteCrossings = sorted(pgl::detail::bruteForceCrossings(segs));
     CHECK(crossings.size() == 4);
     CHECK(crossings == bruteCrossings);
 
     const auto intersections = sorted(pgl::findIntersections(segs));
-    const auto bruteIntersections = sorted(pgl::bruteForceIntersections(segs));
+    const auto bruteIntersections = sorted(pgl::detail::bruteForceIntersections(segs));
     CHECK(intersections.size() == 10);
     CHECK(intersections == bruteIntersections);
 
     // The xy sweep never used the height expression and was correct throughout,
     // so it pins the expected answer independently.
-    CHECK(sorted(pgl::xyCrossings(segs)) == bruteCrossings);
-    CHECK(sorted(pgl::xyIntersections(segs)) == bruteIntersections);
+    CHECK(sorted(pgl::detail::xyCrossings(segs)) == bruteCrossings);
+    CHECK(sorted(pgl::detail::xyIntersections(segs)) == bruteIntersections);
 }
 
 // The same six translated so that every coordinate is small. An exact integer
@@ -204,7 +204,7 @@ TEST_CASE("Sweep is invariant under an exact integer translation") {
 
     CHECK(pgl::findCrossings(here).size() == pgl::findCrossings(shifted).size());
     CHECK(pgl::findIntersections(here).size() == pgl::findIntersections(shifted).size());
-    CHECK(pgl::findCrossings(shifted).size() == pgl::bruteForceCrossings(shifted).size());
+    CHECK(pgl::findCrossings(shifted).size() == pgl::detail::bruteForceCrossings(shifted).size());
 }
 
 // Regression: the sweep named the alternatives of the variant returned by
@@ -309,8 +309,8 @@ TEST_CASE("Sweep agrees with brute force over degenerate random inputs") {
         default: segs = stress::collinear(rgen, 5, 5); break;
         }
 
-        const auto crossings = sorted(pgl::bruteForceCrossings(segs));
-        const auto intersections = sorted(pgl::bruteForceIntersections(segs));
+        const auto crossings = sorted(pgl::detail::bruteForceCrossings(segs));
+        const auto intersections = sorted(pgl::detail::bruteForceIntersections(segs));
         crossingsSeen += crossings.size();
         intersectionsSeen += intersections.size();
 
@@ -379,12 +379,12 @@ TEST_CASE("Repeated segments are reported once per copy, labels included") {
 
     const std::multiset<std::string> crossings = {"a1|b", "a2|b", "a3|b"};
     CHECK(labels(pgl::findCrossings(segs)) == crossings);
-    CHECK(labels(pgl::xyCrossings(segs)) == crossings);
+    CHECK(labels(pgl::detail::xyCrossings(segs)) == crossings);
 
     const std::multiset<std::string> intersections = {"a1|a2", "a1|a3", "a2|a3",
                                                       "a1|b", "a2|b", "a3|b"};
     CHECK(labels(pgl::findIntersections(segs)) == intersections);
-    CHECK(labels(pgl::xyIntersections(segs)) == intersections);
+    CHECK(labels(pgl::detail::xyIntersections(segs)) == intersections);
 }
 
 TEST_CASE("Sweep agrees with brute force when segments repeat or have no length") {
@@ -414,15 +414,198 @@ TEST_CASE("Sweep agrees with brute force when segments repeat or have no length"
 
         // As multisets: a pair repeated by the brute-force scan is owed as
         // many times by the sweeps.
-        const auto crossings = sorted(pgl::bruteForceCrossings(segs));
-        const auto intersections = sorted(pgl::bruteForceIntersections(segs));
+        const auto crossings = sorted(pgl::detail::bruteForceCrossings(segs));
+        const auto intersections = sorted(pgl::detail::bruteForceIntersections(segs));
         REQUIRE(sorted(pgl::findCrossings(segs)) == crossings);
         REQUIRE(sorted(pgl::findIntersections(segs)) == intersections);
         REQUIRE(pgl::detectCrossings(segs) == !crossings.empty());
         REQUIRE(pgl::detectIntersections(segs) == !intersections.empty());
-        REQUIRE(sorted(pgl::xyCrossings(segs)) == crossings);
-        REQUIRE(sorted(pgl::xyIntersections(segs)) == intersections);
+        REQUIRE(sorted(pgl::detail::xyCrossings(segs)) == crossings);
+        REQUIRE(sorted(pgl::detail::xyIntersections(segs)) == intersections);
     }
     CHECK(points > 500);
     CHECK(repeats > 500);
+}
+
+// findIntersections and findCrossings pick between the Bentley-Ottmann sweep
+// and a scan over bounding boxes. Every method must report the same pairs in
+// the same order, so which one ran is never observable; forcing each in turn
+// is also what keeps the sweep itself covered, now that the public functions
+// mostly take the scan.
+namespace methods {
+
+using Method = pgl::detail::SegmentPairMethod;
+using Rational = pgl::Rational<pgl::BigInt>;
+
+// The degenerate stress inputs, with a copy of a few segments and a few
+// zero-length ones added, mapped through `coordinate` to another number type.
+template <class Number, class Coordinate>
+std::vector<pgl::Segment<pgl::Point<Number>>> degenerate(unsigned seed, Coordinate coordinate) {
+    std::mt19937 rgen(seed);
+    std::vector<stress::Segment> base;
+    switch (seed % 3) {
+    case 0: base = stress::pencils(rgen, 3, 7); break;
+    case 1: base = stress::grid(rgen, 6, 12 + static_cast<int>(seed % 25)); break;
+    default: base = stress::collinear(rgen, 5, 5); break;
+    }
+    if (base.size() > 3) {
+        base.push_back(base[seed % base.size()]);
+        base.push_back(base[(seed / 3) % base.size()]);
+        base.emplace_back(base[1].min(), base[1].min());
+        base.emplace_back(base[2].max(), base[2].max());
+    }
+    std::vector<pgl::Segment<pgl::Point<Number>>> out;
+    for (const auto &s : base) {
+        out.emplace_back(pgl::Point<Number>(coordinate(s.min().x()), coordinate(s.min().y())),
+                         pgl::Point<Number>(coordinate(s.max().x()), coordinate(s.max().y())));
+    }
+    return out;
+}
+
+using Relation = pgl::detail::SegmentPairRelation;
+
+template <class Segments>
+auto bruteForce(const Segments &segs, Relation relation) {
+    switch (relation) {
+    case Relation::intersects: return pgl::detail::bruteForceIntersections(segs);
+    case Relation::crosses: return pgl::detail::bruteForceCrossings(segs);
+    case Relation::interiorsIntersect: break;
+    }
+    return pgl::detail::bruteForceInteriorIntersections(segs);
+}
+
+template <class Segments>
+void checkMethodsAgree(const Segments &segs) {
+    auto sorted = [](auto v) { std::sort(v.begin(), v.end()); return v; };
+    for (const Relation relation :
+         {Relation::intersects, Relation::crosses, Relation::interiorsIntersect}) {
+        CAPTURE(static_cast<int>(relation));
+        const auto sweep = pgl::detail::findSegmentPairs<Rational>(segs, relation, Method::sweep);
+        REQUIRE(pgl::detail::findSegmentPairs<Rational>(segs, relation, Method::scan) == sweep);
+        REQUIRE(pgl::detail::findSegmentPairs<Rational>(segs, relation, Method::automatic) == sweep);
+        const auto brute = bruteForce(segs, relation);
+        for (const Method method : {Method::sweep, Method::scan, Method::automatic}) {
+            REQUIRE(pgl::detail::detectSegmentPair<Rational>(segs, relation, method) == !brute.empty());
+        }
+        using Unlabelled = pgl::Segment<typename Segments::value_type::PointType>;
+        std::vector<std::array<Unlabelled, 2>> unlabelled;
+        for (const auto &pair : sweep) {
+            unlabelled.push_back({Unlabelled(pair[0]), Unlabelled(pair[1])});
+        }
+        REQUIRE(sorted(unlabelled) == sorted(brute));
+    }
+    REQUIRE(pgl::findInteriorIntersections(segs) ==
+            pgl::detail::findSegmentPairs<Rational>(segs, Relation::interiorsIntersect));
+    REQUIRE(pgl::detectInteriorIntersections(segs) ==
+            !pgl::detail::bruteForceInteriorIntersections(segs).empty());
+}
+
+}  // namespace methods
+
+TEST_CASE("Every segment pair method reports the same pairs in the same order") {
+    for (unsigned seed = 0; seed < 240; ++seed) {
+        CAPTURE(seed);
+        methods::checkMethodsAgree(methods::degenerate<int>(seed, [](int c) { return c; }));
+    }
+}
+
+TEST_CASE("Segment pair methods agree over fractional and wide coordinates") {
+    for (unsigned seed = 0; seed < 60; ++seed) {
+        CAPTURE(seed);
+        // Thirds are never exact in double, so every box the scan builds is a
+        // rounded one and every sign near zero goes to the exact fallback.
+        methods::checkMethodsAgree(methods::degenerate<pgl::ERational>(
+            seed, [](int c) { return pgl::ERational(c, 3) + pgl::ERational(1, 7); }));
+        // Past 2^53 neighbouring integers share a double.
+        methods::checkMethodsAgree(methods::degenerate<long long>(
+            seed, [](int c) { return (1LL << 60) + c; }));
+    }
+}
+
+TEST_CASE("Segment pair methods agree when a coordinate overflows double") {
+    using Number = pgl::ERational;
+    const pgl::BigInt huge = pgl::detail::pow2(1100);
+    // Every coordinate converts to an infinite double; the boxes then span the
+    // whole plane and the exact predicates decide everything.
+    for (unsigned seed = 0; seed < 12; ++seed) {
+        CAPTURE(seed);
+        methods::checkMethodsAgree(methods::degenerate<Number>(
+            seed, [&huge](int c) { return Number(huge) * Number(c + 20); }));
+    }
+}
+
+TEST_CASE("Automatic choice stays correct where every bounding box overlaps") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    // Long parallel diagonals side by side: all boxes overlap, nothing meets.
+    std::vector<Segment> parallel;
+    for (int i = 0; i < 400; ++i) {
+        parallel.emplace_back(Point(3 * i, 0), Point(3 * i + 100000, 100000));
+    }
+    CHECK(pgl::findIntersections(parallel).empty());
+    CHECK(pgl::findCrossings(parallel).empty());
+    // One more segment across all of them.
+    parallel.emplace_back(Point(0, 50000), Point(200000, 50000));
+    CHECK(pgl::findCrossings(parallel).size() == 400);
+    methods::checkMethodsAgree(parallel);
+}
+
+TEST_CASE("A scan abandoned by its budget stops early") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    std::vector<Segment> grid;
+    for (int i = 0; i < 64; ++i) {
+        grid.emplace_back(Point(0, 2 * i + 1), Point(200, 2 * i + 1));
+        grid.emplace_back(Point(2 * i + 1, 0), Point(2 * i + 1, 200));
+    }
+    const pgl::detail::SegmentPairScan<Segment> scan(grid, pgl::detail::SegmentPairRelation::intersects);
+    std::size_t found = 0;
+    const auto count = [&scan, &found](auto i, auto j) {
+        const bool meets = scan.meets(i, j);
+        found += meets;
+        return meets;
+    };
+    std::size_t consulted = 0;
+    // Along x the horizontal segments come first, each meeting all 64
+    // verticals, so stopping at the first consultation leaves half the pairs.
+    CHECK_FALSE(scan.scan(false, count, [&consulted](const auto &) { return ++consulted == 1; }));
+    CHECK(consulted == 1);
+    CHECK(found < 64 * 64);
+
+    found = 0;
+    CHECK(scan.scan(true, count, [](const auto &) { return false; }));
+    CHECK(found == 64 * 64);
+}
+
+TEST_CASE("Interior intersections are crossings and collinear overlaps with length") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point, std::string>;
+    const std::vector<Segment> segs = {
+        Segment(Point(0, 0), Point(10, 0), "base"),
+        Segment(Point(5, 0), Point(15, 0), "overlap"),     // collinear, shares [5,10]
+        Segment(Point(10, 0), Point(20, 0), "abutting"),   // collinear, meets base at a point
+        Segment(Point(3, -3), Point(3, 3), "cross"),       // crosses base
+        Segment(Point(7, 0), Point(7, 5), "tee"),          // endpoint inside base and overlap
+        Segment(Point(0, 0), Point(-4, 6), "corner"),      // shares base's endpoint
+        Segment(Point(2, 0), Point(2, 0), "point"),        // zero length, inside base
+        Segment(Point(0, 0), Point(10, 0), "copy"),        // base again
+        Segment(Point(30, 0), Point(30, 8), "up"),         // vertical
+        Segment(Point(30, 4), Point(30, 12), "higher"),    // overlaps up
+        Segment(Point(30, 12), Point(30, 20), "stacked"),  // meets higher at a point
+    };
+    std::multiset<std::string> labels;
+    for (const auto &pair : pgl::findInteriorIntersections(segs)) {
+        labels.insert(pair[0].label() < pair[1].label() ? pair[0].label() + "|" + pair[1].label()
+                                                          : pair[1].label() + "|" + pair[0].label());
+    }
+    const std::multiset<std::string> expected = {
+        "base|copy", "base|overlap", "base|cross", "copy|overlap", "copy|cross",
+        "abutting|overlap", "higher|up"};
+    CHECK(labels == expected);
+    CHECK(pgl::detectInteriorIntersections(segs));
+    methods::checkMethodsAgree(segs);
+
+    const std::vector<Segment> touching = {segs[0], segs[2], segs[4], segs[5], segs[6]};
+    CHECK(pgl::findInteriorIntersections(touching).empty());
+    CHECK_FALSE(pgl::detectInteriorIntersections(touching));
 }
