@@ -1456,6 +1456,68 @@ function asymChart(canvas, name, category, state, machine, depth) {
 // that section's filter bar and chart are replaced.
 const asymSections = {};
 
+// The categories drawn on the page. Every category starts shown; the chips at
+// the top of the page hide the ones a reader is not looking at. A hidden
+// category is not drawn at all, and is drawn afresh when shown again — a chart
+// laid out inside a hidden section would have no size to lay out in.
+const asymHidden = new Set();
+
+function asymCategoryBar(names) {
+  const root = document.getElementById("filters");
+  if (!root) return;
+  root.innerHTML = "";
+
+  const group = document.createElement("div");
+  group.className = "filter-group";
+
+  const label = document.createElement("button");
+  label.type = "button";
+  label.className = "filter-label";
+  label.textContent = "Benchmarks";
+  label.title = "Toggle all";
+  label.addEventListener("click", () => {
+    const all = asymHidden.size === 0;
+    for (const name of names) {
+      if (all) asymHidden.add(name);
+      else asymHidden.delete(name);
+    }
+    asymCategoryBar(names);
+    asymApplyVisibility(names);
+  });
+  group.appendChild(label);
+
+  const chips = document.createElement("div");
+  chips.className = "chips";
+  for (const name of names) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "chip" + (asymHidden.has(name) ? "" : " on");
+    chip.textContent = name;
+    chip.addEventListener("click", () => {
+      if (asymHidden.has(name)) asymHidden.delete(name);
+      else asymHidden.add(name);
+      asymCategoryBar(names);
+      asymApplyVisibility(names);
+    });
+    chips.appendChild(chip);
+  }
+  group.appendChild(chips);
+  root.appendChild(group);
+}
+
+// Show and hide the sections to match the chips, drawing any section that has
+// just come back into view.
+function asymApplyVisibility(names) {
+  for (const name of names) {
+    const parts = asymSections[name];
+    if (!parts) continue;
+    const hide = asymHidden.has(name);
+    const wasHidden = parts.section.hidden;
+    parts.section.hidden = hide;
+    if (!hide && wasHidden) renderCategory(name);
+  }
+}
+
 function asymBuildSections(names) {
   const root = document.getElementById("asymptotic");
   root.innerHTML = "";
@@ -1494,7 +1556,8 @@ function asymBuildSections(names) {
     section.appendChild(holder);
 
     root.appendChild(section);
-    asymSections[name] = { filters, canvas, empty };
+    section.hidden = asymHidden.has(name);
+    asymSections[name] = { section, filters, canvas, empty };
   }
 }
 
@@ -1536,8 +1599,13 @@ function renderAsymptotic() {
   // Only the first call builds the DOM; later ones (a machine or history-depth
   // change) redraw every category in place, which keeps the scroll position
   // for those too.
-  if (Object.keys(asymSections).length !== names.length) asymBuildSections(names);
-  for (const name of names) renderCategory(name);
+  if (Object.keys(asymSections).length !== names.length) {
+    asymBuildSections(names);
+    asymCategoryBar(names);
+  }
+  for (const name of names) {
+    if (!asymHidden.has(name)) renderCategory(name);
+  }
 
   const generated = DB.generated ? new Date(DB.generated) : null;
   const stamp = document.getElementById("generated");

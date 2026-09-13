@@ -223,11 +223,9 @@ def split_initial_pairs(pairs: dict):
 
 # Display order for the asymptotic page's own dimensions. Anything not listed
 # sorts after, alphabetically — a new dataset or problem shows up without
-# needing this table edited, just not in a hand-chosen position.
-CATEGORY_ORDER = ["Triangulation", "Arrangement",
-                  "Segment intersections", "Point constructions", "Point search",
-                  "Segment search", "Visibility", "Minkowski sum",
-                  "Regularized union", "Voronoi diagram"]
+# needing this table edited, just not in a hand-chosen position. Categories
+# themselves have no table: the page lists them alphabetically, so a reader can
+# find one by name.
 DATASET_ORDER = ["points", "small segments", "sheared", "large segments",
                  "polygon edges", "polygon", "large + large", "large + small", "triangles"]
 PROBLEM_ORDER = ["build", "buildPointLocation", "locate", "locateFace",
@@ -339,7 +337,7 @@ def build_asymptotic(history: str, repo_base: str, bench_root: str):
             break
         out[category] = result
 
-    ordered = {c: out[c] for c in sorted(out, key=order_key(CATEGORY_ORDER))}
+    ordered = {c: out[c] for c in sorted(out, key=lambda c: (c.casefold(), c))}
     return ordered, machines
 
 
