@@ -580,9 +580,11 @@ ResultPoint chainVertexPoint(const ChainEnvelopeVertex<P>& vertex) {
     const Wide xn = wide(vertex.a.x()) * den + rx * num;
     const Wide yn = wide(vertex.a.y()) * den + ry * num;
 
-    if constexpr (extended_integral<Wide>) {
+    if constexpr (extended_integral<Wide> || std::same_as<Wide, BigInt>) {
         // An exact fraction over the widened integers, handed to the same
         // conversion the boolean engine makes at the end of an arrangement.
+        // `int64_t` coordinates widen twice into a BigInt, which divides as an
+        // integer too, so it needs the wrapper as much as a machine integer does.
         return ResultPoint(static_cast<ResultNumber>(Rational<Wide>(xn, den)),
                            static_cast<ResultNumber>(Rational<Wide>(yn, den)));
     } else {

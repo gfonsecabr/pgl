@@ -4,6 +4,7 @@
 #include "pgl.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <type_traits>
 #include <vector>
 
@@ -284,6 +285,31 @@ TEST_CASE("minkowskiSum: exact for integer coordinates, and off the lattice on r
         CHECK((EPoint(truncated[i]) == notch[i]) == !isTheCrossing);
     }
     CHECK(truncated.contains(Point(1, 2)));
+}
+
+TEST_CASE_TEMPLATE("minkowskiSum: wide integer coordinates keep a crossing exact", Number, long long,
+                   std::int64_t, pgl::int128) {
+    // A crossing is formed as a fraction in the coordinates widened twice, and
+    // for 64-bit coordinates that is a BigInt. It has to go through the exact
+    // fraction all the same: dividing it as an integer truncated (21/5, 3) to
+    // (4, 3) even with an exact result type requested.
+    using WidePoint = pgl::Point<Number>;
+    const pgl::MonotoneChain<WidePoint> chain(std::vector<WidePoint>{WidePoint(0, 0), WidePoint(3, 5), WidePoint(6, 0)});
+    const pgl::Triangle<WidePoint> triangle(WidePoint(0, 0), WidePoint(3, 1), WidePoint(1, 3));
+    const auto wide = chain.template minkowskiSum<pgl::ERational>(triangle);
+
+    const Chain narrowChain(std::vector<Point>{Point(0, 0), Point(3, 5), Point(6, 0)});
+    const auto reference = narrowChain.minkowskiSum<pgl::ERational>(Triangle(Point(0, 0), Point(3, 1), Point(1, 3)));
+    CHECK(wide == reference);
+    bool found = false;
+    for (const EPoint& vertex : wide) {
+        found = found || vertex == EPoint(pgl::ERational(21, 5), pgl::ERational(3));
+    }
+    CHECK(found);
+
+    const pgl::MonotoneChain<WidePoint> valley(std::vector<WidePoint>{WidePoint(0, 3), WidePoint(1, 0), WidePoint(2, 3)});
+    CHECK(valley.template minkowskiSum<pgl::ERational>(pgl::Rectangle<WidePoint>(WidePoint(0, 0), WidePoint(1, 1))) ==
+          valleyChain().minkowskiSum<pgl::ERational>(RectangleShape(Point(0, 0), Point(1, 1))));
 }
 
 TEST_CASE("minkowskiSum: commutes, and translates with its operands") {
