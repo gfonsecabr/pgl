@@ -1,6 +1,14 @@
 // @desc: Arrangement of n random segments, and locating the face containing a
 // point two ways: by scanning the edges, and through the trapezoidal DAG that
 // buildPointLocation constructs.
+// @dataset small segments: Distinct segments with integer coordinates. One
+// endpoint is drawn uniformly from a disk of diameter 10,000 and the other is
+// offset from it by a vector drawn uniformly from a disk of diameter 1,000, so
+// most pairs are far apart.
+// @dataset large segments: Distinct segments with integer coordinates. One
+// endpoint is drawn uniformly from a disk of diameter 5,000 and the other is
+// offset from it by a vector drawn uniformly from a disk of the same size, so
+// most pairs meet.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"

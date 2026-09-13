@@ -1,5 +1,7 @@
-// @desc: Voronoi diagram of random points in a disk, at orders 1, 2 and 4, and
-// the farthest-point diagram.
+// @desc: Voronoi diagram of n points, at orders 1, 2 and 4, and the
+// farthest-point diagram.
+// @dataset points: The points are distinct, with integer coordinates drawn
+// uniformly from a disk of diameter 10,000.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"

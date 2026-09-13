@@ -49,7 +49,9 @@ of them.
         # compares against.
         "baseline": { "dataset|problem":
                       {algorithm, number, rank, for_algorithm?, points:[...]} },
-        "source_url"?, "description"?
+        "source_url"?, "description"?,
+        # How each dataset is produced, from the driver's `// @dataset` blocks.
+        "datasets"?: { <dataset>: <text> }
       }
     }
   }
@@ -89,6 +91,7 @@ TYPE_ORDER = ["int", "int128", "double", "BigInt", "Rational",
               "RationalBigInt", "ERational"]
 
 DESC_RE = re.compile(r"//\s*@desc:\s*(.*)")
+DATASET_RE = re.compile(r"//\s*@dataset\s+([^:]+):\s*(.*)")
 
 
 # The microsecond symbol. Runs recorded before it was spelled properly carry
@@ -110,30 +113,41 @@ def order_key(order: list[str]):
     return lambda v: (order.index(v) if v in order else len(order), v)
 
 
-def parse_desc(path: str) -> str:
-    """Read the `// @desc:` comment block from a benchmark source."""
-    lines: list[str] = []
-    capturing = False
+def parse_comment_blocks(path: str) -> tuple[str, dict[str, str]]:
+    """Read a benchmark source's `// @desc:` and `// @dataset <name>:` blocks.
+
+    Each block runs from its tag line over the `//` lines that follow it, up to
+    an empty comment line, the next `@` tag or the first line of code. Returns
+    the description and a dataset name -> how-it-is-produced map.
+    """
+    desc: list[str] = []
+    datasets: dict[str, list[str]] = {}
+    current: list[str] | None = None
     try:
         with open(path, encoding="utf-8") as f:
             for raw in f:
                 s = raw.strip()
-                if not capturing:
-                    m = DESC_RE.match(s)
-                    if m:
-                        lines.append(m.group(1).strip())
-                        capturing = True
-                    continue
-                if s.startswith("//"):
+                m = DESC_RE.match(s)
+                d = DATASET_RE.match(s)
+                if m:
+                    current = desc
+                    current.append(m.group(1).strip())
+                elif d:
+                    current = datasets.setdefault(d.group(1).strip(), [])
+                    current.append(d.group(2).strip())
+                elif current is not None and s.startswith("//"):
                     cont = s[2:].strip()
                     if not cont or cont.startswith("@"):
+                        current = None
+                    else:
+                        current.append(cont)
+                elif current is not None or desc or datasets:
+                    if not s.startswith("//"):
                         break
-                    lines.append(cont)
-                else:
-                    break
     except OSError:
-        return ""
-    return " ".join(x for x in lines if x).strip()
+        return "", {}
+    join = lambda lines: " ".join(x for x in lines if x).strip()
+    return join(desc), {name: join(lines) for name, lines in datasets.items()}
 
 
 def default_repo_base() -> str:
@@ -226,8 +240,22 @@ def split_initial_pairs(pairs: dict):
 # needing this table edited, just not in a hand-chosen position. Categories
 # themselves have no table: the page lists them alphabetically, so a reader can
 # find one by name.
-DATASET_ORDER = ["points", "small segments", "sheared", "large segments",
+DATASET_ORDER = ["points", "small segments", "small", "sheared", "large segments", "large",
                  "polygon edges", "polygon", "large + large", "large + small", "triangles"]
+# The label a dataset's button carries where its recorded name says more than
+# the category around it needs. Only the page sees the label: the history, the
+# CGAL baseline, cgal_ratios.py and the drivers' --dataset filter keep the
+# recorded name, as do the drivers' `// @dataset` blocks.
+DATASET_LABEL = {
+    ("Segment intersections", "small segments"): "small",
+    ("Segment intersections", "large segments"): "large",
+}
+
+
+def dataset_label(category: str, dataset: str) -> str:
+    return DATASET_LABEL.get((category, dataset), dataset)
+
+
 PROBLEM_ORDER = ["build", "buildPointLocation", "locate", "locateFace",
                  "closest pair", "convex hull", "sort by angle", "Delaunay",
                  "kd-tree", "order 1", "order 2", "order 4", "farthest",
@@ -274,11 +302,12 @@ def build_asymptotic(history: str, repo_base: str, bench_root: str):
                 "machines": set(), "unit": canonical_unit(r.get("unit", "")),
                 "drivers": set(), "_data": {},
             })
+            dataset = dataset_label(category, r["dataset"])
             for d in entry["dims"]:
-                entry["dims"][d].add(r[d])
+                entry["dims"][d].add(dataset if d == "dataset" else r[d])
             entry["machines"].add(machine)
             entry["drivers"].add(r.get("driver", ""))
-            key = "|".join((r["dataset"], r["problem"], r["algorithm"], r["type"]))
+            key = "|".join((dataset, r["problem"], r["algorithm"], r["type"]))
             runs = entry["_data"].setdefault(machine, {}).setdefault(key, {})
             # One run per commit; a re-run of the same commit replaces it, and a
             # size measured twice within a run keeps the later reading.
@@ -323,15 +352,18 @@ def build_asymptotic(history: str, repo_base: str, bench_root: str):
         }
         if category in baseline:
             result["baseline"] = baseline[category]
-        # One driver per category, so the description and the source link come
-        # from that file's `// @desc:` block.
+        # One driver per category, so the description, the dataset notes and the
+        # source link come from that file's `// @desc:` and `// @dataset` blocks.
         for driver in sorted(d for d in entry["drivers"] if d):
             source = os.path.join(bench_root, "asymptotic", f"{driver}.cpp")
             if not os.path.exists(source):
                 continue
-            desc = parse_desc(source)
+            desc, datasets = parse_comment_blocks(source)
             if desc:
                 result["description"] = desc
+            if datasets:
+                result["datasets"] = {dataset_label(category, name): text
+                                      for name, text in datasets.items()}
             if repo_base:
                 result["source_url"] = repo_base + source.replace(os.sep, "/")
             break
@@ -373,7 +405,7 @@ def read_baseline(history: str):
 
     grouped: dict[str, dict] = {}
     for r in snapshot.get("results", []):
-        key = "|".join((r["dataset"], r["problem"]))
+        key = "|".join((dataset_label(r["category"], r["dataset"]), r["problem"]))
         curves = grouped.setdefault(r["category"], {}).setdefault(key, {})
         for_algorithm = BASELINE_FOR_ALGORITHM.get(
             (r["category"], r["problem"], r["algorithm"]))

@@ -1,5 +1,7 @@
 // @desc: Range counting and nearest-neighbour queries against a kd-tree
-// (ShapeTree) over n random points in a disk.
+// (ShapeTree) over n points.
+// @dataset points: The points are distinct, with integer coordinates drawn
+// uniformly from a disk of diameter 10,000.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"

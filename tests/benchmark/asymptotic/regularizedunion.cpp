@@ -1,5 +1,15 @@
 // @desc: Regularized union of two polygons with n vertices or n/3 triangles;
 // the result is the total number of boundary vertices.
+// @dataset large + large: Two independent random simple polygons. Each one's
+// vertices have integer coordinates drawn uniformly from a disk of diameter
+// 5,000 whose centre is itself drawn from a disk of that size, so the two
+// usually overlap; joined in the order drawn, its ring is untangled into a
+// simple polygon by flipping crossing edges, dropping the rare vertex that only
+// touches another edge.
+// @dataset triangles: Distinct triangles with integer coordinates. One vertex
+// is drawn uniformly from a disk of diameter 5,000 and the other two are offset
+// from it by vectors drawn uniformly from a disk of the same size, so the
+// triangles overlap heavily.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"

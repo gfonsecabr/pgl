@@ -1066,11 +1066,7 @@ function asymFilterBar(name, category, state, machineData) {
       if (!usable) {
         chip.title = "Not measured in this combination";
       } else if (!comparing) {
-        if (!on) {
-          chip.title = free ? "Draw it alongside what is selected"
-            : canCompare ? "Switch to it — ctrl-click to draw both as well"
-            : "Switch to it";
-        }
+        if (!on && free) chip.title = "Draw it alongside what is selected";
       } else {
         // Say up front when picking this would draw a curve from a different
         // slice than the radio buttons name — the same thing the legend
@@ -1108,6 +1104,10 @@ function asymFilterBar(name, category, state, machineData) {
         }
         renderCategory(name);
       });
+      // A dataset chip says how its dataset is produced, ahead of any note on
+      // what clicking it would do.
+      const produced = dim === "dataset" && category.datasets?.[value];
+      if (produced) chip.title = chip.title ? `${produced}\n\n${chip.title}` : produced;
       chips.appendChild(chip);
     }
     group.appendChild(chips);
@@ -1533,12 +1533,11 @@ function asymBuildSections(names) {
     heading.innerHTML = category.source_url
       ? `<a class="suite-link" href="${category.source_url}" target="_blank" rel="noopener">${name}</a>`
       : name;
-    if (category.description) {
-      const desc = document.createElement("span");
-      desc.className = "suite-desc";
-      desc.textContent = category.description;
-      heading.appendChild(desc);
-    }
+    // Filled in by renderCategory, which knows whether the bar has a dataset
+    // field to explain the datasets in.
+    const desc = document.createElement("span");
+    desc.className = "suite-desc";
+    heading.appendChild(desc);
     section.appendChild(heading);
 
     // Placeholder for the filter bar; replaced, never emptied, on every redraw.
@@ -1557,8 +1556,18 @@ function asymBuildSections(names) {
 
     root.appendChild(section);
     section.hidden = asymHidden.has(name);
-    asymSections[name] = { section, filters, canvas, empty };
+    asymSections[name] = { section, desc, filters, canvas, empty };
   }
+}
+
+// The category's description. Each dataset chip explains how its dataset is
+// produced; with a single dataset the bar has no such chip, so the explanation
+// joins the description instead.
+function asymDescription(category, state, machineData) {
+  const shown = asymDimValues(category, state, machineData, "dataset");
+  const datasets = shown.length ? shown : category.dimensions.dataset || [];
+  const produced = datasets.length === 1 && category.datasets?.[datasets[0]];
+  return [category.description, produced].filter(Boolean).join(" ");
 }
 
 // Redraw one category: its filter bar and its chart, nothing else.
@@ -1578,6 +1587,7 @@ function renderCategory(name) {
   asymReconcile(category, state, machineData);
   asymSnap(category, state, machineData);
 
+  parts.desc.textContent = asymDescription(category, state, machineData);
   const bar = asymFilterBar(name, category, state, machineData);
   parts.filters.replaceWith(bar);
   parts.filters = bar;

@@ -1,6 +1,7 @@
-// @desc: Delaunay triangulation of random points in a disk.
-// Location by stochastic walk, and through the preprocessed
-// point location.
+// @desc: Delaunay triangulation of n points. Location by stochastic walk, and
+// through the preprocessed point location.
+// @dataset points: The points are distinct, with integer coordinates drawn
+// uniformly from a disk of diameter 10,000.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"

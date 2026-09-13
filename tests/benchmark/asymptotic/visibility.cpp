@@ -1,5 +1,9 @@
 // @desc: The visibility graph of a simple polygon of n vertices, and the
 // vertices visible from a random point inside it.
+// @dataset polygon: The polygon's vertices have integer coordinates drawn
+// uniformly from a disk of diameter 5,000; joined in the order drawn, the ring
+// is untangled into a simple polygon by flipping crossing edges, dropping the
+// rare vertex that only touches another edge.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"

@@ -1,5 +1,15 @@
 // @desc: The Minkowski sum of two simple polygons with n vertices each; the
 // result is the total number of boundary vertices.
+// @dataset large + large: Two independent random simple polygons. Each one's
+// vertices have integer coordinates drawn uniformly from a disk of diameter
+// 5,000; joined in the order drawn, its ring is untangled into a simple polygon
+// by flipping crossing edges, dropping the rare vertex that only touches
+// another edge.
+// @dataset large + small: Two independent random simple polygons, one in a disk
+// of diameter 5,000 and one in a disk of diameter 1,000. Each one's vertices
+// have integer coordinates drawn uniformly from its disk; joined in the order
+// drawn, its ring is untangled into a simple polygon by flipping crossing
+// edges, dropping the rare vertex that only touches another edge.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"

@@ -1,6 +1,22 @@
 // @desc: All intersections and all crossings among n segments, by
 // findIntersections / findCrossings (which choose their own method), by
 // Bentley–Ottmann alone and by the xy-sweep.
+// @dataset small segments: Distinct segments with integer coordinates. One
+// endpoint is drawn uniformly from a disk of diameter 10,000 and the other is
+// offset from it by a vector drawn uniformly from a disk of diameter 1,000, so
+// most pairs are far apart.
+// @dataset sheared: The small segments under the shear (x, y) -> (x, 10x + y).
+// The same pairs meet, but the segments turn nearly vertical, so pairs whose
+// bounding boxes overlap outnumber the intersecting pairs many times over.
+// @dataset large segments: Distinct segments with integer coordinates. One
+// endpoint is drawn uniformly from a disk of diameter 5,000 and the other is
+// offset from it by a vector drawn uniformly from a disk of the same size, so
+// most pairs meet.
+// @dataset polygon edges: The edges of a random simple polygon with n vertices,
+// as separate segments, so no two of them cross. The vertices have integer
+// coordinates drawn uniformly from a disk of diameter 5,000; joined in the
+// order drawn, the ring is untangled into a simple polygon by flipping crossing
+// edges, dropping the rare vertex that only touches another edge.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"

@@ -1,6 +1,8 @@
 // @desc: Counting the segments a query shape meets, through a kd-tree
-// (ShapeTree) and through an interval tree, over n independent small random
-// segments.
+// (ShapeTree) and through an interval tree, over n segments.
+// @dataset small segments: The segments are distinct, with integer coordinates.
+// One endpoint is drawn uniformly from a disk of diameter 10,000 and the other
+// is offset from it by a vector drawn uniformly from a disk of diameter 1,000.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"
