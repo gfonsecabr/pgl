@@ -143,7 +143,7 @@ Pangolin includes [fundamental algorithms](https://github.com/gfonsecabr/pgl/blo
 
 - **Convex hull** computed with Graham scan.
 - Line segment intersection: **Bentley-Ottmann sweep line** using rational numbers.
-- **Minkowski sum** and **boolean operations**.
+- **Minkowski sum**, **Minkowski erosion** and **boolean operations**.
 - **Visibility** graph and visibility polygon.
 - Find the **closest pair** of points using divide and conquer.
 - Smallest **enclosing disk and rectangle**.
@@ -153,13 +153,13 @@ Pangolin includes [fundamental algorithms](https://github.com/gfonsecabr/pgl/blo
 
 - **Kd-tree** for points and a generalization for other bounded shapes.
 - **Interval tree** to use 1-dimensional queries on projections.
-- **Triangulation** including **Delaunay** and **constrained Delaunay** triangulations for points and polygons.
+- **Triangulation** including **Delaunay** and **constrained Delaunay** triangulations for points and polygons, with a **Kirkpatrick hierarchy** for fast point location.
 - **Arrangement** of lines, line segments, and rays with a **trapezoidal map** for fast point location.
 - Graph class for combinatorial algorithms like **Dijkstra** and **Prim** that can be used to compute Euclidean minimum spanning trees and shortest paths among obstacles.
 
 ## Comparison to CGAL
 
-There are several architectural differences between Pangolin and [CGAL](https://www.cgal.org/), we summarize some of them:
+There are several architectural differences between Pangolin and [CGAL](https://www.cgal.org/). Here, we summarize some of them, but we also include a [detailed comparison](https://github.com/gfonsecabr/pgl/blob/main/doc/cgal.md).
 
 | Feature | Pangolin | CGAL |
 | --- | --- | --- |
@@ -179,7 +179,7 @@ There are several architectural differences between Pangolin and [CGAL](https://
 - Pangolin does not distinguish between points, vectors, and directions.
 - Pangolin predicates return `true` or `false`, instead of some CGAL predicates that return 3 possible values for inside, outside, and on the boundary. Boundaries and interiors are distinguished by different predicates such as `contains`, `boundaryContains`, and `interiorContains`.
 - Even simple queries often require composing several CGAL primitives. For example, checking whether a segment lies inside a polygon has no direct predicate, and `CGAL::intersection` has no overload for a segment against a polygon: you must combine endpoint side-tests with per-edge intersection checks, or build a 2D arrangement. In Pangolin these are `polygon.contains(segment)` and `polygon.intersection(segment)`.
-- It is hard to compare the performance against CGAL, as many algorithms are not available in one or the other. Overall CGAL has faster more complex implementations. For example, pgl's decomposition-based Minkowski sum is much slower than CGAL's convolution-based Minkowski sum and a little slower than CGAL's decomposition-based Minkowski sum. Surprisingly, pgl's trapezoidal map point location is significantly faster than CGAL's in our benchmarks.
+- It is hard to compare the performance against CGAL, as many algorithms are not available in one or the other and the number types are different. Overall CGAL has faster more complex implementations, but pgl is faster in several tested cases. For more details, see the full [speed comparison](https://github.com/gfonsecabr/pgl/blob/main/doc/cgal.md#speed).
 
 ## Build
 

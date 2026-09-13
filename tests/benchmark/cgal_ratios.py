@@ -11,8 +11,9 @@ this script measures nothing; it only reduces what record.sh already stored.
 The reduction, matching the methodology the page documents:
 
   * a cell is one (driver, dataset, problem, number type); within it, each
-    library keeps its best algorithm at every size, so the ratio races the
-    faster of what each offers rather than a fixed pair. `algorithms=` pins
+    library keeps the one algorithm that is fastest on average over the sweep
+    (smallest geometric-mean time), not the fastest at each size, so a method
+    that wins only part of the range is not raced there. `algorithms=` pins
     pgl's side where the page is deliberately not claiming the best (searches
     are always ShapeTree, segment intersection is always findIntersections).
   * a cell's ratio list is one entry per size of the sweep; its median is the
@@ -37,6 +38,7 @@ Usage (from the repo root):
 import argparse
 import collections
 import json
+import math
 import pathlib
 import re
 import statistics
@@ -134,10 +136,12 @@ COLUMNS = (("ERational", "EPECK"), ("int", "EPICK"))
 
 # Cells the page marks with a footnote, keyed by (row label, column index). The
 # ratio is measured like every other, but the two sides are not answering the
-# same question and the note under the table says which. Only the sweep's `int`
-# column qualifies: EPICK loses intersection points there, while pgl's `int`
-# sweep is exact (see asymptotic/baseline/cgal.hpp).
-FOOTNOTE = {("Segment intersection", 1): "\\*"}
+# same question and the note under the table says which. The sweep's `int`
+# column: EPICK loses intersection points there, while pgl's `int` sweep is
+# exact (see asymptotic/baseline/cgal.hpp). And the Minkowski sum, where the
+# baseline keeps CGAL's fastest method over the whole sweep rather than the
+# fastest at each size (see asymptotic/baseline/minkowskisum.cpp).
+FOOTNOTE = {("Segment intersection", 1): "\\*", ("Minkowski sum", 0): "†"}
 
 # The note the page prints under the table, and the ratio it quotes: pgl `int`
 # against EPECK, the kernel that computes the answer pgl computes. That ratio is
@@ -148,6 +152,9 @@ FOOTNOTE = {("Segment intersection", 1): "\\*"}
 FOOTNOTE_EXACT = ("Segment intersection", "int", "EPECK")
 NOTE = ("\\* CGAL's sweep runs under EPICK here, which is not exact. "
         "pgl's `int` sweep is exact and {ratio} against EPECK.")
+MINKOWSKI_NOTE = ("† CGAL runs its fastest method over the whole sweep, the "
+                  "Hertel–Mehlhorn decomposition. Its reduced convolution is "
+                  "faster below about 150 vertices.")
 
 
 # ── Loading ──────────────────────────────────────────────────────────────────
@@ -166,14 +173,18 @@ def load(history):
     return pgl, baseline["results"], baseline.get("meta", {})
 
 
-def fastest_per_size(records):
-    """The best time each size was achieved in, across the algorithms present."""
-    best = {}
+def fastest_overall(records):
+    """size -> time of the one algorithm fastest on average over the sweep.
+
+    Averaged in log space (a geometric mean), so every size weighs the same
+    rather than the largest dominating; only the sizes every algorithm reached
+    are compared, and the winner's full series is returned."""
+    series = collections.defaultdict(dict)
     for r in records:
-        size = r["size"]
-        if size not in best or r["time"] < best[size]:
-            best[size] = r["time"]
-    return best
+        series[r["algorithm"]][r["size"]] = r["time"]
+    common = set.intersection(*(set(s) for s in series.values()))
+    best = min(series, key=lambda a: sum(math.log(series[a][s]) for s in common))
+    return series[best]
 
 
 def newest_commit(records):
@@ -193,7 +204,7 @@ def cell_ratios(c, commit, pgl, baseline, pgl_number, cgal_number):
               and r["problem"] == c.problem and r["number"] == cgal_number]
     if not mine or not theirs:
         return None
-    ours, ref = fastest_per_size(mine), fastest_per_size(theirs)
+    ours, ref = fastest_overall(mine), fastest_overall(theirs)
     sizes = sorted(set(ours) & set(ref))
     if not sizes:
         return None
@@ -246,9 +257,31 @@ def table(commit, pgl, baseline):
     return rows, missing
 
 
+# A median below FAST is drawn dark green (pgl clearly faster), above SLOW dark
+# red (CGAL clearly faster), judged on the printed two-digit value so a cell
+# reading 0.80 or 1.2 is never colored. GitHub strips inline styles from
+# Markdown, so the color goes through its math renderer instead, and every
+# ratio cell goes through it, colored or not, so all the numbers share one font.
+FAST, SLOW = 0.8, 1.2
+GREEN, RED = "#006400", "#8b0000"
+
+
+def render_colored(value):
+    if value is None:
+        return "—"
+    median, low, high, _ = value
+    shown = sig2(median)
+    number = f"\\textsf{{{shown}×}}"
+    color = GREEN if float(shown) < FAST else RED if float(shown) > SLOW else None
+    if color:
+        number = f"{{\\color{{{color}}}{number}}}"  # braces scope the switch
+    return f"${number}\\textsf{{ ({sig2(low)}–{sig2(high)})}}$"
+
+
 def cells(label, values):
     """A row's two rendered ratio cells, footnote marker included."""
-    return [render(v) + FOOTNOTE.get((label, i), "") for i, v in enumerate(values)]
+    return [render_colored(v) + FOOTNOTE.get((label, i), "")
+            for i, v in enumerate(values)]
 
 
 def markdown(rows):
@@ -333,6 +366,7 @@ def main():
         exact = row_ratio(row[1], commit, pgl, baseline, pgl_number, cgal_number)
         if exact:
             print("\n" + NOTE.format(ratio=render(exact)))
+    print("\n" + MINKOWSKI_NOTE)
 
 
 if __name__ == "__main__":
