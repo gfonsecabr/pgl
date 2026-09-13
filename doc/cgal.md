@@ -87,7 +87,7 @@ The numbers come from the [asymptotic benchmarks](https://gfonsecabr.github.io/p
 #### Methodology
 
 - Both libraries are handed the identical input: the benchmark generates every dataset once, with `int` coordinates, and converts. The CGAL drivers live in `tests/benchmark/asymptotic/baseline/` beside the pgl ones.
-- Each ratio is pgl time divided by CGAL time, taking the best algorithm each library offers on average over the size range, except that pgl searches never use [`IntervalTree`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html "Mutable interval tree over the projection of bounded shapes.") (despite being faster in several benchmarks, it is much slower when there are many segments that do not intersect but whose bounding boxes do). **Below 1 means pgl is faster.** The table gives the median over the 32 sizes of the input range and, in parentheses, the full range. A row covering more than one dataset averages the per-dataset medians, and its range spans them all.
+- Each ratio is pgl time divided by CGAL time, taking the best algorithm CGAL offers on average over the size range. **Below 1 means pgl is faster.** The table gives the median over the 32 sizes of the input range and, in parentheses, the full range. A row covering more than one dataset averages the per-dataset medians, and its range spans them all.
 - The two ratio columns are independent measurements, not one scaled by the other: each races a pgl number type against a comparable CGAL kernel.
 - Rows are ordered by the like-for-like `ERational` column, the one every row has, from CGAL's widest lead to pgl's.
 - One run, one machine, `g++ -std=c++23 -O2 -DNDEBUG`, CGAL 6.1.2.
