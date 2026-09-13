@@ -255,7 +255,48 @@ struct Convex {
     template<PointConcept OtherPointType, class OtherLabelType>
         requires(std::constructible_from<PointType, const OtherPointType&>)
     constexpr Convex(const Convex<OtherPointType, OtherLabelType>& other)
-        : points_(other.begin(), other.end()), label_(detail::copyLabel<LabelType>(other)) {}
+        : points_(detail::convertVertices<PointType>(other.vertices())), label_(detail::copyLabel<LabelType>(other)) {}
+
+    /**
+     * @brief Returns a copy with coordinates of type @p Number.
+     *
+     * The point and polygon labels are kept.
+     *
+     * @tparam Number Coordinate type of the result.
+     */
+    template <class Number>
+    [[nodiscard]] constexpr Convex<detail::with_number_t<PointType, Number>, LabelType> with() const {
+        return Convex<detail::with_number_t<PointType, Number>, LabelType>(*this);
+    }
+
+    /**
+     * @brief Returns a copy whose polygon label has type @p Label.
+     *
+     * The label converts as in a converting construction: it is copied into
+     * @p Label, default-constructed when this polygon has none, and dropped when
+     * @p Label is @ref NoLabel.
+     *
+     * @tparam Label Polygon label type of the result.
+     */
+    template <class Label>
+        requires(detail::can_copy_label_v<Label, LabelType>)
+    [[nodiscard]] constexpr Convex<PointType, Label> withLabel() const {
+        return Convex<PointType, Label>(*this);
+    }
+
+    /**
+     * @brief Returns a copy whose points' labels have type @p Label.
+     *
+     * Each point label converts as in a converting construction; the polygon
+     * label is kept.
+     *
+     * @tparam Label Point label type of the result.
+     */
+    template <class Label>
+        requires(detail::can_copy_label_v<Label, typename PointType::LabelType>)
+    [[nodiscard]] constexpr Convex<detail::with_point_label_t<PointType, Label>, LabelType> withPointLabel() const {
+        return Convex<detail::with_point_label_t<PointType, Label>, LabelType>(*this);
+    }
 
     /**
      * @brief Returns the convex-polygon label.

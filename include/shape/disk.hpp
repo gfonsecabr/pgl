@@ -171,6 +171,47 @@ struct Disk {
     }
 
     /**
+     * @brief Returns a copy with coordinates of type @p Number.
+     *
+     * The point and disk labels are kept.
+     *
+     * @tparam Number Coordinate type of the result.
+     */
+    template <class Number>
+    [[nodiscard]] constexpr Disk<detail::with_number_t<PointType, Number>, LabelType> with() const {
+        return Disk<detail::with_number_t<PointType, Number>, LabelType>(*this);
+    }
+
+    /**
+     * @brief Returns a copy whose disk label has type @p Label.
+     *
+     * The label converts as in a converting construction: it is copied into
+     * @p Label, default-constructed when this disk has none, and dropped when
+     * @p Label is @ref NoLabel.
+     *
+     * @tparam Label Disk label type of the result.
+     */
+    template <class Label>
+        requires(detail::can_copy_label_v<Label, LabelType>)
+    [[nodiscard]] constexpr Disk<PointType, Label> withLabel() const {
+        return Disk<PointType, Label>(*this);
+    }
+
+    /**
+     * @brief Returns a copy whose points' labels have type @p Label.
+     *
+     * Each point label converts as in a converting construction; the disk
+     * label is kept.
+     *
+     * @tparam Label Point label type of the result.
+     */
+    template <class Label>
+        requires(detail::can_copy_label_v<Label, typename PointType::LabelType>)
+    [[nodiscard]] constexpr Disk<detail::with_point_label_t<PointType, Label>, LabelType> withPointLabel() const {
+        return Disk<detail::with_point_label_t<PointType, Label>, LabelType>(*this);
+    }
+
+    /**
      * @brief Returns the disk label.
      *
      * The label is mutable even through a const disk: it is metadata that

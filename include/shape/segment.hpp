@@ -143,6 +143,47 @@ struct Segment {
     }
 
     /**
+     * @brief Returns a copy with coordinates of type @p Number.
+     *
+     * The point and segment labels are kept.
+     *
+     * @tparam Number Coordinate type of the result.
+     */
+    template <class Number>
+    [[nodiscard]] constexpr Segment<detail::with_number_t<PointType, Number>, LabelType> with() const {
+        return Segment<detail::with_number_t<PointType, Number>, LabelType>(*this);
+    }
+
+    /**
+     * @brief Returns a copy whose segment label has type @p Label.
+     *
+     * The label converts as in a converting construction: it is copied into
+     * @p Label, default-constructed when this segment has none, and dropped when
+     * @p Label is @ref NoLabel.
+     *
+     * @tparam Label Segment label type of the result.
+     */
+    template <class Label>
+        requires(detail::can_copy_label_v<Label, LabelType>)
+    [[nodiscard]] constexpr Segment<PointType, Label> withLabel() const {
+        return Segment<PointType, Label>(*this);
+    }
+
+    /**
+     * @brief Returns a copy whose points' labels have type @p Label.
+     *
+     * Each point label converts as in a converting construction; the segment
+     * label is kept.
+     *
+     * @tparam Label Point label type of the result.
+     */
+    template <class Label>
+        requires(detail::can_copy_label_v<Label, typename PointType::LabelType>)
+    [[nodiscard]] constexpr Segment<detail::with_point_label_t<PointType, Label>, LabelType> withPointLabel() const {
+        return Segment<detail::with_point_label_t<PointType, Label>, LabelType>(*this);
+    }
+
+    /**
      * @brief Returns endpoint `0` or `1`.
      *
      * @param index Endpoint index.

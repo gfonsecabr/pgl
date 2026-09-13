@@ -295,6 +295,44 @@ struct Shape {
           })) {}
 
     /**
+     * @brief Returns a copy with coordinates of type @p Number.
+     *
+     * The stored alternative is converted; point and shape labels are kept.
+     *
+     * @tparam Number Coordinate type of the result.
+     */
+    template <class Number>
+    [[nodiscard]] constexpr Shape<detail::with_number_t<PointType, Number>> with() const {
+        return Shape<detail::with_number_t<PointType, Number>>(*this);
+    }
+
+    /**
+     * @brief Returns a copy whose points' labels have type @p Label.
+     *
+     * The label type of a `Shape` is its point label type. Each point label
+     * converts as in a converting construction.
+     *
+     * @tparam Label Point label type of the result.
+     */
+    template <class Label>
+        requires(detail::can_copy_label_v<Label, LabelType>)
+    [[nodiscard]] constexpr Shape<detail::with_point_label_t<PointType, Label>> withLabel() const {
+        return Shape<detail::with_point_label_t<PointType, Label>>(*this);
+    }
+
+    /**
+     * @brief Same as @ref withLabel: the label type of a `Shape` is its point
+     *        label type.
+     *
+     * @tparam Label Point label type of the result.
+     */
+    template <class Label>
+        requires(detail::can_copy_label_v<Label, LabelType>)
+    [[nodiscard]] constexpr Shape<detail::with_point_label_t<PointType, Label>> withPointLabel() const {
+        return withLabel<Label>();
+    }
+
+    /**
      * @brief Replaces the stored alternative.
      *
      * @tparam T Alternative type.

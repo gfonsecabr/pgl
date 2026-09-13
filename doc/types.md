@@ -65,6 +65,22 @@ std::cout << s << std::endl;
 // Output: a:(0,1)--c:(2,9)
 ```
 
+### Changing Types
+
+`s.with<Number>()` returns a copy of `s` with coordinates of type `Number`, keeping the point and shape labels. `s.withLabel<Label>()` changes the shape label type and `s.withPointLabel<Label>()` the point label type. The label of a point, a [`Shape`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html "Runtime variant wrapper over the supported primitive shapes.") or an [`EmptyShape`](https://gfonsecabr.github.io/pgl/structpgl_1_1EmptyShape.html "The empty set of points in the plane.") is its point label, so for them the two methods are the same.
+
+Labels convert as in a converting construction: they are copied into the new type, default-constructed when there was no label, and dropped by [`NoLabel`](https://gfonsecabr.github.io/pgl/structpgl_1_1NoLabel.html "Sentinel type used when a point carries no extra label."). A label type that cannot be built from the old one does not compile.
+
+```c++
+pgl::Segment<pgl::Point<int, std::string>, std::string> s({0,0,"a"}, {3,4,"b"}, "s");
+auto t = s.with<long>();              // Segment<Point<long, std::string>, std::string>
+auto u = s.withLabel<pgl::NoLabel>(); // Segment<Point<int, std::string>>
+std::cout << t << ' ' << u << std::endl;
+// Output: s:{a:(0,0)--b:(3,4)} a:(0,0)--b:(3,4)
+```
+
+When the type of `s` depends on a template parameter, write `s.template with<Number>()`.
+
 
 ### Promotion
 

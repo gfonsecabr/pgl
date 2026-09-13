@@ -48,6 +48,39 @@ struct EmptyShape {
     /** @brief Three-way comparison: all empty shapes are equivalent. */
     [[nodiscard]] constexpr auto operator<=>(const EmptyShape&) const = default;
 
+    /**
+     * @brief Returns the empty shape over coordinates of type @p Number.
+     *
+     * @tparam Number Coordinate type of the result.
+     */
+    template <class Number>
+    [[nodiscard]] constexpr EmptyShape<detail::with_number_t<PointType, Number>> with() const {
+        return {};
+    }
+
+    /**
+     * @brief Returns the empty shape over points labeled by @p Label.
+     *
+     * The label type of an empty shape is its point label type.
+     *
+     * @tparam Label Point label type of the result.
+     */
+    template <class Label>
+    [[nodiscard]] constexpr EmptyShape<detail::with_point_label_t<PointType, Label>> withLabel() const {
+        return {};
+    }
+
+    /**
+     * @brief Same as @ref withLabel: the label type of an empty shape is its
+     *        point label type.
+     *
+     * @tparam Label Point label type of the result.
+     */
+    template <class Label>
+    [[nodiscard]] constexpr EmptyShape<detail::with_point_label_t<PointType, Label>> withPointLabel() const {
+        return {};
+    }
+
     /** @brief Tests whether another shape defines the empty point set. */
     template<AnyShapeConcept OtherShape>
     [[nodiscard]] constexpr bool samePointSet(const OtherShape& other) const;

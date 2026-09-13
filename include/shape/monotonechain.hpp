@@ -257,7 +257,51 @@ struct MonotoneChain {
         requires(std::constructible_from<PointType, const OtherPointType&> &&
                  detail::ownsChainStorage<Storage, PointType>)
     constexpr MonotoneChain(const MonotoneChain<OtherPointType, OtherLabelType, OtherStorage>& other)
-        : points_(other.begin(), other.end()), label_(detail::copyLabel<LabelType>(other)) {}
+        : label_(detail::copyLabel<LabelType>(other)) {
+        const auto vertices = other.vertices();
+        points_ = Storage(vertices.begin(), vertices.end());
+    }
+
+    /**
+     * @brief Returns an owning copy with coordinates of type @p Number.
+     *
+     * The point and chain labels are kept.
+     *
+     * @tparam Number Coordinate type of the result.
+     */
+    template <class Number>
+    [[nodiscard]] constexpr MonotoneChain<detail::with_number_t<PointType, Number>, LabelType> with() const {
+        return MonotoneChain<detail::with_number_t<PointType, Number>, LabelType>(*this);
+    }
+
+    /**
+     * @brief Returns an owning copy whose chain label has type @p Label.
+     *
+     * The label converts as in a converting construction: it is copied into
+     * @p Label, default-constructed when this chain has none, and dropped when
+     * @p Label is @ref NoLabel.
+     *
+     * @tparam Label Chain label type of the result.
+     */
+    template <class Label>
+        requires(detail::can_copy_label_v<Label, LabelType>)
+    [[nodiscard]] constexpr MonotoneChain<PointType, Label> withLabel() const {
+        return MonotoneChain<PointType, Label>(*this);
+    }
+
+    /**
+     * @brief Returns an owning copy whose points' labels have type @p Label.
+     *
+     * Each point label converts as in a converting construction; the chain
+     * label is kept.
+     *
+     * @tparam Label Point label type of the result.
+     */
+    template <class Label>
+        requires(detail::can_copy_label_v<Label, typename PointType::LabelType>)
+    [[nodiscard]] constexpr MonotoneChain<detail::with_point_label_t<PointType, Label>, LabelType> withPointLabel() const {
+        return MonotoneChain<detail::with_point_label_t<PointType, Label>, LabelType>(*this);
+    }
 
     /**
      * @brief Returns the chain label.

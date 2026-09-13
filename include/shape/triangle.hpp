@@ -161,6 +161,47 @@ struct Triangle {
     }
 
     /**
+     * @brief Returns a copy with coordinates of type @p Number.
+     *
+     * The point and triangle labels are kept.
+     *
+     * @tparam Number Coordinate type of the result.
+     */
+    template <class Number>
+    [[nodiscard]] constexpr Triangle<detail::with_number_t<PointType, Number>, LabelType> with() const {
+        return Triangle<detail::with_number_t<PointType, Number>, LabelType>(*this);
+    }
+
+    /**
+     * @brief Returns a copy whose triangle label has type @p Label.
+     *
+     * The label converts as in a converting construction: it is copied into
+     * @p Label, default-constructed when this triangle has none, and dropped when
+     * @p Label is @ref NoLabel.
+     *
+     * @tparam Label Triangle label type of the result.
+     */
+    template <class Label>
+        requires(detail::can_copy_label_v<Label, LabelType>)
+    [[nodiscard]] constexpr Triangle<PointType, Label> withLabel() const {
+        return Triangle<PointType, Label>(*this);
+    }
+
+    /**
+     * @brief Returns a copy whose points' labels have type @p Label.
+     *
+     * Each point label converts as in a converting construction; the triangle
+     * label is kept.
+     *
+     * @tparam Label Point label type of the result.
+     */
+    template <class Label>
+        requires(detail::can_copy_label_v<Label, typename PointType::LabelType>)
+    [[nodiscard]] constexpr Triangle<detail::with_point_label_t<PointType, Label>, LabelType> withPointLabel() const {
+        return Triangle<detail::with_point_label_t<PointType, Label>, LabelType>(*this);
+    }
+
+    /**
      * @brief Returns vertex `0`, `1`, or `2`.
      *
      * @param index Vertex index.

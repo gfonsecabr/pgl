@@ -127,6 +127,47 @@ struct OrientedLine {
     }
 
     /**
+     * @brief Returns a copy with coordinates of type @p Number.
+     *
+     * The point and line labels are kept.
+     *
+     * @tparam Number Coordinate type of the result.
+     */
+    template <class Number>
+    [[nodiscard]] constexpr OrientedLine<detail::with_number_t<PointType, Number>, LabelType> with() const {
+        return OrientedLine<detail::with_number_t<PointType, Number>, LabelType>(*this);
+    }
+
+    /**
+     * @brief Returns a copy whose line label has type @p Label.
+     *
+     * The label converts as in a converting construction: it is copied into
+     * @p Label, default-constructed when this line has none, and dropped when
+     * @p Label is @ref NoLabel.
+     *
+     * @tparam Label Line label type of the result.
+     */
+    template <class Label>
+        requires(detail::can_copy_label_v<Label, LabelType>)
+    [[nodiscard]] constexpr OrientedLine<PointType, Label> withLabel() const {
+        return OrientedLine<PointType, Label>(*this);
+    }
+
+    /**
+     * @brief Returns a copy whose points' labels have type @p Label.
+     *
+     * Each point label converts as in a converting construction; the line
+     * label is kept.
+     *
+     * @tparam Label Point label type of the result.
+     */
+    template <class Label>
+        requires(detail::can_copy_label_v<Label, typename PointType::LabelType>)
+    [[nodiscard]] constexpr OrientedLine<detail::with_point_label_t<PointType, Label>, LabelType> withPointLabel() const {
+        return OrientedLine<detail::with_point_label_t<PointType, Label>, LabelType>(*this);
+    }
+
+    /**
      * @brief Returns defining point `0` for the source and `1` for the target.
      *
      * @param index Defining-point index.

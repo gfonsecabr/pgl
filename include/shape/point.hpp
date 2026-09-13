@@ -116,6 +116,29 @@ namespace detail {
         }
     }
 
+    /**
+     * @brief Converts the vertices of a shape to another point type.
+     *
+     * Takes the labeled vertices a shape's `vertices()` returns: a shape that
+     * stores a pending translation yields unlabeled points from its iterators.
+     */
+    template <class TargetPoint, class SourcePoint>
+    constexpr std::vector<TargetPoint> convertVertices(std::vector<SourcePoint> vertices) {
+        if constexpr (std::same_as<TargetPoint, SourcePoint>) {
+            return vertices;
+        } else {
+            return std::vector<TargetPoint>(vertices.begin(), vertices.end());
+        }
+    }
+
+    /** @brief The point type @p PointType with coordinates of type @p Number. */
+    template <class PointType, class Number>
+    using with_number_t = Point<Number, typename PointType::LabelType>;
+
+    /** @brief The point type @p PointType with labels of type @p Label. */
+    template <class PointType, class Label>
+    using with_point_label_t = Point<typename PointType::NumberType, Label>;
+
 } //detail
 
 
@@ -184,6 +207,44 @@ struct Point {
               detail::convertCoordinate<NumberType>(other.y()),
           },
           label_(detail::copyLabel<LabelType>(other)) {}
+
+    /**
+     * @brief Returns a copy with coordinates of type @p Number.
+     *
+     * The label is kept.
+     *
+     * @tparam Number Coordinate type of the result.
+     */
+    template <class Number>
+    [[nodiscard]] constexpr Point<Number, LabelType> with() const {
+        return Point<Number, LabelType>(*this);
+    }
+
+    /**
+     * @brief Returns a copy whose label has type @p Label.
+     *
+     * The label converts as in a converting construction: it is copied into
+     * @p Label, default-constructed when this point has none, and dropped when
+     * @p Label is @ref NoLabel.
+     *
+     * @tparam Label Label type of the result.
+     */
+    template <class Label>
+        requires(detail::can_copy_label_v<Label, LabelType>)
+    [[nodiscard]] constexpr Point<NumberType, Label> withLabel() const {
+        return Point<NumberType, Label>(*this);
+    }
+
+    /**
+     * @brief Same as @ref withLabel: the label of a point is its point label.
+     *
+     * @tparam Label Label type of the result.
+     */
+    template <class Label>
+        requires(detail::can_copy_label_v<Label, LabelType>)
+    [[nodiscard]] constexpr Point<NumberType, Label> withPointLabel() const {
+        return withLabel<Label>();
+    }
 
     /**
      * @brief Returns the x coordinate.
