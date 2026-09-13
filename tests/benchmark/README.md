@@ -59,11 +59,8 @@ Voronoi diagrams — CGAL's `Voronoi_diagram_2` stores no subdivision, and its
 `lower_envelope_3` builds one by lifting the sites into 3D, so neither races
 what pgl does; nor is there an order-k or a farthest-point diagram in CGAL to
 put against orders 2 and 4 or the farthest one. The rest exist to check pgl's
-answers against something that is not more pgl, and to put a reference curve on the chart. A cell may carry more than one: CGAL solves the
-Minkowski sum both by decomposition, the strategy pgl uses, and by reduced
-convolution, which pgl has no counterpart for — the first says how pgl's
-implementation of an idea compares, the second says what the other idea costs.
-The chart draws every reference a cell has, one dash pattern each.
+answers against something that is not more pgl, and to put a reference curve on the chart. A cell may carry more than one, and the
+chart draws every reference a cell has, one dash pattern each.
 
 A cell may also carry a reference per *kernel*, and the chart picks the one the
 selected number type is entitled to: EPICK against pgl's `int` column, EPECK

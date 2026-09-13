@@ -347,9 +347,8 @@ def read_baseline(history: str):
     """The CGAL reference snapshot, category -> "dataset|problem" -> [curve].
 
     A list per key, not one curve, for two reasons. A category may have more
-    than one reference for the same cell — CGAL's Minkowski sum is measured both
-    by decomposition and by reduced convolution — and the chart draws all of
-    them. And a reference measured under both of CGAL's kernels appears once per
+    than one reference for the same cell, and the chart draws all of them. And
+    a reference measured under both of CGAL's kernels appears once per
     kernel, since the page shows EPICK against pgl's `int` column and EPECK
     against `ERational` (see baseline/cgal.hpp for which drivers may offer
     both). Curves are therefore keyed on (algorithm, number), not on algorithm
