@@ -142,9 +142,10 @@ uset.insert(s);
 Pangolin includes [fundamental algorithms](doc/algorithms.md):
 
 - **Convex hull** computed with Graham scan.
-- Line segment intersection: **Bentley-Ottmann sweep line** using rational numbers.
+- Line segment intersection: **Bentley-Ottmann sweep line** and other algorithms.
 - **Minkowski sum**, **Minkowski erosion** and **boolean operations**.
 - **Visibility** graph and visibility polygon.
+- Hertel-Mehlhorn **convex partition**.
 - Find the **closest pair** of points using divide and conquer.
 - Smallest **enclosing disk and rectangle**.
 - Sort points by angle or Hilbert order.
@@ -178,6 +179,7 @@ There are several architectural differences between Pangolin and [CGAL](https://
 - Pangolin implicitly converts shapes that use different number types, so it is easy to use rational numbers or larger numbers only when needed.
 - Pangolin does not distinguish between points, vectors, and directions.
 - Pangolin predicates return `true` or `false`, instead of some CGAL predicates that return 3 possible values for inside, outside, and on the boundary. Boundaries and interiors are distinguished by different predicates such as `contains`, `boundaryContains`, and `interiorContains`.
+- Pangolin provides worst-case complexities, but *adaptively chooses the best algorithm* instead of presenting the user with a large choice of algorithms and parameters.
 - Even simple queries often require composing several CGAL primitives. For example, checking whether a segment lies inside a polygon has no direct predicate, and `CGAL::intersection` has no overload for a segment against a polygon: you must combine endpoint side-tests with per-edge intersection checks, or build a 2D arrangement. In Pangolin these are `polygon.contains(segment)` and `polygon.intersection(segment)`.
 - It is hard to compare the performance against CGAL, as many algorithms are not available in one or the other and the number types are different. Overall CGAL has faster more complex implementations, but pgl is faster in several tested cases. For more details, see the full [speed comparison](doc/cgal.md#speed).
 

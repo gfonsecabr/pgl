@@ -151,7 +151,7 @@ FOOTNOTE = {("Segment intersection", 1): "\\*", ("Minkowski sum", 0): "†"}
 # not this script's.
 FOOTNOTE_EXACT = ("Segment intersection", "int", "EPECK")
 NOTE = ("\\* CGAL's sweep line runs under EPICK here, which is not exact. "
-        "pgl's `int` sweep line is exact and {ratio} against EPECK.")
+        "pgl's `int` `findIntersections` is exact and {ratio} against EPECK.")
 MINKOWSKI_NOTE = ("† CGAL runs its fastest method over the whole input range, the "
                   "Hertel–Mehlhorn decomposition. Its reduced convolution is "
                   "faster below about 150 vertices.")
