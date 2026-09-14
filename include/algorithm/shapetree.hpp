@@ -19,6 +19,13 @@
  * type, where that box test is itself a cross multiplication of big integers,
  * every box is shadowed by an outward-rounded `double` one and the cheap test
  * runs first; a shadow that misses the query proves the exact box does too.
+ *
+ * A tree of points is built the other way round. Points cannot straddle, so the
+ * split is the median and the tree is known before any node is made: the points
+ * are moved into the order that tree reads them in -- every subtree one
+ * contiguous run -- and the nodes fall out of that one pass. A subtree is then a
+ * range rather than a list of indices, which is what a query walks and what the
+ * build sweeps over.
  */
 
 #include <algorithm>
@@ -1513,43 +1520,129 @@ class ShapeTree {
         return result;
     }
 
+    // Partitions a point range about the split the index build would choose on
+    // one of the two axes, and returns how many points went left -- 0 when no
+    // axis separates anything, which is to say the range is one point repeated.
+    //
+    // The axis alternates with the depth, as the index build's tie-break does:
+    // points have no straddlers, so both axes score the same there and only a
+    // degenerate one has to be stepped over. On that axis the range is split
+    // three ways about its median value, and the boundary of the equal run that
+    // leaves the halves closer in size is taken -- the same two candidates
+    // @ref bestSplitOnAxis weighs. Keeping a run of one coordinate whole is
+    // what a lattice of repeated coordinates needs: cutting through it would
+    // leave both children spanning the same column.
+    static std::size_t partitionPointRange(typename std::vector<ShapeType>::iterator first,
+                                           typename std::vector<ShapeType>::iterator last,
+                                           int level) {
+        const std::ptrdiff_t n = last - first;
+        for (int k = 0; k < 2; ++k) {
+            const std::size_t axis = static_cast<std::size_t>((level + k) % 2);
+            const auto middle = first + n / 2;
+            std::nth_element(first, middle, last,
+                             [axis](const ShapeType& a, const ShapeType& b) {
+                                 return a[axis] < b[axis];
+                             });
+            // Copied, not bound: the partitions below move the median itself.
+            const NumberType median = (*middle)[axis];
+            // Selection already put everything below the median before it and
+            // everything above it after, so each side needs one pass to peel
+            // off the points equal to it, and the equal run ends up whole.
+            const auto lower = std::partition(
+                first, middle, [&](const ShapeType& e) { return e[axis] < median; });
+            const auto upper = std::partition(
+                middle, last, [&](const ShapeType& e) { return !(median < e[axis]); });
+            const bool below = lower != first;   // Something is under the run.
+            const bool above = upper != last;    // Something is over it.
+            if (!below && !above) {
+                continue;  // One coordinate repeated: this axis separates nothing.
+            }
+            if (below && (!above || middle - lower <= upper - middle)) {
+                return static_cast<std::size_t>(lower - first);
+            }
+            return static_cast<std::size_t>(upper - first);
+        }
+        return 0;
+    }
+
+    // Orders a point range into the layout of the tree it is about to become --
+    // every subtree one contiguous run, its left child's run first -- and emits
+    // that tree's nodes in pre-order as it goes, each with its children and the
+    // elements it owns but without the box, count and weight @ref aggregate
+    // fills in afterwards. Returns the node's index.
+    //
+    // The ordering pass is the whole of the split selection, so what is left of
+    // the build is a sweep with nothing to decide. The node's slot is taken
+    // before its children take theirs, as in @ref build, which is what puts the
+    // nodes in pre-order and lets that sweep run backwards over the array.
+    std::ptrdiff_t layOutPoints(typename std::vector<ShapeType>::iterator first,
+                                typename std::vector<ShapeType>::iterator last, int level) {
+        const std::ptrdiff_t id = allocNode();
+        const auto n = static_cast<std::size_t>(last - first);
+        const std::size_t at = n <= leafSize_ ? 0 : partitionPointRange(first, last, level);
+        if (at == 0) {
+            const auto begin = static_cast<std::size_t>(first - elements_.begin());
+            nodes_[id].elementIndices.resize(n);
+            for (std::size_t k = 0; k < n; ++k) {
+                nodes_[id].elementIndices[k] = begin + k;
+            }
+            return id;
+        }
+        const auto split = first + static_cast<std::ptrdiff_t>(at);
+        nodes_[id].left = layOutPoints(first, split, level + 1);
+        nodes_[id].right = layOutPoints(split, last, level + 1);
+        return id;
+    }
+
     // Discards the current node structure and rebuilds it from elements_.
     void buildFromElements() {
         nodes_.clear();
         nodeFilterBoxes_.clear();
-        // Points arrive in the caller's order, which is usually no order at
-        // all, and the build then reaches them through index lists that scatter
-        // over the whole array at every level of the recursion. Ordering them
-        // first makes each node's elements an ascending run -- a partition
-        // keeps the relative order of what it hands on, so an ordered list
-        // stays ordered all the way down -- and every pass over them reads
-        // forward instead of hopping. It cannot change the tree: a split is
-        // chosen by coordinate value, and the order of the elements a node
-        // holds is unspecified in any case.
+        root_ = -1;
+        if (elements_.empty()) {
+            if constexpr (usesFilter) {
+                filterBoxes_.clear();
+            }
+            return;
+        }
+        // A point tree is laid out before it is built. The points are moved into
+        // the order the finished tree reads them in -- every subtree one
+        // contiguous run -- and that pass, which is the split selection and
+        // nothing else, leaves the nodes behind it. The build is then a sweep
+        // with no coordinates to gather into a vector per node, no indices to
+        // partition into two more, and no element reached anywhere but through
+        // the run it sits in, at build time and at query time alike.
         //
-        // Every fixed-width coordinate gains by it, whether it orders by its
-        // bits or by comparison. An arbitrary-precision one pays for its
-        // ordering in exact comparisons and has less to win back, its build
-        // being held up by arithmetic rather than by memory, and comes out a
-        // few percent behind -- not enough to be worth building two different
-        // trees. Shapes are left where they are, their build already reading
-        // its ends from lists it keeps in order.
-        //
-        // This runs before the filter boxes below, which are indexed in
-        // parallel with the elements and would otherwise be left describing
-        // whoever now sits at their index.
+        // Shapes are left where they are. A bounding box straddles a split and
+        // stays at the node that made it, so a shape subtree's elements are not
+        // a range to begin with, and that build already reads its box ends from
+        // lists it keeps in order, one sort for the whole tree.
         if constexpr (PointConcept<ShapeType>) {
-            sortPoints(elements_);
+            // Enough nodes for a tree whose leaves came out at least half full,
+            // which is what splitting near the median leaves. A run of one
+            // coordinate can be peeled off well away from the middle and make a
+            // smaller leaf; the vector then grows, which costs a move per node
+            // and nothing else, the nodes being addressed by index throughout.
+            nodes_.reserve(4 * elements_.size() / (leafSize_ + 1) + 2);
+            root_ = layOutPoints(elements_.begin(), elements_.end(), 0);
         }
         if constexpr (usesFilter) {
+            // Indexed in parallel with the elements, so this waits until the
+            // layout above has finished moving them; a box recorded earlier
+            // would describe whoever now sits at its index.
             filterBoxes_.clear();
             filterBoxes_.reserve(elements_.size());
             for (const ShapeType& e : elements_) {
                 filterBoxes_.push_back(filterBoxOf(e.bbox()));
             }
         }
-        root_ = -1;
-        if (elements_.empty()) {
+        if constexpr (PointConcept<ShapeType>) {
+            // The nodes are in pre-order, so every child sits after its parent
+            // and a backward sweep reaches both children of a node before the
+            // node itself -- which is all @ref aggregate asks of its caller.
+            for (std::size_t id = nodes_.size(); id-- > 0;) {
+                aggregate(static_cast<std::ptrdiff_t>(id));
+            }
             return;
         }
         std::vector<std::size_t> indices(elements_.size());
@@ -1557,19 +1650,13 @@ class ShapeTree {
             indices[i] = i;
         }
         nodes_.reserve(2 * elements_.size() / leafSize_ + 1);
-        if constexpr (PointConcept<ShapeType>) {
-            // A point's split needs no ordered ends: the median it splits at is
-            // selected in linear time, so there is nothing to inherit.
-            root_ = build(indices, 0);
-        } else {
-            SortedEnds ends;
-            for (int axis = 0; axis < 2; ++axis) {
-                sortEndsOnAxis(indices, static_cast<std::size_t>(axis), ends.lo[axis],
-                               ends.hi[axis]);
-            }
-            std::vector<std::uint8_t> side(elements_.size());
-            root_ = buildFromEnds(ends, 0, side);
+        SortedEnds ends;
+        for (int axis = 0; axis < 2; ++axis) {
+            sortEndsOnAxis(indices, static_cast<std::size_t>(axis), ends.lo[axis],
+                           ends.hi[axis]);
         }
+        std::vector<std::uint8_t> side(elements_.size());
+        root_ = buildFromEnds(ends, 0, side);
     }
 
     // Appends the subtree bounding boxes to `out` in pre-order.

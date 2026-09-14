@@ -336,6 +336,46 @@ TEST_CASE("ShapeTree point build handles duplicate and one-axis coordinates") {
     }
 }
 
+// The point layout splits a range about its median and keeps a run of one
+// coordinate whole, which a lattice of few distinct values is made of: most
+// nodes there split well away from the middle, and a leaf's run of elements has
+// to line up with the node the layout gave it whichever way it fell.
+TEST_CASE("ShapeTree point build matches brute force over a coarse lattice") {
+    Rng rng{0x1a771ce};
+    for (const int distinct : {1, 2, 3, 7, 40}) {
+        std::vector<Point> points;
+        points.reserve(400);
+        for (int i = 0; i < 400; ++i) {
+            points.emplace_back(rng.range(0, distinct - 1) * 25,
+                                rng.range(0, distinct - 1) * 25);
+        }
+        for (const std::size_t leafSize : {std::size_t{1}, std::size_t{2}, std::size_t{6},
+                                           std::size_t{50}}) {
+            CAPTURE(distinct);
+            CAPTURE(leafSize);
+            const pgl::ShapeTree<Point> tree(points, leafSize);
+            REQUIRE(tree.size() == points.size());
+
+            // Every point is stored exactly once, however the layout moved it.
+            std::vector<Point> stored(tree.begin(), tree.end());
+            std::vector<Point> given = points;
+            std::sort(stored.begin(), stored.end());
+            std::sort(given.begin(), given.end());
+            CHECK(stored == given);
+
+            for (const Rect& q : queryWindows()) {
+                CHECK(tree.countIntersecting(q) == bruteCountIntersecting(points, q));
+                CHECK(tree.countContainedIn(q) == bruteCountContained(points, q));
+            }
+            for (int k = 0; k < 20; ++k) {
+                const Point q(rng.range(-50, 1050), rng.range(-50, 1050));
+                CHECK(q.squaredDistance<std::int64_t>(tree.nearestNeighbor(q)) ==
+                      bruteNearestDistance<std::int64_t>(points, q));
+            }
+        }
+    }
+}
+
 TEST_CASE("ShapeTree deduces the stored shape type from the container") {
     const std::vector<Triangle> tris = makeTriangles(20, 7);
 
