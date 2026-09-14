@@ -59,6 +59,7 @@ def cell(driver, dataset, problem, algorithms=None):
 
 
 SEGMENT_DATASETS = ("small", "large", "sheared", "polygon edges")
+ARRANGEMENT_DATASETS = ("small segments", "large segments", "mixed")
 
 ROWS = [
     ("Segment intersection",
@@ -79,7 +80,7 @@ ROWS = [
       cell("pointsearch", "points", "build")],
      "`ShapeTree`", "`Kd_tree`"),
     ("Arrangement build",
-     [cell("arrangement", d, "build") for d in ("small segments", "large segments")],
+     [cell("arrangement", d, "build") for d in ARRANGEMENT_DATASETS],
      "`Arrangement`", "`Arrangement_2`"),
     ("Regularized union, large + large",
      [cell("regularizedunion", "large + large", "union")],
@@ -109,7 +110,7 @@ ROWS = [
      [cell("segmentsearch", "small segments", "count in Rectangle", {"ShapeTree"})],
      "`ShapeTree`", "`AABB_tree`"),
     ("Arrangement point-location build",
-     [cell("arrangement", d, "buildPointLocation") for d in ("small segments", "large segments")],
+     [cell("arrangement", d, "buildPointLocation") for d in ARRANGEMENT_DATASETS],
      "`a.buildPointLocation()`{Arrangement}",
      "<code>Arr_trapezoid_ric_<wbr>point_location</code>"),
     ("Visibility, visible vertices",
@@ -117,7 +118,7 @@ ROWS = [
      "`t.visibleVertices(p)`{Triangulation}",
      "<code>Triangular_expansion_<wbr>visibility_2</code>"),
     ("Arrangement point location query",
-     [cell("arrangement", d, "locateFace") for d in ("small segments", "large segments")],
+     [cell("arrangement", d, "locateFace") for d in ARRANGEMENT_DATASETS],
      "`a.locateFace(p)`{Arrangement}",
      "<code>Arr_trapezoid_ric_<wbr>point_location<wbr>::locate</code>"),
     ("Nearest neighbor query",
