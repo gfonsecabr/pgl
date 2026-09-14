@@ -27,6 +27,7 @@
 #include "../randomshapes.hpp"
 
 #include <cstdint>
+#include <set>
 #include <vector>
 
 namespace bench {
@@ -36,6 +37,7 @@ using IntSegment   = pgl::Segment<IntPoint>;
 using IntTriangle  = pgl::Triangle<IntPoint>;
 using IntRectangle = pgl::Rectangle<IntPoint>;
 using IntPolygon   = pgl::Polygon<IntPoint>;
+using IntShape     = pgl::Shape<IntPoint>;
 
 // n distinct random points in the large disk.
 inline std::vector<IntPoint> points(int n) {
@@ -62,6 +64,32 @@ inline std::vector<IntSegment> smallSegments(int n) {
 }
 inline std::vector<IntSegment> largeSegments(int n) {
     return randomLargeBishape<IntSegment>(n);
+}
+
+// smallSegments(n) with every twentieth shape a ray and every twentieth a line.
+// Each is drawn as a small segment is -- a point in the large disk and a small
+// offset from it -- but the draw order is kept, since a Segment would sort its
+// endpoints: the ray starts at the first point and passes through the second.
+inline std::vector<IntShape> mixedShapes(int n) {
+    std::vector<IntShape> w;
+    w.reserve(static_cast<std::size_t>(n));
+    std::set<IntShape> seen;
+    Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<IntSegment>)};
+    while (static_cast<int>(w.size()) < n) {
+        const auto p1 = randomPoint<int>(rng, largeRange);
+        const auto p2 = p1 + randomPoint<int>(rng, smallRange);
+        if (p1 == p2) continue;
+        IntShape s;
+        switch (w.size() % 20) {
+            case 0:  s = IntShape(pgl::Ray<IntPoint>(p1, p2)); break;
+            case 1:  s = IntShape(pgl::Line<IntPoint>(p1, p2)); break;
+            default: s = IntShape(IntSegment(p1, p2)); break;
+        }
+        if (seen.insert(s).second) {
+            w.push_back(s);
+        }
+    }
+    return w;
 }
 
 // smallSegments(n) under the shear (x, y) -> (x, 10x + y). The map is affine,

@@ -241,7 +241,7 @@ def split_initial_pairs(pairs: dict):
 # themselves have no table: the page lists them alphabetically, so a reader can
 # find one by name.
 DATASET_ORDER = ["points", "small segments", "small", "sheared", "large segments", "large",
-                 "polygon edges", "polygon", "large + large", "large + small", "triangles"]
+                 "mixed", "polygon edges", "polygon", "large + large", "large + small", "triangles"]
 PROBLEM_ORDER = ["build", "buildPointLocation", "locate", "locateFace",
                  "closest pair", "convex hull", "sort by angle", "Delaunay",
                  "kd-tree", "order 1", "order 2", "order 4", "farthest",

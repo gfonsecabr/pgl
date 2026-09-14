@@ -1,4 +1,4 @@
-// @desc: Arrangement of n random segments, and locating the face containing a
+// @desc: Arrangement of n random shapes, and locating the face containing a
 // point two ways: by scanning the edges, and through the trapezoidal DAG that
 // buildPointLocation constructs.
 // @dataset small segments: Distinct segments with integer coordinates. One
@@ -9,6 +9,9 @@
 // endpoint is drawn uniformly from a disk of diameter 5,000 and the other is
 // offset from it by a vector drawn uniformly from a disk of the same size.
 // Between 6.0% and 6.8% of the pairs meet, depending on n.
+// @dataset mixed: The small segments, except that one shape in twenty is a ray
+// and one in twenty a line, each drawn from the same two random points: the ray
+// starts at the first and passes through the second.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"
@@ -37,9 +40,10 @@ long long outputSize(const ArrangementType& arrangement) {
 
 // Exact arithmetic only: an arrangement of intersecting segments has rational
 // vertices, so there is no meaningful `int` cell to compare against.
+template <class Target, class Source>
 void sweepDataset(const bench::Options& opt, const char* dataset,
                   std::span<const int> sizes,
-                  std::vector<bench::IntSegment> (*generate)(int)) {
+                  std::vector<Source> (*generate)(int)) {
     using Point = pgl::EPoint;
     const char* number = bench::numberName<pgl::ERational>;
     if (!bench::matches(opt.dataset, dataset)) return;
@@ -47,7 +51,7 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
     const auto queries = bench::convert<Point>(bench::queryPoints(bench::kQueryBatch));
 
     for (const int n : bench::sweep(sizes, opt)) {
-        const auto segments = bench::convert<pgl::ESegment>(generate(n));
+        const auto segments = bench::convert<Target>(generate(n));
         long long result = 0;
 
         std::optional<pgl::Arrangement<Point>> arrangement;
@@ -117,8 +121,12 @@ int main(int argc, char** argv) {
     const auto opt = bench::parseOptions(argc, argv);
     bench::header();
     if (bench::matches(opt.type, "ERational")) {
-        sweepDataset(opt, "small segments", bench::kArrangement, bench::smallSegments);
-        sweepDataset(opt, "large segments", bench::kArrangementLarge, bench::largeSegments);
+        sweepDataset<pgl::ESegment>(opt, "small segments", bench::kArrangement,
+                                    bench::smallSegments);
+        sweepDataset<pgl::ESegment>(opt, "large segments", bench::kArrangementLarge,
+                                    bench::largeSegments);
+        sweepDataset<pgl::EShape>(opt, "mixed", bench::kArrangementMixed,
+                                  bench::mixedShapes);
     }
     return 0;
 }

@@ -95,9 +95,12 @@ constexpr auto kTriangulation = linearSizes(100000);
 // buildPointLocation, which costs more than building the arrangement it
 // indexes. Large segments span half the disk instead of a tenth of it, so they
 // cross far more often and reach a comparable arrangement at a fraction of the
-// n — hence a second, much shorter list rather than one shared ceiling.
+// n — hence a second, much shorter list rather than one shared ceiling. Mixed
+// shapes get a third: the lines among them cross each other and most of the
+// disk, so their output outgrows the small segments' at the same n.
 constexpr auto kArrangement      = linearSizes(10000);
 constexpr auto kArrangementLarge = linearSizes(2000);
+constexpr auto kArrangementMixed = linearSizes(3500);
 
 // ── 3. Intersection of line segments ────────────────────────────────────────
 // One list per dataset, except that sheared shares small's: the others
