@@ -4,6 +4,7 @@
 #include "pgl.hpp"
 
 #include <compare>
+#include <random>
 #include <sstream>
 #include <stdexcept>
 #include <unordered_set>
@@ -94,6 +95,46 @@ TEST_CASE("Insertion order does not matter for full-dimensional regions") {
     CHECK(a == b);
     CHECK((a <=> b) == std::strong_ordering::equal);
     CHECK(std::hash<Region>{}(a) == std::hash<Region>{}(b));
+}
+
+TEST_CASE("Range construction agrees with inserting one half-plane at a time") {
+    // Small coordinates make parallel, coincident, touching and contradictory
+    // constraints common, and the opposite of an earlier constraint pins the
+    // region to a line, so the empty and degenerate outcomes (about half and a
+    // fifth of the trials) are exercised alongside the full-dimensional ones.
+    std::mt19937 rng(20260914);
+    std::uniform_int_distribution<int> coordinate(-4, 4);
+    std::uniform_int_distribution<int> count(0, 12);
+    std::uniform_int_distribution<int> coin(0, 3);
+    for (int trial = 0; trial < 4000; ++trial) {
+        std::vector<Halfplane> constraints;
+        const int n = count(rng);
+        for (int i = 0; i < n; ++i) {
+            if (!constraints.empty() && coin(rng) == 0) {
+                std::uniform_int_distribution<std::size_t> pick(0, constraints.size() - 1);
+                constraints.push_back(constraints[pick(rng)].opposite());
+            } else {
+                constraints.emplace_back(coordinate(rng), coordinate(rng), coordinate(rng), coordinate(rng));
+            }
+        }
+        const Region built(constraints);
+        Region inserted;
+        for (const Halfplane& h : constraints) {
+            inserted.insert(h);
+        }
+        REQUIRE(built.empty() == inserted.empty());
+        REQUIRE(built.isDegenerate() == inserted.isDegenerate());
+        if (!built.isDegenerate()) {
+            CHECK(built == inserted);  // canonical for full-dimensional regions
+        }
+        for (int x = -5; x <= 5; ++x) {
+            for (int y = -5; y <= 5; ++y) {
+                const Point p(x, y);
+                REQUIRE(built.contains(p) == inserted.contains(p));
+                REQUIRE(built.interiorContains(p) == inserted.interiorContains(p));
+            }
+        }
+    }
 }
 
 TEST_CASE("Emptiness is detected and sticky") {

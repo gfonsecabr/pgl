@@ -23,6 +23,7 @@
 #include <optional>
 #include <ostream>
 #include <ranges>
+#include <span>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -265,12 +266,17 @@ struct HalfplaneIntersection {
     /**
      * @brief Creates the intersection of a range of half-planes.
      *
-     * The untrusted path inserts the half-planes one by one, discarding
-     * redundant ones and detecting emptiness; the trusted path adopts the
-     * range as-is.
+     * The untrusted path discards undefined and redundant half-planes and
+     * detects emptiness, giving the same region as inserting the half-planes
+     * one by one with @ref insert; the trusted path adopts the range as-is.
      *
-     * Complexity: O(n log n) comparisons (plus O(n^2) element moves in the
-     * worst case) untrusted, O(n) trusted.
+     * The untrusted path sorts the half-planes by boundary direction, keeps the
+     * most restrictive one per direction, and inserts them in that order. Each
+     * one then belongs after every stored half-plane, so the constraints it
+     * makes redundant sit at either end of the stored run and are dropped
+     * without moving the rest.
+     *
+     * Complexity: O(n log n) untrusted, O(n) trusted.
      *
      * A region is itself a range of half-planes, so this constructor is excluded
      * for one: copying a region must copy it, and rebuilding it from its stored
@@ -292,9 +298,11 @@ struct HalfplaneIntersection {
                 halfplanes_.push_back(h);
             }
         } else {
+            std::vector<HalfplaneType> sorted;
             for (const auto& h : halfplanes) {
-                insert(h);
+                sorted.push_back(static_cast<HalfplaneType>(h));
             }
+            buildFromUnsorted(std::move(sorted));
         }
     }
 
@@ -2549,12 +2557,25 @@ struct HalfplaneIntersection {
     // Precondition: !empty_ and size() >= 1; a degenerate query is UB.
     template <HalfplaneConcept Query>
     constexpr SupStatus supStatus(const Query& query) const {
-        const std::size_t n = halfplanes_.size();
+        return supStatusIn(std::span<const HalfplaneType>(halfplanes_), query);
+    }
+
+    // supStatus over any run of constraints kept in the stored form (sorted,
+    // non-redundant, at most one per direction), so that the bulk constructor
+    // can query the run it is building before adopting it.
+    template <HalfplaneConcept Query>
+    static constexpr SupStatus supStatusIn(std::span<const HalfplaneType> stored, const Query& query) {
+        const std::size_t n = stored.size();
         // The supremum in direction of the query's outward normal is attained
         // where the stored boundary directions bracket the query's direction.
-        const std::size_t pos = linearUpperBound(query);
+        const std::size_t pos = static_cast<std::size_t>(
+            std::upper_bound(stored.begin(), stored.end(), query,
+                             [](const Query& value, const HalfplaneType& element) {
+                                 return detail::directionLess(value, element);
+                             }) -
+            stored.begin());
         const std::size_t predIdx = (pos == 0 ? n : pos) - 1;
-        const auto& pred = halfplanes_[predIdx];
+        const auto& pred = stored[predIdx];
         if (detail::directionEqual(pred, query)) {
             // Attained along pred's whole boundary line, where a·p is
             // constant: compare via any boundary point.
@@ -2568,16 +2589,92 @@ struct HalfplaneIntersection {
         if (succIdx == predIdx) {
             return SupStatus::unbounded;  // single stored half-plane, gap 2*pi
         }
-        if (!(detail::directionCross(pred, halfplanes_[succIdx]) > 0)) {
+        if (!(detail::directionCross(pred, stored[succIdx]) > 0)) {
             // The query direction lies strictly inside a gap of at least pi:
             // the region is unbounded toward the query's outward normal.
             return SupStatus::unbounded;
         }
-        const int side = detail::vertexSide(pred, halfplanes_[succIdx], query);
+        const int side = detail::vertexSide(pred, stored[succIdx], query);
         if (side > 0) {
             return SupStatus::below;
         }
         return side == 0 ? SupStatus::on : SupStatus::above;
+    }
+
+    // The untrusted range constructor. Once the input is sorted by direction
+    // with one half-plane per direction, each half-plane follows every stored
+    // one, and this is @ref insert specialized to that position: the new
+    // constraint is appended, its forward cascade wraps to the front of the
+    // run and drops constraints there by advancing `first`, and its backward
+    // cascade drops the constraint just before it. Neither moves the rest.
+    // Precondition: the region is the whole plane.
+    constexpr void buildFromUnsorted(std::vector<HalfplaneType> input) {
+        std::erase_if(input, [](const HalfplaneType& h) { return h.isUndefined(); });
+        std::sort(input.begin(), input.end(),
+                  [](const HalfplaneType& a, const HalfplaneType& b) { return detail::directionLess(a, b); });
+        // Of two half-planes with the same direction, the one whose boundary
+        // lies strictly inside the other is contained in it; keep that one.
+        std::size_t kept = 0;
+        for (std::size_t i = 0; i < input.size(); ++i) {
+            if (kept > 0 && detail::directionEqual(input[kept - 1], input[i])) {
+                if (orientationSign(input[kept - 1].source(), input[kept - 1].target(), input[i].source()) > 0) {
+                    input[kept - 1] = input[i];
+                }
+            } else {
+                input[kept++] = input[i];
+            }
+        }
+        input.erase(input.begin() + static_cast<std::ptrdiff_t>(kept), input.end());
+
+        std::vector<HalfplaneType> run;
+        run.reserve(input.size());
+        std::size_t first = 0;  // run[first, end) is the region so far
+        for (const HalfplaneType& h : input) {
+            const std::span<const HalfplaneType> stored(run.data() + first, run.size() - first);
+            if (!stored.empty()) {
+                const SupStatus supremum = supStatusIn(stored, h);
+                if (supremum == SupStatus::below || supremum == SupStatus::on) {
+                    continue;
+                }
+                const SupStatus infimum = supStatusIn(stored, h.opposite());
+                if (infimum == SupStatus::below) {
+                    halfplanes_.clear();
+                    empty_ = true;
+                    degenerate_ = false;
+                    resetCache();
+                    return;
+                }
+                if (infimum == SupStatus::on) {
+                    degenerate_ = true;
+                }
+            }
+            run.push_back(h);
+            const std::size_t last = run.size() - 1;
+            while (run.size() - first >= 3) {
+                const std::size_t s1 = first;
+                const std::size_t s2 = first + 1;
+                if (detail::directionCross(run[last], run[s2]) > 0 &&
+                    detail::vertexSide(run[last], run[s2], run[s1]) >= 0) {
+                    ++first;
+                } else {
+                    break;
+                }
+            }
+            while (run.size() - first >= 3) {
+                const std::size_t back = run.size() - 1;
+                const std::size_t p1 = back - 1;
+                const std::size_t p2 = back - 2;
+                if (detail::directionCross(run[p2], run[back]) > 0 &&
+                    detail::vertexSide(run[p2], run[back], run[p1]) >= 0) {
+                    run[p1] = run[back];
+                    run.pop_back();
+                } else {
+                    break;
+                }
+            }
+        }
+        halfplanes_.assign(run.begin() + static_cast<std::ptrdiff_t>(first), run.end());
+        resetCache();
     }
 
     // Exact clip of the directed query line against the region.
@@ -2730,10 +2827,10 @@ struct HalfplaneIntersection {
  *
  * Defined here because the result type must be complete: the polygon's
  * vertices are canonically counterclockwise, so the interior lies to the left
- * of every boundary edge and the kernel is built by inserting the half-plane
- * of each edge in turn. Repeated consecutive vertices contribute no edge line
- * and are skipped; collinear ones give a redundant constraint that @ref
- * HalfplaneIntersection::insert discards.
+ * of every boundary edge and the kernel is the range construction over the
+ * edges' half-planes. Repeated consecutive vertices contribute no edge line
+ * and are skipped; collinear ones give a redundant constraint that the
+ * construction discards.
  */
 template <class PointType_, class TLabel>
 constexpr std::optional<HalfplaneIntersection<PointType_>>
@@ -2751,18 +2848,19 @@ Polygon<PointType_, TLabel>::getStarShapedKernel() const {
         // empty, which is reported as no kernel at all.
         return std::nullopt;
     }
-    RegionType kernel;
+    std::vector<Halfplane<PointType>> edges;
     const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(size());
+    edges.reserve(static_cast<std::size_t>(n));
     for (std::ptrdiff_t i = 0; i < n; ++i) {
         const PointType source = get(i);
         const PointType target = get(i + 1);
-        if (source == target) {
-            continue;
+        if (source != target) {
+            edges.emplace_back(source, target);
         }
-        kernel.insert(Halfplane<PointType>(source, target));
-        if (kernel.empty()) {
-            return std::nullopt;
-        }
+    }
+    RegionType kernel(edges);
+    if (kernel.empty()) {
+        return std::nullopt;
     }
     return kernel;
 }
