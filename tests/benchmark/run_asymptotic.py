@@ -7,7 +7,7 @@ list of input sizes (asymptotic/sizes.hpp). Every driver prints the same
 tab-separated table
 
     Category  Dataset  Problem  Algorithm  Number  Size  Result  Time(µs)
-    Triangulation  points  build  Delaunay  int  3125  6180  4021.3
+    Triangulation  random  build  Delaunay  int  3125  6180  4021.3
 
 where Result is a numeric signature of the computed answer — an intersection
 count, a vertex count, a graph's edge count. It doubles as a correctness

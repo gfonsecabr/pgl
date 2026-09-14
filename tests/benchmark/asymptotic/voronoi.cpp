@@ -1,6 +1,6 @@
 // @desc: Voronoi diagram of n points, at orders 1, 2 and 4, and the
 // farthest-point diagram.
-// @dataset points: The points are distinct, with integer coordinates drawn
+// @dataset random: The points are distinct, with integer coordinates drawn
 // uniformly from a disk of diameter 10,000.
 // @dataset euro-night: The first n of the 100,000 distinct points of the CG:SHOP
 // 2019 instance euro-night-0100000, sampled from a night-time image of Europe

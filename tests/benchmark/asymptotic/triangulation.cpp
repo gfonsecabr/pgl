@@ -1,11 +1,11 @@
 // @desc: Delaunay triangulation of n points. Location by stochastic walk, and
 // through the preprocessed point location.
-// @dataset points: The points are distinct, with integer coordinates drawn
+// @dataset random: The points are distinct, with integer coordinates drawn
 // uniformly from a disk of diameter 10,000.
 // @dataset euro-night: The first n of the 100,000 distinct points of the CG:SHOP
 // 2019 instance euro-night-0100000, sampled from a night-time image of Europe
 // and shuffled once, with integer coordinates in [8, 102,392] x [0, 57,598].
-// The queries are the points dataset's, carried onto that box by scaling x ten
+// The queries are the random dataset's, carried onto that box by scaling x ten
 // times and y five times about its centre.
 #include "harness.hpp"
 #include "datasets.hpp"

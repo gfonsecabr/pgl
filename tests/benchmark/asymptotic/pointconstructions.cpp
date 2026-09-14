@@ -1,7 +1,7 @@
 // @desc: Five one-shot constructions over n points: closest pair, convex hull,
 // sorting by angle about a centre, the Delaunay triangulation, and building a
 // kd-tree.
-// @dataset points: The points are distinct, with integer coordinates drawn
+// @dataset random: The points are distinct, with integer coordinates drawn
 // uniformly from a disk of diameter 10,000.
 // @dataset euro-night: The first n of the 100,000 distinct points of the CG:SHOP
 // 2019 instance euro-night-0100000, sampled from a night-time image of Europe

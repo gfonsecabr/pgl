@@ -54,14 +54,14 @@ using IntPolygon   = pgl::Polygon<IntPoint>;
 using IntShape     = pgl::Shape<IntPoint>;
 
 // n distinct random points in the large disk.
-inline std::vector<IntPoint> points(int n) {
-    return randomPoints<int>(n);
+inline std::vector<IntPoint> randomPoints(int n) {
+    return ::randomPoints<int>(n);
 }
 
 // n query points in the same disk, drawn from a different seed than
-// points(). Sharing the seed would make the queries a prefix of the dataset, so
-// every one of them would land exactly on a vertex — the one case a point
-// location is least representative of.
+// randomPoints(). Sharing the seed would make the queries a prefix of the
+// dataset, so every one of them would land exactly on a vertex — the one case a
+// point location is least representative of.
 inline std::vector<IntPoint> queryPoints(int n) {
     Rng rng{0x9E3779B97F4A7C15ULL};
     std::vector<IntPoint> v;
@@ -301,7 +301,7 @@ struct PointDataset {
 
 inline const std::vector<PointDataset>& pointDatasets() {
     static const std::vector<PointDataset> datasets = {
-        {"points", points, queryPoints, queryRectangles, queryTriangles,
+        {"random", randomPoints, queryPoints, queryRectangles, queryTriangles,
          [] { return IntPoint(0, 0); }},
         {"euro-night", euroNightPoints, euroNightQueryPoints, euroNightQueryRectangles,
          euroNightQueryTriangles, [] { return detail::euroNightFrame().centre; }},
