@@ -5,6 +5,7 @@
 #include <fstream>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -165,13 +166,154 @@ TEST_CASE("Canvas writes a PDF file") {
     const std::string pdf((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
     REQUIRE(pdf.size() > 32);
 
-    CHECK(pdf.rfind("%PDF-1.3", 0) == 0);
+    // The Polygon annotation carrying the triangle's tooltip is PDF 1.5.
+    CHECK(pdf.rfind("%PDF-1.5", 0) == 0);
     CHECK(pdf.find("xref") != std::string::npos);
     CHECK(pdf.find("trailer") != std::string::npos);
     CHECK(pdf.find("/Type /Page") != std::string::npos);
     CHECK(pdf.find("/ExtGState") == std::string::npos);
     CHECK(pdf.find("%%EOF") != std::string::npos);
     CHECK(pdf.find("%%EOF") + 5 >= pdf.size() - 2);
+}
+
+TEST_CASE("Canvas turns tooltips off and back on for the elements inserted later") {
+    const auto count = [](const std::string& text, const std::string& needle) {
+        std::size_t total = 0;
+        for (std::size_t at = text.find(needle); at != std::string::npos; at = text.find(needle, at + 1)) {
+            ++total;
+        }
+        return total;
+    };
+    const pgl::Segment<pgl::Point<int>> segment({0, 0}, {40, 30});
+    const pgl::Triangle<pgl::Point<int>> triangle({10, 10}, {30, 15}, {20, 35});
+    const pgl::Point<int> point(5, 5);
+
+    pgl::Canvas canvas;
+    canvas << segment << pgl::tooltips(false) << triangle << pgl::Text("t", point) << pgl::tooltips() << point;
+
+    // The triangle was inserted with tooltips off, and the switch back on does
+    // not give it one.
+    const std::string svg = canvas.toSVG();
+    CHECK(count(svg, "<title") == 2);
+    CHECK(svg.find("<title>(0,0)--(40,30)</title>") != std::string::npos);
+    CHECK(svg.find("<title>(5,5)</title>") != std::string::npos);
+    CHECK(svg.find("<polygon points=\"") != std::string::npos);
+
+    const std::string pdf = canvas.toPDF();
+    CHECK(count(pdf, "/Type /Annot\r\n") == 2);
+    CHECK(count(pdf, "/Annots [ ") == 1);
+    CHECK(pdf.find("/Subtype /Line") != std::string::npos);
+    CHECK(pdf.find("/Subtype /Circle") != std::string::npos);
+    CHECK(pdf.find("/Subtype /Polygon") == std::string::npos);
+    // "(5,5)" in UTF-16BE, behind its byte order mark.
+    CHECK(pdf.find("/Contents <FEFF00280035002C00350029>") != std::string::npos);
+    CHECK(count(pdf, "/Subtype /Form") == 1);
+    CHECK(pdf.rfind("%PDF-1.5", 0) == 0);
+
+    // With tooltips off from the start, nothing carries one.
+    pgl::Canvas silent;
+    silent << pgl::tooltips(false) << segment << triangle << point;
+    CHECK(silent.toSVG().find("<title") == std::string::npos);
+    const std::string silentPDF = silent.toPDF();
+    CHECK(silentPDF.find("/Annot") == std::string::npos);
+    CHECK(silentPDF.find("/Subtype /Form") == std::string::npos);
+    CHECK(silentPDF.rfind("%PDF-1.3", 0) == 0);
+}
+
+template <class Object>
+concept CanvasDrawable = requires(pgl::Canvas& canvas, const Object& object) { canvas << object; };
+
+TEST_CASE("Canvas takes a shape paired with its tooltip, even while tooltips are off") {
+    const auto count = [](const std::string& text, const std::string& needle) {
+        std::size_t total = 0;
+        for (std::size_t at = text.find(needle); at != std::string::npos; at = text.find(needle, at + 1)) {
+            ++total;
+        }
+        return total;
+    };
+    using Point = pgl::Point<int>;
+    const pgl::Segment<Point> segment({0, 0}, {40, 30});
+    char mutableTooltip[] = "mutable";
+
+    pgl::Canvas canvas;
+    canvas << std::pair(segment, std::string("a<b"))
+           << pgl::tooltips(false)
+           << std::make_pair(Point(1, 2), "literal")
+           << std::pair<Point, char*>(Point(3, 4), mutableTooltip)
+           << std::pair(pgl::Shape<Point>(Point(5, 6)), "runtime")
+           << std::vector{std::pair(Point(7, 8), std::string("first")), std::pair(Point(9, 10), std::string("second"))}
+           << std::pair(Point(11, 12), "")
+           << std::pair<Point, const char*>(Point(13, 14), nullptr)
+           << Point(15, 16);
+
+    // The pair's tooltip lasts for its shape only: the last point, inserted
+    // with tooltips off, has none, and neither do the empty tooltips.
+    const std::string svg = canvas.toSVG();
+    CHECK(count(svg, "<title") == 6);
+    CHECK(svg.find("<title>a&lt;b</title>") != std::string::npos);
+    CHECK(svg.find("<title>literal</title>") != std::string::npos);
+    CHECK(svg.find("<title>mutable</title>") != std::string::npos);
+    CHECK(svg.find("<title>runtime</title>") != std::string::npos);
+    CHECK(svg.find("<title>first</title>") != std::string::npos);
+    CHECK(svg.find("<title>second</title>") != std::string::npos);
+    CHECK(svg.find("(0,0)--(40,30)") == std::string::npos);
+
+    const std::string pdf = canvas.toPDF();
+    CHECK(count(pdf, "/Type /Annot\r\n") == 6);
+    // "a<b" in UTF-16BE, behind its byte order mark.
+    CHECK(pdf.find("/Contents <FEFF0061003C0062>") != std::string::npos);
+
+    // Only a shape takes a tooltip, and only a string can be one.
+    CHECK(CanvasDrawable<std::pair<Point, std::string>>);
+    CHECK(CanvasDrawable<std::pair<const pgl::Segment<Point>, const char*>>);
+    CHECK_FALSE(CanvasDrawable<std::pair<pgl::Text, std::string>>);
+    CHECK_FALSE(CanvasDrawable<std::pair<Point, int>>);
+    CHECK_FALSE(CanvasDrawable<std::pair<Point, std::string_view>>);
+}
+
+TEST_CASE("Canvas gives every drawn part of an element a PDF tooltip") {
+    using Point = pgl::Point<int>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+    const auto count = [](const std::string& text, const std::string& needle) {
+        std::size_t total = 0;
+        for (std::size_t at = text.find(needle); at != std::string::npos; at = text.find(needle, at + 1)) {
+            ++total;
+        }
+        return total;
+    };
+
+    pgl::Canvas canvas;
+    canvas.size(400.0, 400.0);
+    canvas << Point(10, 20)
+           << pgl::Segment<Point>({0, 0}, {40, 30})
+           << pgl::OrientedSegment<Point>({60, 10}, {110, 40})
+           << pgl::Line<Point>({-20, 80}, {80, -20})
+           << pgl::OrientedLine<Point>({120, 0}, {180, 60})
+           << pgl::Ray<Point>({20, 100}, {70, 130})
+           << pgl::Halfplane<Point>({140, 110}, {200, 110})
+           << pgl::Rectangle<Point>({150, 10}, {220, 70})
+           << pgl::Triangle<Point>({20, 140}, {90, 150}, {50, 210})
+           << pgl::Convex<Point>(std::vector<Point>{{230, 130}, {290, 130}, {290, 190}, {230, 190}})
+           << pgl::Disk<Point>({55, 20}, 8)
+           << pgl::Polyline<Point>(std::vector<Point>{{0, 0}, {4, 4}, {4, 0}})
+           << pgl::PolygonSet<Point>(std::vector<Region>{
+                  Region(PolygonShape({0, 0, 8, 0, 8, 8, 0, 8}), std::vector<PolygonShape>{PolygonShape({2, 2, 4, 2, 4, 4, 2, 4})}),
+                  Region(PolygonShape({12, 0, 16, 0, 16, 4, 12, 4}))});
+    const std::string pdf = canvas.toPDF();
+
+    CHECK(count(pdf, "/Subtype /Circle") == 2);   // the point and the disk
+    CHECK(count(pdf, "/Subtype /Line") == 5);     // segments, lines, and the ray
+    CHECK(count(pdf, "/Subtype /PolyLine") == 1);
+    CHECK(count(pdf, "/Subtype /Polygon") == 6);  // half-plane, rectangle, triangle, convex, and each component of the set
+    CHECK(count(pdf, "/Type /Annot\r\n") == 14);
+    CHECK(count(pdf, "/Vertices [") == 7);
+    CHECK(count(pdf, "/L [") == 5);
+
+    // A label outside ASCII is kept, as UTF-16BE: "é" is U+00E9.
+    pgl::Canvas labeled;
+    labeled << pgl::Point<int, std::string>(1, 2, "\xC3\xA9");
+    CHECK(labeled.toPDF().find("/Contents <FEFF00E9003A00280031002C00320029>") != std::string::npos);
 }
 
 TEST_CASE("Canvas writes PDF opacity through ExtGState resources") {
@@ -206,7 +348,7 @@ TEST_CASE("Canvas writes PDF opacity through ExtGState resources") {
         return count;
     };
 
-    CHECK(pdf.rfind("%PDF-1.4", 0) == 0);
+    CHECK(pdf.rfind("%PDF-1.5", 0) == 0);
     CHECK(pdf.find("/ExtGState <<") != std::string::npos);
     CHECK(pdf.find("/ca 0.500000") != std::string::npos);
     CHECK(pdf.find("/CA 0.250000") != std::string::npos);

@@ -10,7 +10,8 @@
  * This file is a trimmed and modified port for use inside pgl. Image loading,
  * barcodes, TrueType embedding, encryption, bookmarks, and link annotations
  * were removed; the retained subset covers document creation/serialization,
- * pages, standard-font registration, and vector drawing primitives.
+ * pages, standard-font registration, and vector drawing primitives. Invisible
+ * markup annotations, which carry hover text, were added for pgl.
  */
 
 #include <algorithm>
@@ -42,6 +43,26 @@ struct pdf_info {
     char author[64]{};
     char subject[64]{};
     char date[64]{};
+};
+
+/**
+ * @brief A markup annotation that paints nothing, for the text a viewer shows
+ *        when the pointer is over it.
+ */
+struct pdf_annotation {
+    /** `Circle`, `Square`, `Line`, `PolyLine` or `Polygon`. */
+    const char* subtype = "Square";
+    /** The annotation rectangle, which must enclose its geometry and border. */
+    float x1 = 0.0f;
+    float y1 = 0.0f;
+    float x2 = 0.0f;
+    float y2 = 0.0f;
+    /** The `/L` of a `Line`, or the `/Vertices` of a `PolyLine` or `Polygon`. */
+    std::vector<float> coordinates;
+    /** The width of the band along the geometry that counts as over it. */
+    float border_width = 1.0f;
+    /** The text, already written as a PDF string object: `(...)` or `<...>`. */
+    std::string contents;
 };
 
 struct pdf_path_operation {
@@ -111,6 +132,8 @@ enum {
     OBJ_ext_gstate,
     OBJ_catalog,
     OBJ_pages,
+    OBJ_annotation,
+    OBJ_empty_form,
     OBJ_count,
 };
 
@@ -141,6 +164,7 @@ struct page_data {
     float height = 0.0f;
     std::vector<pdf_object*> children;
     std::vector<pdf_object*> ext_gstates;
+    std::vector<pdf_object*> annotations;
 };
 
 struct font_data {
@@ -229,6 +253,7 @@ struct pdf_object {
     detail::page_data page{};
     detail::font_data font{};
     detail::ext_gstate_data ext_gstate{};
+    pdf_annotation annotation{};
 };
 
 struct pdf_doc {
@@ -530,6 +555,33 @@ inline int pdf_find_or_create_ext_gstate(pdf_doc* pdf, pdf_object* page, float f
     ext_gstate->ext_gstate.stroke_alpha = clamped_stroke_alpha;
     page->page.ext_gstates.push_back(ext_gstate);
     return static_cast<int>(page->page.ext_gstates.size() - 1);
+}
+
+// The empty form every annotation shows as its appearance, created once, so
+// that no viewer paints a border or fill of its own over the drawing.
+inline pdf_object* pdf_empty_form(pdf_doc* pdf) {
+    pdf_object* form = pdf_find_first_object(pdf, detail::OBJ_empty_form);
+    return form != nullptr ? form : pdf_add_object(pdf, detail::OBJ_empty_form);
+}
+
+inline int pdf_add_annotation(pdf_doc* pdf, pdf_object* page, pdf_annotation annotation) {
+    if (page == nullptr) {
+        page = pdf_find_last_object(pdf, detail::OBJ_page);
+    }
+    if (page == nullptr || page->type != detail::OBJ_page) {
+        return pdf_set_err(pdf, -EINVAL, "Invalid pdf page");
+    }
+    if (pdf_empty_form(pdf) == nullptr) {
+        return pdf_set_err(pdf, -ENOMEM, "Unable to allocate PDF appearance");
+    }
+
+    pdf_object* object = pdf_add_object(pdf, detail::OBJ_annotation);
+    if (object == nullptr) {
+        return pdf_set_err(pdf, -ENOMEM, "Unable to allocate PDF annotation");
+    }
+    object->annotation = std::move(annotation);
+    page->page.annotations.push_back(object);
+    return 0;
 }
 
 inline int pdf_add_text(pdf_doc* pdf, pdf_object* page, const char* text, float size, float xoff, float yoff, std::uint32_t colour,
@@ -895,7 +947,10 @@ inline int pdf_save_buffer(pdf_doc* pdf, std::string& out) {
         return -EINVAL;
     }
     out.clear();
-    out += (pdf_find_first_object(pdf, detail::OBJ_ext_gstate) != nullptr ? "%PDF-1.4\r\n%\xFF\xFF\xFF\xFF\r\n" : "%PDF-1.3\r\n%\xFF\xFF\xFF\xFF\r\n");
+    // Polygon and PolyLine annotations are PDF 1.5, transparency is PDF 1.4.
+    out += pdf_find_first_object(pdf, detail::OBJ_annotation) != nullptr ? "%PDF-1.5\r\n%\xFF\xFF\xFF\xFF\r\n"
+        : pdf_find_first_object(pdf, detail::OBJ_ext_gstate) != nullptr ? "%PDF-1.4\r\n%\xFF\xFF\xFF\xFF\r\n"
+                                                                         : "%PDF-1.3\r\n%\xFF\xFF\xFF\xFF\r\n";
 
     const auto save_object = [&](pdf_object& object) {
         object.offset = out.size();
@@ -958,13 +1013,44 @@ inline int pdf_save_buffer(pdf_doc* pdf, std::string& out) {
                     }
                     out += "    >>\r\n";
                 }
-                out += "  >>\r\n  /Contents [\r\n";
+                out += "  >>\r\n";
+                if (!object.page.annotations.empty()) {
+                    out += "  /Annots [ ";
+                    for (const pdf_object* annotation : object.page.annotations) {
+                        detail::append_format(out, "%d 0 R ", annotation->index);
+                    }
+                    out += "]\r\n";
+                }
+                out += "  /Contents [\r\n";
                 for (const pdf_object* child : object.page.children) {
                     detail::append_format(out, "%d 0 R\r\n", child->index);
                 }
                 out += "]\r\n>>\r\n";
                 break;
             }
+            case detail::OBJ_annotation: {
+                const pdf_annotation& annotation = object.annotation;
+                const pdf_object* form = pdf_find_first_object(pdf, detail::OBJ_empty_form);
+                detail::append_format(out, "<<\r\n  /Type /Annot\r\n  /Subtype /%s\r\n", annotation.subtype);
+                detail::append_format(out, "  /Rect [%f %f %f %f]\r\n", annotation.x1, annotation.y1, annotation.x2, annotation.y2);
+                out += "  /Contents " + annotation.contents + "\r\n";
+                // Printable, with no colour, so that it neither hides nor paints.
+                out += "  /F 4\r\n  /C []\r\n";
+                detail::append_format(out, "  /BS << /W %f >>\r\n", annotation.border_width);
+                detail::append_format(out, "  /AP << /N %d 0 R >>\r\n", form != nullptr ? form->index : 0);
+                if (!annotation.coordinates.empty()) {
+                    out += std::strcmp(annotation.subtype, "Line") == 0 ? "  /L [" : "  /Vertices [";
+                    for (const float coordinate : annotation.coordinates) {
+                        detail::append_format(out, " %f", coordinate);
+                    }
+                    out += " ]\r\n";
+                }
+                out += ">>\r\n";
+                break;
+            }
+            case detail::OBJ_empty_form:
+                out += "<< /Type /XObject /Subtype /Form /BBox [0 0 1 1] /Length 0 >>\r\nstream\r\n\r\nendstream\r\n";
+                break;
             case detail::OBJ_ext_gstate:
                 detail::append_format(out,
                     "<<\r\n  /Type /ExtGState\r\n  /ca %f\r\n  /CA %f\r\n>>\r\n",

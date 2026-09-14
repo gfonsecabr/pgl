@@ -21,6 +21,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -127,6 +128,23 @@ inline CanvasCommand pointRadius(std::string value) {
 /** @brief Creates a command that changes the current text font size, in pixels. */
 inline CanvasCommand fontSize(std::string value) {
     return {CanvasProperty::fontSize, std::move(value)};
+}
+
+/**
+ * @brief Deferred switch of the tooltips given to elements inserted later.
+ */
+struct CanvasTooltips {
+    bool enabled = true;
+};
+
+/**
+ * @brief Creates a command that turns tooltips on or off for subsequent elements.
+ *
+ * An element inserted while tooltips are off stores an empty title, and an
+ * empty title gives no tooltip in any backend.
+ */
+inline CanvasTooltips tooltips(bool enabled = true) {
+    return {enabled};
 }
 
 /**
@@ -388,6 +406,8 @@ class Canvas {
      * PDF export reuses the same fitted viewport as SVG export so the page
      * matches the canvas dimensions and overall layout. Stroke and fill opacity
      * are exported through standard PDF ExtGState resources (`/ca` and `/CA`).
+     * An element's tooltip is an annotation that paints nothing, over what the
+     * element drew.
      *
      * @param path Output file path.
      */
@@ -449,6 +469,7 @@ class Canvas {
 
         for (const Element& element : elements_) {
             appendElementToPDF(pdf.get(), page, element, viewport);
+            appendTooltipToPDF(pdf.get(), page, element, viewport);
         }
 
         std::string bytes;
@@ -530,6 +551,53 @@ class Canvas {
      */
     Canvas& operator<<(const CanvasCommand& command) {
         style_.apply(command);
+        return *this;
+    }
+
+    /**
+     * @brief Turns tooltips on or off for the elements inserted afterwards.
+     *
+     * Existing elements keep their title. An element inserted while tooltips
+     * are off stores an empty title, which gives no tooltip.
+     *
+     * @param command Tooltip command to apply.
+     * @return This canvas.
+     */
+    Canvas& operator<<(const CanvasTooltips& command) {
+        tooltips_ = command.enabled;
+        return *this;
+    }
+
+    /**
+     * @brief Appends a shape with its own tooltip, even while tooltips are off.
+     *
+     * The tooltip replaces the shape's output string. An empty tooltip, or a
+     * null pointer, gives the shape no tooltip.
+     *
+     * @param shapeWithTooltip The shape, concrete or runtime, and its tooltip.
+     * @return This canvas.
+     */
+    template <AnyShapeConcept ShapeType, class Tooltip>
+        requires (std::same_as<std::remove_cv_t<Tooltip>, std::string> ||
+                  std::same_as<std::remove_cv_t<Tooltip>, const char*> ||
+                  std::same_as<std::remove_cv_t<Tooltip>, char*>) &&
+                 requires(Canvas& canvas, const ShapeType& shape) {
+                     canvas << shape;
+                 }
+    Canvas& operator<<(const std::pair<ShapeType, Tooltip>& shapeWithTooltip) {
+        const auto& [shape, tooltip] = shapeWithTooltip;
+        if constexpr (std::same_as<std::remove_cv_t<Tooltip>, std::string>) {
+            tooltip_ = tooltip;
+        } else {
+            tooltip_ = tooltip != nullptr ? std::string(tooltip) : std::string();
+        }
+        try {
+            *this << shape;
+        } catch (...) {
+            tooltip_.reset();
+            throw;
+        }
+        tooltip_.reset();
         return *this;
     }
 
@@ -649,7 +717,7 @@ class Canvas {
      * font size.
      */
     Canvas& operator<<(const Text& text) {
-        elements_.push_back({Shape<Point<double>>(), style_, text.text(), text});
+        elements_.push_back({Shape<Point<double>>(), style_, tooltips_ ? text.text() : std::string(), text});
         return *this;
     }
 
@@ -987,7 +1055,7 @@ class Canvas {
         elements_.push_back({
             Shape<Point<double>>(std::forward<Stored>(stored)),
             style_,
-            titleOf(original),
+            tooltip_ ? *tooltip_ : tooltips_ ? titleOf(original) : std::string(),
             std::nullopt,
         });
         return *this;
@@ -2088,12 +2156,184 @@ class Canvas {
         }, element.shape.variant());
     }
 
+    // The text as a PDF text string: UTF-16BE, with its byte order mark, in hex.
+    static std::string pdfTextString(const std::string& text) {
+        static constexpr char digits[] = "0123456789ABCDEF";
+        std::string encoded = "<FEFF";
+        const auto appendUnit = [&](std::uint32_t unit) {
+            for (int shift = 12; shift >= 0; shift -= 4) {
+                encoded.push_back(digits[(unit >> shift) & 0xFu]);
+            }
+        };
+        for (std::uint32_t point : codePoints(text)) {
+            if (point > 0x10FFFF || (0xD800 <= point && point <= 0xDFFF)) {
+                point = 0xFFFD;
+            }
+            if (point >= 0x10000) {
+                appendUnit(0xD800 + ((point - 0x10000) >> 10));
+                appendUnit(0xDC00 + ((point - 0x10000) & 0x3FFu));
+            } else {
+                appendUnit(point);
+            }
+        }
+        encoded.push_back('>');
+        return encoded;
+    }
+
+    // Gives the element its tooltip in PDF: one annotation, painting nothing,
+    // over each part of what the element drew. Text and empty titles get none.
+    void appendTooltipToPDF(
+        pdfgen::pdf_doc* pdf,
+        pdfgen::pdf_object* page,
+        const Element& element,
+        const Viewport& viewport) const {
+        if (element.text || element.title.empty()) {
+            return;
+        }
+        using PT = Point<double>;
+        using PDFPoint = std::pair<float, float>;
+        const PDFStyle style = pdfStyleOf(element.style);
+        const float border = std::max(style.strokeWidth, 0.0f);
+        const std::string contents = pdfTextString(element.title);
+
+        // `Circle` takes its geometry from the rectangle; the other subtypes
+        // take it from their points, which the rectangle must enclose.
+        const auto add = [&](const char* subtype, const std::vector<PDFPoint>& points, float radius) {
+            if (points.empty()) return;
+            const bool fromRectangle = std::string_view(subtype) == "Circle" || std::string_view(subtype) == "Square";
+            pdfgen::pdf_annotation annotation;
+            annotation.subtype = subtype;
+            annotation.border_width = border;
+            annotation.contents = contents;
+            float minX = points.front().first, maxX = minX;
+            float minY = points.front().second, maxY = minY;
+            for (const auto& [x, y] : points) {
+                minX = std::min(minX, x);
+                maxX = std::max(maxX, x);
+                minY = std::min(minY, y);
+                maxY = std::max(maxY, y);
+                if (!fromRectangle) {
+                    annotation.coordinates.push_back(x);
+                    annotation.coordinates.push_back(y);
+                }
+            }
+            const float pad = radius + border / 2.0f;
+            if (!(maxX - minX + 2.0f * pad > 0.0f) || !(maxY - minY + 2.0f * pad > 0.0f)) return;
+            annotation.x1 = minX - pad;
+            annotation.y1 = minY - pad;
+            annotation.x2 = maxX + pad;
+            annotation.y2 = maxY + pad;
+            if (pdfgen::pdf_add_annotation(pdf, page, std::move(annotation)) < 0) {
+                throwPDFError(pdf, "add PDF tooltip");
+            }
+        };
+        const auto addCircle = [&](PDFPoint center, float radius) {
+            if (radius > 0.0f) {
+                add("Circle", {center}, radius);
+            } else {
+                add("Square", {center}, 0.0f);
+            }
+        };
+        const auto addClipped = [&](const std::optional<ClippedSegment>& visible) {
+            if (!visible) return;
+            add("Line", {{static_cast<float>(visible->x1), pdfYFromSVG(visible->y1)},
+                         {static_cast<float>(visible->x2), pdfYFromSVG(visible->y2)}}, 0.0f);
+        };
+        const auto viewportPolygon = [&](const auto& polygon) {
+            std::vector<PDFPoint> points;
+            points.reserve(polygon.size());
+            for (const auto& [worldX, worldY] : polygon) {
+                points.emplace_back(static_cast<float>(viewport.mapX(worldX)), pdfYFromSVG(viewport.mapY(worldY)));
+            }
+            return points;
+        };
+        const auto vertices = [&](const auto& ring) {
+            std::vector<PDFPoint> points;
+            points.reserve(ring.size());
+            for (const auto& vertex : ring) {
+                points.push_back(mapPDFPoint(vertex, viewport));
+            }
+            return points;
+        };
+        const auto clipLine = [&](const auto& from, const auto& to) {
+            return clipInfiniteLineToBox(
+                viewport.mapX(from.x()), viewport.mapY(from.y()), viewport.mapX(to.x()), viewport.mapY(to.y()),
+                0.0, 0.0, widthPixels_, heightPixels_);
+        };
+
+        std::visit([&](const auto& shape) {
+            using S = std::decay_t<decltype(shape)>;
+
+            if constexpr (std::same_as<S, PT>) {
+                addCircle(mapPDFPoint(shape, viewport), style.pointRadius);
+            } else if constexpr (std::same_as<S, Segment<PT>>) {
+                add("Line", {mapPDFPoint(shape.min(), viewport), mapPDFPoint(shape.max(), viewport)}, 0.0f);
+            } else if constexpr (std::same_as<S, OrientedSegment<PT>>) {
+                add("Line", {mapPDFPoint(shape.source(), viewport), mapPDFPoint(shape.target(), viewport)}, 0.0f);
+            } else if constexpr (std::same_as<S, Line<PT>>) {
+                const auto visible = clipLine(shape.min(), shape.max());
+                if (visible && visible->x1 == visible->x2 && visible->y1 == visible->y2) {
+                    addCircle({static_cast<float>(visible->x1), pdfYFromSVG(visible->y1)}, style.pointRadius);
+                } else {
+                    addClipped(visible);
+                }
+            } else if constexpr (std::same_as<S, OrientedLine<PT>>) {
+                addClipped(clipLine(shape.source(), shape.target()));
+            } else if constexpr (std::same_as<S, Ray<PT>>) {
+                addClipped(clipRayToBox(
+                    viewport.mapX(shape.source().x()), viewport.mapY(shape.source().y()),
+                    viewport.mapX(shape.target().x()), viewport.mapY(shape.target().y()),
+                    0.0, 0.0, widthPixels_, heightPixels_));
+            } else if constexpr (std::same_as<S, Halfplane<PT>>) {
+                const auto polygon = clipHalfplaneToViewport(shape, viewport, widthPixels_, heightPixels_);
+                if (!polygon.empty()) {
+                    add("Polygon", viewportPolygon(polygon), 0.0f);
+                } else {
+                    addClipped(clipLine(shape.source(), shape.target()));
+                }
+            } else if constexpr (std::same_as<S, HalfplaneIntersection<PT>>) {
+                const auto polygon = clipRegionToViewport(shape, viewport, widthPixels_, heightPixels_);
+                if (!polygon.empty()) {
+                    add("Polygon", viewportPolygon(polygon), 0.0f);
+                } else {
+                    for (const auto& piece : regionBoundaryPieces(shape, viewport)) {
+                        addClipped(piece);
+                    }
+                }
+            } else if constexpr (std::same_as<S, Rectangle<PT>>) {
+                if (shape.empty()) return;
+                add("Polygon", vertices(std::array{shape.min(), PT(shape.max().x(), shape.min().y()), shape.max(), PT(shape.min().x(), shape.max().y())}), 0.0f);
+            } else if constexpr (std::same_as<S, Triangle<PT>>) {
+                add("Polygon", vertices(std::array{shape.a(), shape.b(), shape.c()}), 0.0f);
+            } else if constexpr (std::same_as<S, Convex<PT>> || std::same_as<S, Polygon<PT>>) {
+                add("Polygon", vertices(shape), 0.0f);
+            } else if constexpr (std::same_as<S, PolygonWithHoles<PT>>) {
+                // Holes are left in: the pointer over a hole is still over the region's tooltip.
+                add("Polygon", vertices(shape.outer()), 0.0f);
+            } else if constexpr (std::same_as<S, PolygonSet<PT>>) {
+                for (const auto& component : shape) {
+                    add("Polygon", vertices(component.outer()), 0.0f);
+                }
+            } else if constexpr (std::same_as<S, MonotoneChain<PT>> || std::same_as<S, Polyline<PT>>) {
+                if (shape.size() == 1) {
+                    addCircle(mapPDFPoint(shape[0], viewport), style.pointRadius);
+                } else {
+                    add("PolyLine", vertices(shape), 0.0f);
+                }
+            } else if constexpr (std::same_as<S, Disk<PT>>) {
+                addCircle(
+                    mapPDFPoint(shape.template center<double>(), viewport),
+                    static_cast<float>(shape.template radius<double>() * viewport.scale));
+            }
+        }, element.shape.variant());
+    }
+
     std::string elementToSVG(const Element& element, const Viewport& viewport) const {
         if (element.text) {
             return textToSVG(element, viewport);
         }
         using PT = Point<double>;
-        const std::string titleTag = "<title>" + escapeXML(element.title, false) + "</title>";
+        const std::string titleTag = element.title.empty() ? std::string() : "<title>" + escapeXML(element.title, false) + "</title>";
 
         return std::visit([&](const auto& shape) -> std::string {
             using S = std::decay_t<decltype(shape)>;
@@ -2698,6 +2938,9 @@ class Canvas {
     }
 
     CanvasStyle style_{};
+    bool tooltips_ = true;
+    // The tooltip of the shape being inserted from a (shape, tooltip) pair.
+    std::optional<std::string> tooltip_{};
     std::vector<Element> elements_{};
     double zoom_ = 1.0;
     double widthPixels_ = 800.0;

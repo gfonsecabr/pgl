@@ -25,7 +25,7 @@ result as an SVG, PDF, or ipe file.
 
 The canvas automatically fits the inserted geometry into the output image,
 clips infinite primitives to the visible viewport, and
-stores an SVG `<title>` for each inserted element so that exported shapes can be identified precisely.
+gives each inserted element a tooltip so that exported shapes can be identified precisely.
 
 <table>
   <tr>
@@ -87,6 +87,7 @@ canvas << pgl::stroke("crimson") << secondSegment;
 | [`pgl::strokeWidth("value")`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a49586374ddc1970a6253da193b279526 "Creates a command that changes the current stroke width.") | Sets the stroke width for subsequent shapes using a raw SVG length string. |
 | [`pgl::pointRadius("value")`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a1e29fcb65cc1bf621121dac846204aeb "Creates a command that changes the current point radius.") | Sets the rendered radius of subsequent [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html "Two-dimensional point with optional label payload.") objects. |
 | [`pgl::fontSize("value")`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a1e47d77c1d6e252ad9b8c85497bb659d "Creates a command that changes the current text font size, in pixels.") | Sets the font size, in pixels, of subsequent [`pgl::Text`](https://gfonsecabr.github.io/pgl/classpgl_1_1Text.html "Text drawn on a Canvas, at a point or inside a box.") that takes its size from the canvas (see [Writing text](#writing-text)). The default is `"16"`. |
+| [`pgl::tooltips(bool enabled = true)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a6cdd32dfdeab3eb4463f4a3235301ada "Creates a command that turns tooltips on or off for subsequent elements.") | Turns tooltips on or off for subsequent shapes. A shape inserted while they are off has no tooltip in any format. They are on by default. |
 
 Example:
 
@@ -167,6 +168,24 @@ canvas << pgl::stroke("darkorange") << results;
 Every inserted object captures the style active when it is reached; empty
 optionals add nothing.
 
+### Tooltips
+
+A shape's tooltip is its output string, unless [`pgl::tooltips(false)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a6cdd32dfdeab3eb4463f4a3235301ada "Creates a command that turns tooltips on or off for subsequent elements.") turned
+tooltips off. Insert a shape paired with a `std::string` or a `char` pointer to
+give it that tooltip instead, even while tooltips are off. An empty tooltip
+gives none.
+
+```c++
+pgl::Canvas canvas;
+pgl::Segment s = {0, 0, 4, 3};
+pgl::Point p = {4, 3};
+
+canvas << pgl::tooltips(false) << s;     // no tooltip
+canvas << std::pair(p, "endpoint");      // the tooltip "endpoint"
+```
+
+A range of pairs gives each shape its own tooltip.
+
 ### Configuration
 
 These methods configure the exported image or update the current drawing
@@ -213,12 +232,12 @@ Canvas fitting is automatic:
 - Because style is captured on insertion, it is easy to layer highlights on top
   of a base drawing by switching style right before inserting the highlighted
   object.
-- In SVG, the shape's output string will be shown when you hover over the shape in a browser. Text has no such title, since it is already on display.
+- A shape's tooltip (see [Tooltips](#tooltips)) is shown when you hover over the shape: in SVG as a `<title>`, and in PDF as an annotation that draws nothing (not every PDF viewer shows it on hover). Text has no tooltip, since it is already on display.
 - A [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") is drawn as a single path with one closed subpath per
   ring, so its holes are punched out of the fill rather than painted over: SVG
   asks for `fill-rule="evenodd"`, and the PDF and Ipe backends get the same
   result from winding each hole against the outer ring.
 - A [`PolygonSet`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonSet.html "Set of closed regions with pairwise disjoint interiors.") is drawn the same way, as **one** path carrying every ring of
   every component. The whole set is a single element, so it has one style and
-  one `<title>`, and a set that comes apart into several pieces stays one drawn
+  one tooltip, and a set that comes apart into several pieces stays one drawn
   object.
