@@ -1412,12 +1412,33 @@ private:
     };
 
     // One piece of an input segment after splitting, before twin pieces of
-    // overlapping input are merged into a single edge.
+    // overlapping input are merged into a single edge. Its ends are already
+    // vertices, lexicographically smaller first: a piece names them by id rather
+    // than carrying their coordinates, since an exact point is large and the
+    // same one ends two pieces or more.
     struct Piece {
-        PointType a;
-        PointType b;
+        std::uint32_t low;
+        std::uint32_t high;
         std::uint32_t origin;
         [[no_unique_address]] TLabel label;
+    };
+
+    // Numbers each distinct point once, in order of first appearance, and
+    // appends it to the vertex list. A cut is interned where it is made, once
+    // for the segment or carrier it cuts, so the point that ends one piece and
+    // starts the next is hashed once rather than once per piece.
+    struct VertexInterner {
+        std::vector<PointType>& points;
+        std::unordered_map<PointType, std::uint32_t> ids;
+
+        std::uint32_t operator()(const PointType& point) {
+            const auto [entry, fresh] =
+                ids.try_emplace(point, static_cast<std::uint32_t>(points.size()));
+            if (fresh) {
+                points.push_back(point);
+            }
+            return entry->second;
+        }
     };
 
     // A ray or line before collinear inputs are overlaid. Segments are kept
@@ -1431,10 +1452,12 @@ private:
     };
 
     // An edge of the finished arrangement that reaches infinity, as the overlay
-    // of rays and lines emits it: the source and a direction point for a ray,
-    // two points spanning it for a line, and every input shape covering it.
+    // of rays and lines emits it: the source vertex and a direction point for a
+    // ray (`a` unused), two points spanning it for a line (`source` unused), and
+    // every input shape covering it.
     struct UnboundedPiece {
         EdgeKind kind;
+        std::uint32_t source;
         PointType a;
         PointType b;
         std::vector<std::uint32_t> origins;
@@ -1551,13 +1574,16 @@ private:
                std::vector<PointType>& isolated, bool disjointInteriors) {
         std::vector<Piece> pieces;
         std::vector<UnboundedPiece> unbounded;
+        VertexInterner intern{points_, {}};
+        intern.ids.reserve(2 * segments.size() + isolated.size());
         if (curves.empty()) {
             pieces = split(segments, isolated, disjointInteriors,
-                           [](const Segment<PointType>&, std::vector<PointType>&) {});
+                           [](const Segment<PointType>&, std::vector<PointType>&) {}, intern);
         } else {
-            overlayUnbounded(segments, curves, isolated, disjointInteriors, pieces, unbounded);
+            overlayUnbounded(segments, curves, isolated, disjointInteriors, intern, pieces,
+                             unbounded);
         }
-        internVertices(pieces, isolated, unbounded);
+        mergePieces(pieces, isolated, unbounded, intern);
         simplifyStoredCoordinates();
         syncVertexApproximations();
         wireHalfedges();
@@ -1582,36 +1608,37 @@ private:
     // shares one carrier, so overlap is settled by merging intervals instead of
     // by intersecting curves. `usesX` picks the coordinate that parameterizes
     // it, which is the abscissa unless the line is vertical. `cuts` holds the
-    // parameters where the carrier must be split.
+    // vertices where the carrier must be split: a crossing is constructed and
+    // interned once, and each carrier it lies on reads its parameter off the
+    // vertex rather than rebuilding the point from a parameter.
     struct Carrier {
         PointType a;
         PointType b;
         bool usesX;
         std::vector<CarrierInterval> intervals;
-        std::vector<NumberType> cuts;
+        std::vector<std::uint32_t> cuts;
     };
 
     // Where a point on a carrier falls along it. Vertical carriers are
     // parameterized by ordinate, everything else by abscissa, so the
     // parameter is always strictly monotone along the carrier.
-    static NumberType parameterOf(const Carrier& carrier, const PointType& point) {
+    static const NumberType& parameterOf(const Carrier& carrier, const PointType& point) {
         return carrier.usesX ? point.x() : point.y();
     }
 
     // Whether an interval already spans the whole of another one, absent bounds
-    // reaching infinity. This is what makes a repeated or contained input
-    // stretch add nothing.
-    static bool covers(const CarrierInterval& interval,
-                       const std::optional<NumberType>& low,
-                       const std::optional<NumberType>& high) {
-        if (!low.has_value()) {
+    // reaching infinity, which are null pointers here. This is what makes a
+    // repeated or contained input stretch add nothing.
+    static bool covers(const CarrierInterval& interval, const NumberType* low,
+                       const NumberType* high) {
+        if (low == nullptr) {
             if (interval.low.has_value()) {
                 return false;
             }
         } else if (interval.low.has_value() && *low < *interval.low) {
             return false;
         }
-        if (!high.has_value()) {
+        if (high == nullptr) {
             if (interval.high.has_value()) {
                 return false;
             }
@@ -1677,16 +1704,28 @@ private:
     // point meets a stretch of it some input covers, and a segment is cut
     // wherever a covered stretch of a carrier meets it. The stretches of a
     // carrier between two cuts come out as ordinary pieces, so a segment lying
-    // along a ray or a line merges with it in @ref internVertices exactly as two
+    // along a ray or a line merges with it in @ref mergePieces exactly as two
     // overlapping segments do; only the stretches reaching infinity come out as
     // @p unbounded.
     void overlayUnbounded(std::vector<InputSegment>& segments,
                           const std::vector<InputCurve>& curves,
                           const std::vector<PointType>& isolated, bool disjointInteriors,
-                          std::vector<Piece>& pieces,
+                          VertexInterner& intern, std::vector<Piece>& pieces,
                           std::vector<UnboundedPiece>& unbounded) {
+        // A cut is reduced before it is interned, so the vertex list holds it
+        // in lowest terms and every later read of it is on the fast path.
+        const auto internReduced = [&intern](PointType point) {
+            if constexpr (pgl::is_Rational_v<NumberType>) {
+                point.x().simplify();
+                point.y().simplify();
+            }
+            return intern(point);
+        };
         std::vector<Carrier> carriers;
         std::unordered_map<Line<PointType>, std::uint32_t> carrierOf;
+        // The last curve laid on each carrier, which is its only one when the
+        // carrier holds a single interval.
+        std::vector<const InputCurve*> lastCurve;
         for (const InputCurve& curve : curves) {
             const auto [entry, fresh] =
                 carrierOf.emplace(Line<PointType>(curve.a, curve.b),
@@ -1698,19 +1737,19 @@ private:
                     std::swap(a, b);
                 }
                 carriers.push_back(Carrier{a, b, !(a.x() == b.x()), {}, {}});
+                lastCurve.push_back(nullptr);
             }
+            lastCurve[entry->second] = &curve;
             Carrier& carrier = carriers[entry->second];
             CarrierInterval interval{{}, {}, curve.origin, curve.label};
             if (curve.kind == EdgeKind::ray) {
-                const NumberType ta = parameterOf(carrier, curve.a);
-                const NumberType tb = parameterOf(carrier, curve.b);
-                if (ta < tb) {
+                const NumberType& ta = parameterOf(carrier, curve.a);
+                if (ta < parameterOf(carrier, curve.b)) {
                     interval.low = ta;
-                    carrier.cuts.push_back(ta);
                 } else {
                     interval.high = ta;
-                    carrier.cuts.push_back(ta);
                 }
+                carrier.cuts.push_back(internReduced(curve.a));
             }
             carrier.intervals.push_back(std::move(interval));
         }
@@ -1720,15 +1759,28 @@ private:
                                            return covers(interval, value);
                                        });
         };
+        // A carrier that is one line covers all of itself, which spares the
+        // interval tests on the crossings of the commonest input.
+        const auto coversAll = [](const Carrier& carrier) {
+            return std::ranges::any_of(carrier.intervals, [](const CarrierInterval& interval) {
+                return !interval.low.has_value() && !interval.high.has_value();
+            });
+        };
+        std::vector<bool> whole(carriers.size());
+        for (std::size_t c = 0; c < carriers.size(); ++c) {
+            whole[c] = coversAll(carriers[c]);
+        }
+        const auto coveredAt = [&](std::size_t c, const PointType& point) {
+            return whole[c] || covered(carriers[c], parameterOf(carriers[c], point));
+        };
 
         for (Carrier& carrier : carriers) {
             for (const PointType& point : isolated) {
                 if (orientationSign(carrier.a, carrier.b, point) != 0) {
                     continue;
                 }
-                const NumberType value = parameterOf(carrier, point);
-                if (covered(carrier, value)) {
-                    carrier.cuts.push_back(value);
+                if (covered(carrier, parameterOf(carrier, point))) {
+                    carrier.cuts.push_back(internReduced(point));
                 }
             }
         }
@@ -1737,21 +1789,73 @@ private:
         // must be cut. A caller that has promised its curves meet only at
         // shared endpoints has promised that every crossing found here is one
         // the interval tests would reject, so the pairs go unexamined.
+        //
+        // A carrier that is a single ray tells whether another carrier's line
+        // crosses it on the ray from two signs, before any crossing is built:
+        // the source is on that line, or the ray heads towards it. Between
+        // random rays that rejects about half the pairs, each of which would
+        // otherwise construct an exact point only to discard it.
+        const auto rayReaches = [&](std::size_t ray, std::size_t other) {
+            const InputCurve* curve = lastCurve[ray];
+            if (carriers[ray].intervals.size() != 1 || curve->kind != EdgeKind::ray) {
+                return true;
+            }
+            const Carrier& line = carriers[other];
+            const auto side = orientationSign(line.a, line.b, curve->a);
+            if (side == 0) {
+                return true;
+            }
+            const auto heading = crossSign(line.a, line.b, curve->a, curve->b);
+            return heading != 0 && (heading > 0) != (side > 0);
+        };
+        std::vector<Line<PointType>> lines;
+        lines.reserve(carriers.size());
+        for (const Carrier& carrier : carriers) {
+            lines.emplace_back(carrier.a, carrier.b);
+        }
+        // Carriers through two lattice points cross in native arithmetic, which
+        // halves what each crossing costs to construct; the crossing itself is
+        // still built in NumberType. See @ref split for the same narrowing.
+        std::vector<std::optional<Line<IntegralPoint>>> integralLines(carriers.size());
+        if constexpr (mayNeedIntegralNarrowing) {
+            for (std::size_t c = 0; c < carriers.size(); ++c) {
+                const auto a = integralPoint(carriers[c].a);
+                const auto b = integralPoint(carriers[c].b);
+                if (a && b) {
+                    integralLines[c].emplace(*a, *b);
+                }
+            }
+        }
+        // The point where two carriers, or a carrier and a segment's line,
+        // cross, if they cross at a single point.
+        const auto crossingOf = [](const auto& first, const auto& second)
+            -> std::optional<PointType> {
+            auto intersection = first.template intersection<NumberType>(second);
+            if (!intersection) {
+                return std::nullopt;
+            }
+            if (auto* point = std::get_if<PointType>(&*intersection)) {
+                return std::move(*point);
+            }
+            return std::nullopt;
+        };
         if (!disjointInteriors) {
             for (std::size_t i = 0; i < carriers.size(); ++i) {
                 for (std::size_t j = i + 1; j < carriers.size(); ++j) {
-                    const Line<PointType> first(carriers[i].a, carriers[i].b);
-                    const Line<PointType> second(carriers[j].a, carriers[j].b);
-                    const auto intersection = first.template intersection<NumberType>(second);
-                    if (!intersection || !std::holds_alternative<PointType>(*intersection)) {
+                    if (!rayReaches(i, j) || !rayReaches(j, i)) {
                         continue;
                     }
-                    const PointType& point = std::get<PointType>(*intersection);
-                    const NumberType ti = parameterOf(carriers[i], point);
-                    const NumberType tj = parameterOf(carriers[j], point);
-                    if (covered(carriers[i], ti) && covered(carriers[j], tj)) {
-                        carriers[i].cuts.push_back(ti);
-                        carriers[j].cuts.push_back(tj);
+                    const auto crossing = integralLines[i] && integralLines[j]
+                                              ? crossingOf(*integralLines[i], *integralLines[j])
+                                              : crossingOf(lines[i], lines[j]);
+                    if (!crossing) {
+                        continue;
+                    }
+                    const PointType& point = *crossing;
+                    if (coveredAt(i, point) && coveredAt(j, point)) {
+                        const std::uint32_t vertex = internReduced(point);
+                        carriers[i].cuts.push_back(vertex);
+                        carriers[j].cuts.push_back(vertex);
                     }
                 }
             }
@@ -1760,14 +1864,73 @@ private:
         // Each distinct segment against each carrier, from inside the splitter
         // so the segment cuts join the ones the segments produce among
         // themselves. Under the same promise as above there is nothing to find.
+        //
+        // This is a sign per carrier and segment end, so it is where the
+        // overlay spends when there are many carriers, and nearly every sign is
+        // one a floating-point filter proves: each carrier's two points are
+        // converted once for all segments, and each segment's ends once for all
+        // carriers.
+        using FilteredVertex = decltype(detail::filtered<VertexCoordinate>(carriers[0].a));
+        std::vector<std::array<FilteredVertex, 2>> filteredCarriers;
+        filteredCarriers.reserve(carriers.size());
+        for (const Carrier& carrier : carriers) {
+            filteredCarriers.push_back({detail::filtered<VertexCoordinate>(carrier.a),
+                                        detail::filtered<VertexCoordinate>(carrier.b)});
+        }
         const auto cutAgainstCarriers = [&](const Segment<PointType>& segment,
                                             std::vector<PointType>& cuts) {
             if (disjointInteriors) {
                 return;
             }
-            for (Carrier& carrier : carriers) {
-                const auto low = orientationSign(carrier.a, carrier.b, segment.min());
-                const auto high = orientationSign(carrier.a, carrier.b, segment.max());
+            const auto min = detail::filtered<VertexCoordinate>(segment.min());
+            const auto max = detail::filtered<VertexCoordinate>(segment.max());
+            std::optional<Line<IntegralPoint>> integralSegmentLine;
+            if constexpr (mayNeedIntegralNarrowing) {
+                const auto a = integralPoint(segment.min());
+                const auto b = integralPoint(segment.max());
+                if (a && b) {
+                    integralSegmentLine.emplace(*a, *b);
+                }
+            }
+            // The segment's bounding box as one approximate point whose error
+            // covers the whole box: a carrier the filter proves the box to lie
+            // strictly on one side of is rejected in one sign rather than two.
+            detail::ApproximatePoint box;
+            if constexpr (detail::filtersSign<VertexCoordinate>) {
+                const auto span = [](const detail::Approximate& p, const detail::Approximate& q) {
+                    const double lo = std::min(p.value - p.error, q.value - q.error);
+                    const double hi = std::max(p.value + p.error, q.value + q.error);
+                    const double radius = 0.5 * (hi - lo);
+                    return detail::Approximate{
+                        0.5 * (lo + hi),
+                        radius + 0x1p-50 * (radius + detail::approximateAbs(lo) +
+                                            detail::approximateAbs(hi))};
+                };
+                box = {span(min.approximation.x, max.approximation.x),
+                       span(min.approximation.y, max.approximation.y)};
+            }
+            for (std::size_t c = 0; c < carriers.size(); ++c) {
+                Carrier& carrier = carriers[c];
+                if constexpr (detail::filtersSign<VertexCoordinate>) {
+                    if (detail::orientationFilter(filteredCarriers[c][0].approximation,
+                                                  filteredCarriers[c][1].approximation,
+                                                  box) != std::partial_ordering::unordered) {
+                        continue;
+                    }
+                }
+                const auto lowSign = detail::orientationSignOf(filteredCarriers[c][0],
+                                                               filteredCarriers[c][1], min);
+                const auto highSign = detail::orientationSignOf(filteredCarriers[c][0],
+                                                                filteredCarriers[c][1], max);
+                if (lowSign.decided() && highSign.decided()) {
+                    // A proved sign is never zero, so the ends are strictly on
+                    // one side each.
+                    if (lowSign.value() == highSign.value()) {
+                        continue;
+                    }
+                }
+                const auto low = lowSign.value();
+                const auto high = highSign.value();
                 if ((low > 0 && high > 0) || (low < 0 && high < 0)) {
                     continue;
                 }
@@ -1775,78 +1938,91 @@ private:
                     // Along the carrier: its covered stretch starts or stops
                     // wherever an interval end falls inside the segment, and the
                     // segment's own ends are where the overlap starts and stops.
-                    const NumberType first = parameterOf(carrier, segment.min());
-                    const NumberType last = parameterOf(carrier, segment.max());
+                    const NumberType& first = parameterOf(carrier, segment.min());
+                    const NumberType& last = parameterOf(carrier, segment.max());
                     for (const CarrierInterval& interval : carrier.intervals) {
-                        for (const auto& end : {interval.low, interval.high}) {
-                            if (end.has_value() && first < *end && *end < last) {
-                                cuts.push_back(pointAt(carrier, *end));
+                        for (const auto* end : {&interval.low, &interval.high}) {
+                            if (end->has_value() && first < **end && **end < last) {
+                                cuts.push_back(pointAt(carrier, **end));
                             }
                         }
                     }
-                    carrier.cuts.push_back(first);
-                    carrier.cuts.push_back(last);
+                    carrier.cuts.push_back(internReduced(segment.min()));
+                    carrier.cuts.push_back(internReduced(segment.max()));
                     continue;
                 }
                 if (low == 0 || high == 0) {
                     // An endpoint on the carrier, which the segment's cut list
                     // already holds.
-                    const NumberType value =
-                        parameterOf(carrier, low == 0 ? segment.min() : segment.max());
-                    if (covered(carrier, value)) {
-                        carrier.cuts.push_back(value);
+                    const PointType& end = low == 0 ? segment.min() : segment.max();
+                    if (coveredAt(c, end)) {
+                        carrier.cuts.push_back(internReduced(end));
                     }
                     continue;
                 }
-                const auto crossing =
-                    Line<PointType>(carrier.a, carrier.b)
-                        .template intersection<NumberType>(
-                            Line<PointType>(segment.min(), segment.max()));
-                if (!crossing || !std::holds_alternative<PointType>(*crossing)) {
+                auto crossing = integralLines[c] && integralSegmentLine
+                                    ? crossingOf(*integralLines[c], *integralSegmentLine)
+                                    : crossingOf(lines[c], Line<PointType>(segment.min(),
+                                                                           segment.max()));
+                if (!crossing) {
                     continue;
                 }
-                const PointType& point = std::get<PointType>(*crossing);
-                const NumberType value = parameterOf(carrier, point);
-                if (covered(carrier, value)) {
-                    carrier.cuts.push_back(value);
-                    cuts.push_back(point);
+                PointType& point = *crossing;
+                if (coveredAt(c, point)) {
+                    if constexpr (pgl::is_Rational_v<NumberType>) {
+                        point.x().simplify();
+                        point.y().simplify();
+                    }
+                    carrier.cuts.push_back(intern(point));
+                    cuts.push_back(std::move(point));
                 }
             }
         };
-        pieces = split(segments, isolated, disjointInteriors, cutAgainstCarriers);
+        pieces = split(segments, isolated, disjointInteriors, cutAgainstCarriers, intern);
 
+        // Cuts in order along a carrier, which is the order of their
+        // parameters: sorted on approximations of those, with the exact
+        // parameters read only where two approximations cannot be told apart.
+        // Equal points are one vertex, so they are adjacent afterwards.
+        struct Ordered {
+            detail::Approximate parameter;
+            std::uint32_t vertex;
+        };
+        std::vector<Ordered> ordered;
         for (Carrier& carrier : carriers) {
-            // A cut coming from a crossing is an unreduced fraction, and it is
-            // read by the sort and unique here, by the interval tests below, and
-            // again by pointAt. One gcd apiece covers all of it; the same
-            // reasoning as split's cut lists.
-            if constexpr (pgl::is_Rational_v<NumberType>) {
-                for (NumberType& cut : carrier.cuts) {
-                    cut.simplify();
+            ordered.clear();
+            for (const std::uint32_t cut : carrier.cuts) {
+                ordered.push_back({detail::approximate(parameterOf(carrier, points_[cut])), cut});
+            }
+            std::sort(ordered.begin(), ordered.end(),
+                      [&](const Ordered& left, const Ordered& right) {
+                          const auto sign =
+                              detail::approximateSign(left.parameter - right.parameter);
+                          if (sign != std::partial_ordering::unordered) {
+                              return sign < 0;
+                          }
+                          return parameterOf(carrier, points_[left.vertex]) <
+                                 parameterOf(carrier, points_[right.vertex]);
+                      });
+            carrier.cuts.clear();
+            for (const Ordered& cut : ordered) {
+                if (carrier.cuts.empty() || carrier.cuts.back() != cut.vertex) {
+                    carrier.cuts.push_back(cut.vertex);
                 }
             }
-            std::sort(carrier.cuts.begin(), carrier.cuts.end());
-            carrier.cuts.erase(std::unique(carrier.cuts.begin(), carrier.cuts.end()),
-                               carrier.cuts.end());
 
             // The stretch between two consecutive cuts, absent bounds reaching
             // infinity: one piece per input shape covering it when it is
-            // bounded, so internVertices merges it with any segment along it,
+            // bounded, so mergePieces merges it with any segment along it,
             // and one unbounded edge remembering all of them otherwise.
-            const auto emit = [&](const std::optional<NumberType>& low,
-                                  const std::optional<NumberType>& high) {
-                if (low.has_value() && high.has_value()) {
-                    std::optional<std::array<PointType, 2>> ends;
+            const auto emit = [&](const std::uint32_t* from, const std::uint32_t* to) {
+                const NumberType* low = from ? &parameterOf(carrier, points_[*from]) : nullptr;
+                const NumberType* high = to ? &parameterOf(carrier, points_[*to]) : nullptr;
+                if (from != nullptr && to != nullptr) {
                     for (const CarrierInterval& interval : carrier.intervals) {
-                        if (!covers(interval, low, high)) {
-                            continue;
+                        if (covers(interval, low, high)) {
+                            pieces.push_back(Piece{*from, *to, interval.origin, interval.label});
                         }
-                        if (!ends) {
-                            ends.emplace(std::array<PointType, 2>{pointAt(carrier, *low),
-                                                                  pointAt(carrier, *high)});
-                        }
-                        pieces.push_back(
-                            Piece{(*ends)[0], (*ends)[1], interval.origin, interval.label});
                     }
                     return;
                 }
@@ -1866,31 +2042,65 @@ private:
                 }
                 std::sort(origins.begin(), origins.end());
                 origins.erase(std::unique(origins.begin(), origins.end()), origins.end());
-                if (!low.has_value() && !high.has_value()) {
-                    unbounded.push_back(UnboundedPiece{EdgeKind::line, carrier.a, carrier.b,
+                if (from == nullptr && to == nullptr) {
+                    unbounded.push_back(UnboundedPiece{EdgeKind::line, 0, carrier.a, carrier.b,
                                                        std::move(origins), first->label});
                     return;
                 }
-                const bool increasing = low.has_value();
-                PointType source = pointAt(carrier, increasing ? *low : *high);
+                const bool increasing = from != nullptr;
+                const std::uint32_t sourceVertex = increasing ? *from : *to;
+                const PointType& source = points_[sourceVertex];
                 const NumberType dx = carrier.b.x() - carrier.a.x();
                 const NumberType dy = carrier.b.y() - carrier.a.y();
                 PointType direction(increasing ? source.x() + dx : source.x() - dx,
                                     increasing ? source.y() + dy : source.y() - dy);
-                unbounded.push_back(UnboundedPiece{EdgeKind::ray, std::move(source),
+                unbounded.push_back(UnboundedPiece{EdgeKind::ray, sourceVertex, PointType(),
                                                    std::move(direction), std::move(origins),
                                                    first->label});
             };
 
             if (carrier.cuts.empty()) {
-                emit({}, {});
+                emit(nullptr, nullptr);
                 continue;
             }
-            emit({}, carrier.cuts.front());
+            emit(nullptr, &carrier.cuts.front());
             for (std::size_t i = 0; i + 1 < carrier.cuts.size(); ++i) {
-                emit(carrier.cuts[i], carrier.cuts[i + 1]);
+                emit(&carrier.cuts[i], &carrier.cuts[i + 1]);
             }
-            emit(carrier.cuts.back(), {});
+            emit(&carrier.cuts.back(), nullptr);
+        }
+    }
+
+    // A lattice point spelled in native words, for the predicates and
+    // constructions that only read it: an exact number type holding an integer
+    // pays for arbitrary precision it does not need.
+    using IntegralPoint = Point<std::int64_t>;
+    static constexpr bool mayNeedIntegralNarrowing =
+        is_Rational_v<NumberType> || std::same_as<NumberType, BigInt>;
+
+    // The narrower spelling of @p point, when it is a lattice point that fits.
+    static std::optional<IntegralPoint> integralPoint(const PointType& point) {
+        const auto store = [](const auto& x, const auto& y) -> std::optional<IntegralPoint> {
+            if (!detail::representableAs<std::int64_t>(x) ||
+                !detail::representableAs<std::int64_t>(y)) {
+                return std::nullopt;
+            }
+            return IntegralPoint(detail::narrowTo<std::int64_t>(x),
+                                 detail::narrowTo<std::int64_t>(y));
+        };
+
+        if constexpr (is_Rational_v<NumberType>) {
+            if (!point.x().isInteger() || !point.y().isInteger()) {
+                return std::nullopt;
+            }
+            using Integer = rational_int_t<NumberType>;
+            return store(Integer(static_cast<Integer>(point.x())),
+                         Integer(static_cast<Integer>(point.y())));
+        } else if constexpr (detail::extended_integral<NumberType> ||
+                             std::same_as<NumberType, BigInt>) {
+            return store(point.x(), point.y());
+        } else {
+            return std::nullopt;
         }
     }
 
@@ -1905,7 +2115,7 @@ private:
      * union of the pairwise Minkowski sums arrives with about one distinct cut
      * segment for every two — so the grouping is worth its sort several times
      * over. The pieces are still emitted once per contributing shape, so
-     * @ref internVertices sees the same multiset it would without it.
+     * @ref mergePieces sees the same multiset it would without it.
      *
      * Pairs are enumerated by @ref detail::visitSegmentPairs, the method behind
      * @ref pgl::findIntersections. It scans the bounding boxes along whichever
@@ -1930,14 +2140,12 @@ private:
     template <class ExtraCuts>
     static std::vector<Piece> split(std::vector<InputSegment>& segments,
                                     const std::vector<PointType>& isolated,
-                                    bool disjointInteriors, const ExtraCuts& extraCuts) {
-        using IntegralPoint = Point<std::int64_t>;
+                                    bool disjointInteriors, const ExtraCuts& extraCuts,
+                                    VertexInterner& intern) {
         using IntegralSegment = Segment<IntegralPoint>;
-        constexpr bool mayNeedIntegralNarrowing =
-            is_Rational_v<NumberType> || std::same_as<NumberType, BigInt>;
 
         // Equal geometry adjacent, and within a group the contributing shapes in
-        // the order internVertices expects to see them.
+        // the order mergePieces expects to see them.
         std::sort(segments.begin(), segments.end(),
                   [](const InputSegment& left, const InputSegment& right) {
                       if (!(left.segment == right.segment)) {
@@ -1973,35 +2181,9 @@ private:
             // int64 coordinates and int128 determinants instead of promoting
             // Rational<BigInt> predicates all the way to BigInt. The exact
             // intersection is still constructed in NumberType below.
-            const auto asIntegral = [](const PointType& point)
-                -> std::optional<IntegralPoint> {
-                const auto store = [](const auto& x, const auto& y)
-                    -> std::optional<IntegralPoint> {
-                    if (!detail::representableAs<std::int64_t>(x) ||
-                        !detail::representableAs<std::int64_t>(y)) {
-                        return std::nullopt;
-                    }
-                    return IntegralPoint(detail::narrowTo<std::int64_t>(x),
-                                         detail::narrowTo<std::int64_t>(y));
-                };
-
-                if constexpr (is_Rational_v<NumberType>) {
-                    if (!point.x().isInteger() || !point.y().isInteger()) {
-                        return std::nullopt;
-                    }
-                    using Integer = rational_int_t<NumberType>;
-                    return store(Integer(static_cast<Integer>(point.x())),
-                                 Integer(static_cast<Integer>(point.y())));
-                } else if constexpr (detail::extended_integral<NumberType> ||
-                                     std::same_as<NumberType, BigInt>) {
-                    return store(point.x(), point.y());
-                } else {
-                    return std::nullopt;
-                }
-            };
             if constexpr (mayNeedIntegralNarrowing) {
-                const auto a = asIntegral(segment.min());
-                const auto b = asIntegral(segment.max());
+                const auto a = integralPoint(segment.min());
+                const auto b = integralPoint(segment.max());
                 if (a && b) {
                     integral[i].emplace(*a, *b);
                 }
@@ -2142,6 +2324,7 @@ private:
         }
 
         std::vector<Piece> pieces;
+        std::vector<std::uint32_t> vertices;
         for (std::size_t i = 0; i < count; ++i) {
             for (const PointType& point : isolated) {
                 if (segments[group[i]].segment.contains(point)) {
@@ -2152,9 +2335,8 @@ private:
             // A crossing arrives from intersection() as a fraction whose
             // normalization this type defers, and every read of one reduces it
             // again and keeps nothing. Each cut is about to be read many times
-            // over — by the sort and unique just below, by the piece copies they
-            // feed, and by everything internVertices and the wiring passes do
-            // with those. Reducing once per distinct cut, before any of that,
+            // over — by the sort and unique just below, by the hash that makes it
+            // a vertex, and by everything the wiring passes do with the vertex. Reducing once per distinct cut, before any of that,
             // collapses all of it to a single gcd apiece.
             if constexpr (pgl::is_Rational_v<NumberType>) {
                 for (PointType& cut : cuts[i]) {
@@ -2166,9 +2348,14 @@ private:
             // the linear order along it.
             std::sort(cuts[i].begin(), cuts[i].end());
             cuts[i].erase(std::unique(cuts[i].begin(), cuts[i].end()), cuts[i].end());
-            for (std::size_t k = 0; k + 1 < cuts[i].size(); ++k) {
+            vertices.clear();
+            for (const PointType& cut : cuts[i]) {
+                vertices.push_back(intern(cut));
+            }
+            std::vector<PointType>().swap(cuts[i]);
+            for (std::size_t k = 0; k + 1 < vertices.size(); ++k) {
                 for (std::size_t s = group[i]; s < group[i + 1]; ++s) {
-                    pieces.push_back(Piece{cuts[i][k], cuts[i][k + 1], segments[s].origin,
+                    pieces.push_back(Piece{vertices[k], vertices[k + 1], segments[s].origin,
                                            segments[s].label});
                 }
             }
@@ -2176,75 +2363,57 @@ private:
         return pieces;
     }
 
-    // Turns the split pieces into vertices and edges: equal pieces — the
-    // overlapping and duplicated input of the same stretch — become one edge
-    // remembering every input shape that produced it.
+    // Turns the split pieces into edges: equal pieces — the overlapping and
+    // duplicated input of the same stretch — become one edge remembering every
+    // input shape that produced it.
     //
-    // The edges reaching infinity come last, their finite ends interned with the
-    // rest and their infinite ones at the symbolic vertex, which exists exactly
-    // when there is one of them.
-    void internVertices(std::vector<Piece>& pieces, const std::vector<PointType>& isolated,
-                        std::vector<UnboundedPiece>& unbounded) {
-        // The piece endpoints were reduced by @ref split, before the cuts were
-        // copied into pieces, so the hash lookups below already read them on
-        // the normalized fast path.
+    // The edges reaching infinity come last, their infinite ends at the symbolic
+    // vertex, which exists exactly when there is one of them.
+    void mergePieces(std::vector<Piece>& pieces, const std::vector<PointType>& isolated,
+                        std::vector<UnboundedPiece>& unbounded, VertexInterner& intern) {
+        // Group the pieces by their end vertices. Grouping only needs equal
+        // pieces adjacent, and two points are equal exactly when they intern to
+        // the same id, so the sort runs on integers where it used to run on
+        // exact rational points -- an integer compare per step of an E log E
+        // sort in place of a BigInt cross product.
         //
-        // Group the pieces by interned endpoint rather than by point. Grouping
-        // only needs equal pieces adjacent, and two points are equal exactly
-        // when they intern to the same id, so the sort runs on a pair of
-        // integers where it used to run on a pair of exact rational points --
-        // an integer compare per step of an E log E sort in place of a BigInt
-        // cross product, over a permutation rather than over the pieces
-        // themselves, which are two rationals apiece to move. The hash lookups
-        // are the ones this did after the sort, moved ahead of it, so the work
-        // is not added anywhere. Worth a third of the pass and a seventh of the
-        // whole construction on ten thousand random segments.
-        //
-        // Vertices are therefore numbered in order of first appearance among
-        // the pieces rather than in the lexicographic order the old sort left
-        // behind. Both are deterministic, and nothing downstream reads a
-        // vertex id as a position -- the halfedge structure addresses points
-        // through ids only.
-        std::unordered_map<PointType, std::uint32_t> vertexOf;
-        const auto idOf = [&](const PointType& point) {
-            const auto found = vertexOf.find(point);
-            if (found != vertexOf.end()) {
-                return found->second;
+        // Vertices are therefore numbered in order of first appearance rather
+        // than in lexicographic order. Both are deterministic, and nothing
+        // downstream reads a vertex id as a position -- the halfedge structure
+        // addresses points through ids only.
+        std::sort(pieces.begin(), pieces.end(), [](const Piece& left, const Piece& right) {
+            if (left.low != right.low) {
+                return left.low < right.low;
             }
-            const auto id = static_cast<std::uint32_t>(points_.size());
-            points_.push_back(point);
-            vertexOf.emplace(point, id);
-            return id;
-        };
-
-        std::vector<std::array<std::uint32_t, 2>> ends(pieces.size());
-        for (std::size_t i = 0; i < pieces.size(); ++i) {
-            ends[i] = {idOf(pieces[i].a), idOf(pieces[i].b)};
-        }
-        std::vector<std::uint32_t> order(pieces.size());
-        for (std::size_t i = 0; i < pieces.size(); ++i) {
-            order[i] = static_cast<std::uint32_t>(i);
-        }
-        std::sort(order.begin(), order.end(), [&](std::uint32_t l, std::uint32_t r) {
-            if (ends[l] != ends[r]) {
-                return ends[l] < ends[r];
+            if (left.high != right.high) {
+                return left.high < right.high;
             }
-            return pieces[l].origin < pieces[r].origin;
+            return left.origin < right.origin;
         });
 
+        for (const PointType& point : isolated) {
+            intern(point);
+        }
+        if (!unbounded.empty()) {
+            infinity_ = VertexId(static_cast<std::uint32_t>(points_.size()));
+        }
+
+        origin_.reserve(2 * (pieces.size() + unbounded.size()));
+        edgeGeometry_.reserve(pieces.size() + unbounded.size());
         originOffset_.push_back(0);
-        for (std::size_t i = 0; i < order.size();) {
-            const std::uint32_t first = order[i];
-            origin_.push_back(ends[first][0]);
-            origin_.push_back(ends[first][1]);
-            edgeGeometry_.push_back({EdgeKind::segment, pieces[first].a, pieces[first].b});
-            edgeLabel_.push_back(pieces[first].label);
+        for (std::size_t i = 0; i < pieces.size();) {
+            const Piece& first = pieces[i];
+            origin_.push_back(first.low);
+            origin_.push_back(first.high);
+            edgeGeometry_.push_back({EdgeKind::segment, points_[first.low], points_[first.high]});
+            edgeLabel_.push_back(first.label);
             // The pieces of one stretch are adjacent and ordered by their input
             // position, so the same shape is caught by looking one back only.
             std::size_t j = i;
-            while (j < order.size() && ends[order[j]] == ends[first]) {
-                if (j == i || pieces[order[j]].origin != pieces[order[j - 1]].origin) {
-                    originIndex_.push_back(pieces[order[j]].origin);
+            while (j < pieces.size() && pieces[j].low == first.low &&
+                   pieces[j].high == first.high) {
+                if (j == i || pieces[j].origin != pieces[j - 1].origin) {
+                    originIndex_.push_back(pieces[j].origin);
                 }
                 ++j;
             }
@@ -2252,23 +2421,12 @@ private:
             i = j;
         }
 
-        std::vector<std::uint32_t> sources(unbounded.size());
-        for (std::size_t i = 0; i < unbounded.size(); ++i) {
-            if (unbounded[i].kind == EdgeKind::ray) {
-                sources[i] = idOf(unbounded[i].a);
-            }
-        }
-        for (const PointType& point : isolated) {
-            idOf(point);
-        }
-        if (!unbounded.empty()) {
-            infinity_ = VertexId(static_cast<std::uint32_t>(points_.size()));
-        }
-        for (std::size_t i = 0; i < unbounded.size(); ++i) {
-            UnboundedPiece& piece = unbounded[i];
-            origin_.push_back(piece.kind == EdgeKind::ray ? sources[i] : infinity_.index());
+        for (UnboundedPiece& piece : unbounded) {
+            const bool ray = piece.kind == EdgeKind::ray;
+            origin_.push_back(ray ? piece.source : infinity_.index());
             origin_.push_back(infinity_.index());
-            edgeGeometry_.push_back({piece.kind, std::move(piece.a), std::move(piece.b)});
+            edgeGeometry_.push_back(
+                {piece.kind, ray ? points_[piece.source] : std::move(piece.a), std::move(piece.b)});
             edgeLabel_.push_back(std::move(piece.label));
             originIndex_.insert(originIndex_.end(), piece.origins.begin(), piece.origins.end());
             originOffset_.push_back(static_cast<std::uint32_t>(originIndex_.size()));
@@ -2346,6 +2504,26 @@ private:
         return detail::filtered<VertexCoordinate>(points_[index], vertexApproximations_, index);
     }
 
+    // The order of one coordinate of two interned vertices — the ordinate when
+    // @p ordinate is set — as -1, 0 or 1. Sorts over the vertices compare
+    // coordinates far more often than they find two close, and over an exact
+    // number type the kept approximations settle those comparisons without
+    // touching the exact values.
+    [[nodiscard]] int vertexCoordinateOrder(std::uint32_t left, std::uint32_t right,
+                                            bool ordinate) const {
+        if constexpr (detail::filtersSign<VertexCoordinate>) {
+            const detail::ApproximatePoint& l = vertexApproximations_[left];
+            const detail::ApproximatePoint& r = vertexApproximations_[right];
+            const auto sign = detail::approximateSign(ordinate ? l.y - r.y : l.x - r.x);
+            if (sign != std::partial_ordering::unordered) {
+                return sign < 0 ? -1 : 1;
+            }
+        }
+        const NumberType& l = ordinate ? points_[left].y() : points_[left].x();
+        const NumberType& r = ordinate ? points_[right].y() : points_[right].x();
+        return l < r ? -1 : (r < l ? 1 : 0);
+    }
+
     // Sorts the halfedges leaving each vertex counterclockwise and links them:
     // arriving at a vertex along one edge, the boundary of the face on the left
     // leaves along the next edge clockwise, which is the previous one in
@@ -2357,19 +2535,34 @@ private:
     // other fan keeps the filtered comparison, so a few unbounded edges slow
     // down only the vertices they touch.
     void wireHalfedges() {
-        std::vector<std::vector<std::uint32_t>> fan(topologicalVertexCount());
-        for (std::uint32_t h = 0; h < origin_.size(); ++h) {
-            fan[origin_[h]].push_back(h);
+        // The fans side by side in one array, vertex by vertex, rather than a
+        // vector apiece: most vertices have a handful of halfedges, and an
+        // allocation each is a good part of what wiring them costs.
+        const std::size_t vertices = topologicalVertexCount();
+        std::vector<std::uint32_t> fanStart(vertices + 1, 0);
+        for (const std::uint32_t v : origin_) {
+            ++fanStart[v + 1];
         }
-        const auto link = [&](std::uint32_t v, const std::vector<std::uint32_t>& around) {
+        for (std::size_t v = 0; v < vertices; ++v) {
+            fanStart[v + 1] += fanStart[v];
+        }
+        std::vector<std::uint32_t> fans(origin_.size());
+        {
+            std::vector<std::uint32_t> fill(fanStart.begin(), fanStart.end() - 1);
+            for (std::uint32_t h = 0; h < origin_.size(); ++h) {
+                fans[fill[origin_[h]]++] = h;
+            }
+        }
+        const auto link = [&](std::uint32_t v, std::span<const std::uint32_t> around) {
             const std::size_t degree = around.size();
             for (std::size_t i = 0; i < degree; ++i) {
                 next_[around[i] ^ 1] = around[(i + degree - 1) % degree];
             }
             outgoing_[v] = HalfedgeId(around.front());
         };
-        for (std::uint32_t v = 0; v < fan.size(); ++v) {
-            std::vector<std::uint32_t>& around = fan[v];
+        for (std::uint32_t v = 0; v < vertices; ++v) {
+            const std::span<std::uint32_t> around(fans.data() + fanStart[v],
+                                                  fans.data() + fanStart[v + 1]);
             if (around.empty()) {
                 continue;
             }
@@ -2385,22 +2578,19 @@ private:
                           });
                 link(v, around);
                 if (atInfinity) {
-                    infinityFan_ = around;
+                    infinityFan_.assign(around.begin(), around.end());
                 }
                 continue;
             }
-            const PointType& center = points_[v];
             // Half 0 holds the directions with an angle in [0, pi), half 1 the
             // rest, so the comparison never needs an angle, only a sign.
             const auto half = [&](std::uint32_t h) {
-                const PointType& to = points_[origin_[h ^ 1]];
-                if (to.y() > center.y()) {
-                    return 0;
+                const std::uint32_t to = origin_[h ^ 1];
+                const int rise = vertexCoordinateOrder(to, v, true);
+                if (rise != 0) {
+                    return rise > 0 ? 0 : 1;
                 }
-                if (to.y() < center.y()) {
-                    return 1;
-                }
-                return to.x() > center.x() ? 0 : 1;
+                return vertexCoordinateOrder(to, v, false) > 0 ? 0 : 1;
             };
             const auto filteredCenter = filteredVertex(v);
             std::sort(around.begin(), around.end(), [&](std::uint32_t left, std::uint32_t right) {
@@ -2999,9 +3189,11 @@ private:
      * that vertex — the whole batch in `O((E + Q) log E)` rather than one linear
      * scan over the edges per query.
      *
-     * One sweep by a horizontal line moving upwards. The line's status holds the
-     * edges it currently crosses, ordered by @ref SweepOrder, and a query is the
-     * predecessor of its own vertex in that order. What makes this a plain sweep
+     * One sweep by a horizontal line moving upwards, over the bounded edges only
+     * — the caller weighs the rays and lines. The line's status holds the edges
+     * it currently crosses that are still on it at some query, ordered by
+     * @ref SweepOrder, and a query is the predecessor of its own vertex in that
+     * order. What makes this a plain sweep
      * rather than a second Bentley–Ottmann is that the edges are already split:
      * they meet at their endpoints alone, so no two of them ever swap along the
      * line and the only events are the endpoints themselves.
@@ -3019,55 +3211,104 @@ private:
      */
     [[nodiscard]] std::vector<HalfedgeId> sweepHalfedgesLeftOf(
         const std::vector<std::uint32_t>& queries) const {
-        // Vertices by height, then abscissa. A vertex is its position here, so
-        // the events sort on an integer and never on a coordinate.
+        // Vertices by height, then abscissa, on the kept approximations where
+        // they settle it. A vertex is its position here, so the events are
+        // ordered on an integer and never on a coordinate.
         std::vector<std::uint32_t> byHeight(points_.size());
         for (std::uint32_t v = 0; v < byHeight.size(); ++v) {
             byHeight[v] = v;
         }
         std::sort(byHeight.begin(), byHeight.end(), [this](std::uint32_t a, std::uint32_t b) {
-            if (!(points_[a].y() == points_[b].y())) {
-                return points_[a].y() < points_[b].y();
-            }
-            return points_[a].x() < points_[b].x();
+            const int rise = vertexCoordinateOrder(a, b, true);
+            return rise != 0 ? rise < 0 : vertexCoordinateOrder(a, b, false) < 0;
         });
         std::vector<std::uint32_t> position(points_.size());
         for (std::uint32_t i = 0; i < byHeight.size(); ++i) {
             position[byHeight[i]] = i;
         }
 
-        // What happens at a vertex, in the order it has to happen.
-        enum Phase : std::uint8_t { leaves = 0, joins = 1, asks = 2 };
-        struct Event {
-            std::uint32_t at;       // the vertex, as its position in `byHeight`
-            std::uint32_t subject;  // a downward halfedge, or a query's position
-            Phase phase;
+        // What happens at a vertex, in the order it has to happen: the edges
+        // ending there leave, those starting there join, then the questions
+        // asked there are answered. The events are bucketed by vertex position,
+        // one pass per kind so that each bucket holds them in that order, which
+        // is a sort on an integer key in linear time.
+        //
+        // An edge is on the line when a question is asked exactly when the
+        // question's position lies in [low, high) of the edge's, and one that is
+        // on the line at no question cannot be anyone's answer. Nor does leaving
+        // it out disturb the others: the order below compares edges that cross
+        // one line, which any subset of them still do. So only the edges
+        // spanning some question join the line, which is what makes a handful
+        // of questions over a large arrangement cheap.
+        std::vector<HalfedgeId> answer(queries.size());
+        if (queries.empty()) {
+            return answer;
+        }
+        std::vector<std::uint32_t> asked;
+        asked.reserve(queries.size());
+        for (const std::uint32_t query : queries) {
+            asked.push_back(position[query]);
+        }
+        std::sort(asked.begin(), asked.end());
+        asked.erase(std::unique(asked.begin(), asked.end()), asked.end());
+        const std::uint32_t last = asked.back();
+        struct Edge {
+            std::uint32_t downward;
+            std::uint32_t low;
+            std::uint32_t high;
         };
-        std::vector<Event> events;
-        events.reserve(origin_.size() + queries.size());
+        std::vector<Edge> crossing;
+        crossing.reserve(origin_.size() / 2);
         for (std::uint32_t h = 0; h < origin_.size(); h += 2) {
             if (edgeGeometry_[h / 2].kind != EdgeKind::segment) {
                 continue;  // unbounded: left to the caller
             }
-            if (points_[origin_[h]].y() == points_[origin_[h + 1]].y()) {
+            const std::uint32_t first = position[origin_[h]];
+            const std::uint32_t second = position[origin_[h + 1]];
+            const std::uint32_t low = std::min(first, second);
+            const std::uint32_t high = std::max(first, second);
+            const auto next = std::lower_bound(asked.begin(), asked.end(), low);
+            if (next == asked.end() || *next >= high) {
+                continue;  // on the line at no question
+            }
+            if (vertexCoordinateOrder(origin_[h], origin_[h + 1], true) == 0) {
                 continue;  // horizontal: it crosses no horizontal line
             }
-            const std::uint32_t downward =
-                points_[origin_[h]].y() > points_[origin_[h + 1]].y() ? h : h + 1;
-            events.push_back({position[origin_[downward]], downward, leaves});
-            events.push_back({position[origin_[downward ^ 1]], downward, joins});
+            crossing.push_back({first > second ? h : h + 1, low, high});
+        }
+
+        enum Phase : std::uint8_t { leaves = 0, joins = 1, asks = 2 };
+        struct Event {
+            std::uint32_t subject;  // a downward halfedge, or a query's position
+            Phase phase;
+        };
+        std::vector<std::uint32_t> start(last + 2, 0);
+        for (const Edge& edge : crossing) {
+            ++start[edge.low + 1];
+            if (edge.high <= last) {
+                ++start[edge.high + 1];
+            }
+        }
+        for (const std::uint32_t query : queries) {
+            ++start[position[query] + 1];
+        }
+        for (std::size_t i = 1; i < start.size(); ++i) {
+            start[i] += start[i - 1];
+        }
+        std::vector<Event> events(start.back());
+        std::vector<std::uint32_t> fill(start.begin(), start.end() - 1);
+        for (const Edge& edge : crossing) {
+            if (edge.high <= last) {
+                events[fill[edge.high]++] = {edge.downward, leaves};
+            }
+        }
+        for (const Edge& edge : crossing) {
+            events[fill[edge.low]++] = {edge.downward, joins};
         }
         for (std::uint32_t q = 0; q < queries.size(); ++q) {
-            events.push_back({position[queries[q]], q, asks});
+            events[fill[position[queries[q]]]++] = {q, asks};
         }
-        std::sort(events.begin(), events.end(), [](const Event& left, const Event& right) {
-            if (left.at != right.at) {
-                return left.at < right.at;
-            }
-            return left.phase < right.phase;
-        });
 
-        std::vector<HalfedgeId> answer(queries.size());
         using Status = detail::RedBlackTree<std::uint32_t, SweepOrder>;
         using Seat = typename Status::Handle;
         Status line(SweepOrder{this, &position});
@@ -3115,7 +3356,8 @@ private:
     [[nodiscard]] std::uint32_t leftmostVertexOf(std::uint32_t start) const {
         std::uint32_t leftmost = origin_[start];
         for (std::uint32_t h = next_[start]; h != start; h = next_[h]) {
-            if (points_[origin_[h]] < points_[leftmost]) {
+            const int order = vertexCoordinateOrder(origin_[h], leftmost, false);
+            if (order < 0 || (order == 0 && vertexCoordinateOrder(origin_[h], leftmost, true) < 0)) {
                 leftmost = origin_[h];
             }
         }

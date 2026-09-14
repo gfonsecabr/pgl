@@ -191,6 +191,8 @@ private:
     Int den;                 ///< Denominator (always > 0)
     bool normalized_ = true; ///< False when gcd(|num|, den) may exceed 1
 
+    friend struct std::hash<Rational>;
+
     /**
      * @brief How many heap limbs a deferred fraction may reach, once it is off
      * the inline store, before @ref reductionUrgent stops tolerating it.
@@ -968,6 +970,12 @@ public:
         using Wide = pgl::detail::promoted_number_t<Int>;
         if (storedInteger() && r.storedInteger()) {
             return num == r.num;
+        }
+        // Lowest terms with a positive denominator is a canonical form, so two
+        // reduced fractions are equal exactly when their parts are, which spares
+        // the two products the cross-multiplication below forms.
+        if (normalized_ && r.normalized_) {
+            return num == r.num && den == r.den;
         }
         if constexpr (comparesInWords) {
             return pgl::detail::compareProducts(num, r.den, r.num, den) == 0;

@@ -65,8 +65,15 @@ namespace std {
             // unreduced, so the hash has to be taken over the reduced parts.
             // Simplify once and read both from that: asking the value itself for
             // numerator() and denominator() would run the same gcd twice.
-            const pgl::Rational<Int> reduced = r.simplified();
+            // A value already in lowest terms is read in place: the copy that
+            // simplified() returns would cost more than the hash itself.
             std::size_t seed = 1;
+            if (r.normalized_) {
+                pgl::detail::hashCombine(seed, r.num);
+                pgl::detail::hashCombine(seed, r.den);
+                return seed;
+            }
+            const pgl::Rational<Int> reduced = r.simplified();
             pgl::detail::hashCombine(seed, reduced.numerator());
             pgl::detail::hashCombine(seed, reduced.denominator());
             return seed;
