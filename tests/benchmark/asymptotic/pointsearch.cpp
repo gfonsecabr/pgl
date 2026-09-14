@@ -24,6 +24,7 @@ void run(const bench::Options& opt, const bench::PointDataset& dataset) {
     using Point     = pgl::Point<Number>;
     using Rectangle = pgl::Rectangle<Point>;
     using Triangle  = pgl::Triangle<Point>;
+    using SquaredNumber = pgl::detail::promoted_number_t<Number>;
     const char* number = bench::numberName<Number>;
 
     const auto rectangles = bench::convert<Rectangle>(dataset.queryRectangles(bench::kQueryBatch));
@@ -69,8 +70,12 @@ void run(const bench::Options& opt, const bench::PointDataset& dataset) {
             const double us = bench::timeOnce(result, [&] {
                 double sum = 0;
                 for (const auto& q : queries) {
+                    // Promoted, like the tree's own comparisons: the checksum
+                    // is a squared distance, which for euro-night's coordinates
+                    // does not fit an int.
                     sum += static_cast<double>(
-                        q.squaredDistance(tree->nearestNeighbor(q)));
+                        q.template squaredDistance<SquaredNumber>(
+                            tree->nearestNeighbor(q)));
                 }
                 return sum;
             });

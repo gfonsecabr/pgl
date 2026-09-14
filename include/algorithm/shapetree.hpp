@@ -92,6 +92,17 @@ template <class ResultNumber, class Q, class Other>
     }
 }
 
+// Number type a nearest-neighbor traversal compares in when the caller names
+// no result type. The shape pair's own default settles what kind of number the
+// metric needs -- native arithmetic where nothing is divided, a rational where
+// something is, a double where a Disk makes the answer irrational -- but it
+// settles it at the coordinate's own width, and a distance is not linear in the
+// coordinate: two integer points 10^5 apart already square past a 32-bit int,
+// and even an L1 distance can carry past it. Promoting that choice keeps the
+// kind and widens the storage, so the bound the traversal prunes on cannot wrap.
+template <class Natural>
+using nearestResultNumber_t = promoted_number_t<std::remove_cvref_t<Natural>>;
+
 // Metric tags selecting which detail::nearest*Distance is used by Node::nearest,
 // so the branch-and-bound traversal is written once and shared by squared-L2,
 // L1 and LInf nearest-neighbor queries.
@@ -1949,11 +1960,14 @@ class ShapeTree {
      * descended first to tighten the bound early.
      *
      * With no explicit result type, the concrete shape pair chooses its natural
-     * type: native arithmetic when the metric uses no division, @ref
+     * type -- native arithmetic when the metric uses no division, @ref
      * division_result_t when it may produce a fraction, and `double` when a
-     * @ref Disk makes an irrational result possible. An explicitly requested
-     * integral `ResultNumber` may truncate fractional distances; the box lower
-     * bound remains conservative in that case.
+     * @ref Disk makes an irrational result possible -- and that choice is then
+     * promoted, so a squared distance between distant integer points is
+     * compared at twice the coordinate's width instead of wrapping. An
+     * explicitly requested `ResultNumber` is used as given, including a narrow
+     * or integral one, which may overflow or truncate fractional distances; the
+     * box lower bound remains conservative in the truncating case.
      *
      * If a @ref Disk is involved (as `ShapeType` or as `Q`), that leg may be
      * irrational and is computed in `double`, then converted to the common
@@ -1972,7 +1986,7 @@ class ShapeTree {
      */
     template <class Q>
     [[nodiscard]] const ShapeType& nearestNeighbor(const Q& q) const {
-        using ResultNumber = std::remove_cvref_t<decltype(
+        using ResultNumber = detail::nearestResultNumber_t<decltype(
             q.squaredDistance(std::declval<const ShapeType&>()))>;
         return nearestNeighborByMetric<detail::SquaredMetric, ResultNumber>(q);
     }
@@ -1997,7 +2011,7 @@ class ShapeTree {
      */
     template <class Q>
     [[nodiscard]] std::vector<ShapeType> kNearestNeighbors(const Q& q, int k) const {
-        using ResultNumber = std::remove_cvref_t<decltype(
+        using ResultNumber = detail::nearestResultNumber_t<decltype(
             q.squaredDistance(std::declval<const ShapeType&>()))>;
         return nearestNeighborsByMetric<detail::SquaredMetric, ResultNumber>(q, k);
     }
@@ -2024,7 +2038,7 @@ class ShapeTree {
      */
     template <class Q>
     [[nodiscard]] const ShapeType& nearestNeighborL1(const Q& q) const {
-        using ResultNumber = std::remove_cvref_t<decltype(
+        using ResultNumber = detail::nearestResultNumber_t<decltype(
             q.distanceL1(std::declval<const ShapeType&>()))>;
         return nearestNeighborByMetric<detail::L1Metric, ResultNumber>(q);
     }
@@ -2051,7 +2065,7 @@ class ShapeTree {
      */
     template <class Q>
     [[nodiscard]] const ShapeType& nearestNeighborLInf(const Q& q) const {
-        using ResultNumber = std::remove_cvref_t<decltype(
+        using ResultNumber = detail::nearestResultNumber_t<decltype(
             q.distanceLInf(std::declval<const ShapeType&>()))>;
         return nearestNeighborByMetric<detail::LInfMetric, ResultNumber>(q);
     }

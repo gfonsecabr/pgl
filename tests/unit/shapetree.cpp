@@ -471,6 +471,36 @@ TEST_CASE("ShapeTree nearestNeighbor keeps fractional comparisons exact by defau
     CHECK(tree.nearestNeighbor(Point(1, 1)) == nearer);
 }
 
+TEST_CASE("ShapeTree nearest neighbor promotes distances past the coordinate width") {
+    // Squared distances over coordinates of this size (the euro-night dataset's
+    // range) run to about 10^10, past what an int holds. The default comparison
+    // type has to be the promoted one or the wrapped distance elects a point on
+    // the far side of the tree.
+    const Point nearer(100000, 57000);
+    const std::vector<Point> points{nearer, Point(-100000, -57000), Point(90000, 50000)};
+    const pgl::ShapeTree<Point> tree(points, 1);
+    const Point q(102000, 57500);
+
+    CHECK(tree.nearestNeighbor(q) == nearer);
+    CHECK(tree.kNearestNeighbors(q, 1) == std::vector<Point>{nearer});
+
+    // The lower bound taken on a node box is promoted with them.
+    const std::vector<Point> spread{Point(1000000, 0), Point(-1000000, 0),
+                                    Point(0, 1000000), Point(0, -1000000)};
+    const pgl::ShapeTree<Point> wide(spread, 1);
+    CHECK(wide.nearestNeighbor(Point(999000, 1000)) == Point(1000000, 0));
+
+    // L1 and LInf are linear in the coordinate, so they need coordinates that
+    // nearly fill an int before a difference of two of them stops fitting one.
+    const Point close(2000000000, 0);
+    const std::vector<Point> extremes{close, Point(-2000000000, 0), Point(0, -2000000000)};
+    const pgl::ShapeTree<Point> huge(extremes, 1);
+    const Point far_query(1900000000, 100000000);
+
+    CHECK(huge.nearestNeighborL1(far_query) == close);
+    CHECK(huge.nearestNeighborLInf(far_query) == close);
+}
+
 TEST_CASE("ShapeTree empty tree returns a default-constructed L1/LInf nearest neighbor") {
     pgl::ShapeTree<Point> tree{std::vector<Point>{}};
     CHECK(tree.nearestNeighborL1(Point(0, 0)) == Point{});
