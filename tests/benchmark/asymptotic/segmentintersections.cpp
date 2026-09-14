@@ -1,14 +1,14 @@
 // @desc: All intersections and all crossings among n segments, by
 // findIntersections / findCrossings (which choose their own method), by
 // Bentley–Ottmann alone and by the xy-sweep.
-// @dataset small segments: Distinct segments with integer coordinates. One
+// @dataset small: Distinct segments with integer coordinates. One
 // endpoint is drawn uniformly from a disk of diameter 10,000 and the other is
 // offset from it by a vector drawn uniformly from a disk of diameter 1,000, so
 // most pairs are far apart.
 // @dataset sheared: The small segments under the shear (x, y) -> (x, 10x + y).
 // The same pairs meet, but the segments turn nearly vertical, so pairs whose
 // bounding boxes overlap outnumber the intersecting pairs many times over.
-// @dataset large segments: Distinct segments with integer coordinates. One
+// @dataset large: Distinct segments with integer coordinates. One
 // endpoint is drawn uniformly from a disk of diameter 5,000 and the other is
 // offset from it by a vector drawn uniformly from a disk of the same size, so
 // most pairs meet.
@@ -85,9 +85,9 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
 
 template <class Number>
 void run(const bench::Options& opt) {
-    sweepDataset<Number>(opt, "small segments", bench::kSegmentsSmall, bench::smallSegments);
+    sweepDataset<Number>(opt, "small",          bench::kSegmentsSmall, bench::smallSegments);
     sweepDataset<Number>(opt, "sheared",        bench::kSegmentsSmall, bench::shearedSegments);
-    sweepDataset<Number>(opt, "large segments", bench::kSegmentsLarge, bench::largeSegments);
+    sweepDataset<Number>(opt, "large",          bench::kSegmentsLarge, bench::largeSegments);
     sweepDataset<Number>(opt, "polygon edges",  bench::kSegmentsPolygon, bench::polygonEdges);
 }
 

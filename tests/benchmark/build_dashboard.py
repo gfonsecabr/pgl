@@ -242,20 +242,6 @@ def split_initial_pairs(pairs: dict):
 # find one by name.
 DATASET_ORDER = ["points", "small segments", "small", "sheared", "large segments", "large",
                  "polygon edges", "polygon", "large + large", "large + small", "triangles"]
-# The label a dataset's button carries where its recorded name says more than
-# the category around it needs. Only the page sees the label: the history, the
-# CGAL baseline, cgal_ratios.py and the drivers' --dataset filter keep the
-# recorded name, as do the drivers' `// @dataset` blocks.
-DATASET_LABEL = {
-    ("Segment intersections", "small segments"): "small",
-    ("Segment intersections", "large segments"): "large",
-}
-
-
-def dataset_label(category: str, dataset: str) -> str:
-    return DATASET_LABEL.get((category, dataset), dataset)
-
-
 PROBLEM_ORDER = ["build", "buildPointLocation", "locate", "locateFace",
                  "closest pair", "convex hull", "sort by angle", "Delaunay",
                  "kd-tree", "order 1", "order 2", "order 4", "farthest",
@@ -305,7 +291,7 @@ def build_asymptotic(history: str, repo_base: str, bench_root: str):
                 "machines": set(), "unit": canonical_unit(r.get("unit", "")),
                 "drivers": set(), "_data": {},
             })
-            dataset = dataset_label(category, r["dataset"])
+            dataset = r["dataset"]
             for d in entry["dims"]:
                 entry["dims"][d].add(dataset if d == "dataset" else r[d])
             entry["machines"].add(machine)
@@ -365,8 +351,7 @@ def build_asymptotic(history: str, repo_base: str, bench_root: str):
             if desc:
                 result["description"] = desc
             if datasets:
-                result["datasets"] = {dataset_label(category, name): text
-                                      for name, text in datasets.items()}
+                result["datasets"] = datasets
             if repo_base:
                 result["source_url"] = repo_base + source.replace(os.sep, "/")
             break
@@ -408,7 +393,7 @@ def read_baseline(history: str):
 
     grouped: dict[str, dict] = {}
     for r in snapshot.get("results", []):
-        key = "|".join((dataset_label(r["category"], r["dataset"]), r["problem"]))
+        key = "|".join((r["dataset"], r["problem"]))
         curves = grouped.setdefault(r["category"], {}).setdefault(key, {})
         for_algorithm = BASELINE_FOR_ALGORITHM.get(
             (r["category"], r["problem"], r["algorithm"]))

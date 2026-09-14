@@ -100,14 +100,14 @@ constexpr auto kArrangement      = linearSizes(10000);
 constexpr auto kArrangementLarge = linearSizes(2000);
 
 // ── 3. Intersection of line segments ────────────────────────────────────────
-// One list per dataset, except that sheared shares small segments': the others
+// One list per dataset, except that sheared shares small's: the others
 // differ by orders of magnitude in output at the same n. Anchored to
 // Bentley–Ottmann over ERational coordinates, the slowest cell of each.
-//   small segments — capped by its quadratic output.
+//   small          — capped by its quadratic output.
 //   sheared        — the small segments under an affine shear, so the same
 //     crossings at the same n; it shares their list. Here the xy sweep, not
 //     Bentley–Ottmann, is the slowest cell.
-//   large segments — large ones span half the disk, so they cross far more
+//   large          — large ones span half the disk, so they cross far more
 //     often, and a sixth of the n already yields more crossings than the small
 //     sweep reaches at its own ceiling.
 //   polygon edges  — a simple polygon's edges cross nowhere, so this is the

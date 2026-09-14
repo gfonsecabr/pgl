@@ -111,9 +111,9 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
 template <class K>
 void run(const bench::Options& opt) {
     if (!bench::cgal::selected<K>(opt)) return;
-    sweepDataset<K>(opt, "small segments", bench::kSegmentsSmall, bench::smallSegments);
+    sweepDataset<K>(opt, "small",          bench::kSegmentsSmall, bench::smallSegments);
     sweepDataset<K>(opt, "sheared",        bench::kSegmentsSmall, bench::shearedSegments);
-    sweepDataset<K>(opt, "large segments", bench::kSegmentsLarge, bench::largeSegments);
+    sweepDataset<K>(opt, "large",          bench::kSegmentsLarge, bench::largeSegments);
     if (std::is_same_v<K, bench::cgal::Kernel>) {
         sweepDataset<K, CGAL::Arr_non_caching_segment_traits_2<K>>(
             opt, "polygon edges", bench::kSegmentsPolygon, bench::polygonEdges);
