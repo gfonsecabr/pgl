@@ -115,3 +115,34 @@ TEST_CASE("Polyline and Convex intersection pieces") {
         CHECK(std::get<Segment>(pieces[0]) == Segment(Point(0, 2), Point(4, 2)));
     }
 }
+
+TEST_CASE("Convex::boundary is the closed polyline through its vertices") {
+    SUBCASE("counterclockwise from the minimum vertex, the first repeated") {
+        const Convex hull(std::vector<Point>{Point(4, 4), Point(0, 0), Point(2, 2), Point(0, 4), Point(4, 0)});
+        const PLine ring = hull.boundary();
+        CHECK(ring.isClosed());
+        REQUIRE(ring.size() == 5);
+        CHECK(ring[0] == Point(0, 0));
+        CHECK(ring[1] == Point(4, 0));
+        CHECK(ring[2] == Point(4, 4));
+        CHECK(ring[3] == Point(0, 4));
+        CHECK(ring[4] == Point(0, 0));
+        CHECK(ring.isSimple());
+        CHECK(hull.boundaryContains(ring));
+    }
+
+    SUBCASE("the translation is applied") {
+        Convex moved = square;
+        moved += Point(-2, 7);
+        const PLine ring = moved.boundary();
+        CHECK(ring == PLine({-2, 7, 2, 7, 2, 11, -2, 11, -2, 7}));
+        CHECK(ring[0] == Point(-2, 7));
+    }
+
+    SUBCASE("degenerate and empty hulls") {
+        CHECK(Convex().boundary().empty());
+        const PLine dot = Convex(std::vector<Point>{Point(3, 1)}).boundary();
+        CHECK(dot.size() == 2);
+        CHECK(dot.isClosed());
+    }
+}

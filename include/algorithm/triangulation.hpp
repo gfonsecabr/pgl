@@ -3484,7 +3484,14 @@ struct Triangulation {
         // both sides) plus the interior vertices — and the vertices are redundant
         // here: a shape of positive dimension whose interior reaches one of them
         // also reaches, arbitrarily close by, an open triangle or an interior
-        // edge. (For a point it would not, which is why a point is its own case.)
+        // edge. (For a point it would not, which is why a point is its own case,
+        // and so is a closed polyline covering a single point, whose interior
+        // is that point.)
+        if constexpr (PolylineConcept<Q>) {
+            if (const auto point = shape.getIfPoint()) {
+                return interiorContains(*point);
+            }
+        }
         return visitTrianglesIntersecting(shape, [&](const TriangleType& t) {
             if (t.interiorsIntersect(shape)) {
                 return true;

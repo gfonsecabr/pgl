@@ -58,10 +58,21 @@ TEST_CASE("Polyline interiorContains Point") {
     CHECK(!zig.interiorContains(Point(4, 0)));
     CHECK(!zig.interiorContains(Point(1, 0)));
 
-    SUBCASE("a closed polyline still excludes its doubled extreme point") {
+    SUBCASE("a closed polyline has no boundary: its doubled extreme is interior") {
+        CHECK(loop.isClosed());
         CHECK(loop.contains(Point(0, 0)));
-        CHECK(!loop.interiorContains(Point(0, 0)));
+        CHECK(loop.interiorContains(Point(0, 0)));
+        CHECK(!loop.boundaryContains(Point(0, 0)));
         CHECK(loop.interiorContains(Point(1, 0)));
+        CHECK(loop.interiorsIntersect(Point(0, 0)));
+    }
+
+    SUBCASE("an open polyline returning next to its start keeps both extremes") {
+        const PLine almost({0, 0, 2, 0, 2, 2, 0, 2, 0, 1});
+        CHECK(!almost.isClosed());
+        CHECK(almost.boundaryContains(Point(0, 0)));
+        CHECK(almost.boundaryContains(Point(0, 1)));
+        CHECK(!almost.interiorContains(Point(0, 0)));
     }
 
     SUBCASE("point interior-contains a degenerate polyline") {

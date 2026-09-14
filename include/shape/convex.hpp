@@ -819,6 +819,25 @@ struct Convex {
     }
 
     /**
+     * @brief Returns the closed polyline that bounds the convex polygon.
+     *
+     * The vertices are taken in counterclockwise order from the minimum one,
+     * translation applied, with the first repeated at the end. An empty convex
+     * polygon gives an empty polyline.
+     *
+     * Complexity: O(n) for n vertices.
+     *
+     * @return Closed polyline through the vertices.
+     */
+    [[nodiscard]] constexpr Polyline<PointType> boundary() const {
+        auto ring = vertices();
+        if (!ring.empty()) {
+            ring.push_back(ring.front());
+        }
+        return Polyline<PointType>(ring);
+    }
+
+    /**
      * @brief Returns the convex polygon as a one-component set of regions.
      *
      * A convex polygon with no area covers nothing that survives

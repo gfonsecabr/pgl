@@ -517,16 +517,17 @@ The monotone structure speeds up several predicates and constructions:
 
 ### Polyline
 
-The class template `Polyline` represents a polyline, also called a polygonal chain, polygonal curve, polygonal path, or piecewise linear curve. Unlike `MonotoneChain`, the order of the vertices matter and the polyline is allowed to self-intersect. A polyline with $n$ vertices has $n-1$ edges and no closing edge. Its boundary is its two extreme vertices and its interior is everything else.
+The class template `Polyline` represents a polyline, also called a polygonal chain, polygonal curve, polygonal path, or piecewise linear curve. Unlike `MonotoneChain`, the order of the vertices matter and the polyline is allowed to self-intersect. A polyline with $n$ vertices has $n-1$ edges and no implicit closing edge. An open polyline's boundary is its two extreme vertices and its interior is everything else. A closed polyline, whose first vertex equals its last, has an empty boundary and is its own interior; this includes a polyline whose vertices are all equal. Two polylines are equal when their vertex sequences agree up to reversal and, for closed polylines, up to the starting vertex.
 A polyline can be constructed from any container of points, or from a flat list of coordinates.
 
 A polyline `P` with $n$ vertices has methods such as:
 
+- `P.isClosed()`: Returns true if the first vertex equals the last (in particular for a single-vertex polyline), and false for an empty polyline.
 - `P.isDegenerate()`: Returns true if all vertices are equal (in particular for an empty or single-vertex polyline).
 - `P.isPoint()` / `P.getIfPoint()`: Whether the polyline collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
 - `P.isSegment()` / `P.getIfSegment()`: Whether the polyline collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
 - `P.isUndefined()`: True only for an empty polyline, which has no vertex.
-- `P.isSimple()`: Returns true if the edges only intersect at the shared endpoints of consecutive edges. In an open chain the first and last edges are not consecutive, so a closed polyline (first vertex equal to the last) is not simple. Takes $O(n \log n)$ time for exact coordinate types. Floating-point coordinates, which the exact sweep line cannot take, go through a bounding-box sweep instead, for $O((n+k) \log n)$ time where $k$ is the number of pairs of edges with overlapping bounding boxes; that is $O(n \log n)$ unless the edges are long compared to the spacing of the vertices.
+- `P.isSimple()`: Returns true if the edges only intersect at the shared endpoints of consecutive edges. The first and last edges are consecutive exactly when the polyline is closed. Takes $O(n \log n)$ time for exact coordinate types. Floating-point coordinates, which the exact sweep line cannot take, go through a bounding-box sweep instead, for $O((n+k) \log n)$ time where $k$ is the number of pairs of edges with overlapping bounding boxes; that is $O(n \log n)$ unless the edges are long compared to the spacing of the vertices.
 - `P.latticePoints<ResultNumber>()`: The integer points on `P`, edge by edge in traversal order, each of them once — a shared vertex, a crossing and a retraced part are all reported only where the polyline first reaches them. Same result type and same `std::logic_error` on a point too large for it as the segment's.
 - `P.length()`, `P.lengthL1()`, `P.lengthLInf()`: Return the Euclidean, Manhattan, and Chebyshev lengths of the polyline. A self-overlapping polyline counts every traversal of a repeated part.
 
@@ -554,6 +555,7 @@ A convex polygon `c` has methods such as:
 - `c.insert(points)`: Enlarges the convex polygon in order to contain every point in the input range.
 - `c.upperHull()`: Returns the upper monotone chain.
 - `c.lowerHull()`: Returns the lower monotone chain.
+- `c.boundary()`: Returns the closed `Polyline` through the vertices in counterclockwise order, the first repeated at the end. Takes $O(n)$ time.
 
 It knows how to convert itself to:
 - `(pgl::Polygon) c` or `c.asPolygon()`: Returns the polygon representation of the convex polygon.
@@ -584,6 +586,7 @@ A polygon `P` has methods such as:
 - `P.isSimple()`: Returns true if the edges only intersect at the endpoints of consecutive edges. Takes $O(n \log n)$ time for $n$ edges with exact coordinate types. Floating-point coordinates, which the exact sweep line cannot take, go through a bounding-box sweep instead, for $O((n+k) \log n)$ time where $k$ is the number of pairs of edges with overlapping bounding boxes; that is $O(n \log n)$ unless the edges are long compared to the spacing of the vertices.
 - `P.isConvex()`: Returns true if the polygon is convex, possibly with vertices subdividing convex hull edges. Takes $O(n)$ time.
 - `P.asPolygonWithHoles()`: Returns the polygon as a hole-free `PolygonWithHoles` region.
+- `P.boundary()`: Returns the closed `Polyline` through the vertices in order, the first repeated at the end. Simplicity is not checked. Takes $O(n)$ time.
 - `P.asBitMatrix<ResultNumber>()`: Returns the polygon rasterized into a [`BitMatrix`](data_structures.md#bit-matrix) over its bounding box, one bit per covered cell. Every edge must be axis-parallel and every coordinate a whole number, otherwise it throws `std::logic_error` — a `Rational` or floating-point coordinate is checked, never rounded. `ResultNumber` is the grid's integer type, by default the coordinate type itself, the integer a `Rational` is built on, or `int64_t`.
 - `P.untangle()`: Makes the polygon simple in place. Edges that cross are flipped and when a flip is blocked by collinearity (collinear vertices) the offending vertex is removed. On return `P.isSimple()` holds. Worst-case complexity is high.
 - `P.interiorContainsInterior(s)`: Returns true when the open segment lies in the polygon's strict interior; its endpoints may lie on the boundary.

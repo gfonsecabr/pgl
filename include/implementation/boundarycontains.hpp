@@ -1133,14 +1133,15 @@ constexpr bool Polygon<PointType, LabelType>::boundaryContains(const OtherChain&
 
 /**
  * @section predicates-polyline Polyline
- * Open polygonal chain predicates: the boundary of a polyline is its two
- * extreme vertices, matching the endpoint convention of Segment.
+ * Polygonal chain predicates: the boundary of an open polyline is its two
+ * extreme vertices, matching the endpoint convention of Segment, and a closed
+ * polyline has no boundary.
  */
 
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
 constexpr bool Polyline<PointType, LabelType>::boundaryContains(const OtherPoint& point) const {
-    if (points_.empty()) {
+    if (points_.empty() || isClosed()) {
         return false;
     }
     return point == points_.front() + translation_ || point == points_.back() + translation_;

@@ -81,7 +81,7 @@ Factories cover the common exact cases: `identity()`, `translation(dx,dy)`, `sca
 
 ### Predicates
 
-Many pairs of shapes `A` and `B` support the following predicates, where $\partial A$ denotes the manifold boundary of $A$, and $A^\circ = A \setminus \partial A$ is the relative interior. The boundary of a one-dimensional shape consists of its endpoints (see also [shapes](shapes.md)).
+Many pairs of shapes `A` and `B` support the following predicates, where $\partial A$ denotes the manifold boundary of $A$, and $A^\circ = A \setminus \partial A$ is the relative interior. The boundary of a one-dimensional shape consists of its endpoints, and is empty for a closed [`Polyline`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polyline.html "Open polygonal chain stored in traversal order; may self-intersect.") (see also [shapes](shapes.md)).
 
 | Predicate | Definition | Question |
 | --------- | ---------- | --------- |

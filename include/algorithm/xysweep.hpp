@@ -300,10 +300,11 @@ bool Polygon<PointType_, LabelType>::isSimple() const {
 /**
  * @brief Tests whether the polyline is simple.
  *
- * Takes the same three paths as @ref Polygon::isSimple, over the chain's edges
- * rather than a ring's: the exact sweep line for integer and rational
- * coordinates, the bounding-box sweep for large floating-point ones, and the
- * pairwise scan for the small ones.
+ * Takes the same three paths as @ref Polygon::isSimple, over the chain's edges:
+ * the exact sweep line for integer and rational coordinates, the bounding-box
+ * sweep for large floating-point ones, and the pairwise scan for the small
+ * ones. A closed polyline is tested as a ring, its first and last edges being
+ * adjacent.
  *
  * @tparam Rational Exact rational type used internally by the sweep line.
  * @return `true` if the edges only meet at the shared endpoints of consecutive
@@ -331,17 +332,20 @@ bool Polyline<PointType_, TLabel>::isSimple() const {
     // Exact sweep for large integer/rational polylines; the bounding-box sweep
     // for large floating-point ones, which the exact sweep cannot handle; brute
     // force for the small ones either way.
+    // A closed polyline is a ring: its first and last edges meet at the
+    // doubled vertex just as consecutive edges do.
+    const bool ring = isClosed();
     if constexpr (!std::is_floating_point_v<Number>) {
         if (edges.size() > 8) {
             pgl::detail::BentleyOttmann<Rational, pgl::Segment<PointType>> bo;
-            return bo.testPolyLine(edges);
+            return ring ? bo.testPolygon(edges) : bo.testPolyLine(edges);
         }
     } else if (edges.size() > detail::xySweepMinSegments) {
+        const std::size_t last = edges.size() - 1;
         bool notSimple = false;
-        detail::visitXYSweepPairs(edges, [&edges, &notSimple](std::size_t a, std::size_t b) {
-            // In an open chain the first and last edges are NOT adjacent, so a
-            // closed polyline (first vertex equal to the last) is not simple.
-            const bool adjacent = (a + 1 == b) || (b + 1 == a);
+        detail::visitXYSweepPairs(edges, [&edges, last, ring, &notSimple](std::size_t a, std::size_t b) {
+            const bool adjacent = (a + 1 == b) || (b + 1 == a) ||
+                                  (ring && ((a == 0 && b == last) || (b == 0 && a == last)));
             notSimple = adjacent ? edges[a].interiorsIntersect(edges[b])
                                  : edges[a].intersects(edges[b]);
             return notSimple;  // the first violation ends the sweep
@@ -352,9 +356,7 @@ bool Polyline<PointType_, TLabel>::isSimple() const {
     const std::ptrdiff_t m = static_cast<std::ptrdiff_t>(edges.size());
     for (std::ptrdiff_t i = 0; i < m; ++i) {
         for (std::ptrdiff_t j = i + 1; j < m; ++j) {
-            // In an open chain the first and last edges are NOT adjacent, so a
-            // closed polyline (first vertex equal to the last) is not simple.
-            const bool adjacent = (j == i + 1);
+            const bool adjacent = (j == i + 1) || (ring && i == 0 && j == m - 1);
             if (adjacent) {
                 if (edges[i].interiorsIntersect(edges[j])) {
                     return false;  // consecutive edges overlap beyond the shared vertex

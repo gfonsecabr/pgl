@@ -167,3 +167,33 @@ TEST_CASE("Polyline and Polygon intersection clips each edge and coalesces") {
         CHECK(PLine({7, 7, 9, 9}).intersection<int>(square).empty());
     }
 }
+
+TEST_CASE("Polygon::boundary is the closed polyline through its vertices") {
+    SUBCASE("vertices in order, the first repeated") {
+        const PLine ring = square.boundary();
+        CHECK(ring.isClosed());
+        REQUIRE(ring.size() == square.size() + 1);
+        for (std::size_t i = 0; i < square.size(); ++i) {
+            CHECK(ring[i] == square[i]);
+        }
+        CHECK(ring[square.size()] == square[0]);
+        CHECK(ring == PLine({0, 0, 6, 0, 6, 6, 0, 6, 0, 0}));
+        CHECK(square.boundaryContains(ring));
+        CHECK(ring.samePointSet(ushape.boundary()) == false);
+    }
+
+    SUBCASE("the translation is applied") {
+        PGon moved = ushape;
+        moved += Point(10, -3);
+        const PLine ring = moved.boundary();
+        REQUIRE(ring.size() == 9);
+        CHECK(ring[0] == Point(10, -3));
+        CHECK(ring[3] == Point(14, 3));
+        CHECK(ring[8] == Point(10, -3));
+        CHECK(moved.boundaryContains(ring));
+    }
+
+    SUBCASE("an empty polygon has an empty boundary") {
+        CHECK(PGon().boundary().empty());
+    }
+}

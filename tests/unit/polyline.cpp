@@ -13,8 +13,9 @@
 #include <vector>
 
 // Polyline keeps the vertices exactly in the given traversal order, including
-// the direction; equality and hashing are what ignore the direction, reading
-// the vertices in canonical order instead.
+// the direction; equality and hashing are what ignore the direction (and the
+// starting vertex of a closed polyline), reading the vertices in canonical
+// order instead.
 TEST_CASE("Polyline construction preserves the traversal order") {
     using Point = pgl::Point<int>;
     using Polyline = pgl::Polyline<Point>;
@@ -47,6 +48,41 @@ TEST_CASE("Polyline construction preserves the traversal order") {
         CHECK(a[1] == Point(1, 3));  // each keeps its own direction
         CHECK(b[1] == Point(1, 5));
         CHECK(std::hash<Polyline>{}(a) == std::hash<Polyline>{}(b));
+    }
+
+    SUBCASE("a closed polyline equals the same loop started elsewhere") {
+        const Polyline a({Point(0, 0), Point(4, 0), Point(4, 4), Point(0, 4), Point(0, 0)});
+        const Polyline b({Point(4, 4), Point(0, 4), Point(0, 0), Point(4, 0), Point(4, 4)});
+        const Polyline c({Point(4, 0), Point(0, 0), Point(0, 4), Point(4, 4), Point(4, 0)});  // reversed too
+        CHECK(a == b);
+        CHECK(a == c);
+        CHECK((b <=> c) == std::strong_ordering::equal);
+        CHECK(std::hash<Polyline>{}(a) == std::hash<Polyline>{}(b));
+        CHECK(std::hash<Polyline>{}(a) == std::hash<Polyline>{}(c));
+        CHECK(b[0] == Point(4, 4));  // each keeps its own start
+    }
+
+    SUBCASE("rotation is not equality for an open polyline or a different loop") {
+        const Polyline open({Point(0, 0), Point(4, 0), Point(4, 4), Point(0, 4)});
+        const Polyline rotated({Point(4, 0), Point(4, 4), Point(0, 4), Point(0, 0)});
+        CHECK(open != rotated);
+        const Polyline square({Point(0, 0), Point(4, 0), Point(4, 4), Point(0, 4), Point(0, 0)});
+        const Polyline bowtie({Point(0, 0), Point(4, 0), Point(0, 4), Point(4, 4), Point(0, 0)});
+        CHECK(square != bowtie);
+        CHECK((square <=> bowtie) != std::strong_ordering::equal);
+        CHECK(std::is_lt(square <=> bowtie) == std::is_gt(bowtie <=> square));
+    }
+
+    SUBCASE("a loop through a repeated vertex compares by its whole cycle") {
+        // A figure eight through (0,0) started at each of its visits to it.
+        const Polyline a({Point(0, 0), Point(2, 1), Point(2, -1), Point(0, 0), Point(-2, 1), Point(-2, -1), Point(0, 0)});
+        const Polyline b({Point(0, 0), Point(-2, 1), Point(-2, -1), Point(0, 0), Point(2, 1), Point(2, -1), Point(0, 0)});
+        const Polyline c({Point(2, 1), Point(2, -1), Point(0, 0), Point(-2, 1), Point(-2, -1), Point(0, 0), Point(2, 1)});
+        CHECK(a == b);
+        CHECK(a == c);
+        CHECK(std::hash<Polyline>{}(b) == std::hash<Polyline>{}(c));
+        std::unordered_set<Polyline> set{a, b, c};
+        CHECK(set.size() == 1);
     }
 
     SUBCASE("repeated vertices are kept") {
@@ -278,8 +314,19 @@ TEST_CASE("Polyline isSimple") {
         CHECK(!Polyline({0, 0, 2, 2, 2, 0, 0, 2}).isSimple());
     }
 
-    SUBCASE("a closed polyline is not simple (first and last edges meet)") {
-        CHECK(!Polyline({0, 0, 2, 0, 2, 2, 0, 2, 0, 0}).isSimple());
+    SUBCASE("a closed polyline tracing a simple cycle is simple") {
+        CHECK(Polyline({0, 0, 2, 0, 2, 2, 0, 2, 0, 0}).isSimple());
+        CHECK(Polyline({2, 2, 0, 2, 0, 0, 2, 0, 2, 2}).isSimple());
+    }
+
+    SUBCASE("a closed polyline that retraces or crosses itself is not simple") {
+        CHECK(!Polyline({0, 0, 2, 0, 0, 0}).isSimple());
+        CHECK(!Polyline({0, 0, 2, 2, 2, 0, 0, 2, 0, 0}).isSimple());
+        CHECK(!Polyline({0, 0, 2, 0, 2, 2, 0, 0, 0, 2, -2, 2, 0, 0}).isSimple());  // figure eight
+    }
+
+    SUBCASE("an open polyline ending on its first edge is not simple") {
+        CHECK(!Polyline({0, 0, 2, 0, 2, 2, 1, 0}).isSimple());
     }
 
     SUBCASE("revisiting a vertex is not simple") {
@@ -313,8 +360,14 @@ TEST_CASE("Polyline isSimple") {
         CHECK(staircase.isSimple());
 
         auto closed = stair;
-        closed.push_back(stair.front());
+        closed.push_back(stair.front());  // the closing edge cuts the staircase
         CHECK(!Polyline(closed).isSimple());
+
+        auto ring = stair;
+        ring.push_back(Point(7, 8));
+        ring.push_back(Point(0, 8));
+        ring.push_back(stair.front());
+        CHECK(Polyline(ring).isSimple());
 
         auto revisit = stair;
         revisit.push_back(Point(3, 3));  // an existing interior vertex
@@ -597,9 +650,12 @@ TEST_CASE("Polyline interiorsIntersect Polyline") {
         CHECK(zig.interiorsIntersect(cross));
     }
 
-    SUBCASE("degenerate sizes have empty interiors") {
-        CHECK(!zig.interiorsIntersect(PLine({Point(2, 2)})));
-        CHECK(!PLine({Point(2, 2)}).interiorsIntersect(zig));
+    SUBCASE("a single vertex is closed and is its own interior") {
+        CHECK(zig.interiorsIntersect(PLine({Point(2, 2)})));
+        CHECK(PLine({Point(2, 2)}).interiorsIntersect(zig));
+        CHECK(!zig.interiorsIntersect(PLine({Point(0, 0)})));  // zig's extreme
+        CHECK(!PLine({Point(0, 0)}).interiorsIntersect(zig));
+        CHECK(PLine({Point(3, 3), Point(3, 3)}).interiorsIntersect(PLine({Point(3, 3)})));
     }
 }
 

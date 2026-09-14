@@ -21,7 +21,9 @@
 // rule: a chain with two or more distinct collinear vertices is already
 // one-dimensional rather than collapsed, so it keeps the ordinary relative
 // interior it shares with Segment. Only a chain whose vertices all coincide
-// has collapsed.
+// has collapsed. A polyline whose vertices all coincide is not collapsed
+// either: its first vertex equals its last, so it is closed, and a closed
+// polyline has empty boundary and is its own interior -- exactly a Point.
 
 using P = pgl::Point<int>;
 
@@ -117,8 +119,22 @@ TEST_CASE("Shapes collapsed to a point behave as that point with empty interior"
     SUBCASE("Rectangle") { checkShape(pgl::Rectangle<P>(p, p), p); }
     SUBCASE("Convex") { checkShape(pgl::Convex<P>(std::vector<P>{p}), p); }
     SUBCASE("Polygon") { checkShape(pgl::Polygon<P>(std::vector<P>{p, p, p}), p); }
-    SUBCASE("Polyline") { checkShape(pgl::Polyline<P>(std::vector<P>{p, p}), p); }
     SUBCASE("MonotoneChain") { checkShape(pgl::MonotoneChain<P>(std::vector<P>{p}), p); }
+}
+
+TEST_CASE("A polyline covering a single point is closed and behaves as that point") {
+    const P p(2, 2);
+
+    SUBCASE("one vertex") {
+        const pgl::Polyline<P> dot(std::vector<P>{p});
+        REQUIRE(dot.isClosed());
+        checkShape(dot, p, Mode::Equivalent);
+    }
+    SUBCASE("repeated vertex") {
+        const pgl::Polyline<P> dot(std::vector<P>{p, p, p});
+        REQUIRE(dot.isClosed());
+        checkShape(dot, p, Mode::Equivalent);
+    }
 }
 
 TEST_CASE("A radius-zero disk behaves as its centre with empty interior") {

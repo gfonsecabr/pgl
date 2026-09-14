@@ -1020,6 +1020,25 @@ struct Polygon {
     }
 
     /**
+     * @brief Returns the closed polyline that bounds the polygon.
+     *
+     * The vertices are taken in the polygon's order, translation applied, with
+     * the first repeated at the end. Simplicity is not checked. An empty
+     * polygon gives an empty polyline.
+     *
+     * Complexity: O(n) for n vertices.
+     *
+     * @return Closed polyline through the vertices.
+     */
+    [[nodiscard]] constexpr Polyline<PointType> boundary() const {
+        auto ring = vertices();
+        if (!ring.empty()) {
+            ring.push_back(ring.front());
+        }
+        return Polyline<PointType>(ring);
+    }
+
+    /**
      * @brief Computes the area-weighted centroid of the polygon.
      * @tparam ResultNumber The number type for the result.
      * @warning Uses division by 3 and the area, so the result may be inexact even for floating-point types.

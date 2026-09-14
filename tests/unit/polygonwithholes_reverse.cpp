@@ -371,18 +371,18 @@ TEST_CASE("PolygonWithHoles reverse containment: the polyline holds a ring no po
     SUBCASE("the loop holds the region but not the polygon it bounds") {
         CHECK(loop.contains(ring));
         CHECK_FALSE(loop.contains(ring.outer()));
-        // Its two extreme vertices coincide at (0,0), which is in the region,
-        // so the relative interior falls short of it.
-        CHECK_FALSE(loop.interiorContains(ring));
-        CHECK(loop.boundaryContains(Point(0, 0)));
+        // Its two extreme vertices coincide at (0,0), so it is closed: no
+        // boundary, and the relative interior is the whole loop.
+        CHECK(loop.interiorContains(ring));
+        CHECK_FALSE(loop.boundaryContains(Point(0, 0)));
     }
 
-    SUBCASE("a loop started mid-edge leaves both ends outside the region's corner") {
+    SUBCASE("a loop started mid-edge is closed as well") {
         const PolylineShape shifted({Point(8, 0), Point(16, 0), Point(16, 16), Point(0, 16), Point(0, 0),
                                 Point(8, 0)});
         CHECK(shifted.contains(ring));
-        // The extremes are both (8,0), on the ring, so again not interior.
-        CHECK_FALSE(shifted.interiorContains(ring));
+        // The extremes are both (8,0): closed again, so nothing is excluded.
+        CHECK(shifted.interiorContains(ring));
     }
 
     SUBCASE("a loop with a tail has its extremes off the ring") {

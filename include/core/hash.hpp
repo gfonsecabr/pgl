@@ -419,11 +419,12 @@ namespace std {
                 return polyline.hash_;
             }
             std::size_t seed = pgl::detail::shapeRank<Shape>;
-            // A polyline equals its reversal, so the vertices are hashed in
-            // canonical direction rather than in the stored traversal order.
-            const bool reversed = !polyline.storedIsCanonical();
+            // A polyline equals its reversal, and a closed one equals itself
+            // started elsewhere, so the vertices are hashed in canonical order
+            // rather than in the stored traversal order.
+            const auto order = polyline.canonicalOrder();
             for (std::size_t i = 0; i < polyline.size(); ++i) {
-                pgl::detail::hashCombine(seed, polyline.canonicalAt(i, reversed));
+                pgl::detail::hashCombine(seed, polyline.canonicalAt(i, order));
             }
             // Never store the sentinel: remap the single colliding value so the
             // cache can always distinguish "computed" from "not computed".

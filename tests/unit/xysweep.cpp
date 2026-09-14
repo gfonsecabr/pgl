@@ -273,12 +273,22 @@ TEST_CASE("Polyline::isSimple takes the sweep path for large floating-point chai
         CHECK(simpleByDefinition(edgesOf(chain, false), false));
     }
 
-    SUBCASE("closing the chain makes it non-simple") {
+    SUBCASE("closing a simple ring keeps it simple") {
         auto vertices = flowerVertices<Point>(sweepSize);
-        vertices.push_back(vertices.front());  // first and last edges are not adjacent
+        vertices.push_back(vertices.front());  // first and last edges become adjacent
+        PolylineShape chain(vertices);
+        REQUIRE(chain.isClosed());
+        CHECK(chain.isSimple());
+        CHECK(simpleByDefinition(edgesOf(chain, false), true));
+    }
+
+    SUBCASE("a closed chain whose ring crosses itself is not simple") {
+        auto vertices = flowerVertices<Point>(sweepSize);
+        std::swap(vertices[3], vertices[sweepSize / 2]);
+        vertices.push_back(vertices.front());
         PolylineShape chain(vertices);
         CHECK(!chain.isSimple());
-        CHECK(!simpleByDefinition(edgesOf(chain, false), false));
+        CHECK(!simpleByDefinition(edgesOf(chain, false), true));
     }
 
     SUBCASE("a revisited vertex breaks it") {

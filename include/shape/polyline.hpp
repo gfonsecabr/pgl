@@ -35,13 +35,13 @@ Polyline(std::initializer_list<Number>) -> Polyline<Point<Number>, NoLabel>;
 
 
 /**
- * @brief An open polygonal chain stored by its vertices in traversal order
- * plus a translation.
+ * @brief A polygonal chain, open or closed, stored by its vertices in
+ * traversal order plus a translation.
  *
  * `Polyline` mirrors the storage layout of @ref Polygon — a vector of vertices
- * and a `translation_` applied lazily on access — but the vertices form an
- * open chain: n vertices are joined by n - 1 edges and there is no closing
- * edge back to the first vertex. Unlike @ref MonotoneChain, the vertices keep
+ * and a `translation_` applied lazily on access — but n vertices are joined by
+ * n - 1 edges, with no implicit closing edge back to the first vertex: a loop
+ * repeats its first vertex at the end. Unlike @ref MonotoneChain, the vertices keep
  * the order they were given in, so the chain may bend backwards, revisit
  * points, and self-intersect; @ref isSimple reports whether it does not.
  *
@@ -51,17 +51,20 @@ Polyline(std::initializer_list<Number>) -> Polyline<Point<Number>, NoLabel>;
  * the same set of points, so `operator==`/`operator<=>` and `std::hash` read
  * the vertices in a canonical direction instead of the stored one, giving
  * `Polyline({a, b, c}) == Polyline({c, b, a})` without ever flipping the
- * stored sequence. Repeated vertices are kept as given. A repeated
+ * stored sequence. Likewise a closed polyline equals the same loop started
+ * at another vertex, `Polyline({a, b, c, a}) == Polyline({b, c, a, b})`. Repeated vertices are kept as given. A repeated
  * *consecutive* vertex produces a zero-length edge; like other degenerate
  * inputs in the library, such a polyline is outside the contract of the
  * geometric predicates (@ref isSimple reports `false` for it, and
  * @ref isDegenerate is `true` only when *all* vertices are equal).
  *
- * As a 1-dimensional manifold with boundary, the polyline's boundary is its
- * two extreme vertices and its relative interior is everything else (matching
- * the convention of @ref Segment and @ref MonotoneChain). Note that for a
- * closed polyline (first vertex equal to the last) this convention still
- * subtracts that vertex from the interior.
+ * A polyline is either open or closed (@ref isClosed). An open polyline is a
+ * 1-dimensional manifold with boundary: its boundary is its two extreme
+ * vertices and its relative interior is everything else (matching the
+ * convention of @ref Segment and @ref MonotoneChain). A closed polyline, whose
+ * first vertex equals its last, is a loop: its boundary is empty and its
+ * relative interior is the whole polyline. That includes a polyline whose
+ * vertices are all equal, whose interior is that point.
  *
  * @tparam PointType_ The vertex point type.
  */
@@ -376,9 +379,10 @@ struct Polyline {
     /**
      * @brief Compares two polylines by their canonical vertex sequences.
      *
-     * The stored direction is irrelevant: each side is read through @ref
-     * canonicalAt, so the order is the one induced by the lexicographically
-     * smaller of each sequence and its reversal.
+     * The stored direction is irrelevant, and so is the starting vertex of a
+     * closed polyline: each side is read through @ref canonicalAt, so the order
+     * is the one induced by the lexicographically smallest reading of each
+     * sequence (see @ref canonicalOrder).
      *
      * Complexity: O(n) for n vertices.
      */
@@ -386,10 +390,10 @@ struct Polyline {
         if (auto cmp = size() <=> other.size(); cmp != 0) {
             return cmp;
         }
-        const bool reversed = !storedIsCanonical();
-        const bool otherReversed = !other.storedIsCanonical();
+        const CanonicalOrder order = canonicalOrder();
+        const CanonicalOrder otherOrder = other.canonicalOrder();
         for (std::size_t i = 0; i < size(); ++i) {
-            if (auto cmp = canonicalAt(i, reversed) <=> other.canonicalAt(i, otherReversed);
+            if (auto cmp = canonicalAt(i, order) <=> other.canonicalAt(i, otherOrder);
                 cmp != 0) {
                 return cmp;
             }
@@ -403,16 +407,18 @@ struct Polyline {
      * Complexity: O(n) for n vertices.
      *
      * @return True if both polylines have the same vertices in the same order,
-     *         up to the traversal direction: a polyline equals its reversal.
+     *         up to the traversal direction and, for closed polylines, up to
+     *         the starting vertex: a polyline equals its reversal, and a loop
+     *         equals the same loop started elsewhere.
      */
     constexpr bool operator==(const Polyline& other) const {
         if (size() != other.size()) {
             return false;
         }
-        const bool reversed = !storedIsCanonical();
-        const bool otherReversed = !other.storedIsCanonical();
+        const CanonicalOrder order = canonicalOrder();
+        const CanonicalOrder otherOrder = other.canonicalOrder();
         for (std::size_t i = 0; i < size(); ++i) {
-            if (canonicalAt(i, reversed) != other.canonicalAt(i, otherReversed)) {
+            if (canonicalAt(i, order) != other.canonicalAt(i, otherOrder)) {
                 return false;
             }
         }
@@ -563,6 +569,20 @@ struct Polyline {
     }
 
     /**
+     * @brief Checks whether the polyline is a closed loop: its first vertex
+     * equals its last.
+     *
+     * A closed polyline has an empty boundary and its relative interior is the
+     * whole polyline. A single-vertex polyline, and more generally one whose
+     * vertices are all equal, is closed. The empty polyline is not.
+     *
+     * Complexity: O(1).
+     */
+    [[nodiscard]] constexpr bool isClosed() const {
+        return !points_.empty() && points_.front() == points_.back();
+    }
+
+    /**
      * @brief Checks if the polyline is degenerate (all vertices are equal, so
      * it covers at most a single point).
      *
@@ -649,9 +669,10 @@ struct Polyline {
      * itself).
      *
      * Simple means no two non-adjacent edges share a point and consecutive
-     * edges meet only at their shared vertex; in an open chain the first and
-     * last edges are *not* adjacent, so a closed polyline (first vertex equal
-     * to the last) is not simple. A zero-length edge (repeated consecutive
+     * edges meet only at their shared vertex; the first and last edges are
+     * adjacent exactly when the polyline is closed (@ref isClosed), so a
+     * closed polyline tracing a simple cycle is simple, while an open one
+     * whose ends touch is not. A zero-length edge (repeated consecutive
      * vertex) also makes the polyline not simple. A polyline with fewer than
      * two vertices is vacuously simple.
      *
@@ -963,19 +984,20 @@ struct Polyline {
     /**
      * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
-     * The boundary of a polyline is its two extreme vertices (matching the
-     * endpoint convention of @ref Segment).
+     * The boundary of an open polyline is its two extreme vertices (matching
+     * the endpoint convention of @ref Segment); a closed polyline has none.
      *
      * Complexity: O(1).
      *
      * @tparam OtherPoint Type of the point.
      * @param point Point to test.
-     * @return `true` if the point equals the first or the last vertex.
+     * @return `true` if the polyline is open and the point equals its first or
+     *         its last vertex.
      */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool boundaryContains(const OtherPoint& point) const;
 
-    // The boundary of a polyline is exactly its two extreme vertices, a finite
+    // The boundary of a polyline is at most its two extreme vertices, a finite
     // point set, so it contains no positive-length or two-dimensional shape.
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<SegmentConcept OtherSegment>
@@ -1034,14 +1056,14 @@ struct Polyline {
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<MonotoneChainConcept OtherChain>
     [[nodiscard]] constexpr bool boundaryContains(const OtherChain& other) const {
-        // The boundary is the two extreme vertices, so only a chain without an
-        // edge fits inside it.
+        // The boundary is at most the two extreme vertices, so only a chain
+        // without an edge fits inside it.
         return other.empty() || (other.size() == 1 && boundaryContains(other[0]));
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<PolylineConcept OtherPolyline>
     [[nodiscard]] constexpr bool boundaryContains(const OtherPolyline& other) const {
-        // The boundary is the two extreme vertices, so only a polyline
+        // The boundary is at most the two extreme vertices, so only a polyline
         // covering at most one point fits inside it.
         return other.empty() || (other.isDegenerate() && boundaryContains(other[0]));
     }
@@ -1054,14 +1076,15 @@ struct Polyline {
     /**
      * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      *
-     * The relative interior of a polyline is the polyline minus its two
-     * extreme vertices.
+     * The relative interior of an open polyline is the polyline minus its two
+     * extreme vertices; that of a closed polyline is the whole polyline.
      *
      * Complexity: O(n) for n vertices.
      *
      * @tparam OtherPoint Type of the point.
      * @param point Point to test.
-     * @return `true` if the point lies on the polyline and is not an extreme vertex.
+     * @return `true` if the point lies on the polyline and is not on its
+     *         boundary.
      */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorContains(const OtherPoint& point) const;
@@ -1073,8 +1096,9 @@ struct Polyline {
      *
      * @tparam OtherSegment Type of the other segment.
      * @param other Segment to test.
-     * @return `true` if the polyline contains the segment and the segment
-     *         avoids both extreme vertices of the polyline.
+     * @return `true` if the polyline contains the segment and, when the
+     *         polyline is open, the segment avoids both of its extreme
+     *         vertices.
      */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool interiorContains(const OtherSegment& other) const;
@@ -1244,16 +1268,16 @@ struct Polyline {
     /**
      * @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅).
      *
-     * The polyline's relative interior is the polyline minus its extreme
-     * vertices, so a polyline vertex other than the extremes counts as
-     * interior: a segment whose open part passes exactly through such a vertex
-     * engages this predicate even though it crosses no open edge.
+     * The polyline's relative interior is the polyline minus its boundary, so
+     * a vertex not on the boundary counts as interior: a segment whose open
+     * part passes exactly through such a vertex engages this predicate even
+     * though it crosses no open edge.
      *
      * Complexity: O(n) for n vertices.
      *
      * @tparam OtherSegment Type of the other segment.
      * @param other Segment to test.
-     * @return `true` if the polyline minus its extremes meets the open segment.
+     * @return `true` if the polyline minus its boundary meets the open segment.
      */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherSegment& other) const;
@@ -1292,8 +1316,8 @@ struct Polyline {
     /**
      * @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅).
      *
-     * All-pairs edge test plus the crossing-at-a-non-extreme-vertex checks in
-     * both directions.
+     * All-pairs edge test plus the crossing-at-a-vertex checks in both
+     * directions, excluding the extremes of an open polyline only.
      *
      * Complexity: O(n m) for polylines with n and m vertices.
      */
@@ -2572,41 +2596,96 @@ struct Polyline {
                                                                  const NewSegment& newEdge) const;
 
     /**
-     * @brief Tests whether the stored vertex sequence is in canonical
-     * direction: not lexicographically larger than its reversal.
+     * @brief Where and in which direction the canonical reading of the vertex
+     * sequence starts in the stored one.
+     */
+    struct CanonicalOrder {
+        std::size_t start = 0;
+        bool reversed = false;
+    };
+
+    /**
+     * @brief Finds the canonical reading of the stored vertex sequence: the
+     * lexicographically smallest among the readings that give the same
+     * polyline.
      *
-     * The stored sequence keeps the user's traversal order, so this is not an
-     * invariant but a question asked on demand by the direction-agnostic
-     * comparators and by std::hash, which read the vertices through
-     * @ref canonicalAt.
+     * An open polyline is read forwards or backwards from an end. A closed
+     * polyline is the cycle of its first n - 1 vertices, which may be read in
+     * either direction from any of them, the starting vertex repeated at the
+     * end. The stored sequence keeps the user's traversal order, so this is
+     * not an invariant but a question asked on demand by the comparators and
+     * by std::hash, which read the vertices through @ref canonicalAt.
      *
      * Complexity: O(n) for n vertices.
      */
-    constexpr bool storedIsCanonical() const {
-        if (points_.size() < 2) {
-            return true;
+    constexpr CanonicalOrder canonicalOrder() const {
+        const std::size_t n = points_.size();
+        if (n < 3 || !isClosed()) {
+            // Readings from either end; a closed polyline this short has a
+            // single vertex on its cycle, so the same test settles it.
+            const bool reversed = std::lexicographical_compare(points_.rbegin(), points_.rend(),
+                                                               points_.begin(), points_.end());
+            return {0, reversed};
         }
-        const auto cmp = points_.front() <=> points_.back();
-        if (cmp < 0) {
-            return true;
+        const std::size_t m = n - 1;
+        // Vertex at position p of the cycle read from 0 in the given direction.
+        const auto at = [this, m](std::size_t p, bool reversed) -> const PointType& {
+            p %= m;
+            return points_[reversed ? (m - p) % m : p];
+        };
+        // Least rotation of that reading, by the two-candidate scan: the start
+        // that loses a comparison at offset k cannot begin a least rotation,
+        // nor can any of the k starts after it.
+        const auto leastRotation = [&at, m](bool reversed) {
+            std::size_t i = 0;
+            std::size_t j = 1;
+            std::size_t k = 0;
+            while (i < m && j < m && k < m) {
+                const auto cmp = at(i + k, reversed) <=> at(j + k, reversed);
+                if (cmp == 0) {
+                    ++k;
+                    continue;
+                }
+                if (cmp > 0) {
+                    i += k + 1;
+                } else {
+                    j += k + 1;
+                }
+                if (i == j) {
+                    ++j;
+                }
+                k = 0;
+            }
+            return std::min(i, j);
+        };
+        const std::size_t forward = leastRotation(false);
+        const std::size_t backward = leastRotation(true);
+        for (std::size_t k = 0; k < m; ++k) {
+            const auto cmp = at(backward + k, true) <=> at(forward + k, false);
+            if (cmp != 0) {
+                return cmp < 0 ? CanonicalOrder{backward, true} : CanonicalOrder{forward, false};
+            }
         }
-        if (cmp > 0) {
-            return false;
-        }
-        // Equal extremes: the tie is broken by the full sequences.
-        return !std::lexicographical_compare(points_.rbegin(), points_.rend(),
-                                             points_.begin(), points_.end());
+        return {forward, false};
     }
 
     /**
-     * @brief Reads vertex @p index in canonical direction.
+     * @brief Reads vertex @p index of the canonical sequence.
      *
      * @param index Index in the canonical sequence.
-     * @param reversed `!storedIsCanonical()`, computed once by the caller so a
-     *        full comparison stays linear.
+     * @param order `canonicalOrder()`, computed once by the caller so a full
+     *        comparison stays linear.
      */
-    constexpr PointType canonicalAt(std::size_t index, bool reversed) const {
-        return (*this)[reversed ? size() - 1 - index : index];
+    constexpr PointType canonicalAt(std::size_t index, CanonicalOrder order) const {
+        const std::size_t n = size();
+        if (n < 3 || !isClosed()) {
+            return (*this)[order.reversed ? n - 1 - index : index];
+        }
+        // Position index of the cycle read from start; index m is the start
+        // again, the repeated last vertex.
+        const std::size_t m = n - 1;
+        const std::size_t p = (order.start + index) % m;
+        return (*this)[order.reversed ? (m - p) % m : p];
     }
 
     class Iterator {

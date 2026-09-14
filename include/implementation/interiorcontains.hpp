@@ -1540,10 +1540,11 @@ constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherChain&
 
 /**
  * @section predicates-polyline Polyline
- * Open polygonal chain predicates. The relative interior of a polyline is the
+ * Polygonal chain predicates. The relative interior of an open polyline is the
  * polyline minus its two extreme vertices as a point set: a self-intersecting
  * polyline may pass through an extreme vertex again mid-chain, and that point
- * is still excluded.
+ * is still excluded. A closed polyline (first vertex equal to the last) has no
+ * boundary, so its interior is the whole polyline.
  */
 
 template <class PointType, class LabelType>
@@ -1555,12 +1556,13 @@ constexpr bool Polyline<PointType, LabelType>::interiorContains(const OtherPoint
 template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
 constexpr bool Polyline<PointType, LabelType>::interiorContains(const OtherSegment& other) const {
-    // The interior is the polyline minus the two extreme points, so a
-    // contained segment lies in it iff the segment avoids those points
-    // entirely -- not just with its endpoints: the polyline may revisit an
-    // extreme vertex in the middle of the segment.
-    return contains(other) && !other.contains((*this)[0]) &&
-           !other.contains((*this)[size() - 1]);
+    // The interior of an open polyline is the polyline minus the two extreme
+    // points, so a contained segment lies in it iff the segment avoids those
+    // points entirely -- not just with its endpoints: the polyline may revisit
+    // an extreme vertex in the middle of the segment. A closed polyline is its
+    // own interior.
+    return contains(other) &&
+           (isClosed() || (!other.contains((*this)[0]) && !other.contains((*this)[size() - 1])));
 }
 
 template <class PointType, class LabelType>
@@ -1612,9 +1614,9 @@ constexpr bool Polyline<PointType, LabelType>::interiorContains(const OtherChain
         return true;
     }
     // Same set subtraction as the segment overload: the contained chain must
-    // avoid both extreme points of this polyline entirely.
-    return contains(other) && !other.contains((*this)[0]) &&
-           !other.contains((*this)[size() - 1]);
+    // avoid both extreme points of an open polyline entirely.
+    return contains(other) &&
+           (isClosed() || (!other.contains((*this)[0]) && !other.contains((*this)[size() - 1])));
 }
 
 template <class PointType, class LabelType>
@@ -1624,9 +1626,9 @@ constexpr bool Polyline<PointType, LabelType>::interiorContains(const OtherPolyl
         return true;
     }
     // Same set subtraction as the segment overload: the contained polyline
-    // must avoid both extreme points of this polyline entirely.
-    return contains(other) && !other.contains((*this)[0]) &&
-           !other.contains((*this)[size() - 1]);
+    // must avoid both extreme points of an open polyline entirely.
+    return contains(other) &&
+           (isClosed() || (!other.contains((*this)[0]) && !other.contains((*this)[size() - 1])));
 }
 
 template <class Number, class Label>
