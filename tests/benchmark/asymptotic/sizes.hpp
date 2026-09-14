@@ -100,7 +100,7 @@ constexpr auto kTriangulation = linearSizes(100000);
 // disk, so their output outgrows the small segments' at the same n.
 constexpr auto kArrangement      = linearSizes(10000);
 constexpr auto kArrangementLarge = linearSizes(2000);
-constexpr auto kArrangementMixed = linearSizes(3500);
+constexpr auto kArrangementMixed = linearSizes(4000);
 
 // ── 3. Intersection of line segments ────────────────────────────────────────
 // One list per dataset, except that sheared shares small's: the others
