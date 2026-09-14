@@ -20,12 +20,14 @@
  * every box is shadowed by an outward-rounded `double` one and the cheap test
  * runs first; a shadow that misses the query proves the exact box does too.
  *
- * A tree of points is built the other way round. Points cannot straddle, so the
- * split is the median and the tree is known before any node is made: the points
- * are moved into the order that tree reads them in -- every subtree one
- * contiguous run -- and the nodes fall out of that one pass. A subtree is then a
- * range rather than a list of indices, which is what a query walks and what the
- * build sweeps over.
+ * The elements are kept in the order the tree visits them, so that a query
+ * reads the ones a node owns, and the boxes beside them, off consecutive
+ * addresses. A tree of points gets that order before it is built: points cannot
+ * straddle, so the split is the median and the tree is known before any node is
+ * made, and moving the points into place is itself the whole of the split
+ * selection -- the nodes fall out of that one pass, and a subtree becomes a
+ * range rather than a list of indices. A tree of shapes gets it afterwards,
+ * which is the soonest the node that owns each shape is known.
  */
 
 #include <algorithm>
@@ -1594,6 +1596,47 @@ class ShapeTree {
         return id;
     }
 
+    // Moves the elements into the order the finished tree visits them, so that
+    // the ones a node owns sit together, and rewrites the nodes' index lists to
+    // where they now are. The tree itself does not change: a node's box, count
+    // and weight name no element, and the order of the elements a node holds is
+    // unspecified in any case.
+    //
+    // Shapes cannot be laid out ahead of the build the way points are. A
+    // bounding box straddles a split and stays at the node that made it, so
+    // which node owns a shape is not settled until the splits below it have
+    // been chosen, and a subtree's elements are not a range in any order. Doing
+    // it afterwards costs one pass and buys the same thing: a query reads a
+    // node's elements, and the filter boxes beside them, off consecutive
+    // addresses instead of hopping over the whole array. `nodes_` is already in
+    // pre-order, so a linear pass over it is that visit.
+    //
+    // Every element is owned by exactly one node, so each is moved once and the
+    // pass is a permutation. Moving them leaves whatever a shape holds where it
+    // is -- only the array of shells is built a second time.
+    void groupElementsByNode() {
+        std::vector<ShapeType> grouped;
+        grouped.reserve(elements_.size());
+        std::vector<FilterBox> groupedFilters;
+        if constexpr (usesFilter) {
+            groupedFilters.reserve(filterBoxes_.size());
+        }
+        for (Node& node : nodes_) {
+            for (std::size_t& index : node.elementIndices) {
+                if constexpr (usesFilter) {
+                    groupedFilters.push_back(filterBoxes_[index]);
+                }
+                const std::size_t moved = grouped.size();
+                grouped.push_back(std::move(elements_[index]));
+                index = moved;
+            }
+        }
+        elements_.swap(grouped);
+        if constexpr (usesFilter) {
+            filterBoxes_.swap(groupedFilters);
+        }
+    }
+
     // Discards the current node structure and rebuilds it from elements_.
     void buildFromElements() {
         nodes_.clear();
@@ -1613,10 +1656,10 @@ class ShapeTree {
         // partition into two more, and no element reached anywhere but through
         // the run it sits in, at build time and at query time alike.
         //
-        // Shapes are left where they are. A bounding box straddles a split and
-        // stays at the node that made it, so a shape subtree's elements are not
-        // a range to begin with, and that build already reads its box ends from
-        // lists it keeps in order, one sort for the whole tree.
+        // Shapes are built from where they are -- their box ends are sorted
+        // once for the whole tree and inherited down it -- and gathered node by
+        // node afterwards, which is the soonest the node that owns each of them
+        // is known.
         if constexpr (PointConcept<ShapeType>) {
             // Enough nodes for a tree whose leaves came out at least half full,
             // which is what splitting near the median leaves. A run of one
@@ -1657,6 +1700,7 @@ class ShapeTree {
         }
         std::vector<std::uint8_t> side(elements_.size());
         root_ = buildFromEnds(ends, 0, side);
+        groupElementsByNode();
     }
 
     // Appends the subtree bounding boxes to `out` in pre-order.
