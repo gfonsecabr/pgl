@@ -249,9 +249,12 @@ public:
      * inequality that admits it and not a fallback out of the bound; and `Q` is
      * at most `2E`, a question being one boundary cycle and the cycles being
      * halfedge-disjoint, so `O((E + Q) log E)` is `O(E log E)` either way.
-     * Input containing a ray or line uses the general carrier overlay, which
-     * tests every pair of distinct supporting lines and is quadratic in their
-     * number before the same `O(E log E)` topology construction.
+     *
+     * Rays and lines add `O(k (k + n + m))` to all of that, for `k` distinct
+     * supporting lines among them, `n` distinct segments and `m` isolated
+     * points: they are tested against everything else one by one rather than
+     * swept, so a handful of them costs next to nothing, and only the nesting
+     * questions — one per boundary cycle — pay `O(k)` more apiece.
      *
      * Passing @p disjointInteriors drops the splitting step altogether, leaving
      * `O(E log E)`, and that is the whole of what @ref pgl::voronoiDiagram
@@ -1417,12 +1420,24 @@ private:
         [[no_unique_address]] TLabel label;
     };
 
-    // A segment, ray, or line before collinear inputs are overlaid.
+    // A ray or line before collinear inputs are overlaid. Segments are kept
+    // apart, as InputSegment, so the splitter never sees an unbounded curve.
     struct InputCurve {
         EdgeKind kind;
         PointType a;
         PointType b;
         std::uint32_t origin;
+        [[no_unique_address]] TLabel label;
+    };
+
+    // An edge of the finished arrangement that reaches infinity, as the overlay
+    // of rays and lines emits it: the source and a direction point for a ray,
+    // two points spanning it for a line, and every input shape covering it.
+    struct UnboundedPiece {
+        EdgeKind kind;
+        PointType a;
+        PointType b;
+        std::vector<std::uint32_t> origins;
         [[no_unique_address]] TLabel label;
     };
 
@@ -1472,11 +1487,6 @@ private:
                 input.label = detail::copyLabel<TLabel>(shape);
             }
             segments.push_back(std::move(input));
-            InputCurve curve{EdgeKind::segment, a < b ? a : b, a < b ? b : a, index, TLabel{}};
-            if constexpr (detail::has_label_v<TLabel>) {
-                curve.label = detail::copyLabel<TLabel>(shape);
-            }
-            curves.push_back(std::move(curve));
         };
 
         if constexpr (detail::is_shape_v<InputShape>) {
@@ -1539,18 +1549,23 @@ private:
 
     void build(std::vector<InputSegment>& segments, std::vector<InputCurve>& curves,
                std::vector<PointType>& isolated, bool disjointInteriors) {
-        const bool hasUnbounded = std::ranges::any_of(
-            curves, [](const InputCurve& curve) { return curve.kind != EdgeKind::segment; });
-        if (hasUnbounded) {
-            buildUnbounded(curves, isolated, disjointInteriors);
-            return;
+        std::vector<Piece> pieces;
+        std::vector<UnboundedPiece> unbounded;
+        if (curves.empty()) {
+            pieces = split(segments, isolated, disjointInteriors,
+                           [](const Segment<PointType>&, std::vector<PointType>&) {});
+        } else {
+            overlayUnbounded(segments, curves, isolated, disjointInteriors, pieces, unbounded);
         }
-        std::vector<Piece> pieces = split(segments, isolated, disjointInteriors);
-        internVertices(pieces, isolated);
+        internVertices(pieces, isolated, unbounded);
         simplifyStoredCoordinates();
         syncVertexApproximations();
         wireHalfedges();
-        buildFaces();
+        if (infinity_.valid()) {
+            buildFacesUnbounded();
+        } else {
+            buildFaces();
+        }
     }
 
     // A stretch of one carrier that some input curve covers, as a parameter
@@ -1574,17 +1589,6 @@ private:
         bool usesX;
         std::vector<CarrierInterval> intervals;
         std::vector<NumberType> cuts;
-    };
-
-    // A piece of a carrier between consecutive cuts, so no other curve crosses
-    // its interior. These are the pieces the halfedge structure is wired from,
-    // and `origins` records every input shape covering the piece.
-    struct AtomicCurve {
-        std::uint32_t carrier;
-        std::optional<NumberType> low;
-        std::optional<NumberType> high;
-        std::vector<std::uint32_t> origins;
-        [[no_unique_address]] TLabel label;
     };
 
     // Where a point on a carrier falls along it. Vertical carriers are
@@ -1655,18 +1659,32 @@ private:
         return point;
     }
 
-    // General normalization for input containing a ray or a line. Collinear
-    // inputs are overlaid as intervals on one exact carrier; intersections of
-    // distinct carriers then become additional interval endpoints.
+    // The overlay for input containing a ray or a line. The segments still go
+    // through @ref split, so they cost what they cost without the unbounded
+    // curves; only the rays and lines are overlaid as intervals on exact
+    // carriers, and only they are tested against everything else. With `k`
+    // carriers, `n` distinct segments and `m` isolated points, that is
+    // `O(k (k + n + m))` on top of the bounded construction, which is what
+    // keeps a handful of rays and lines from making the whole overlay quadratic.
     //
     // Collinear curves are grouped by hashing their supporting line rather than
     // by testing each new curve against the carriers already built: Line's hash
     // and equality are the exact ones, so the grouping is the same, and it is
     // the difference between one hash per curve and a quadratic number of
     // orientation predicates over coordinates that are usually rationals.
-    void buildUnbounded(const std::vector<InputCurve>& curves,
-                        const std::vector<PointType>& isolated,
-                        bool disjointInteriors) {
+    //
+    // A carrier is cut wherever a segment, another carrier or an isolated
+    // point meets a stretch of it some input covers, and a segment is cut
+    // wherever a covered stretch of a carrier meets it. The stretches of a
+    // carrier between two cuts come out as ordinary pieces, so a segment lying
+    // along a ray or a line merges with it in @ref internVertices exactly as two
+    // overlapping segments do; only the stretches reaching infinity come out as
+    // @p unbounded.
+    void overlayUnbounded(std::vector<InputSegment>& segments,
+                          const std::vector<InputCurve>& curves,
+                          const std::vector<PointType>& isolated, bool disjointInteriors,
+                          std::vector<Piece>& pieces,
+                          std::vector<UnboundedPiece>& unbounded) {
         std::vector<Carrier> carriers;
         std::unordered_map<Line<PointType>, std::uint32_t> carrierOf;
         for (const InputCurve& curve : curves) {
@@ -1682,27 +1700,26 @@ private:
                 carriers.push_back(Carrier{a, b, !(a.x() == b.x()), {}, {}});
             }
             Carrier& carrier = carriers[entry->second];
-            const NumberType ta = parameterOf(carrier, curve.a);
-            const NumberType tb = parameterOf(carrier, curve.b);
             CarrierInterval interval{{}, {}, curve.origin, curve.label};
-            if (curve.kind == EdgeKind::segment) {
-                interval.low = std::min(ta, tb);
-                interval.high = std::max(ta, tb);
-            } else if (curve.kind == EdgeKind::ray) {
+            if (curve.kind == EdgeKind::ray) {
+                const NumberType ta = parameterOf(carrier, curve.a);
+                const NumberType tb = parameterOf(carrier, curve.b);
                 if (ta < tb) {
                     interval.low = ta;
+                    carrier.cuts.push_back(ta);
                 } else {
                     interval.high = ta;
+                    carrier.cuts.push_back(ta);
                 }
-            }
-            if (interval.low.has_value()) {
-                carrier.cuts.push_back(*interval.low);
-            }
-            if (interval.high.has_value()) {
-                carrier.cuts.push_back(*interval.high);
             }
             carrier.intervals.push_back(std::move(interval));
         }
+        const auto covered = [](const Carrier& carrier, const NumberType& value) {
+            return std::ranges::any_of(carrier.intervals,
+                                       [&](const CarrierInterval& interval) {
+                                           return covers(interval, value);
+                                       });
+        };
 
         for (Carrier& carrier : carriers) {
             for (const PointType& point : isolated) {
@@ -1710,18 +1727,14 @@ private:
                     continue;
                 }
                 const NumberType value = parameterOf(carrier, point);
-                if (std::ranges::any_of(carrier.intervals,
-                                        [&](const CarrierInterval& interval) {
-                                            return covers(interval, value);
-                                        })) {
+                if (covered(carrier, value)) {
                     carrier.cuts.push_back(value);
                 }
             }
         }
 
         // Where two carriers cross inside stretches both of them carry, both
-        // must be cut. This is the quadratic step, and it is the whole cost of
-        // the construction: a caller that has promised its curves meet only at
+        // must be cut. A caller that has promised its curves meet only at
         // shared endpoints has promised that every crossing found here is one
         // the interval tests would reject, so the pairs go unexamined.
         if (!disjointInteriors) {
@@ -1736,13 +1749,7 @@ private:
                     const PointType& point = std::get<PointType>(*intersection);
                     const NumberType ti = parameterOf(carriers[i], point);
                     const NumberType tj = parameterOf(carriers[j], point);
-                    const bool onFirst = std::ranges::any_of(
-                        carriers[i].intervals,
-                        [&](const CarrierInterval& interval) { return covers(interval, ti); });
-                    const bool onSecond = std::ranges::any_of(
-                        carriers[j].intervals,
-                        [&](const CarrierInterval& interval) { return covers(interval, tj); });
-                    if (onFirst && onSecond) {
+                    if (covered(carriers[i], ti) && covered(carriers[j], tj)) {
                         carriers[i].cuts.push_back(ti);
                         carriers[j].cuts.push_back(tj);
                     }
@@ -1750,13 +1757,69 @@ private:
             }
         }
 
-        std::vector<AtomicCurve> atoms;
-        for (std::uint32_t c = 0; c < carriers.size(); ++c) {
-            Carrier& carrier = carriers[c];
-            // A cut coming from a carrier crossing is an unreduced fraction, and
-            // it is read by the sort and unique here, by the interval tests in
-            // emit, and again by pointAt once it reaches an atom. One gcd apiece
-            // covers all of it; the same reasoning as split's cut lists.
+        // Each distinct segment against each carrier, from inside the splitter
+        // so the segment cuts join the ones the segments produce among
+        // themselves. Under the same promise as above there is nothing to find.
+        const auto cutAgainstCarriers = [&](const Segment<PointType>& segment,
+                                            std::vector<PointType>& cuts) {
+            if (disjointInteriors) {
+                return;
+            }
+            for (Carrier& carrier : carriers) {
+                const auto low = orientationSign(carrier.a, carrier.b, segment.min());
+                const auto high = orientationSign(carrier.a, carrier.b, segment.max());
+                if ((low > 0 && high > 0) || (low < 0 && high < 0)) {
+                    continue;
+                }
+                if (low == 0 && high == 0) {
+                    // Along the carrier: its covered stretch starts or stops
+                    // wherever an interval end falls inside the segment, and the
+                    // segment's own ends are where the overlap starts and stops.
+                    const NumberType first = parameterOf(carrier, segment.min());
+                    const NumberType last = parameterOf(carrier, segment.max());
+                    for (const CarrierInterval& interval : carrier.intervals) {
+                        for (const auto& end : {interval.low, interval.high}) {
+                            if (end.has_value() && first < *end && *end < last) {
+                                cuts.push_back(pointAt(carrier, *end));
+                            }
+                        }
+                    }
+                    carrier.cuts.push_back(first);
+                    carrier.cuts.push_back(last);
+                    continue;
+                }
+                if (low == 0 || high == 0) {
+                    // An endpoint on the carrier, which the segment's cut list
+                    // already holds.
+                    const NumberType value =
+                        parameterOf(carrier, low == 0 ? segment.min() : segment.max());
+                    if (covered(carrier, value)) {
+                        carrier.cuts.push_back(value);
+                    }
+                    continue;
+                }
+                const auto crossing =
+                    Line<PointType>(carrier.a, carrier.b)
+                        .template intersection<NumberType>(
+                            Line<PointType>(segment.min(), segment.max()));
+                if (!crossing || !std::holds_alternative<PointType>(*crossing)) {
+                    continue;
+                }
+                const PointType& point = std::get<PointType>(*crossing);
+                const NumberType value = parameterOf(carrier, point);
+                if (covered(carrier, value)) {
+                    carrier.cuts.push_back(value);
+                    cuts.push_back(point);
+                }
+            }
+        };
+        pieces = split(segments, isolated, disjointInteriors, cutAgainstCarriers);
+
+        for (Carrier& carrier : carriers) {
+            // A cut coming from a crossing is an unreduced fraction, and it is
+            // read by the sort and unique here, by the interval tests below, and
+            // again by pointAt. One gcd apiece covers all of it; the same
+            // reasoning as split's cut lists.
             if constexpr (pgl::is_Rational_v<NumberType>) {
                 for (NumberType& cut : carrier.cuts) {
                     cut.simplify();
@@ -1766,8 +1829,27 @@ private:
             carrier.cuts.erase(std::unique(carrier.cuts.begin(), carrier.cuts.end()),
                                carrier.cuts.end());
 
-            const auto emit = [&](std::optional<NumberType> low,
-                                  std::optional<NumberType> high) {
+            // The stretch between two consecutive cuts, absent bounds reaching
+            // infinity: one piece per input shape covering it when it is
+            // bounded, so internVertices merges it with any segment along it,
+            // and one unbounded edge remembering all of them otherwise.
+            const auto emit = [&](const std::optional<NumberType>& low,
+                                  const std::optional<NumberType>& high) {
+                if (low.has_value() && high.has_value()) {
+                    std::optional<std::array<PointType, 2>> ends;
+                    for (const CarrierInterval& interval : carrier.intervals) {
+                        if (!covers(interval, low, high)) {
+                            continue;
+                        }
+                        if (!ends) {
+                            ends.emplace(std::array<PointType, 2>{pointAt(carrier, *low),
+                                                                  pointAt(carrier, *high)});
+                        }
+                        pieces.push_back(
+                            Piece{(*ends)[0], (*ends)[1], interval.origin, interval.label});
+                    }
+                    return;
+                }
                 const CarrierInterval* first = nullptr;
                 std::vector<std::uint32_t> origins;
                 for (const CarrierInterval& interval : carrier.intervals) {
@@ -1784,8 +1866,20 @@ private:
                 }
                 std::sort(origins.begin(), origins.end());
                 origins.erase(std::unique(origins.begin(), origins.end()), origins.end());
-                atoms.push_back(AtomicCurve{c, std::move(low), std::move(high),
-                                            std::move(origins), first->label});
+                if (!low.has_value() && !high.has_value()) {
+                    unbounded.push_back(UnboundedPiece{EdgeKind::line, carrier.a, carrier.b,
+                                                       std::move(origins), first->label});
+                    return;
+                }
+                const bool increasing = low.has_value();
+                PointType source = pointAt(carrier, increasing ? *low : *high);
+                const NumberType dx = carrier.b.x() - carrier.a.x();
+                const NumberType dy = carrier.b.y() - carrier.a.y();
+                PointType direction(increasing ? source.x() + dx : source.x() - dx,
+                                    increasing ? source.y() + dy : source.y() - dy);
+                unbounded.push_back(UnboundedPiece{EdgeKind::ray, std::move(source),
+                                                   std::move(direction), std::move(origins),
+                                                   first->label});
             };
 
             if (carrier.cuts.empty()) {
@@ -1794,93 +1888,10 @@ private:
             }
             emit({}, carrier.cuts.front());
             for (std::size_t i = 0; i + 1 < carrier.cuts.size(); ++i) {
-                if (!(carrier.cuts[i] == carrier.cuts[i + 1])) {
-                    emit(carrier.cuts[i], carrier.cuts[i + 1]);
-                }
+                emit(carrier.cuts[i], carrier.cuts[i + 1]);
             }
             emit(carrier.cuts.back(), {});
         }
-
-        std::unordered_map<PointType, std::uint32_t> vertexOf;
-        const auto idOf = [&](const PointType& point) {
-            const auto found = vertexOf.find(point);
-            if (found != vertexOf.end()) {
-                return found->second;
-            }
-            const auto id = static_cast<std::uint32_t>(points_.size());
-            points_.push_back(point);
-            vertexOf.emplace(point, id);
-            return id;
-        };
-
-        // An atom's ends, interned as they are built. Both passes below read the
-        // same two points of every atom, and rebuilding one is a division and a
-        // reduction (see @ref pointAt) and then a hash of the exact result: kept
-        // here instead, each end of each edge of the arrangement costs that once
-        // rather than twice.
-        struct AtomEnds {
-            PointType low;
-            PointType high;
-            std::uint32_t lowVertex = 0;
-            std::uint32_t highVertex = 0;
-        };
-        std::vector<AtomEnds> ends(atoms.size());
-        for (std::size_t a = 0; a < atoms.size(); ++a) {
-            const AtomicCurve& atom = atoms[a];
-            if (atom.low.has_value()) {
-                ends[a].low = pointAt(carriers[atom.carrier], *atom.low);
-                ends[a].lowVertex = idOf(ends[a].low);
-            }
-            if (atom.high.has_value()) {
-                ends[a].high = pointAt(carriers[atom.carrier], *atom.high);
-                ends[a].highVertex = idOf(ends[a].high);
-            }
-        }
-        for (const PointType& point : isolated) {
-            idOf(point);
-        }
-        infinity_ = VertexId(static_cast<std::uint32_t>(points_.size()));
-
-        originOffset_.push_back(0);
-        for (std::size_t a = 0; a < atoms.size(); ++a) {
-            const AtomicCurve& atom = atoms[a];
-            const Carrier& carrier = carriers[atom.carrier];
-            AtomEnds& end = ends[a];
-            if (atom.low.has_value() && atom.high.has_value()) {
-                origin_.push_back(end.lowVertex);
-                origin_.push_back(end.highVertex);
-                edgeGeometry_.push_back({EdgeKind::segment, std::move(end.low),
-                                         std::move(end.high)});
-            } else if (atom.low.has_value() || atom.high.has_value()) {
-                const bool increasing = atom.low.has_value();
-                PointType sourcePoint =
-                    increasing ? std::move(end.low) : std::move(end.high);
-                const NumberType dx = carrier.b.x() - carrier.a.x();
-                const NumberType dy = carrier.b.y() - carrier.a.y();
-                const PointType directionPoint(
-                    increasing ? sourcePoint.x() + dx : sourcePoint.x() - dx,
-                    increasing ? sourcePoint.y() + dy : sourcePoint.y() - dy);
-                origin_.push_back(increasing ? end.lowVertex : end.highVertex);
-                origin_.push_back(infinity_.index());
-                edgeGeometry_.push_back(
-                    {EdgeKind::ray, std::move(sourcePoint), directionPoint});
-            } else {
-                origin_.push_back(infinity_.index());
-                origin_.push_back(infinity_.index());
-                edgeGeometry_.push_back({EdgeKind::line, carrier.a, carrier.b});
-            }
-            edgeLabel_.push_back(atom.label);
-            originIndex_.insert(originIndex_.end(), atom.origins.begin(), atom.origins.end());
-            originOffset_.push_back(static_cast<std::uint32_t>(originIndex_.size()));
-        }
-
-        simplifyStoredCoordinates();
-        syncVertexApproximations();
-        next_.assign(origin_.size(), 0);
-        face_.assign(origin_.size(), 0);
-        outgoing_.assign(topologicalVertexCount(), HalfedgeId());
-        wireHalfedgesUnbounded();
-        buildFacesUnbounded();
     }
 
     /**
@@ -1910,10 +1921,16 @@ private:
      * cannot meet, so the result is the same either way. It is deliberately
      * kept as a single self-contained function so it can be swapped out without
      * touching the rest.
+     *
+     * @p extraCuts is called once per distinct segment as
+     * `extraCuts(segment, cuts)`, after every other cut is known, to append the
+     * points where something that is not a segment meets it — the rays and
+     * lines of @ref overlayUnbounded.
      */
+    template <class ExtraCuts>
     static std::vector<Piece> split(std::vector<InputSegment>& segments,
                                     const std::vector<PointType>& isolated,
-                                    bool disjointInteriors) {
+                                    bool disjointInteriors, const ExtraCuts& extraCuts) {
         using IntegralPoint = Point<std::int64_t>;
         using IntegralSegment = Segment<IntegralPoint>;
         constexpr bool mayNeedIntegralNarrowing =
@@ -2131,6 +2148,7 @@ private:
                     cuts[i].push_back(point);
                 }
             }
+            extraCuts(segments[group[i]].segment, cuts[i]);
             // A crossing arrives from intersection() as a fraction whose
             // normalization this type defers, and every read of one reduces it
             // again and keeps nothing. Each cut is about to be read many times
@@ -2161,7 +2179,12 @@ private:
     // Turns the split pieces into vertices and edges: equal pieces — the
     // overlapping and duplicated input of the same stretch — become one edge
     // remembering every input shape that produced it.
-    void internVertices(std::vector<Piece>& pieces, const std::vector<PointType>& isolated) {
+    //
+    // The edges reaching infinity come last, their finite ends interned with the
+    // rest and their infinite ones at the symbolic vertex, which exists exactly
+    // when there is one of them.
+    void internVertices(std::vector<Piece>& pieces, const std::vector<PointType>& isolated,
+                        std::vector<UnboundedPiece>& unbounded) {
         // The piece endpoints were reduced by @ref split, before the cuts were
         // copied into pieces, so the hash lookups below already read them on
         // the normalized fast path.
@@ -2229,12 +2252,30 @@ private:
             i = j;
         }
 
+        std::vector<std::uint32_t> sources(unbounded.size());
+        for (std::size_t i = 0; i < unbounded.size(); ++i) {
+            if (unbounded[i].kind == EdgeKind::ray) {
+                sources[i] = idOf(unbounded[i].a);
+            }
+        }
         for (const PointType& point : isolated) {
             idOf(point);
         }
+        if (!unbounded.empty()) {
+            infinity_ = VertexId(static_cast<std::uint32_t>(points_.size()));
+        }
+        for (std::size_t i = 0; i < unbounded.size(); ++i) {
+            UnboundedPiece& piece = unbounded[i];
+            origin_.push_back(piece.kind == EdgeKind::ray ? sources[i] : infinity_.index());
+            origin_.push_back(infinity_.index());
+            edgeGeometry_.push_back({piece.kind, std::move(piece.a), std::move(piece.b)});
+            edgeLabel_.push_back(std::move(piece.label));
+            originIndex_.insert(originIndex_.end(), piece.origins.begin(), piece.origins.end());
+            originOffset_.push_back(static_cast<std::uint32_t>(originIndex_.size()));
+        }
         next_.assign(origin_.size(), 0);
         face_.assign(origin_.size(), 0);
-        outgoing_.assign(points_.size(), HalfedgeId());
+        outgoing_.assign(topologicalVertexCount(), HalfedgeId());
     }
 
     // Reduces every rational coordinate the arrangement keeps — the interned
@@ -2309,14 +2350,43 @@ private:
     // arriving at a vertex along one edge, the boundary of the face on the left
     // leaves along the next edge clockwise, which is the previous one in
     // counterclockwise order.
+    //
+    // A fan holding a ray or a line is sorted by @ref fanLess instead, which
+    // reads directions off the edge geometry, and the fan at infinity by
+    // @ref infinityFanLess, the same order seen from the other side; every
+    // other fan keeps the filtered comparison, so a few unbounded edges slow
+    // down only the vertices they touch.
     void wireHalfedges() {
-        std::vector<std::vector<std::uint32_t>> fan(points_.size());
+        std::vector<std::vector<std::uint32_t>> fan(topologicalVertexCount());
         for (std::uint32_t h = 0; h < origin_.size(); ++h) {
             fan[origin_[h]].push_back(h);
         }
+        const auto link = [&](std::uint32_t v, const std::vector<std::uint32_t>& around) {
+            const std::size_t degree = around.size();
+            for (std::size_t i = 0; i < degree; ++i) {
+                next_[around[i] ^ 1] = around[(i + degree - 1) % degree];
+            }
+            outgoing_[v] = HalfedgeId(around.front());
+        };
         for (std::uint32_t v = 0; v < fan.size(); ++v) {
             std::vector<std::uint32_t>& around = fan[v];
             if (around.empty()) {
+                continue;
+            }
+            const bool atInfinity = infinity_.valid() && v == infinity_.index();
+            if (atInfinity || std::ranges::any_of(around, [&](std::uint32_t h) {
+                    return edgeGeometry_[h / 2].kind != EdgeKind::segment;
+                })) {
+                std::sort(around.begin(), around.end(),
+                          [&](std::uint32_t left, std::uint32_t right) {
+                              return atInfinity
+                                  ? infinityFanLess(fanDirection(left), fanDirection(right))
+                                  : fanLess(fanDirection(left), fanDirection(right));
+                          });
+                link(v, around);
+                if (atInfinity) {
+                    infinityFan_ = around;
+                }
                 continue;
             }
             const PointType& center = points_[v];
@@ -2344,11 +2414,7 @@ private:
                                                  filteredVertex(origin_[right ^ 1]))
                            .value() > 0;
             });
-            const std::size_t degree = around.size();
-            for (std::size_t i = 0; i < degree; ++i) {
-                next_[around[i] ^ 1] = around[(i + degree - 1) % degree];
-            }
-            outgoing_[v] = HalfedgeId(around.front());
+            link(v, around);
         }
     }
 
@@ -2428,37 +2494,6 @@ private:
         return fanLess(right, left);
     }
 
-    // Links the halfedges into face cycles for an arrangement carrying rays or
-    // lines. Sorting each vertex's fan rotationally makes the next halfedge of
-    // a cycle the one just clockwise of the twin, which is what walks a face
-    // boundary; the vertex at infinity uses the reversed order.
-    void wireHalfedgesUnbounded() {
-        std::vector<std::vector<std::uint32_t>> fan(topologicalVertexCount());
-        for (std::uint32_t h = 0; h < origin_.size(); ++h) {
-            fan[origin_[h]].push_back(h);
-        }
-        for (std::uint32_t v = 0; v < fan.size(); ++v) {
-            std::vector<std::uint32_t>& around = fan[v];
-            if (around.empty()) {
-                continue;
-            }
-            const bool atInfinity = infinity_.valid() && v == infinity_.index();
-            std::sort(around.begin(), around.end(), [&](std::uint32_t left, std::uint32_t right) {
-                return atInfinity
-                    ? infinityFanLess(fanDirection(left), fanDirection(right))
-                    : fanLess(fanDirection(left), fanDirection(right));
-            });
-            const std::size_t degree = around.size();
-            for (std::size_t i = 0; i < degree; ++i) {
-                next_[around[i] ^ 1] = around[(i + degree - 1) % degree];
-            }
-            outgoing_[v] = HalfedgeId(around.front());
-            if (infinity_.valid() && v == infinity_.index()) {
-                infinityFan_ = around;
-            }
-        }
-    }
-
     // The unbounded face a point with no edge to its west lies in, found by
     // placing a due-west ray from the point into the fan at infinity.
     [[nodiscard]] HalfedgeId infinityBoundaryAtWest(const PointType& point) const {
@@ -2515,7 +2550,11 @@ private:
             return x;
         };
 
+        // Batched as buildFaces batches them: one question per inner cycle,
+        // answered together by @ref halfedgesLeftOf.
         std::vector<bool> isOuter(cycles, false);
+        std::vector<std::uint32_t> asking;
+        std::vector<std::uint32_t> askedFrom;
         for (std::uint32_t id = 0; id < cycles; ++id) {
             if (reachesInfinity[id]) {
                 continue;
@@ -2525,9 +2564,15 @@ private:
                 isOuter[id] = true;
                 continue;
             }
-            const HalfedgeId left = halfedgeLeftOf(points_[leftmost]);
-            const HalfedgeId other = left.valid() ? left : infinityBoundaryAtWest(points_[leftmost]);
-            parent[root(id)] = root(cycleOf[other.index()]);
+            asking.push_back(id);
+            askedFrom.push_back(leftmost);
+        }
+        const std::vector<HalfedgeId> toTheLeft = halfedgesLeftOf(askedFrom);
+        for (std::size_t i = 0; i < asking.size(); ++i) {
+            const HalfedgeId other = toTheLeft[i].valid()
+                                         ? toTheLeft[i]
+                                         : infinityBoundaryAtWest(points_[askedFrom[i]]);
+            parent[root(asking[i])] = root(cycleOf[other.index()]);
         }
 
         std::vector<std::uint32_t> infinityCycles;
@@ -2716,6 +2761,19 @@ private:
      * to cover the extent of the input and not the distance to the origin.
      */
     [[nodiscard]] HalfedgeId halfedgeLeftOf(const PointType& p) const {
+        return nearestLeftOf(p, [this](const auto& consider) {
+            for (std::uint32_t h = 0; h < origin_.size(); h += 2) {
+                consider(h);
+            }
+        });
+    }
+
+    // What @ref halfedgeLeftOf answers, but among the edges @p forEachEdge
+    // offers — it is called with a function taking the first halfedge of each
+    // edge to consider — rather than among all of them.
+    template <class ForEachEdge>
+    [[nodiscard]] HalfedgeId nearestLeftOf(const PointType& p,
+                                           const ForEachEdge& forEachEdge) const {
         HalfedgeId best;
         WideNumber bestNumerator(0);
         WideNumber bestUpX(0);
@@ -2723,12 +2781,12 @@ private:
         const auto wide = [](const NumberType& value) {
             return static_cast<WideNumber>(value);
         };
-        for (std::uint32_t h = 0; h < origin_.size(); h += 2) {
+        const auto consider = [&](std::uint32_t h) {
             const EdgeGeometry& geometry = edgeGeometry_[h / 2];
             const PointType& a = geometry.a;
             const PointType& b = geometry.b;
             if (a.y() == b.y()) {
-                continue;  // a horizontal edge crosses no horizontal line
+                return;  // a horizontal edge crosses no horizontal line
             }
             // Whether the edge runs upwards is a comparison, not a subtraction,
             // and it is all the height tests below need.
@@ -2737,11 +2795,11 @@ private:
                 const NumberType& lowY = upwards ? a.y() : b.y();
                 const NumberType& highY = upwards ? b.y() : a.y();
                 if (p.y() < lowY || !(p.y() < highY)) {
-                    continue;
+                    return;
                 }
             } else if (geometry.kind == EdgeKind::ray) {
                 if (upwards ? p.y() < a.y() : !(p.y() < a.y())) {
-                    continue;
+                    return;
                 }
             }
             // The edge directed upwards, so that the query point lies strictly
@@ -2751,7 +2809,7 @@ private:
             const PointType& low = upwards ? a : b;
             const PointType& high = upwards ? b : a;
             if (!(orientationSign(low, high, p) < 0)) {
-                continue;  // to the right of the query point, or through it
+                return;  // to the right of the query point, or through it
             }
             // How far right of the query point the edge crosses its horizontal
             // line, as the fraction numerator / upY — the upward direction's own
@@ -2765,13 +2823,13 @@ private:
                 const WideNumber here = numerator * bestUpY;
                 const WideNumber there = bestNumerator * upY;
                 if (here < there) {
-                    continue;
+                    return;
                 }
                 if (here == there) {
                     // The same crossing point: the edge leaving it clockwise of
                     // the incumbent is the one whose left side holds the query.
                     if (!(upX * bestUpY - upY * bestUpX > WideNumber(0))) {
-                        continue;
+                        return;
                     }
                 }
             }
@@ -2781,7 +2839,8 @@ private:
             bestNumerator = numerator;
             bestUpX = upX;
             bestUpY = upY;
-        }
+        };
+        forEachEdge(consider);
         return best;
     }
 
@@ -2899,10 +2958,33 @@ private:
         // status holding only the edges the line currently crosses.
         constexpr std::uint64_t perComparisonNum = 1;
         constexpr std::uint64_t perComparisonDen = 2;
-        if (!infinity_.valid() &&
-            perComparisonDen * asked * edges >
-                perComparisonNum * (2 * edges + asked) * depth) {
-            return sweepHalfedgesLeftOf(queries);
+        if (perComparisonDen * asked * edges >
+            perComparisonNum * (2 * edges + asked) * depth) {
+            std::vector<HalfedgeId> answer = sweepHalfedgesLeftOf(queries);
+            if (!infinity_.valid()) {
+                return answer;
+            }
+            // The sweep passes over the rays and lines, which have no end to
+            // join or leave it at, so each answer is weighed against those few
+            // edges one by one.
+            std::vector<std::uint32_t> unboundedEdges;
+            for (std::uint32_t h = 0; h < origin_.size(); h += 2) {
+                if (edgeGeometry_[h / 2].kind != EdgeKind::segment) {
+                    unboundedEdges.push_back(h);
+                }
+            }
+            for (std::size_t q = 0; q < queries.size(); ++q) {
+                const HalfedgeId found = answer[q];
+                answer[q] = nearestLeftOf(points_[queries[q]], [&](const auto& consider) {
+                    if (found.valid()) {
+                        consider(found.index() & ~std::uint32_t{1});
+                    }
+                    for (const std::uint32_t h : unboundedEdges) {
+                        consider(h);
+                    }
+                });
+            }
+            return answer;
         }
         std::vector<HalfedgeId> answer;
         answer.reserve(queries.size());
@@ -2964,6 +3046,9 @@ private:
         std::vector<Event> events;
         events.reserve(origin_.size() + queries.size());
         for (std::uint32_t h = 0; h < origin_.size(); h += 2) {
+            if (edgeGeometry_[h / 2].kind != EdgeKind::segment) {
+                continue;  // unbounded: left to the caller
+            }
             if (points_[origin_[h]].y() == points_[origin_[h + 1]].y()) {
                 continue;  // horizontal: it crosses no horizontal line
             }

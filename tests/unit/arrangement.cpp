@@ -2,6 +2,7 @@
 #include "doctest.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <limits>
 #include <map>
@@ -1141,6 +1142,48 @@ TEST_CASE("parallel rays only sharing infinity do not enclose a face") {
     CHECK(arr.vertexCount() == 2);
     CHECK(arr.edgeCount() == 2);
     CHECK(arr.faceCount() == 1);
+}
+
+TEST_CASE("a few rays and lines barely change the cost of an arrangement of segments") {
+    // Short scattered segments, so the arrangement has many components and many
+    // nesting questions, and two lines and two rays running through all of it.
+    // Tested against everything pairwise, the unbounded curves made this
+    // quadratic in the segments; a slowdown by a small factor is the most a
+    // handful of them may cost.
+    std::mt19937 rng(12345);
+    std::uniform_int_distribution<int> coordinate(0, 10000);
+    std::uniform_int_distribution<int> offset(-300, 300);
+    std::vector<pgl::EShape> segments;
+    for (int i = 0; i < 1500; ++i) {
+        const int x = coordinate(rng);
+        const int y = coordinate(rng);
+        segments.emplace_back(S(x, y, x + offset(rng), y + offset(rng)));
+    }
+    std::vector<pgl::EShape> mixed = segments;
+    mixed.emplace_back(Line(P(0, 1), P(10000, 9999)));
+    mixed.emplace_back(Line(P(0, 7000), P(10000, 2000)));
+    mixed.emplace_back(Ray(P(5000, 5000), P(5001, 4000)));
+    mixed.emplace_back(Ray(P(2000, 3000), P(1000, 3001)));
+
+    // The fastest of a few builds, so a scheduling hiccup on a loaded machine
+    // does not decide the comparison.
+    std::size_t segmentEdges = 0;
+    std::size_t mixedEdges = 0;
+    const auto fastest = [](const std::vector<pgl::EShape>& shapes, std::size_t& edges) {
+        auto best = std::chrono::steady_clock::duration::max();
+        for (int run = 0; run < 3; ++run) {
+            const auto start = std::chrono::steady_clock::now();
+            const Arrangement arr(shapes);
+            best = std::min(best, std::chrono::steady_clock::now() - start);
+            edges = arr.edgeCount();
+        }
+        return std::chrono::duration<double>(best).count();
+    };
+    const double segmentsOnly = fastest(segments, segmentEdges);
+    const double withUnbounded = fastest(mixed, mixedEdges);
+
+    CHECK(mixedEdges > segmentEdges + 4);
+    CHECK(withUnbounded < 3 * segmentsOnly + 0.05);
 }
 
 TEST_CASE("arrangement intersection traversal is ordered and suppresses incident edges") {
