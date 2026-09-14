@@ -2,6 +2,11 @@
 // through the preprocessed point location.
 // @dataset points: The points are distinct, with integer coordinates drawn
 // uniformly from a disk of diameter 10,000.
+// @dataset euro-night: The first n of the 100,000 distinct points of the CG:SHOP
+// 2019 instance euro-night-0100000, sampled from a night-time image of Europe
+// and shuffled once, with integer coordinates in [8, 102,392] x [0, 57,598].
+// The queries are the points dataset's, carried onto that box by scaling x ten
+// times and y five times about its centre.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"
@@ -12,17 +17,16 @@
 namespace {
 
 constexpr const char* kCategory = "Triangulation";
-constexpr const char* kDataset  = "points";
 
 template <class Number>
-void run(const bench::Options& opt) {
+void run(const bench::Options& opt, const bench::PointDataset& dataset) {
     using Point = pgl::Point<Number>;
     const char* number = bench::numberName<Number>;
 
-    const auto queries = bench::convert<Point>(bench::queryPoints(bench::kQueryBatch));
+    const auto queries = bench::convert<Point>(dataset.queryPoints(bench::kQueryBatch));
 
     for (const int n : bench::sweep(bench::kTriangulation, opt)) {
-        const auto points = bench::convert<Point>(bench::points(n));
+        const auto points = bench::convert<Point>(dataset.points(n));
         long long result = 0;
 
         // The build is measured and kept: every other problem in this category
@@ -41,7 +45,7 @@ void run(const bench::Options& opt) {
             return triangulation->numTriangles();
         });
         if (bench::matches(opt.problem, "build")) {
-            bench::emit(kCategory, kDataset, "build", "incremental", number, n, result, buildUs);
+            bench::emit(kCategory, dataset.name, "build", "incremental", number, n, result, buildUs);
         }
 
         // A locate answers with one triangle however large the triangulation
@@ -58,7 +62,7 @@ void run(const bench::Options& opt) {
         // Before the index: the stochastic visibility walk.
         if (bench::matches(opt.problem, "locate")) {
             const double walkUs = bench::timeOnce(result, locate);
-            bench::emit(kCategory, kDataset, "locate", "walk", number, n, result,
+            bench::emit(kCategory, dataset.name, "locate", "walk", number, n, result,
                         static_cast<long long>(triangulation->numTriangles()),
                         walkUs / bench::kQueryBatch);
         }
@@ -68,7 +72,7 @@ void run(const bench::Options& opt) {
                 triangulation->buildPointLocation();
                 return triangulation->numEdges();
             });
-            bench::emit(kCategory, kDataset, "buildPointLocation", "preprocessed",
+            bench::emit(kCategory, dataset.name, "buildPointLocation", "preprocessed",
                         number, n, result, indexUs);
         } else {
             triangulation->buildPointLocation();
@@ -81,7 +85,7 @@ void run(const bench::Options& opt) {
                        "the point-location index is not in place");
         if (bench::matches(opt.problem, "locate")) {
             const double indexedUs = bench::timeOnce(result, locate);
-            bench::emit(kCategory, kDataset, "locate", "preprocessed", number, n, result,
+            bench::emit(kCategory, dataset.name, "locate", "preprocessed", number, n, result,
                         static_cast<long long>(triangulation->numTriangles()),
                         indexedUs / bench::kQueryBatch);
         }
@@ -93,9 +97,10 @@ void run(const bench::Options& opt) {
 int main(int argc, char** argv) {
     const auto opt = bench::parseOptions(argc, argv);
     bench::header();
-    if (bench::matches(opt.dataset, kDataset)) {
-        if (bench::matches(opt.type, "int"))       run<int>(opt);
-        if (bench::matches(opt.type, "ERational")) run<pgl::ERational>(opt);
+    for (const auto& dataset : bench::pointDatasets()) {
+        if (!bench::matches(opt.dataset, dataset.name)) continue;
+        if (bench::matches(opt.type, "int"))       run<int>(opt, dataset);
+        if (bench::matches(opt.type, "ERational")) run<pgl::ERational>(opt, dataset);
     }
     return 0;
 }

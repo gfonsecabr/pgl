@@ -3,6 +3,9 @@
 // kd-tree.
 // @dataset points: The points are distinct, with integer coordinates drawn
 // uniformly from a disk of diameter 10,000.
+// @dataset euro-night: The first n of the 100,000 distinct points of the CG:SHOP
+// 2019 instance euro-night-0100000, sampled from a night-time image of Europe
+// and shuffled once, with integer coordinates in [8, 102,392] x [0, 57,598].
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"
@@ -13,10 +16,9 @@
 namespace {
 
 constexpr const char* kCategory = "Point constructions";
-constexpr const char* kDataset  = "points";
 
 template <class Number>
-void run(const bench::Options& opt) {
+void run(const bench::Options& opt, const bench::PointDataset& dataset) {
     using Point = pgl::Point<Number>;
     const char* number = bench::numberName<Number>;
 
@@ -32,10 +34,10 @@ void run(const bench::Options& opt) {
                                   auto&& outputOf) {
         if (!bench::matches(opt.problem, problem)) return;
         for (const int n : bench::sweep(sizes, opt)) {
-            const auto points = bench::convert<Point>(bench::points(n));
+            const auto points = bench::convert<Point>(dataset.points(n));
             long long result = 0;
             const double us = bench::timeOnce(result, [&] { return measure(points); });
-            bench::emit(kCategory, kDataset, problem, algorithm, number, n, result,
+            bench::emit(kCategory, dataset.name, problem, algorithm, number, n, result,
                         outputOf(points, result), us);
         }
     };
@@ -67,9 +69,9 @@ void run(const bench::Options& opt) {
     // The signature compares the sorted order's first and last points: cheap,
     // but it cannot be computed without the whole sort having happened.
     forEachSized("sort by angle", "comparison sort", bench::kSortAround,
-                 [](const std::vector<Point>& points) {
+                 [centre = Point(dataset.centre())](const std::vector<Point>& points) {
                      auto copy = points;
-                     pgl::sortAround(copy, Point(0, 0));
+                     pgl::sortAround(copy, centre);
                      return copy.front() == copy.back() ? 1 : 0;
                  },
                  inputSize);
@@ -92,9 +94,10 @@ void run(const bench::Options& opt) {
 int main(int argc, char** argv) {
     const auto opt = bench::parseOptions(argc, argv);
     bench::header();
-    if (bench::matches(opt.dataset, kDataset)) {
-        if (bench::matches(opt.type, "int"))       run<int>(opt);
-        if (bench::matches(opt.type, "ERational")) run<pgl::ERational>(opt);
+    for (const auto& dataset : bench::pointDatasets()) {
+        if (!bench::matches(opt.dataset, dataset.name)) continue;
+        if (bench::matches(opt.type, "int"))       run<int>(opt, dataset);
+        if (bench::matches(opt.type, "ERational")) run<pgl::ERational>(opt, dataset);
     }
     return 0;
 }

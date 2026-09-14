@@ -67,7 +67,12 @@
 // datasets are by construction: ../../randomshapes.hpp draws integer
 // coordinates in [-10000, 10000], so an orientation determinant stays under
 // 10^9 and a squared distance under 10^9 — both far inside double's exact
-// range, so the filter never even has to fall back.
+// range, so the filter never even has to fall back. The one point dataset that
+// is read rather than drawn, euro-night (../datasets.hpp), has integer
+// coordinates under 102,400, so its orientation determinants and squared
+// distances stay under 2 * 10^10, still exact as doubles; an in-circle
+// determinant there can pass 2^53, and a filter that cannot settle its sign
+// falls back to exact arithmetic, which is what keeps EPICK exact on it too.
 //
 // Every dual-kernel driver is held to that claim by its own result signatures:
 // the two kernels are separate cells of the cube and must report identical

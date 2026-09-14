@@ -240,7 +240,7 @@ def split_initial_pairs(pairs: dict):
 # needing this table edited, just not in a hand-chosen position. Categories
 # themselves have no table: the page lists them alphabetically, so a reader can
 # find one by name.
-DATASET_ORDER = ["points", "small segments", "small", "sheared", "large segments", "large",
+DATASET_ORDER = ["points", "euro-night", "small segments", "small", "sheared", "large segments", "large",
                  "mixed", "polygon edges", "polygon", "large + large", "large + small", "triangles"]
 PROBLEM_ORDER = ["build", "buildPointLocation", "locate", "locateFace",
                  "closest pair", "convex hull", "sort by angle", "Delaunay",

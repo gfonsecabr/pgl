@@ -2,6 +2,9 @@
 // farthest-point diagram.
 // @dataset points: The points are distinct, with integer coordinates drawn
 // uniformly from a disk of diameter 10,000.
+// @dataset euro-night: The first n of the 100,000 distinct points of the CG:SHOP
+// 2019 instance euro-night-0100000, sampled from a night-time image of Europe
+// and shuffled once, with integer coordinates in [8, 102,392] x [0, 57,598].
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"
@@ -12,7 +15,6 @@
 namespace {
 
 constexpr const char* kCategory = "Voronoi diagram";
-constexpr const char* kDataset  = "points";
 
 // What the category is a cube of.
 //
@@ -28,7 +30,7 @@ constexpr const char* kDataset  = "points";
 // are stored, and an `int` column runs the identical arithmetic at the
 // identical speed — it measured within 3% of this one at every n of every
 // order — so there is nothing for a second column to compare.
-void run(const bench::Options& opt) {
+void run(const bench::Options& opt, const bench::PointDataset& dataset) {
     using Point = pgl::EPoint;
     const char* number = bench::numberName<pgl::ERational>;
 
@@ -46,10 +48,10 @@ void run(const bench::Options& opt) {
         if (!bench::matches(opt.problem, problem)) return;
         for (const int n : bench::sweep(sizes, opt)) {
             if (n < order) continue;
-            const auto points = bench::convert<Point>(bench::points(n));
+            const auto points = bench::convert<Point>(dataset.points(n));
             long long faces = 0;
             const double us = bench::timeOnce(faces, [&] { return compute(points); });
-            bench::emit(kCategory, kDataset, problem, algorithm, number, n, faces, us);
+            bench::emit(kCategory, dataset.name, problem, algorithm, number, n, faces, us);
             check(points, faces);
         }
     };
@@ -100,8 +102,9 @@ void run(const bench::Options& opt) {
 int main(int argc, char** argv) {
     const auto opt = bench::parseOptions(argc, argv);
     bench::header();
-    if (bench::matches(opt.dataset, kDataset) && bench::matches(opt.type, "ERational")) {
-        run(opt);
+    if (!bench::matches(opt.type, "ERational")) return 0;
+    for (const auto& dataset : bench::pointDatasets()) {
+        if (bench::matches(opt.dataset, dataset.name)) run(opt, dataset);
     }
     return 0;
 }

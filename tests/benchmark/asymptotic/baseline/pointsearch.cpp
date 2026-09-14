@@ -1,5 +1,5 @@
 // @desc: CGAL reference for the Point search category: a Kd_tree over the same
-// random points, answering the same rectangle, triangle and nearest-neighbour
+// points, answering the same rectangle, triangle and nearest-neighbour
 // queries pgl's ShapeTree answers.
 //
 // Four things need saying about how the rows below are made comparable.
@@ -26,7 +26,8 @@
 // against, so rounding it changes which points land in which cell and never
 // which points the query returns; the per-point containment test that settles
 // the answer reads the input coordinates. Nearest neighbour is exact too --
-// the squared distances it orders stay under 10^9 on this dataset, and they
+// the squared distances it orders stay under 10^9 on the random points and
+// under 2 * 10^10 on euro-night, both far inside double's exact range, and they
 // are what the row's signature sums.
 #include "cgal.hpp"
 #include "kdtree.hpp"
@@ -130,7 +131,7 @@ std::size_t countIn(const Tree& tree, const Query& q) {
 }
 
 template <class K>
-void run(const bench::Options& opt) {
+void run(const bench::Options& opt, const bench::PointDataset& dataset) {
     if (!bench::cgal::selected<K>(opt)) return;
     const char* number = bench::cgal::numberName<K>;
 
@@ -155,17 +156,17 @@ void run(const bench::Options& opt) {
     // leaves it pointing into the object it came from. A deque constructs each
     // element at its final address and never relocates it.
     std::deque<Box> boxes;
-    for (const auto& r : bench::queryRectangles(bench::kQueryBatch)) {
+    for (const auto& r : dataset.queryRectangles(bench::kQueryBatch)) {
         boxes.emplace_back(bench::cgal::point<K>(r.min()), bench::cgal::point<K>(r.max()));
     }
     std::vector<TriangleQuery<K>> triangles;
-    for (const auto& t : bench::queryTriangles(bench::kQueryBatch)) {
+    for (const auto& t : dataset.queryTriangles(bench::kQueryBatch)) {
         triangles.emplace_back(t);
     }
-    const auto queries = bench::cgal::points<K>(bench::queryPoints(bench::kQueryBatch));
+    const auto queries = bench::cgal::points<K>(dataset.queryPoints(bench::kQueryBatch));
 
     for (const int n : bench::sweep(bench::kPointSearch, opt)) {
-        const auto pts = bench::cgal::points<K>(bench::points(n));
+        const auto pts = bench::cgal::points<K>(dataset.points(n));
         long long result = 0;
 
         // One tree per query, and the fastest of their builds is the build row.
@@ -195,7 +196,7 @@ void run(const bench::Options& opt) {
                 }
                 return total;
             });
-            bench::emit("Point search", "points", problem, "CGAL::Kd_tree::search",
+            bench::emit("Point search", dataset.name, problem, "CGAL::Kd_tree::search",
                         number, n, result, us / bench::kQueryBatch);
         };
         {
@@ -239,14 +240,14 @@ void run(const bench::Options& opt) {
                 // query, and that is the number being summed. The search
                 // already computed it, so reading it costs the baseline
                 // nothing.
-                bench::emit("Point search", "points", "nearest neighbor",
+                bench::emit("Point search", dataset.name, "nearest neighbor",
                             "CGAL::Orthogonal_k_neighbor_search", number,
                             n, result, static_cast<long long>(tree.size()),
                             us / bench::kQueryBatch);
             }
         }
         if (bench::matches(opt.problem, "build")) {
-            bench::emit("Point search", "points", "build", "CGAL::Kd_tree",
+            bench::emit("Point search", dataset.name, "build", "CGAL::Kd_tree",
                         number, n, static_cast<long long>(pts.size()), buildUs);
         }
     }
@@ -257,8 +258,10 @@ void run(const bench::Options& opt) {
 int main(int argc, char** argv) {
     const auto opt = bench::parseOptions(argc, argv);
     bench::header();
-    if (!bench::matches(opt.dataset, "points")) return 0;
-    run<bench::cgal::Inexact>(opt);
-    run<bench::cgal::Kernel>(opt);
+    for (const auto& dataset : bench::pointDatasets()) {
+        if (!bench::matches(opt.dataset, dataset.name)) continue;
+        run<bench::cgal::Inexact>(opt, dataset);
+        run<bench::cgal::Kernel>(opt, dataset);
+    }
     return 0;
 }

@@ -1,5 +1,5 @@
 // @desc: CGAL reference for the Triangulation and Point constructions
-// categories: Delaunay_triangulation_2 over the same random points, its own
+// categories: Delaunay_triangulation_2 over the same points, its own
 // point location, and the point-location hierarchy that CGAL builds alongside
 // a second triangulation. The signature is the number of finite faces, which
 // is what pgl's triangle count means, so the two are directly comparable.
@@ -23,7 +23,7 @@
 namespace {
 
 template <class K>
-void run(const bench::Options& opt) {
+void run(const bench::Options& opt, const bench::PointDataset& dataset) {
     if (!bench::cgal::selected<K>(opt)) return;
     const char* number = bench::cgal::numberName<K>;
 
@@ -35,10 +35,10 @@ void run(const bench::Options& opt) {
     using Hierarchy = CGAL::Triangulation_hierarchy_2<HierarchyBase>;
 
     const auto queries =
-        bench::cgal::points<K>(bench::queryPoints(bench::kQueryBatch));
+        bench::cgal::points<K>(dataset.queryPoints(bench::kQueryBatch));
 
     for (const int n : bench::sweep(bench::kTriangulation, opt)) {
-        const auto pts = bench::cgal::points<K>(bench::points(n));
+        const auto pts = bench::cgal::points<K>(dataset.points(n));
         long long result = 0;
 
         Triangulation triangulation;
@@ -47,7 +47,7 @@ void run(const bench::Options& opt) {
             return triangulation.number_of_faces();
         });
         if (bench::matches(opt.problem, "build")) {
-            bench::emit("Triangulation", "points", "build",
+            bench::emit("Triangulation", dataset.name, "build",
                         "CGAL::Delaunay_triangulation_2", number,
                         n, result, buildUs);
         }
@@ -63,7 +63,7 @@ void run(const bench::Options& opt) {
             });
             // As in pgl's driver: the hit count is the signature, and the size
             // these rows report is the triangulation being searched.
-            bench::emit("Triangulation", "points", "locate",
+            bench::emit("Triangulation", dataset.name, "locate",
                         "CGAL::Delaunay_triangulation_2::locate", number,
                         n, result,
                         static_cast<long long>(triangulation.number_of_faces()),
@@ -79,7 +79,7 @@ void run(const bench::Options& opt) {
                 hierarchy.emplace(pts.begin(), pts.end());
                 return hierarchy->number_of_faces();
             });
-            bench::emit("Triangulation", "points", "buildPointLocation",
+            bench::emit("Triangulation", dataset.name, "buildPointLocation",
                         "CGAL::Triangulation_hierarchy_2", number,
                         n, result, hierarchyUs);
         } else {
@@ -95,7 +95,7 @@ void run(const bench::Options& opt) {
                 }
                 return hits;
             });
-            bench::emit("Triangulation", "points", "locate",
+            bench::emit("Triangulation", dataset.name, "locate",
                         "CGAL::Triangulation_hierarchy_2::locate", number,
                         n, result,
                         static_cast<long long>(hierarchy->number_of_faces()),
@@ -109,7 +109,10 @@ void run(const bench::Options& opt) {
 int main(int argc, char** argv) {
     const auto opt = bench::parseOptions(argc, argv);
     bench::header();
-    run<bench::cgal::Inexact>(opt);
-    run<bench::cgal::Kernel>(opt);
+    for (const auto& dataset : bench::pointDatasets()) {
+        if (!bench::matches(opt.dataset, dataset.name)) continue;
+        run<bench::cgal::Inexact>(opt, dataset);
+        run<bench::cgal::Kernel>(opt, dataset);
+    }
     return 0;
 }

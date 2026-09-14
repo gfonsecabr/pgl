@@ -85,6 +85,11 @@ constexpr std::array<int, kSamples> linearSizes(int max) {
     return sizes;
 }
 
+// The categories over a set of points (triangulation, point constructions,
+// point search, Voronoi diagram) sweep each of their lists over two datasets,
+// the random points and euro-night, at the same sizes. Euro-night is a file of
+// 100,000 points, which no list of theirs may exceed.
+
 // ── 1. Triangulation ────────────────────────────────────────────────────────
 // Anchored to the incremental build, the one construction here; both locate
 // problems and the preprocessed point-location index reuse its list.

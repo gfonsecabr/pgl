@@ -2,6 +2,11 @@
 // (ShapeTree) over n points.
 // @dataset points: The points are distinct, with integer coordinates drawn
 // uniformly from a disk of diameter 10,000.
+// @dataset euro-night: The first n of the 100,000 distinct points of the CG:SHOP
+// 2019 instance euro-night-0100000, sampled from a night-time image of Europe
+// and shuffled once, with integer coordinates in [8, 102,392] x [0, 57,598].
+// The queries are the points dataset's, carried onto that box by scaling x ten
+// times and y five times about its centre.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"
@@ -12,22 +17,21 @@
 namespace {
 
 constexpr const char* kCategory  = "Point search";
-constexpr const char* kDataset   = "points";
 constexpr const char* kAlgorithm = "ShapeTree";
 
 template <class Number>
-void run(const bench::Options& opt) {
+void run(const bench::Options& opt, const bench::PointDataset& dataset) {
     using Point     = pgl::Point<Number>;
     using Rectangle = pgl::Rectangle<Point>;
     using Triangle  = pgl::Triangle<Point>;
     const char* number = bench::numberName<Number>;
 
-    const auto rectangles = bench::convert<Rectangle>(bench::queryRectangles(bench::kQueryBatch));
-    const auto triangles  = bench::convert<Triangle>(bench::queryTriangles(bench::kQueryBatch));
-    const auto queries    = bench::convert<Point>(bench::queryPoints(bench::kQueryBatch));
+    const auto rectangles = bench::convert<Rectangle>(dataset.queryRectangles(bench::kQueryBatch));
+    const auto triangles  = bench::convert<Triangle>(dataset.queryTriangles(bench::kQueryBatch));
+    const auto queries    = bench::convert<Point>(dataset.queryPoints(bench::kQueryBatch));
 
     for (const int n : bench::sweep(bench::kPointSearch, opt)) {
-        const auto points = bench::convert<Point>(bench::points(n));
+        const auto points = bench::convert<Point>(dataset.points(n));
         long long result = 0;
 
         std::optional<pgl::ShapeTree<Point>> tree;
@@ -36,7 +40,7 @@ void run(const bench::Options& opt) {
             return tree->size();
         });
         if (bench::matches(opt.problem, "build")) {
-            bench::emit(kCategory, kDataset, "build", kAlgorithm, number, n, result, buildUs);
+            bench::emit(kCategory, dataset.name, "build", kAlgorithm, number, n, result, buildUs);
         }
 
         // The signature is the total count over the batch, so it cross-checks
@@ -53,12 +57,12 @@ void run(const bench::Options& opt) {
 
         if (bench::matches(opt.problem, "count in Rectangle")) {
             const double us = bench::timeOnce(result, countIn(rectangles));
-            bench::emit(kCategory, kDataset, "count in Rectangle", kAlgorithm,
+            bench::emit(kCategory, dataset.name, "count in Rectangle", kAlgorithm,
                         number, n, result, us / bench::kQueryBatch);
         }
         if (bench::matches(opt.problem, "count in Triangle")) {
             const double us = bench::timeOnce(result, countIn(triangles));
-            bench::emit(kCategory, kDataset, "count in Triangle", kAlgorithm,
+            bench::emit(kCategory, dataset.name, "count in Triangle", kAlgorithm,
                         number, n, result, us / bench::kQueryBatch);
         }
         if (bench::matches(opt.problem, "nearest neighbor")) {
@@ -77,7 +81,7 @@ void run(const bench::Options& opt) {
             // this row has to match to the digit like every other one. A
             // nearest neighbour is one point however large the tree is, so the
             // output column reports the tree the queries searched.
-            bench::emit(kCategory, kDataset, "nearest neighbor", kAlgorithm,
+            bench::emit(kCategory, dataset.name, "nearest neighbor", kAlgorithm,
                         number, n, result, static_cast<long long>(tree->size()),
                         us / bench::kQueryBatch);
         }
@@ -89,9 +93,10 @@ void run(const bench::Options& opt) {
 int main(int argc, char** argv) {
     const auto opt = bench::parseOptions(argc, argv);
     bench::header();
-    if (bench::matches(opt.dataset, kDataset)) {
-        if (bench::matches(opt.type, "int"))       run<int>(opt);
-        if (bench::matches(opt.type, "ERational")) run<pgl::ERational>(opt);
+    for (const auto& dataset : bench::pointDatasets()) {
+        if (!bench::matches(opt.dataset, dataset.name)) continue;
+        if (bench::matches(opt.type, "int"))       run<int>(opt, dataset);
+        if (bench::matches(opt.type, "ERational")) run<pgl::ERational>(opt, dataset);
     }
     return 0;
 }

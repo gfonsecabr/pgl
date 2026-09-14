@@ -35,7 +35,8 @@ Pangolin's performance benchmarks live here. There are two kinds:
    * **The sizes are fixed constants** (`asymptotic/sizes.hpp`), never probed at
      runtime. Two runs of the same commit have to measure the same x values or
      overlaying their curves means nothing.
-   * **Every dataset is generated in `int` and converted.** The `int` and
+   * **Every dataset is generated (or, for the one real-world point set, read)
+     in `int` and converted.** The `int` and
      `ERational` runs then see the identical input, which is what makes
      comparing their result signatures a correctness check rather than a
      coincidence.
@@ -184,3 +185,4 @@ Run `python3 tests/benchmark/run_shapepairs.py --help` for the full option list.
 | `dashboard/`        | Static frontend (`index.html`, `asymptotic.html`, `app.js`, `style.css`) |
 | `history/` *(separate repo)* | Versioned JSONL: pair records at the top level, asymptotic under `history/asymptotic/`, plus the overwritten `asymptotic-baseline.json` |
 | `asymptotic/`       | Size-sweep drivers, the fixed size lists (`sizes.hpp`), the shared harness, and the CGAL `baseline/` |
+| `asymptotic/data/`  | `euro-night-0100000.instance`, the CG:SHOP 2019 point set behind the `euro-night` dataset, its point lines shuffled once; an n-point sample is its first n points |

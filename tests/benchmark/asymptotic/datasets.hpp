@@ -24,10 +24,24 @@
 // identical input — without which comparing their result signatures would prove
 // nothing.
 //
+// One point dataset is not generated at all: euro-night is read from
+// data/euro-night-0100000.instance, a CG:SHOP 2019 instance of 100,000 points
+// sampled from a night-time image of Europe, whose point lines were shuffled
+// once before being checked in. Its n-point sample is simply the file's first n
+// points, so every size of the sweep is a uniform sample of the same picture and
+// each is a prefix of the next.
+//
 #include "../randomshapes.hpp"
 
+#include <algorithm>
 #include <cstdint>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
 #include <set>
+#include <sstream>
+#include <string>
 #include <vector>
 
 namespace bench {
@@ -178,6 +192,121 @@ inline std::vector<IntPoint> interiorPoints(const IntPolygon& polygon, int count
         }
     }
     return queries;
+}
+
+// All 100,000 points of the euro-night instance, in the file's (shuffled) order.
+// Read once per process, and found next to this header rather than relative to
+// the working directory, so a driver runs from anywhere.
+inline const std::vector<IntPoint>& euroNightAll() {
+    static const std::vector<IntPoint> all = [] {
+        const auto path = std::filesystem::path(__FILE__).parent_path() / "data" /
+                          "euro-night-0100000.instance";
+        std::ifstream in(path);
+        if (!in) {
+            std::cerr << "cannot read the euro-night dataset at " << path << "\n";
+            std::exit(3);
+        }
+        std::vector<IntPoint> v;
+        std::string line;
+        while (std::getline(in, line)) {
+            if (line.empty() || line[0] == '#') continue;
+            std::istringstream fields(line);
+            long long index = 0;
+            int x = 0, y = 0;
+            if (!(fields >> index >> x >> y)) {
+                std::cerr << "malformed line in " << path << ": " << line << "\n";
+                std::exit(3);
+            }
+            v.emplace_back(x, y);
+        }
+        return v;
+    }();
+    return all;
+}
+
+// The first n points of euro-night.
+inline std::vector<IntPoint> euroNightPoints(int n) {
+    const auto& all = euroNightAll();
+    if (n < 0 || static_cast<std::size_t>(n) > all.size()) {
+        std::cerr << "euro-night has " << all.size() << " points; asked for " << n << "\n";
+        std::exit(3);
+    }
+    return std::vector<IntPoint>(all.begin(), all.begin() + n);
+}
+
+namespace detail {
+
+// The map that carries the random datasets' disk onto euro-night's bounding box:
+// centre onto centre, each axis scaled by the whole number of times the disk's
+// diameter fits into the box's extent. Whole numbers, so the image of an integer
+// shape is an integer shape, distinct shapes stay distinct and a non-degenerate
+// one stays non-degenerate.
+struct EuroNightFrame {
+    IntPoint centre;
+    int sx, sy;
+
+    IntPoint operator()(const IntPoint& p) const {
+        return IntPoint(centre.x() + sx * p.x(), centre.y() + sy * p.y());
+    }
+};
+
+inline EuroNightFrame euroNightFrame() {
+    const auto& all = euroNightAll();
+    int minX = all.front().x(), maxX = minX, minY = all.front().y(), maxY = minY;
+    for (const auto& p : all) {
+        minX = std::min(minX, p.x());
+        maxX = std::max(maxX, p.x());
+        minY = std::min(minY, p.y());
+        maxY = std::max(maxY, p.y());
+    }
+    return {IntPoint((minX + maxX) / 2, (minY + maxY) / 2),
+            std::max(1, (maxX - minX) / largeRange), std::max(1, (maxY - minY) / largeRange)};
+}
+
+}  // namespace detail
+
+// The random datasets' query batches carried onto euro-night's bounding box, so
+// the queries sit where its points are and the two datasets are asked the same
+// queries, up to that map.
+inline std::vector<IntPoint> euroNightQueryPoints(int n) {
+    const auto frame = detail::euroNightFrame();
+    auto v = queryPoints(n);
+    for (auto& p : v) p = frame(p);
+    return v;
+}
+inline std::vector<IntRectangle> euroNightQueryRectangles(int n) {
+    const auto frame = detail::euroNightFrame();
+    auto v = queryRectangles(n);
+    for (auto& r : v) r = IntRectangle(frame(r.min()), frame(r.max()));
+    return v;
+}
+inline std::vector<IntTriangle> euroNightQueryTriangles(int n) {
+    const auto frame = detail::euroNightFrame();
+    auto v = queryTriangles(n);
+    for (auto& t : v) t = IntTriangle(frame(t[0]), frame(t[1]), frame(t[2]));
+    return v;
+}
+
+// A point dataset and the queries asked of it, for the categories that run over
+// a set of points: each such driver sweeps every entry of pointDatasets() over
+// the same size lists. `centre` is what sort by angle sorts around.
+struct PointDataset {
+    const char* name;
+    std::vector<IntPoint> (*points)(int n);
+    std::vector<IntPoint> (*queryPoints)(int n);
+    std::vector<IntRectangle> (*queryRectangles)(int n);
+    std::vector<IntTriangle> (*queryTriangles)(int n);
+    IntPoint (*centre)();
+};
+
+inline const std::vector<PointDataset>& pointDatasets() {
+    static const std::vector<PointDataset> datasets = {
+        {"points", points, queryPoints, queryRectangles, queryTriangles,
+         [] { return IntPoint(0, 0); }},
+        {"euro-night", euroNightPoints, euroNightQueryPoints, euroNightQueryRectangles,
+         euroNightQueryTriangles, [] { return detail::euroNightFrame().centre; }},
+    };
+    return datasets;
 }
 
 // The polygon's boundary as independent segments — a dataset of n segments that,

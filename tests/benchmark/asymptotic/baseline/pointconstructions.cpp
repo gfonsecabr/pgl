@@ -1,5 +1,5 @@
 // @desc: CGAL reference for the Constructions over a set of points category:
-// convex_hull_2, Delaunay_triangulation_2 and Kd_tree over the same random
+// convex_hull_2, Delaunay_triangulation_2 and Kd_tree over the same
 // points. Each signature is what pgl's driver reports for the same problem --
 // the number of hull vertices, of triangles, of stored points -- so the rows
 // are directly comparable.
@@ -49,7 +49,7 @@ double buildTime(const std::vector<typename K::Point_2>& pts, int bucket,
 }
 
 template <class K>
-void run(const bench::Options& opt) {
+void run(const bench::Options& opt, const bench::PointDataset& dataset) {
     if (!bench::cgal::selected<K>(opt)) return;
     const char* number = bench::cgal::numberName<K>;
 
@@ -64,10 +64,10 @@ void run(const bench::Options& opt) {
                              std::span<const int> sizes, auto&& measure) {
         if (!bench::matches(opt.problem, problem)) return;
         for (const int n : bench::sweep(sizes, opt)) {
-            const auto pts = bench::cgal::points<K>(bench::points(n));
+            const auto pts = bench::cgal::points<K>(dataset.points(n));
             long long result = 0;
             const double us = bench::timeOnce(result, [&] { return measure(pts); });
-            bench::emit("Point constructions", "points", problem, algorithm,
+            bench::emit("Point constructions", dataset.name, problem, algorithm,
                         number, n, result, us);
         }
     };
@@ -89,7 +89,7 @@ void run(const bench::Options& opt) {
             });
     if (bench::matches(opt.problem, "kd-tree")) {
         for (const int n : bench::sweep(bench::kPointTree, opt)) {
-            const auto pts = bench::cgal::points<K>(bench::points(n));
+            const auto pts = bench::cgal::points<K>(dataset.points(n));
             long long result = 0;
             const double us = std::min({
                 buildTime<K, typename Tuning::RectangleSplitter>(
@@ -98,7 +98,7 @@ void run(const bench::Options& opt) {
                     pts, Tuning::triangleBucket, result),
                 buildTime<K, typename Tuning::NearestSplitter>(
                     pts, Tuning::nearestBucket, result)});
-            bench::emit("Point constructions", "points", "kd-tree", "CGAL::Kd_tree",
+            bench::emit("Point constructions", dataset.name, "kd-tree", "CGAL::Kd_tree",
                         number, n, result, us);
         }
     }
@@ -109,8 +109,10 @@ void run(const bench::Options& opt) {
 int main(int argc, char** argv) {
     const auto opt = bench::parseOptions(argc, argv);
     bench::header();
-    if (!bench::matches(opt.dataset, "points")) return 0;
-    run<bench::cgal::Inexact>(opt);
-    run<bench::cgal::Kernel>(opt);
+    for (const auto& dataset : bench::pointDatasets()) {
+        if (!bench::matches(opt.dataset, dataset.name)) continue;
+        run<bench::cgal::Inexact>(opt, dataset);
+        run<bench::cgal::Kernel>(opt, dataset);
+    }
     return 0;
 }
