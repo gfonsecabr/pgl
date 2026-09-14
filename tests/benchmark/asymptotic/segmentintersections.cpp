@@ -10,8 +10,8 @@
 // bounding boxes overlap outnumber the intersecting pairs many times over.
 // @dataset large: Distinct segments with integer coordinates. One
 // endpoint is drawn uniformly from a disk of diameter 5,000 and the other is
-// offset from it by a vector drawn uniformly from a disk of the same size, so
-// most pairs meet.
+// offset from it by a vector drawn uniformly from a disk of the same size.
+// Between 5.9% and 6.8% of the pairs meet, depending on n.
 // @dataset polygon edges: The edges of a random simple polygon with n vertices,
 // as separate segments, so no two of them cross. The vertices have integer
 // coordinates drawn uniformly from a disk of diameter 5,000; joined in the

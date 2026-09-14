@@ -7,8 +7,8 @@
 // most pairs are far apart.
 // @dataset large segments: Distinct segments with integer coordinates. One
 // endpoint is drawn uniformly from a disk of diameter 5,000 and the other is
-// offset from it by a vector drawn uniformly from a disk of the same size, so
-// most pairs meet.
+// offset from it by a vector drawn uniformly from a disk of the same size.
+// Between 6.0% and 6.8% of the pairs meet, depending on n.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"
