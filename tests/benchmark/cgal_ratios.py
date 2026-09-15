@@ -66,7 +66,7 @@ def cell(driver, dataset, problem, algorithms=None):
 
 
 SEGMENT_DATASETS = ("small", "large", "sheared", "polygon edges")
-ARRANGEMENT_DATASETS = ("small segments", "large segments", "mixed")
+ARRANGEMENT_DATASETS = ("small segments", "large segments", "mixed", "voronoi")
 
 ROWS = [
     ("Segment intersection",
