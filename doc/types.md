@@ -224,29 +224,29 @@ if (s.intersects(t)) {
 // Output: (62/35,9/5)
 ```
 
-Since `pgl::Rational<pgl::BigInt>` is roughly 50 times slower than `int` (see the benchmark below), prefer these aliases only when performance is not critical.
+Since `pgl::Rational<pgl::BigInt>` is roughly 8 times slower than `int` (see the benchmark below), prefer these aliases only when performance is not critical.
 
 
 ### Benchmark
 
-To give an idea of the cost of using different number types, we show a benchmark of the times to test if two segments cross using different types, with and without promotion. The time shown is the average time of the `crosses` predicate on two uniform random segments with integer endpoint coordinates in the -500 to 500 range. Since the class [`Rational`](https://gfonsecabr.github.io/pgl/classpgl_1_1Rational.html "Exact rational number class template.") is optimized to handle integer coordinates faster, we also perform the same test on rational numbers with the segment coordinates divided by 60. All times are in nanoseconds.
+To give an idea of the cost of using different number types, we show a benchmark of the times to test if two segments cross using different types, with and without promotion. The time shown is the average time of the `crosses` predicate on two uniform random segments with integer endpoint coordinates in the -500 to 500 range. Since the class [`Rational`](https://gfonsecabr.github.io/pgl/classpgl_1_1Rational.html "Exact rational number class template.") is optimized to handle integer coordinates faster, we also perform the same test on rational numbers with the segment coordinates divided by 60. All times are in nanoseconds, measured with `g++ 16 -Ofast` on an AMD Ryzen 9 9900X.
 
-| Type                | promotion <br/> integer | no promotion <br/> integer | no promotion <br/> integer / 60 |
-| ------------------- | ----------------------: | -------------------------: | ------------------------------: |
-| `int16_t`           |                    4.63 |                       4.62 |                                 |
-| `int32_t`           |                    4.59 |                       4.39 |                                 |
-| `int64_t`           |                    7.14 |                       4.40 |                                 |
-| `int128`            |                   48.74 |                       7.99 |                                 |
-| [`pgl::BigInt`](https://gfonsecabr.github.io/pgl/classpgl_1_1BigInt.html "Arbitrary precision signed integer.")       |                         |                      34.47 |                                 |
-| `float`             |                    6.29 |                       5.76 |                                 |
-| `double`            |                   10.33 |                       5.81 |                                 |
-| `long double`       |                         |                      12.61 |                                 |
-| `Rational<int32_t>` |                         |                      36.82 |                           83.62 |
-| `Rational<int64_t>` |                         |                      29.64 |                           30.39 |
-| `Rational<int128>`  |                         |                      49.24 |                           53.76 |
-| `Rational<BigInt>`  |                         |                     185.28 |                          187.05 |
+| Type                | promotion <br/> integer | promotion <br/> integer / 60 | no promotion <br/> integer | no promotion <br/> integer / 60 |
+| ------------------- | ----------------------: | ---------------------------: | -------------------------: | ------------------------------: |
+| `int16_t`           |                    4.60 |                              |                       4.63 |                                 |
+| `int32_t`           |                    4.80 |                              |                       4.60 |                                 |
+| `int64_t`           |                    7.06 |                              |                       4.40 |                                 |
+| `int128`            |                   29.87 |                              |                       7.99 |                                 |
+| [`pgl::BigInt`](https://gfonsecabr.github.io/pgl/classpgl_1_1BigInt.html "Arbitrary precision signed integer.")       |                   35.31 |                              |                      35.34 |                                 |
+| `float`             |                    6.28 |                              |                       5.57 |                                 |
+| `double`            |                   10.28 |                              |                       5.63 |                                 |
+| `long double`       |                   12.50 |                              |                      12.50 |                                 |
+| `Rational<int32_t>` |                   33.61 |                        65.24 |                      38.34 |                          115.37 |
+| `Rational<int64_t>` |                   24.58 |                        29.39 |                      26.35 |                           39.51 |
+| `Rational<int128>`  |                   32.22 |                        70.13 |                      32.13 |                           70.60 |
+| `Rational<BigInt>`  |                   38.22 |                        54.89 |                      38.40 |                           55.21 |
 
-Notice that the exact `pgl::Rational<BigInt>` type is around 40 times slower than a 32-bit `int` type, even when a 32-bit `int` is enough to calculate the predicate exactly. If performance is not critical, we encourage you to use `pgl::Rational<BigInt>` everywhere (as the python binding does), but if performance is important, avoid using rational numbers when they are not needed (for example, calculating predicates between shapes with integer coordinates).
+Notice that the exact `pgl::Rational<BigInt>` type is around 8 times slower than a 32-bit `int` type, even when a 32-bit `int` is enough to calculate the predicate exactly. If performance is not critical, we encourage you to use `pgl::Rational<BigInt>` everywhere (as the python binding does), but if performance is important, avoid using rational numbers when they are not needed (for example, calculating predicates between shapes with integer coordinates).
 
 ### Boost Number Types
 
@@ -255,13 +255,13 @@ We perform tests on the time of the `Segment::crosses` predicate using boost typ
 
 | Type                              | integer | integer / 60 |
 | --------------------------------- | ------: | -----------: |
-| `int128`                          |    8.09 |              |
-| `boost::multiprecision::int128_t` |   20.34 |              |
-| [`pgl::BigInt`](https://gfonsecabr.github.io/pgl/classpgl_1_1BigInt.html "Arbitrary precision signed integer.")                     |   51.04 |              |
-| `boost::cpp_int`                  |  188.71 |              |
-| `GMP mpz_int`                     |  338.66 |              |
-| `pgl::Rational<int64_t>`          |   29.56 |        36.04 |
-| `boost::rational<int64_t>`        |  105.75 |       225.51 |
-| `pgl::Rational<pgl::BigInt>`      |  205.57 |       214.43 |
-| `boost::rational<boost::cpp_int>` | 1818.49 |      1931.34 |
-| `GMP mpq_rational`                | 1146.64 |      1569.48 |
+| `int128`                          |    7.98 |              |
+| `boost::multiprecision::int128_t` |   32.40 |              |
+| [`pgl::BigInt`](https://gfonsecabr.github.io/pgl/classpgl_1_1BigInt.html "Arbitrary precision signed integer.")                     |   35.57 |              |
+| `boost::cpp_int`                  |  109.76 |              |
+| `GMP mpz_int`                     |  218.32 |              |
+| `pgl::Rational<int64_t>`          |   25.82 |        33.63 |
+| `boost::rational<int64_t>`        |  112.36 |       226.45 |
+| `pgl::Rational<pgl::BigInt>`      |   37.83 |        55.88 |
+| `boost::rational<boost::cpp_int>` | 1804.47 |      1930.03 |
+| `GMP mpq_rational`                | 1061.65 |      1734.96 |

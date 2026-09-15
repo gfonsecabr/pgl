@@ -1,4 +1,4 @@
-// g++ -Ofast -Iinclude -std=c++23 benchmark/support/boosttable.cpp -lgmp
+// g++ -Ofast -Iinclude -std=c++23 doc/raw/tables/boosttable.cpp -lgmp
 #include <random>
 #include <vector>
 #include <iostream>

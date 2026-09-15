@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Compile, run and format the number-type benchmark tables for doc/types.md.
+"""Compile, run and format the number-type benchmark tables for doc/raw/types.md.
 
-Two Markdown tables in doc/types.md are produced from two programs:
+Two Markdown tables in doc/raw/types.md are produced from two programs:
 
-  * the "Benchmark" table        <- benchmark/support/doctable.cpp
+  * the "Benchmark" table        <- doc/raw/tables/doctable.cpp
         run twice: with type promotion (the default) and with promotion
         disabled (-DPGL_DISABLE_PROMOTION). A single run already reports both
         the integer rows and the "/ 60" rational rows.
 
-  * the "Boost Number Types" table <- benchmark/support/boosttable.cpp
+  * the "Boost Number Types" table <- doc/raw/tables/boosttable.cpp
         run once (it always disables promotion). The integer rows come first,
         then the "/ 60" rows after the "Dividing coordinates by 60" marker.
 
@@ -18,11 +18,11 @@ stdout ready to copy and paste. A short banner for each table is written to
 stderr, so `... > tables.md` captures only clean Markdown.
 
 Usage:
-    python3 benchmark/support/make_type_tables.py            # both tables
-    python3 benchmark/support/make_type_tables.py --doc      # first table only
-    python3 benchmark/support/make_type_tables.py --boost    # second table only
-    python3 benchmark/support/make_type_tables.py --runs 3   # best of 3 runs
-    CXX=clang++ python3 benchmark/support/make_type_tables.py # different compiler
+    python3 doc/raw/tables/make_type_tables.py            # both tables
+    python3 doc/raw/tables/make_type_tables.py --doc      # first table only
+    python3 doc/raw/tables/make_type_tables.py --boost    # second table only
+    python3 doc/raw/tables/make_type_tables.py --runs 3   # best of 3 runs
+    CXX=clang++ python3 doc/raw/tables/make_type_tables.py # different compiler
 
 Notes:
     * Values are nanoseconds per crosses() call (lower is better).
@@ -37,7 +37,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]          # benchmark/support/ -> repo root
+ROOT = Path(__file__).resolve().parents[3]          # doc/raw/tables/ -> repo root
 SUPPORT = ROOT / "doc" / "raw" / "tables"
 CXX = os.environ.get("CXX", "g++")
 BASE_FLAGS = ["-Ofast", "-std=c++23", f"-I{ROOT / 'include'}"]
@@ -122,39 +122,39 @@ def doc_table(runs: int) -> str:
     prom = dict(prom)
     noprom = dict(noprom)
 
-    # (Markdown label, integer-row key, "/60"-row key or None, promotes?)
-    # promotes is False for the types at the top of a promotion chain, i.e. those
-    # with promoted_number_t<T> == T: BigInt, long double and Rational<BigInt>.
-    # Their promotion columns are left empty (promotion is a no-op for them).
+    # (Markdown label, integer-row key, "/60"-row key or None)
+    # Every type gets both builds. Promotion leaves BigInt, long double and
+    # Rational coordinates as they are, but it also widens the fixed-width
+    # integers their arithmetic runs on, so their times still differ.
     spec = [
-        ("`int16_t`",           "int16_t",          None,                 True),
-        ("`int32_t`",           "int32_t",          None,                 True),
-        ("`int64_t`",           "int64_t",          None,                 True),
-        ("`int128`",            "pgl::int128",      None,                 True),
-        ("`pgl::BigInt`",            "pgl::BigInt",      None,                 False),
-        ("`float`",             "float",            None,                 True),
-        ("`double`",            "double",           None,                 True),
-        ("`long double`",       "long double",      None,                 False),
-        ("`Rational<int32_t>`", "Rational i32",     "Rational i32/60",    False),
-        ("`Rational<int64_t>`", "Rational i64",     "Rational i64/60",    False),
-        ("`Rational<int128>`",  "Rational i128",    "Rational 128/60",    False),
-        ("`Rational<BigInt>`",  "Rational BigInt",  "Rational BigInt/60", False),
+        ("`int16_t`",           "int16_t",          None),
+        ("`int32_t`",           "int32_t",          None),
+        ("`int64_t`",           "int64_t",          None),
+        ("`int128`",            "pgl::int128",      None),
+        ("`pgl::BigInt`",       "pgl::BigInt",      None),
+        ("`float`",             "float",            None),
+        ("`double`",            "double",           None),
+        ("`long double`",       "long double",      None),
+        ("`Rational<int32_t>`", "Rational i32",     "Rational i32/60"),
+        ("`Rational<int64_t>`", "Rational i64",     "Rational i64/60"),
+        ("`Rational<int128>`",  "Rational i128",    "Rational 128/60"),
+        ("`Rational<BigInt>`",  "Rational BigInt",  "Rational BigInt/60"),
     ]
-    # No "promotion / integer / 60" column: only Rational types have a "/ 60"
-    # variant, and Rational is never promoted, so that column is always empty.
     headers = ["Type",
                "promotion <br/> integer",
+               "promotion <br/> integer / 60",
                "no promotion <br/> integer",
                "no promotion <br/> integer / 60"]
     rows = []
-    for label, ikey, fkey, promotes in spec:
+    for label, ikey, fkey in spec:
         rows.append([
             label,
-            fmt(prom.get(ikey)) if promotes else "",
+            fmt(prom.get(ikey)),
+            fmt(prom.get(fkey)) if fkey else "",
             fmt(noprom.get(ikey)),
             fmt(noprom.get(fkey)) if fkey else "",
         ])
-    return md_table(headers, rows, ["l", "r", "r", "r"])
+    return md_table(headers, rows, ["l", "r", "r", "r", "r"])
 
 
 def boost_table(runs: int) -> str:
@@ -206,12 +206,12 @@ def main():
     do_boost = not args.doc
 
     if do_doc:
-        print("=== Benchmark table (doc/types.md) ===", file=sys.stderr)
+        print("=== Benchmark table (doc/raw/types.md) ===", file=sys.stderr)
         print(doc_table(args.runs))
         if do_boost:
             print()
     if do_boost:
-        print("=== Boost Number Types table (doc/types.md) ===", file=sys.stderr)
+        print("=== Boost Number Types table (doc/raw/types.md) ===", file=sys.stderr)
         print(boost_table(args.runs))
 
 

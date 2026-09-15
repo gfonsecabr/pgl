@@ -1,4 +1,4 @@
-// g++ -Ofast -Iinclude -std=c++23 benchmark/support/doctable.cpp -o build/doctable_bench
+// g++ -Ofast -Iinclude -std=c++23 doc/raw/tables/doctable.cpp -o build/doctable_bench
 #include <random>
 #include <vector>
 #include <iostream>
@@ -15,8 +15,17 @@ std::vector<pgl::Segment<Point>> randomSegments(size_t n, int den) {
     static std::uniform_int_distribution<int> dist(-500,500);
     using Number =  std::remove_reference_t<decltype(Point().x())>;
 
+    // One draw per statement: the order in which function arguments are
+    // evaluated is unspecified, so drawing inside the call would hand each
+    // compiler different segments.
+    auto random = [&] { return (Number)dist(rgen) / (Number)den; };
+
     for(size_t i = 0; i < n; i++) {
-        ret.emplace_back(pgl_benchmark::normalized((Number)dist(rgen)/den),pgl_benchmark::normalized((Number)dist(rgen)/den),pgl_benchmark::normalized((Number)dist(rgen)/den),pgl_benchmark::normalized((Number)dist(rgen)/den));
+        Number x1 = random();
+        Number y1 = random();
+        Number x2 = random();
+        Number y2 = random();
+        ret.emplace_back(x1, y1, x2, y2);
     }
     return ret;
 }
@@ -40,15 +49,6 @@ void allPairs(const std::vector<pgl::Segment<Point>> &segs) {
 
 template<class Point>
 void run(const char* label, int den=1) {
-    using Number = std::remove_reference_t<decltype(Point().x())>;
-#ifndef PGL_DISABLE_PROMOTION
-    // With promotion enabled, skip types that do not actually promote: the
-    // result would be identical to the no-promotion run, so there is no point
-    // spending time on it (and the table cell is left empty).
-    if constexpr (std::is_same_v<pgl::detail::promoted_number_t<Number>, Number>) {
-        return;
-    }
-#endif
     std::cout << label;
     auto segs = randomSegments<Point>(5000,den);
     plf::nanotimer timer;
