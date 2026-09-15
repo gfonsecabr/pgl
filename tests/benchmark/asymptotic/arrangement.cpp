@@ -12,6 +12,10 @@
 // @dataset mixed: The small segments, except that one shape in twenty is a ray
 // and one in twenty a line, each drawn from the same two random points: the ray
 // starts at the first and passes through the second.
+// @dataset voronoi: The segments and rays of the Voronoi diagram of n distinct
+// points with integer coordinates drawn uniformly from a disk of diameter
+// 10,000, so about 3n edges with rational endpoints that meet only at shared
+// endpoints. The arrangement is not told so, and searches for crossings anyway.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"
@@ -127,6 +131,8 @@ int main(int argc, char** argv) {
                                     bench::largeSegments);
         sweepDataset<pgl::EShape>(opt, "mixed", bench::kArrangementMixed,
                                   bench::mixedShapes);
+        sweepDataset<pgl::EShape>(opt, "voronoi", bench::kArrangement,
+                                  bench::voronoiEdges);
     }
     return 0;
 }

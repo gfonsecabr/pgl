@@ -102,7 +102,11 @@ constexpr auto kTriangulation = linearSizes(100000);
 // cross far more often and reach a comparable arrangement at a fraction of the
 // n — hence a second, much shorter list rather than one shared ceiling. Mixed
 // shapes get a third: the lines among them cross each other and most of the
-// disk, so their output outgrows the small segments' at the same n.
+// disk, so their output outgrows the small segments' at the same n. The
+// Voronoi edges share the small segments' list: n counts sites, whose diagram
+// has about 3n edges that cross nowhere, so there is no quadratic output and
+// the arrangement stays linear in n. That leaves it well under the one-second
+// anchor at this ceiling, which it keeps so the two curves span the same range.
 constexpr auto kArrangement      = linearSizes(10000);
 constexpr auto kArrangementLarge = linearSizes(2000);
 constexpr auto kArrangementMixed = linearSizes(4000);

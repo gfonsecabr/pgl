@@ -106,6 +106,15 @@ inline std::vector<IntShape> mixedShapes(int n) {
     return w;
 }
 
+// The edges of the Voronoi diagram of randomPoints(n): a segment per Delaunay
+// edge whose two circumcentres differ, and a ray per convex-hull edge. The one
+// dataset not in `int` coordinates, since a Voronoi vertex is a circumcentre:
+// the edges come exact, and every consumer takes them as they are.
+inline std::vector<pgl::EShape> voronoiEdges(int n) {
+    const pgl::Triangulation<IntTriangle> delaunay(randomPoints(n));
+    return delaunay.voronoiEdges<pgl::ERational>();
+}
+
 // smallSegments(n) under the shear (x, y) -> (x, 10x + y). The map is affine,
 // so exactly the same pairs meet, in the same way, but the segments turn nearly
 // vertical and their y-extents stretch tenfold: pairs whose bounding boxes

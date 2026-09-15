@@ -1,7 +1,7 @@
 // @desc: CGAL reference for the Arrangement category: Arrangement_2 over the
-// same three datasets, with Arr_trapezoid_ric_point_location for the queries.
-// The segment datasets use Arr_segment_traits_2; the mixed one needs rays and
-// lines, so it uses Arr_linear_traits_2, whose unbounded topology counts
+// same four datasets, with Arr_trapezoid_ric_point_location for the queries.
+// The segment datasets use Arr_segment_traits_2; the mixed and Voronoi ones need
+// rays and lines, so they use Arr_linear_traits_2, whose unbounded topology counts
 // vertices at infinity and fictitious edges nowhere, just as pgl does. The
 // build's signature is the arrangement's size -- finite vertices, edges and
 // faces, every unbounded one included -- directly comparable with pgl's.
@@ -43,6 +43,19 @@ LinearTraits::Curve_2 linearCurve(const bench::IntShape& shape) {
     const auto& segment = shape.asHeld<bench::IntSegment>();
     return bench::cgal::Kernel::Segment_2(bench::cgal::point(segment[0]),
                                           bench::cgal::point(segment[1]));
+}
+
+// A Voronoi edge, converted for the linear traits. Its endpoints are rational,
+// so they go in exactly. Like pgl, CGAL is not told that the edges cross nowhere:
+// both sides insert them as general curves.
+LinearTraits::Curve_2 exactLinearCurve(const pgl::EShape& shape) {
+    if (const auto* ray = shape.getIfHolds<pgl::Ray<pgl::EPoint>>()) {
+        return bench::cgal::Kernel::Ray_2(bench::cgal::exactPoint(ray->source()),
+                                          bench::cgal::exactPoint(ray->target()));
+    }
+    const auto& segment = shape.asHeld<pgl::ESegment>();
+    return bench::cgal::Kernel::Segment_2(bench::cgal::exactPoint(segment[0]),
+                                          bench::cgal::exactPoint(segment[1]));
 }
 
 // Every cell of the subdivision, counted as pgl's driver counts them. CGAL's
@@ -129,5 +142,7 @@ int main(int argc, char** argv) {
                                 bench::largeSegments, segmentCurve);
     sweepDataset<LinearTraits>(opt, "mixed", bench::kArrangementMixed,
                                bench::mixedShapes, linearCurve);
+    sweepDataset<LinearTraits>(opt, "voronoi", bench::kArrangement,
+                               bench::voronoiEdges, exactLinearCurve);
     return 0;
 }
