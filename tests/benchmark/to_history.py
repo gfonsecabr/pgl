@@ -9,17 +9,19 @@ Reads the snapshot JSONs produced by the runners:
 
 and appends one record per data point into tests/benchmark/history/, tagged with
 the commit (and its commit date — the pairs dashboard's x-axis is the commit
-date, not the run date) and the machine (CPU + compiler).
+date, not the run date) and the machine: CPU and compiler family, with the
+compiler's version recorded beside them (see bench_machine.py).
 
 Layout, append-only and committed to the repo:
   * pairs      → history/<shape1>_<shape2>.jsonl   (kind:"pair")
   * asymptotic → history/asymptotic/<driver>.jsonl (kind:"asymptotic")
 
-The CGAL baseline is the exception: it is *not* appended. It goes to a single
-history/asymptotic-baseline.json, overwritten each time. A baseline is a
-reference point, not a measurement of this repo at this commit, so there is
-nothing to track over time; and it only exists at all on a machine that has
-CGAL, so an append-only baseline would be a ragged log of whoever last ran one.
+The CGAL baseline is the exception: it is *not* appended. Each machine has one
+snapshot, history/asymptotic-baseline/<machine>.json, overwritten each time that
+machine records a baseline. A baseline is a reference point, not a measurement
+of this repo at this commit, so there is nothing to track over time; and it is
+kept per machine because CGAL's times say nothing about pgl times measured on
+other hardware or with another compiler.
 
 Usage (from repo root):
     python3 tests/benchmark/to_history.py [options]
@@ -33,7 +35,8 @@ Options:
     --skip-pairs         do not read the pair snapshot
     --skip-asymptotic    do not read the asymptotic snapshot
     --merge-baseline     replace only the categories present in the baseline
-                         snapshot, preserving the other stored categories
+                         snapshot, preserving the machine's other stored
+                         categories
 """
 from __future__ import annotations
 
@@ -45,6 +48,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+from bench_machine import (LEGACY_BASELINE, baseline_path,  # noqa: E402
+                           compiler_family, meta_machine)
 from bench_paths import default_history  # noqa: E402
 
 # The microsecond symbol, and the "us" older runs spelled it with.
@@ -138,8 +143,10 @@ def main() -> int:
             commit = meta.get("commit", "unknown")
             cpu    = meta.get("cpu") or "unknown"
             cxx    = meta.get("compiler", "unknown")
+            version = meta.get("compiler_version", "")
+            family = meta.get("compiler_family") or compiler_family(cxx, version)
             flags  = meta.get("cxxflags", "")
-            machine = f"{cpu} · {cxx}"
+            machine = meta_machine(meta)
             date = date_of(commit)
             for entry in data.get("results", []):
                 s1, sz1 = entry["shape1"], entry["size1"]
@@ -173,6 +180,7 @@ def main() -> int:
                         "date":       date,
                         "machine":    machine,
                         "cpu":        cpu, "cxx": cxx, "flags": flags,
+                        "compiler_family": family, "compiler_version": version,
                     })
                     total += 1
 
@@ -194,8 +202,10 @@ def main() -> int:
                 commit = meta.get("commit", "unknown")
                 cpu    = meta.get("cpu") or "unknown"
                 cxx    = meta.get("compiler", "unknown")
+                version = meta.get("compiler_version", "")
+                family = meta.get("compiler_family") or compiler_family(cxx, version)
                 flags  = meta.get("cxxflags", "")
-                machine = f"{cpu} · {cxx}"
+                machine = meta_machine(meta)
                 date = date_of(commit)
                 for entry in data.get("results", []):
                     fname = f"asymptotic/{entry['driver']}.jsonl"
@@ -223,29 +233,49 @@ def main() -> int:
                         "date":       date,
                         "machine":    machine,
                         "cpu":        cpu, "cxx": cxx, "flags": flags,
+                        "compiler_family": family, "compiler_version": version,
                     })
                     total += 1
 
     # ── CGAL baseline: overwritten, never appended ───────────────────────────
-    baseline_path = Path(args.baseline)
+    snapshot_path = Path(args.baseline)
     baseline_written = False
-    if baseline_path.exists():
-        data = json.loads(baseline_path.read_text())
+    if snapshot_path.exists():
+        data = json.loads(snapshot_path.read_text())
         if data.get("meta", {}).get("sizes_override"):
             print("baseline snapshot used --sizes; not recording it.", file=sys.stderr)
         else:
-            target = history_dir / "asymptotic-baseline.json"
-            if args.merge_baseline and target.exists():
+            machine = meta_machine(data.get("meta", {}))
+            target = baseline_path(history_dir, machine)
+            # The one shared file from before baselines were kept per machine is
+            # this machine's baseline if its meta says so: merge into it, then
+            # retire it, since the per-machine file now supersedes it.
+            legacy = history_dir / LEGACY_BASELINE
+            inherited = None
+            if legacy.exists():
                 try:
-                    existing = json.loads(target.read_text())
-                    categories = {r["category"] for r in data.get("results", [])}
-                    preserved = [r for r in existing.get("results", [])
-                                 if r.get("category") not in categories]
-                    data = {**data, "results": preserved + data.get("results", [])}
+                    old = json.loads(legacy.read_text())
+                    if meta_machine(old.get("meta", {})) == machine:
+                        inherited = old
                 except (OSError, json.JSONDecodeError):
                     pass
+            if args.merge_baseline:
+                try:
+                    existing = (json.loads(target.read_text()) if target.exists()
+                                else inherited)
+                    if existing:
+                        categories = {r["category"] for r in data.get("results", [])}
+                        preserved = [r for r in existing.get("results", [])
+                                     if r.get("category") not in categories]
+                        data = {**data, "results": preserved + data.get("results", [])}
+                except (OSError, json.JSONDecodeError):
+                    pass
+            target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(json.dumps(data, ensure_ascii=False, indent=2))
-            print(f"  asymptotic-baseline.json: {len(data.get('results', []))} rows "
+            if inherited is not None:
+                legacy.unlink()
+            print(f"  {target.relative_to(history_dir)}: "
+                  f"{len(data.get('results', []))} rows "
                   f"({'merged' if args.merge_baseline else 'overwritten'})")
             baseline_written = True
 

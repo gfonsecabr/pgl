@@ -17,10 +17,11 @@
 #   asymptotic   the whole-algorithm size sweeps (run_asymptotic.py)
 #   baseline     the CGAL reference drivers for those sweeps
 #                (asymptotic/baseline/). Not a measurement of this commit but a
-#                reference point, so it overwrites
-#                history/asymptotic-baseline.json instead of being appended to
-#                a history. CGAL is not on every dev machine or CI box, which
-#                is the other reason it is asked for by name.
+#                reference point, so it overwrites this machine's
+#                history/asymptotic-baseline/<machine>.json instead of being
+#                appended to a history; other machines' baselines are left
+#                alone. CGAL is not on every dev machine or CI box, which is
+#                the other reason it is asked for by name.
 #
 #   bash tests/benchmark/record.sh pairs asymptotic     # the usual full run
 #   bash tests/benchmark/record.sh pairs                # only the shape-pair cube
@@ -53,8 +54,9 @@
 #                                 model. Requires the pairs target.
 #   --drivers NAMES               limit the asymptotic and baseline runs to a
 #                                 comma-separated list of driver names (for
-#                                 example, triangulation,arrangement). Baseline
-#                                 categories outside the list are retained.
+#                                 example, triangulation,arrangement). This
+#                                 machine's baseline categories outside the
+#                                 list are retained.
 #   --repetitions N               samples per program; median kept (default: 3)
 #   --no-push                     commit to the data repository but do not push
 #                                 it, and do not trigger the Pages rebuild

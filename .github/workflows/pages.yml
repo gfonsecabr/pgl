@@ -16,6 +16,7 @@ on:
       - 'Doxyfile'
       - 'tests/benchmark/dashboard/**'
       - 'tests/benchmark/build_dashboard.py'
+      - 'tests/benchmark/bench_machine.py'
       - '.github/workflows/pages.yml'
   repository_dispatch:
     types: [benchmarks-updated]

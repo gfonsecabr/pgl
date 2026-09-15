@@ -1009,7 +1009,7 @@ const asymPromotionIsFree = (state, dim) =>
 const asymSelected = (category, state, dim) =>
   (category.dimensions[dim] || []).filter((v) => state.selected[dim].has(v));
 
-function asymFilterBar(name, category, state, machineData) {
+function asymFilterBar(name, category, state, machine, machineData) {
   const bar = document.createElement("div");
   bar.className = "filters asym-filters";
 
@@ -1148,14 +1148,15 @@ function asymFilterBar(name, category, state, machineData) {
   // Offered only where there is something to draw: most categories have a
   // reference for every cell, but a control that does nothing is worse than no
   // control.
-  if (category.baseline && Object.keys(category.baseline).length) {
+  if (Object.keys(asymBaseline(category, machine)).length) {
     const refGroup = document.createElement("div");
     refGroup.className = "filter-group";
     const refLabel = document.createElement("span");
     refLabel.className = "filter-label static";
     refLabel.title = "The CGAL reference curves, drawn dashed. They are not a " +
       "measurement of this repository: they are the same problem on the same " +
-      "input, solved by another library, and they overlay whichever curve is " +
+      "input, solved by another library on the selected machine, and they " +
+      "overlay whichever curve is " +
       "selected. Each curve gets the CGAL kernel its number type is entitled " +
       "to — EPICK against int, EPECK against ERational — except where CGAL " +
       "constructs geometry and only EPECK is exact, which stays EPECK for " +
@@ -1182,6 +1183,13 @@ function asymFilterBar(name, category, state, machineData) {
   }
 
   return bar;
+}
+
+// The CGAL reference curves the machine recorded, keyed on dataset|problem.
+// Another machine's are never borrowed: its CGAL times would put a second
+// computer's hardware and compiler into every ratio read off the chart.
+function asymBaseline(category, machine) {
+  return (category.baseline && category.baseline[machine]) || {};
 }
 
 // The reference curves a pgl number type is entitled to, one per CGAL entry
@@ -1295,7 +1303,7 @@ function asymDatasets(category, state, machine, depth) {
   for (const { value, color, dataset, problem, algorithm, type } of resolved) {
     if (!state.baseline) break;
     const key = `${dataset}|${problem}`;
-    const all = (category.baseline && category.baseline[key]) || [];
+    const all = asymBaseline(category, machine)[key] || [];
     // Whether this cell records a kernel per number type at all: where it does,
     // two type curves get two different references and each belongs to one of
     // them; where it does not, they share the single EPECK curve.
@@ -1600,7 +1608,7 @@ function renderCategory(name) {
   asymSnap(category, state, machineData);
 
   parts.desc.textContent = asymDescription(category, state, machineData);
-  const bar = asymFilterBar(name, category, state, machineData);
+  const bar = asymFilterBar(name, category, state, machine, machineData);
   parts.filters.replaceWith(bar);
   parts.filters = bar;
 

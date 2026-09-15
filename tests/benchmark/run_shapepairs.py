@@ -86,6 +86,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+from bench_machine import compiler_family, detect_compiler_version, detect_cpu  # noqa: E402
+
 
 # ─── Benchmark dimensions ────────────────────────────────────────────────────
 
@@ -816,26 +819,8 @@ def main() -> None:
         capture_output=True, text=True, cwd=project_root,
     ).stdout.strip() or "unknown"
 
-    cpu = ""
-    try:
-        lscpu = subprocess.run(
-            ["lscpu"], capture_output=True, text=True, env={**os.environ, "LC_ALL": "C"},
-        ).stdout
-        for line in lscpu.splitlines():
-            if "Model name" in line:
-                cpu = line.split(":", 1)[1].strip()
-                break
-    except FileNotFoundError:
-        pass
-    if not cpu:
-        try:
-            with open("/proc/cpuinfo") as f:
-                for line in f:
-                    if line.startswith("model name"):
-                        cpu = line.split(":", 1)[1].strip()
-                        break
-        except OSError:
-            pass
+    cpu = detect_cpu()
+    compiler_version = detect_compiler_version(cxx)
 
     # ── Step 1: generate all C++ sources ────────────────────────────────────
     srcs: dict[tuple, Path] = {}
@@ -1044,6 +1029,8 @@ def main() -> None:
             "commit":       commit,
             "cpu":          cpu or None,
             "compiler":     cxx,
+            "compiler_version": compiler_version,
+            "compiler_family":  compiler_family(cxx, compiler_version),
             "cxxflags":     args.cxxflags,
             "repetitions":  args.repetitions,
             "time_budget_s": args.time_budget or None,

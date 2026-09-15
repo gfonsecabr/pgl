@@ -2,8 +2,8 @@
 """build_dashboard.py — assemble the static benchmark dashboard from history.
 
 Reads the JSONL history under --history (pair records at the top level,
-asymptotic records under history/asymptotic/, plus the single overwritten CGAL
-baseline snapshot), copies the dashboard template (index.html / asymptotic.html
+asymptotic records under history/asymptotic/, plus each machine's overwritten
+CGAL baseline snapshot), copies the dashboard template (index.html / asymptotic.html
 / app.js / style.css) into --out, and emits separate pair and asymptotic
 payloads so each page only downloads the data it displays. Pure transformation,
 no network, so it runs identically locally and in CI.
@@ -42,13 +42,14 @@ of them.
         # the last N runs of each series.
         "data": { <machine>: { "dataset|problem|algorithm|type":
                     [ {commit, date, points:[{size,time,min,max,output}, ...]}, ... ] } },
-        # The CGAL reference, if one was recorded. Keyed on dataset|problem;
+        # The CGAL reference, per machine that recorded one: a machine's pgl
+        # curves are only ever drawn against its own. Keyed on dataset|problem;
         # `number` is the kernel that produced the curve (EPICK is shown against
         # pgl's int column, EPECK against ERational), `rank` selects the dash
         # pattern, and a curve may additionally name the pgl algorithm it
         # compares against.
-        "baseline": { "dataset|problem":
-                      {algorithm, number, rank, for_algorithm?, points:[...]} },
+        "baseline": { <machine>: { "dataset|problem":
+                      [ {algorithm, number, rank, for_algorithm?, points:[...]} ] } },
         "source_url"?, "description"?,
         # How each dataset is produced, from the driver's `// @dataset` blocks.
         "datasets"?: { <dataset>: <text> }
@@ -70,6 +71,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+from bench_machine import read_baselines, record_machine  # noqa: E402
 from bench_paths import default_history, missing_history_message  # noqa: E402
 
 # Display orders mirroring run_shapepairs.py so the dashboard axes read naturally.
@@ -187,7 +189,7 @@ def build_pairs(history: str):
         for r in read_jsonl(path):
             if r.get("kind") != "pair":
                 continue
-            machine = r["machine"]
+            machine = record_machine(r)
             machines.add(machine)
             for d in dims:
                 dims[d].add(r[d])
@@ -284,7 +286,7 @@ def build_asymptotic(history: str, repo_base: str, bench_root: str):
             if r.get("kind") != "asymptotic":
                 continue
             category = r["category"]
-            machine = r["machine"]
+            machine = record_machine(r)
             machines.add(machine)
             entry = raw.setdefault(category, {
                 "dims": {d: set() for d in ("dataset", "problem", "algorithm", "type")},
@@ -315,7 +317,8 @@ def build_asymptotic(history: str, repo_base: str, bench_root: str):
                 "output": r.get("output", r.get("result")),
             }
 
-    baseline = read_baseline(history)
+    baselines = {machine: group_baseline(snapshot)
+                 for machine, snapshot in read_baselines(history).items()}
 
     out: dict[str, dict] = {}
     for category, entry in raw.items():
@@ -339,8 +342,11 @@ def build_asymptotic(history: str, repo_base: str, bench_root: str):
             "machines": sorted(entry["machines"]),
             "data": data,
         }
-        if category in baseline:
-            result["baseline"] = baseline[category]
+        references = {machine: grouped[category]
+                      for machine, grouped in sorted(baselines.items())
+                      if category in grouped}
+        if references:
+            result["baseline"] = references
         # One driver per category, so the description, the dataset notes and the
         # source link come from that file's `// @desc:` and `// @dataset` blocks.
         for driver in sorted(d for d in entry["drivers"] if d):
@@ -361,8 +367,8 @@ def build_asymptotic(history: str, repo_base: str, bench_root: str):
     return ordered, machines
 
 
-def read_baseline(history: str):
-    """The CGAL reference snapshot, category -> "dataset|problem" -> [curve].
+def group_baseline(snapshot: dict):
+    """One machine's CGAL reference, category -> "dataset|problem" -> [curve].
 
     A list per key, not one curve, for two reasons. A category may have more
     than one reference for the same cell, and the chart draws all of them. And
@@ -379,18 +385,10 @@ def read_baseline(history: str):
     would give one algorithm's two kernels two different patterns, which would
     read as two different algorithms.
 
-    A single overwritten JSON rather than a history: see to_history.py. Missing
-    is the normal case — it is only ever written on a machine with CGAL.
+    An overwritten JSON per machine rather than a history: see to_history.py.
+    A machine without one is the normal case — it is only ever written on a
+    machine with CGAL.
     """
-    path = os.path.join(history, "asymptotic-baseline.json")
-    if not os.path.exists(path):
-        return {}
-    try:
-        with open(path, encoding="utf-8") as f:
-            snapshot = json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return {}
-
     grouped: dict[str, dict] = {}
     for r in snapshot.get("results", []):
         key = "|".join((r["dataset"], r["problem"]))

@@ -4,12 +4,16 @@
 That table is one number per problem: pgl's time divided by CGAL's, so below 1
 means pgl is faster. Both sides come from the recorded history rather than a
 fresh run — the pgl times from history/asymptotic/<driver>.jsonl at one commit,
-the CGAL times from history/asymptotic-baseline.json, which is a single shared
-reference overwritten by `record.sh baseline` and not tied to any commit. So
+the CGAL times from each machine's history/asymptotic-baseline/<machine>.json,
+a reference overwritten by `record.sh baseline` and not tied to any commit. So
 this script measures nothing; it only reduces what record.sh already stored.
 
 The reduction, matching the methodology the page documents:
 
+  * pgl times are only ever divided by CGAL times from the same machine (CPU and
+    compiler family, see bench_machine.py). Every machine holding both yields
+    its own row, and the table averages those rows' numbers over the machines;
+    the range spans every ratio of every machine.
   * a cell is one (driver, dataset, problem, number type); within it, each
     library keeps the one algorithm that is fastest on average over the sweep
     (smallest geometric-mean time), not the fastest at each size, so a method
@@ -21,12 +25,13 @@ The reduction, matching the methodology the page documents:
   * a row covering several datasets averages their medians, and its range
     spans every size of every dataset it covers.
 
-Each driver is read at its own newest commit, because runs are routinely
+Each driver is read at its own newest commit on each machine, because runs are routinely
 partial: `record.sh asymptotic --drivers triangulation` refreshes one driver and
 leaves the rest of the page's rows measured where they last were. The commit
 behind every row is printed on stderr, so a table mixing two runs says so.
 Pass --commit to pin every row to one commit instead, which is the way to check
 this script against a page written from a single full run.
+Machines are listed on stderr the same way.
 
 Usage (from the repo root):
 
@@ -46,6 +51,8 @@ import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "tests/benchmark"))
+from bench_machine import read_baselines, record_machine  # noqa: E402
 
 # ── The table ────────────────────────────────────────────────────────────────
 # One entry per row of the page, in the page's column order: the label, the
@@ -166,12 +173,15 @@ def history_dir():
 
 
 def load(history):
-    """The pgl records per driver, and the CGAL baseline records."""
+    """The pgl records per driver per machine, and the CGAL baseline snapshots
+    per machine."""
     pgl = {}
     for path in sorted((history / "asymptotic").glob("*.jsonl")):
-        pgl[path.stem] = [json.loads(line) for line in path.open() if line.strip()]
-    baseline = json.loads((history / "asymptotic-baseline.json").read_text())
-    return pgl, baseline["results"], baseline.get("meta", {})
+        for line in path.open():
+            if line.strip():
+                r = json.loads(line)
+                pgl.setdefault(path.stem, {}).setdefault(record_machine(r), []).append(r)
+    return pgl, read_baselines(history)
 
 
 def fastest_overall(records):
@@ -193,8 +203,9 @@ def newest_commit(records):
     return max(records, key=lambda r: (r["date"], r["commit"]))["commit"]
 
 
-def cell_ratios(c, commit, pgl, baseline, pgl_number, cgal_number):
-    driver = pgl.get(c.driver, [])
+def cell_ratios(c, commit, machine, pgl, baseline, pgl_number, cgal_number):
+    """(commit, per-size ratios) for one cell on one machine, or None."""
+    driver = pgl.get(c.driver, {}).get(machine, [])
     at = commit or (newest_commit(driver) if driver else None)
     mine = [r for r in driver
             if r["commit"] == at and r["dataset"] == c.dataset
@@ -212,18 +223,24 @@ def cell_ratios(c, commit, pgl, baseline, pgl_number, cgal_number):
     return at, [ours[s] / ref[s] for s in sizes]
 
 
-def row_ratio(cells, commit, pgl, baseline, pgl_number, cgal_number):
-    """(average of the per-dataset medians, smallest ratio, largest ratio)."""
-    measured = [cell_ratios(c, commit, pgl, baseline, pgl_number, cgal_number)
-                for c in cells]
-    measured = [m for m in measured if m]
-    if not measured:
+def row_ratio(cells, commit, pgl, baselines, pgl_number, cgal_number):
+    """(average over machines of the average of the per-dataset medians,
+    smallest ratio, largest ratio, [(machine, commit)])."""
+    averages, every, runs = [], [], set()
+    for machine, snapshot in sorted(baselines.items()):
+        measured = [cell_ratios(c, commit, machine, pgl, snapshot["results"],
+                                pgl_number, cgal_number)
+                    for c in cells]
+        measured = [m for m in measured if m]
+        if not measured:
+            continue
+        runs |= {(machine, at) for at, _ in measured}
+        medians = [statistics.median(r) for _, r in measured]
+        averages.append(sum(medians) / len(medians))
+        every += [x for _, r in measured for x in r]
+    if not averages:
         return None
-    commits = sorted({at for at, _ in measured})
-    per_cell = [r for _, r in measured]
-    medians = [statistics.median(r) for r in per_cell]
-    every = [x for r in per_cell for x in r]
-    return sum(medians) / len(medians), min(every), max(every), commits
+    return sum(averages) / len(averages), min(every), max(every), sorted(runs)
 
 
 # ── Rendering ────────────────────────────────────────────────────────────────
@@ -243,16 +260,16 @@ def render(value):
     return f"{sig2(median)}× ({sig2(low)}–{sig2(high)})"
 
 
-def table(commit, pgl, baseline):
+def table(commit, pgl, baselines):
     """The rows that can be recomputed, sorted as the page sorts them."""
     rows, missing = [], []
     for label, cells, ours, theirs in ROWS:
-        values = [row_ratio(cells, commit, pgl, baseline, p, c) for p, c in COLUMNS]
+        values = [row_ratio(cells, commit, pgl, baselines, p, c) for p, c in COLUMNS]
         if values[0] is None and values[1] is None:
             missing.append(label)
             continue
-        commits = sorted({c for v in values if v for c in v[3]})
-        rows.append((label, values, ours, theirs, commits))
+        runs = sorted({run for v in values if v for run in v[3]})
+        rows.append((label, values, ours, theirs, runs))
     # Ordered by the like-for-like ERational column, the one every row has.
     rows.sort(key=lambda r: -r[1][0][0])
     return rows, missing
@@ -334,23 +351,34 @@ def main():
 
     commit = args.commit
     history = history_dir()
-    pgl, baseline, meta = load(history)
-    rows, missing = table(commit, pgl, baseline)
+    pgl, baselines = load(history)
+    if not baselines:
+        sys.exit(f"no CGAL baseline in {history}/")
+    rows, missing = table(commit, pgl, baselines)
     if not rows:
-        sys.exit(f"no pgl records in {history}/asymptotic/")
+        sys.exit(f"no pgl records matching a baseline's machine in {history}/asymptotic/")
 
-    print(f"pgl {commit or 'at each driver\'s newest commit'} against the "
-          f"CGAL baseline recorded for "
-          f"{meta.get('commit', '?')} on {meta.get('timestamp', '?')[:10]}\n",
+    print(f"pgl {commit or 'at each driver\'s newest commit'} against the CGAL baselines",
           file=sys.stderr)
+    for machine, snapshot in sorted(baselines.items()):
+        meta = snapshot.get("meta", {})
+        print(f"  {machine}: recorded for {meta.get('commit', '?')} "
+              f"on {meta.get('timestamp', '?')[:10]}", file=sys.stderr)
+    print(file=sys.stderr)
     if missing:
         print("No records at all:", file=sys.stderr)
         for label in missing:
             print(f"  {label}", file=sys.stderr)
         print(file=sys.stderr)
 
-    for label, _, _, _, commits in rows:
-        print(f"  {','.join(commits):20s} {label}", file=sys.stderr)
+    machines = sorted({m for *_, runs in rows for m, _ in runs})
+    for label, _, _, _, runs in rows:
+        where = ",".join(at if len(machines) == 1 else f"{at}@{machines.index(m) + 1}"
+                         for m, at in runs)
+        print(f"  {where:20s} {label}", file=sys.stderr)
+    if len(machines) > 1:
+        for i, machine in enumerate(machines, 1):
+            print(f"  @{i} = {machine}", file=sys.stderr)
     print(file=sys.stderr)
 
     if args.check:
@@ -364,7 +392,7 @@ def main():
     label, pgl_number, cgal_number = FOOTNOTE_EXACT
     row = next((r for r in ROWS if r[0] == label), None)
     if row:
-        exact = row_ratio(row[1], commit, pgl, baseline, pgl_number, cgal_number)
+        exact = row_ratio(row[1], commit, pgl, baselines, pgl_number, cgal_number)
         if exact:
             print("\n" + NOTE.format(ratio=render(exact)))
     print("\n" + MINKOWSKI_NOTE)

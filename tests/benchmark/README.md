@@ -81,8 +81,22 @@ alternative was charging machine-word fractions against a lazy-exact kernel.
 
 Opt-in only (`--baseline`), because CGAL is not on every dev machine or CI box.
 Never appended to the history either: a baseline is a reference point rather
-than a measurement of this repo at this commit, so it overwrites a single
-`asymptotic-baseline.json` in the history.
+than a measurement of this repo at this commit, so it overwrites the recording
+machine's `asymptotic-baseline/<machine>.json` in the history. Each machine keeps
+its own because CGAL's times only mean something next to pgl times from the same
+hardware and compiler: the dashboard draws the selected machine's curves only,
+and `cgal_ratios.py` divides each machine's pgl times by its own CGAL times
+before averaging over machines. The older single `asymptotic-baseline.json` is
+still read as the baseline of the machine its `meta` names, and is retired the
+next time that machine records one.
+
+### Machines
+
+Every record names its machine: the CPU model and the compiler family (`g++`,
+`clang++`), as `bench_machine.py` derives them. The compiler's version is
+recorded too, in `compiler_version`, but is not part of the machine, so a
+compiler update continues the same curves. Several machines can record into the
+same history; the dashboard's machine picker keeps them apart.
 
 ## Where the history lives
 
@@ -128,7 +142,7 @@ bash tests/benchmark/record.sh pairs --shapes Segment,Triangle --methods interse
 bash tests/benchmark/record.sh pairs asymptotic --no-push   # commit to the data repo, don't push
 ```
 
-`--drivers` limits the asymptotic and baseline runs to named drivers; baseline
+`--drivers` limits the asymptotic and baseline runs to named drivers; the machine's baseline
 categories outside the list are retained rather than dropped.
 
 It refuses to run with uncommitted changes to tracked files — in either
@@ -180,9 +194,11 @@ Run `python3 tests/benchmark/run_shapepairs.py --help` for the full option list.
 | `build_dashboard.py`| History → page-specific JSON payloads + copy the `dashboard/` frontend into the output dir |
 | `record.sh`         | Orchestrate run → history → commit → push → dispatch the Pages rebuild |
 | `bench_paths.py`    | Resolve where the history checkout is (shared by the scripts above) |
+| `bench_machine.py`  | Machine identity (CPU + compiler family) and the per-machine baseline files |
+| `cgal_ratios.py`    | Reduce the history and the baselines to the speed table in `doc/raw/cgal.md` |
 | `randomshapes.hpp`  | Deterministic random shape generators used by the generated sources |
 | `legacy_untangle.hpp` | The pre-batching `Polygon::untangle()`, pinning the pair benchmark's polygon datasets to the shapes its recorded history was measured on |
 | `dashboard/`        | Static frontend (`index.html`, `asymptotic.html`, `app.js`, `style.css`) |
-| `history/` *(separate repo)* | Versioned JSONL: pair records at the top level, asymptotic under `history/asymptotic/`, plus the overwritten `asymptotic-baseline.json` |
+| `history/` *(separate repo)* | Versioned JSONL: pair records at the top level, asymptotic under `history/asymptotic/`, plus one overwritten `asymptotic-baseline/<machine>.json` per machine |
 | `asymptotic/`       | Size-sweep drivers, the fixed size lists (`sizes.hpp`), the shared harness, and the CGAL `baseline/` |
 | `asymptotic/data/`  | `euro-night-0100000.instance`, the CG:SHOP 2019 point set behind the `euro-night` dataset, its point lines shuffled once; an n-point sample is its first n points |
