@@ -1025,6 +1025,158 @@ bool labelVoronoiCells(Arrangement<Point<Number>, std::vector<Element>>& diagram
 }
 
 /**
+ * @brief Whether every one of @p elements lies on one line, which includes
+ *        their all being equal.
+ */
+template <class Element>
+bool voronoiCollinear(const std::vector<Element>& elements) {
+    const std::size_t n = elements.size();
+    std::size_t other = 1;
+    while (other < n && elements[other] == elements[0]) {
+        ++other;
+    }
+    for (std::size_t s = other + 1; s < n; ++s) {
+        if (!collinear(elements[0], elements[other], elements[s])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * @brief The order-@p k diagram of point sites that all lie on one line.
+ *
+ * Sorted along their line — lexicographically, which on a line is the order
+ * along it — the `k` sites nearest a point are a contiguous run of the sorted
+ * sites, and the run moves one step over the bisector of the site it drops and
+ * the site it gains. Those bisectors are parallel, so the diagram is the slabs
+ * between them, and no two sites are ever cut against each other beyond that.
+ *
+ * Repeated sites are sorted by index among themselves. A run that cuts through
+ * copies of one position is owned by the copies of smallest index, which is
+ * what the other constructions settle the tie by. Two runs bounded by the same
+ * pair of positions hold different copies but only where the two positions are
+ * equally near, which is the bisector itself: the slab between them is empty
+ * and the bisector is reported once.
+ *
+ * @param sites Every site, all of them on one line (@ref voronoiCollinear).
+ * @param elements The sites as the caller handed them over, for the labels.
+ * @param k Order of the diagram, at most the number of sites.
+ */
+template <class Label, class Number, class Element>
+Arrangement<Point<Number>, Label> voronoiCollinearDiagram(
+    const std::vector<VoronoiSite<Number>>& sites, const std::vector<Element>& elements, int k) {
+    using ResultPoint = Point<Number>;
+    using Diagram = Arrangement<ResultPoint, Label>;
+    constexpr bool singleOwner = std::same_as<Label, Element>;
+    const std::size_t n = elements.size();
+    const std::size_t wanted = static_cast<std::size_t>(k);
+    assert(wanted >= 1 && wanted <= n);
+    assert((!singleOwner || wanted == 1) && "a single-owner label needs order 1");
+
+    std::vector<std::size_t> sorted(n);
+    std::iota(sorted.begin(), sorted.end(), std::size_t{0});
+    std::sort(sorted.begin(), sorted.end(), [&](std::size_t left, std::size_t right) {
+        const auto order = elements[left] <=> elements[right];
+        return order != 0 ? order < 0 : left < right;
+    });
+    // Where the run of copies holding each sorted position begins.
+    std::vector<std::size_t> copiesFrom(n, 0);
+    for (std::size_t p = 1; p < n; ++p) {
+        copiesFrom[p] =
+            elements[sorted[p]] == elements[sorted[p - 1]] ? copiesFrom[p - 1] : p;
+    }
+
+    // Each site's position along the line, as a dot product with a direction
+    // that points the way the sort runs.
+    const ResultPoint& first = sites[sorted.front()].center;
+    const ResultPoint& last = sites[sorted.back()].center;
+    const ResultPoint direction(last.x() - first.x(), last.y() - first.y());
+    const auto along = [&](const ResultPoint& point) {
+        return point.x() * direction.x() + point.y() * direction.y();
+    };
+
+    // The run starting at sorted position `start`, with the copies it takes of
+    // its first position swapped for those of smallest index.
+    const auto labelOf = [&](std::size_t start) {
+        const std::size_t from = copiesFrom[start];
+        if constexpr (singleOwner) {
+            return elements[sorted[from]];
+        } else {
+            std::vector<std::size_t> owners;
+            owners.reserve(wanted);
+            for (std::size_t p = 0; p < wanted; ++p) {
+                const std::size_t at = start + p;
+                owners.push_back(copiesFrom[at] == from ? sorted[from + p] : sorted[at]);
+            }
+            std::sort(owners.begin(), owners.end());
+            Label label;
+            label.reserve(wanted);
+            for (const std::size_t owner : owners) {
+                label.push_back(elements[owner]);
+            }
+            return label;
+        }
+    };
+
+    // The run starting at `start` hands over to the next one on the bisector
+    // of the site it drops and the one it gains, at twice the position along
+    // the line recorded in `cuts`. A handover between copies of one position
+    // changes no label and has no bisector. A cut repeating the one before it
+    // leaves an empty slab, and the run after it is the one the slab beyond
+    // belongs to.
+    std::vector<Shape<ResultPoint>> curves;
+    std::vector<Number> cuts;
+    std::vector<std::size_t> startsAfter;
+    for (std::size_t start = 0; start + wanted < n; ++start) {
+        const VoronoiSite<Number>& dropped = sites[sorted[start]];
+        const VoronoiSite<Number>& gained = sites[sorted[start + wanted]];
+        if (dropped.center == gained.center) {
+            continue;
+        }
+        Number cut = along(dropped.center) + along(gained.center);
+        if (!cuts.empty() && cuts.back() == cut) {
+            startsAfter.back() = start + 1;
+            continue;
+        }
+        const auto bisector = voronoiBisector(dropped, gained);
+        const std::optional<Number> unbounded;
+        voronoiAppendRun(curves, *bisector, unbounded, unbounded);
+        cuts.push_back(std::move(cut));
+        startsAfter.push_back(start + 1);
+    }
+
+    // Two edges are parallel lines and never meet: nothing to cut.
+    Diagram next(curves, true);
+    if (next.halfedgeCount() == 0) {
+        next.label(typename Diagram::FaceId(0)) = labelOf(0);
+        return next;
+    }
+    std::vector<bool> labeled(next.faceCount(), false);
+    const Number zero{};
+    for (std::size_t h = 0; h < next.halfedgeCount(); ++h) {
+        const typename Diagram::HalfedgeId halfedge(static_cast<std::uint32_t>(h));
+        const typename Diagram::FaceId face = next.face(halfedge);
+        if (labeled[face.index()]) {
+            continue;
+        }
+        labeled[face.index()] = true;
+        // The halfedge lies on the cut at twice its midpoint's position, and its
+        // face is the slab on its left: past that cut if the left normal runs
+        // the way the sort does, short of it otherwise.
+        const ResultPoint forward = voronoiHalfedgeDirection(next, halfedge);
+        const Number twice =
+            along(next.template witness<Number>(halfedge)) * static_cast<Number>(2);
+        const std::size_t cut = static_cast<std::size_t>(
+            std::lower_bound(cuts.begin(), cuts.end(), twice) - cuts.begin());
+        assert(cut < cuts.size() && cuts[cut] == twice);
+        const bool beyond = along(ResultPoint(-forward.y(), forward.x())) > zero;
+        next.label(face) = labelOf(beyond ? startsAfter[cut] : cut == 0 ? 0 : startsAfter[cut - 1]);
+    }
+    return next;
+}
+
+/**
  * @brief The order-@p k diagram of point sites, by Lee's refinement.
  *
  * The order-1 cells come from a Delaunay triangulation and @ref voronoiRefineCells
@@ -1155,10 +1307,11 @@ using voronoi_dual_t =
  * predicate the triangulation runs.
  *
  * Sites with no triangle to dualize — fewer than three of them, or all equal or
- * all collinear — have no dual to borrow, and take the bisector construction of
- * the order-`k` entry point at `k = 1` instead. So does every disk site: a power
- * cell is bounded by radical axes rather than bisectors, and the triangulation
- * whose dual it is weighs its sites, which this one does not.
+ * all collinear — have no dual to borrow, and are sorted along their line by
+ * @ref voronoiCollinearDiagram instead. Every disk site takes the bisector
+ * construction of the order-`k` entry point at `k = 1`: a power cell is bounded
+ * by radical axes rather than bisectors, and the triangulation whose dual it is
+ * weighs its sites, which this one does not.
  *
  * @param name The caller's name, for the message of an empty input.
  */
@@ -1177,8 +1330,8 @@ voronoi_dual_t<ResultNumber, SiteRange> ordinaryDiagram(const SiteRange& sites,
     }
 
     if constexpr (PointConcept<Element>) {
-        const Triangulation<Triangle<Element>> triangulation(elements);
-        if (triangulation.numTriangles() != 0) {
+        if (!voronoiCollinear(elements)) {
+            const Triangulation<Triangle<Element>> triangulation(elements);
             return triangulation.template voronoiDiagram<Number>();
         }
     }
@@ -1187,6 +1340,9 @@ voronoi_dual_t<ResultNumber, SiteRange> ordinaryDiagram(const SiteRange& sites,
     lifted.reserve(elements.size());
     for (const Element& element : elements) {
         lifted.push_back(voronoiSiteOf<Number>(element));
+    }
+    if constexpr (PointConcept<Element>) {
+        return voronoiCollinearDiagram<Element>(lifted, elements, 1);
     }
 
     std::vector<Shape<Point<Number>>> curves;
@@ -1280,10 +1436,11 @@ voronoi_dual_t<ResultNumber, SiteRange> farthestDiagram(const SiteRange& sites) 
  * @brief The diagram both public entry points compute; see them for the
  *        contract.
  *
- * Point sites go through @ref voronoiByRefinement, which is Lee's refinement
- * over a Delaunay triangulation. What is left here is the general construction,
- * which every disk site takes and a point site takes only when the refinement
- * declines the input: it cuts each of the `O(n^2)` bisectors against every site
+ * Collinear point sites go through @ref voronoiCollinearDiagram, and the rest
+ * through @ref voronoiByRefinement, which is Lee's refinement over a Delaunay
+ * triangulation. What is left here is the general construction, which every
+ * disk site takes and a point site takes only when the refinement declines the
+ * input: it cuts each of the `O(n^2)` bisectors against every site
  * and keeps the runs where the pair is the `k`-th and `(k+1)`-th nearest.
  *
  * @param sites Point or disk sites.
@@ -1313,6 +1470,9 @@ voronoi_diagram_t<ResultNumber, SiteRange> diagramOf(const SiteRange& sites, int
     }
 
     if constexpr (PointConcept<Element>) {
+        if (detail::voronoiCollinear(elements)) {
+            return detail::voronoiCollinearDiagram<std::vector<Element>>(lifted, elements, k);
+        }
         Diagram refined;
         if (detail::voronoiByRefinement(refined, lifted, elements, k)) {
             return refined;
@@ -1353,11 +1513,11 @@ voronoi_diagram_t<ResultNumber, SiteRange> diagramOf(const SiteRange& sites, int
  * @ref Triangulation::voronoiDiagram dualizes it, so a caller who already holds
  * a triangulation of the same points should call that directly and skip
  * building a second one. Sites with no triangle to dualize — fewer than three of
- * them, or all equal or all collinear — fall back to the bisector construction
- * the order-`k` overload describes, at `k = 1`.
+ * them, or all equal or all collinear — are sorted along their line instead, and
+ * the diagram is the slabs between the bisectors of consecutive sites.
  *
  * Complexity for `n` sites in general position: the construction time of their
- * Delaunay triangulation plus `O(n log n)`.
+ * Delaunay triangulation plus `O(n log n)`. For collinear sites: `O(n log n)`.
  *
  * @tparam ResultNumber Coordinate type of the arrangement vertices. The default
  *         is exact and overflow-free for integral input.
@@ -1400,9 +1560,12 @@ template <class ResultNumber = void, std::ranges::input_range SiteRange>
  * since two edges of one diagram meet only at a shared endpoint, the one
  * @ref Arrangement that is built needs no splitting step.
  *
- * Repeated sites, and sites that are all collinear, have no refinement to take
- * and fall back to the general construction, which cuts each of the `O(n^2)`
- * bisectors against every site.
+ * Sites that are all collinear are sorted along their line instead: the `k`
+ * nearest are always `k` consecutive sites, and the diagram is the slabs between
+ * the bisectors where one run hands over to the next, built in
+ * `O(n log n + (n - k + 1) k log k)`. Repeated sites not all on one line have no
+ * refinement to take and fall back to the general construction, which cuts each
+ * of the `O(n^2)` bisectors against every site.
  *
  * @tparam ResultNumber Coordinate type of the arrangement vertices. The default
  *         is exact and overflow-free for integral input.

@@ -378,9 +378,9 @@ TEST_CASE("The dual of a non-Delaunay triangulation is a circumcentric dual") {
     }
 }
 
-TEST_CASE("voronoiDiagram of collinear points has no Delaunay dual to borrow") {
-    // No triangle to dualize, so both overloads take the bisector route instead.
-    const std::vector<Site> sites{P(0, 0), P(4, 0), P(10, 0)};
+TEST_CASE("voronoiDiagram of collinear points is the slabs between their bisectors") {
+    // No triangle to dualize, so both overloads sort the sites along their line.
+    const std::vector<Site> sites{P(0, 0), P(10, 0), P(4, 0)};
     const OrderDiagram diagram = pgl::voronoiDiagram(sites, 1);
     const Diagram ordinary = pgl::voronoiDiagram(sites);
 
@@ -396,13 +396,14 @@ TEST_CASE("voronoiDiagram of collinear points has no Delaunay dual to borrow") {
     checkAgainstDefinition(sites, 1, 8);
 }
 
-TEST_CASE("Repeated sites keep the bisector they share on the bisector route") {
-    // A repeat is tied with its original along every bisector the original has,
+TEST_CASE("Repeated sites keep the bisector they share") {
+    // Points sort along their line, where a repeat is one more copy of a
+    // position. Radius-zero disks take the bisector route instead, where a
+    // repeat is tied with its original along every bisector the original has,
     // so the two are one tied group with the site across, and one pair of the
     // group reports the line. The two smallest outright can be the repeats
     // themselves, which have no bisector between them to report anything with;
-    // the pair elected has to have one. Collinear sites are what puts points on
-    // this route at all -- with a triangle to dualize, the Delaunay dual answers.
+    // the pair elected has to have one.
     const std::vector<std::vector<Site>> inputs{
         {P(0, 0), P(0, 0), P(4, 0)},
         {P(0, 0), P(4, 0), P(0, 0)},
@@ -424,6 +425,17 @@ TEST_CASE("Repeated sites keep the bisector they share on the bisector route") {
         REQUIRE(diagram.faceCount() == 2);
         CHECK(diagram.label(diagram.locateFace(pgl::EPoint(-1, 0))) == std::vector<Site>{P(0, 0)});
         CHECK(diagram.label(diagram.locateFace(pgl::EPoint(5, 0))) == std::vector<Site>{P(4, 0)});
+
+        std::vector<WeightedSite> disks;
+        for (const Site& site : sites) {
+            disks.push_back(D(site.x(), site.y(), 0));
+        }
+        const PowerCells cells = pgl::powerDiagram(disks);
+        CHECK(cells.vertexCount() == 0);
+        CHECK(cells.edgeCount() == 1);
+        REQUIRE(cells.faceCount() == 2);
+        CHECK(cells.label(cells.locateFace(pgl::EPoint(-1, 0))) == D(0, 0, 0));
+        CHECK(cells.label(cells.locateFace(pgl::EPoint(5, 0))) == D(4, 0, 0));
     }
 
     // Three repeats around a pair in the middle: two lines, three slabs.
@@ -434,6 +446,119 @@ TEST_CASE("Repeated sites keep the bisector they share on the bisector route") {
     CHECK(slabs.label(slabs.locateFace(pgl::EPoint(1, 0))) == P(0, 0));
     CHECK(slabs.label(slabs.locateFace(pgl::EPoint(4, 0))) == P(4, 0));
     CHECK(slabs.label(slabs.locateFace(pgl::EPoint(7, 0))) == P(8, 0));
+}
+
+TEST_CASE("Collinear sites agree with the definition on any line and at any order") {
+    // Radius-zero disks are the same sites cut bisector against bisector, so
+    // the two diagrams have to agree in shape as well as in their labels. Only
+    // where no site repeats, though: past order 1 the bisector route loses the
+    // edge between a slab holding two copies of a site and one holding one.
+    const std::vector<std::vector<Site>> inputs{
+        {P(2, 5), P(2, -3), P(2, 0), P(2, -6), P(2, 1)},
+        {P(1, 1), P(-5, 4), P(3, 0), P(-1, 2), P(7, -2), P(-3, 3)},
+        {P(-4, -4), P(6, 6), P(0, 0), P(-1, -1), P(3, 3)},
+        {P(2, 5), P(2, -3), P(2, 5), P(2, 0), P(2, -6), P(2, 1)},
+        {P(1, 1), P(-5, 4), P(3, 0), P(1, 1), P(-1, 2), P(7, -2), P(-5, 4), P(1, 1)},
+        {P(3, 3), P(3, 3), P(3, 3)},
+    };
+    for (const std::vector<Site>& sites : inputs) {
+        CAPTURE(sites.size());
+        std::vector<WeightedSite> disks;
+        for (const Site& site : sites) {
+            disks.push_back(D(site.x(), site.y(), 0));
+        }
+        const bool repeats = std::set<Site>(sites.begin(), sites.end()).size() != sites.size();
+        for (int k = 1; k <= static_cast<int>(sites.size()); ++k) {
+            CAPTURE(k);
+            const OrderDiagram diagram = pgl::voronoiDiagram(sites, k);
+            CHECK(diagram.vertexCount() == 0);
+            if (k == 1 || !repeats) {
+                const PowerDiagram cut = pgl::powerDiagram(disks, k);
+                CHECK(diagram.edgeCount() == cut.edgeCount());
+                CHECK(diagram.faceCount() == cut.faceCount());
+            }
+            checkAgainstDefinition(sites, k, 9);
+        }
+
+        Diagram ordinary = pgl::voronoiDiagram(sites);
+        ordinary.buildPointLocation();
+        CHECK(ordinary.edgeCount() == pgl::powerDiagram(disks).edgeCount());
+        const pgl::ERational half(1, 2);
+        for (int x = -9; x <= 9; ++x) {
+            for (int y = -9; y <= 9; ++y) {
+                const pgl::EPoint query(pgl::ERational(x) + half, pgl::ERational(y) + half);
+                const auto expected = nearestSites(sites, query, 1);
+                if (expected) {
+                    REQUIRE(ordinary.label(ordinary.locateFace(query)) == expected->front());
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("Collinear repeats are owned by their copies of smallest index") {
+    // At order 2 the nearest pair is (5, 1) for y between 5/2 and 3, and both
+    // copies at 5 past that: an edge between two slabs that share a copy.
+    const std::vector<Site> column{P(2, 5), P(2, -3), P(2, 5), P(2, 0), P(2, -6), P(2, 1)};
+    const OrderDiagram pairs = pgl::voronoiDiagram(column, 2);
+    CHECK(pairs.edgeCount() == 4);
+    REQUIRE(pairs.faceCount() == 5);
+    const auto pairAt = [&](const pgl::ERational& y) {
+        return pairs.label(pairs.locateFace(pgl::EPoint(pgl::ERational(0), y)));
+    };
+    CHECK(pairAt(pgl::ERational(11, 4)) == std::vector<Site>{P(2, 5), P(2, 1)});
+    CHECK(pairAt(pgl::ERational(13, 4)) == std::vector<Site>{P(2, 5), P(2, 5)});
+
+    // Equality ignores a point's label, so only the label tells copies apart.
+    using Tagged = pgl::Point<int, int>;
+    const std::vector<Tagged> sites{
+        Tagged(0, 0, 0), Tagged(4, 0, 1), Tagged(0, 0, 2), Tagged(4, 0, 3),
+        Tagged(0, 0, 4), Tagged(9, 0, 5), Tagged(4, 0, 6), Tagged(9, 0, 7),
+    };
+    const pgl::ERational half(1, 2);
+    for (int k = 1; k <= static_cast<int>(sites.size()); ++k) {
+        CAPTURE(k);
+        auto diagram = pgl::voronoiDiagram(sites, k);
+        diagram.buildPointLocation();
+        for (int x = -3; x <= 12; ++x) {
+            CAPTURE(x);
+            const pgl::EPoint query(pgl::ERational(x) + half, half);
+            // By distance, then by index; a tie between two positions at the
+            // k-th place puts the query on an edge rather than in a face.
+            std::vector<std::pair<pgl::ERational, std::size_t>> ranked;
+            for (std::size_t i = 0; i < sites.size(); ++i) {
+                ranked.emplace_back(
+                    query.squaredDistance<pgl::ERational>(pgl::EPoint(sites[i].x(), sites[i].y())),
+                    i);
+            }
+            std::sort(ranked.begin(), ranked.end());
+            const std::size_t order = static_cast<std::size_t>(k);
+            bool onEdge = false;
+            for (std::size_t in = 0; in < order; ++in) {
+                for (std::size_t out = order; out < ranked.size(); ++out) {
+                    onEdge = onEdge || (ranked[in].first == ranked[out].first &&
+                                        sites[ranked[in].second] != sites[ranked[out].second]);
+                }
+            }
+            if (onEdge) {
+                continue;
+            }
+            std::vector<int> expected;
+            for (std::size_t i = 0; i < order; ++i) {
+                expected.push_back(sites[ranked[i].second].label());
+            }
+            std::sort(expected.begin(), expected.end());
+            std::vector<int> labels;
+            for (const Tagged& owner : diagram.label(diagram.locateFace(query))) {
+                labels.push_back(owner.label());
+            }
+            REQUIRE(labels == expected);
+            if (k == 1) {
+                const auto ordinary = pgl::voronoiDiagram(sites);
+                CHECK(ordinary.label(ordinary.locateFace(query)).label() == expected.front());
+            }
+        }
+    }
 }
 
 TEST_CASE("Disks sharing one radical axis report it once") {
@@ -635,7 +760,7 @@ TEST_CASE("The refinement and the bisector construction build the same diagram")
     }
 }
 
-TEST_CASE("Collinear sites have no refinement to take at any order") {
+TEST_CASE("Collinear sites leave one slab fewer at each order") {
     const std::vector<Site> sites{P(0, 0), P(3, 0), P(7, 0), P(12, 0)};
     for (int k = 1; k <= 3; ++k) {
         CAPTURE(k);
