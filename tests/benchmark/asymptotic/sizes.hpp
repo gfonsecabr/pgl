@@ -170,9 +170,11 @@ constexpr auto kVisibility = linearSizes(10000);
 // pgl decomposes both operands into convex pieces and unions the pairwise sums,
 // so cost climbs steeply in the number of pieces — n vertices in each operand,
 // whichever dataset — which is why this ceiling is two orders of magnitude
-// below the rest of the suite. One list for both, so that the two curves span
-// the same range and the only thing separating them at a given n is how much of
-// the plane the second operand covers.
+// below the rest of the suite. One list for every dataset, so that the curves
+// span the same range and the only thing separating them at a given n is the
+// second operand. The fixed small convex operand has no pieces to multiply and
+// would run far past this ceiling on its own; it keeps the shared list so its
+// curve can be read against the other two.
 constexpr auto kMinkowski = linearSizes(200);
 
 // ── 9. Union ────────────────────────────────────────────────────────────────

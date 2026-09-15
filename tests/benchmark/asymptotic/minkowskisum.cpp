@@ -1,5 +1,6 @@
-// @desc: The Minkowski sum of two simple polygons with n vertices each; the
-// result is the total number of boundary vertices.
+// @desc: The Minkowski sum of a simple polygon with n vertices and a second
+// operand — another simple polygon with n vertices, or a fixed small convex
+// polygon; the result is the total number of boundary vertices.
 // @dataset large + large: Two independent random simple polygons. Each one's
 // vertices have integer coordinates drawn uniformly from a disk of diameter
 // 5,000; joined in the order drawn, its ring is untangled into a simple polygon
@@ -10,6 +11,10 @@
 // have integer coordinates drawn uniformly from its disk; joined in the order
 // drawn, its ring is untangled into a simple polygon by flipping crossing
 // edges, dropping the rare vertex that only touches another edge.
+// @dataset large + convex: A random simple polygon, generated as in large +
+// large, and one fixed convex polygon with 40 vertices, the same at every n: the
+// convex hull of 1,000 points with integer coordinates drawn uniformly from a
+// disk of diameter 1,000.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"
@@ -19,11 +24,10 @@
 
 namespace {
 
-constexpr const char* kCategory  = "Minkowski sum";
-constexpr const char* kAlgorithm = "convex decomposition";
+constexpr const char* kCategory = "Minkowski sum";
 
-void sweepDataset(const bench::Options& opt, const char* dataset,
-                  std::span<const int> sizes, bool bothSwept) {
+void sweepPolygons(const bench::Options& opt, const char* dataset,
+                   std::span<const int> sizes, bool bothSwept) {
     const char* number = bench::numberName<pgl::ERational>;
     if (!bench::matches(opt.dataset, dataset)) return;
     if (!bench::matches(opt.problem, "Minkowski sum")) return;
@@ -36,7 +40,25 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
         long long result = 0;
         const double us = bench::timeOnce(result,
             [&] { return static_cast<long long>(a.minkowskiSum(b).vertexCount()); });
-        bench::emit(kCategory, dataset, "Minkowski sum", kAlgorithm, number, n, result, us);
+        bench::emit(kCategory, dataset, "Minkowski sum", "convex decomposition",
+                    number, n, result, us);
+    }
+}
+
+void sweepConvex(const bench::Options& opt, const char* dataset,
+                 std::span<const int> sizes) {
+    const char* number = bench::numberName<pgl::ERational>;
+    if (!bench::matches(opt.dataset, dataset)) return;
+    if (!bench::matches(opt.problem, "Minkowski sum")) return;
+
+    const pgl::EConvex b(bench::smallConvex());
+    for (const int n : bench::sweep(sizes, opt)) {
+        const pgl::EPolygon a(bench::randomPolygon(n, 1));
+        long long result = 0;
+        const double us = bench::timeOnce(result,
+            [&] { return static_cast<long long>(a.minkowskiSum(b).vertexCount()); });
+        bench::emit(kCategory, dataset, "Minkowski sum", "convolution",
+                    number, n, result, us);
     }
 }
 
@@ -46,8 +68,9 @@ int main(int argc, char** argv) {
     const auto opt = bench::parseOptions(argc, argv);
     bench::header();
     if (bench::matches(opt.type, "ERational")) {
-        sweepDataset(opt, "large + large", bench::kMinkowski, true);
-        sweepDataset(opt, "large + small", bench::kMinkowski, false);
+        sweepPolygons(opt, "large + large", bench::kMinkowski, true);
+        sweepPolygons(opt, "large + small", bench::kMinkowski, false);
+        sweepConvex(opt, "large + convex", bench::kMinkowski);
     }
     return 0;
 }

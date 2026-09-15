@@ -182,6 +182,14 @@ inline IntPolygon randomSmallPolygon(int m, std::uint64_t seed = 0) {
     return detail::polygonOfSpan(m, largeRange, smallRange, seed);
 }
 
+// One convex polygon at the pairs page's "small" scale: its first small Convex,
+// the hull of 1000 points drawn in a disk of diameter 1,000 and placed in the
+// disk of diameter 10,000. The same shape at every size, for the categories
+// that pair a polygon of the swept size against a fixed small convex operand.
+inline pgl::Convex<IntPoint> smallConvex() {
+    return randomSmallConvexes<int>(1, 1000).front();
+}
+
 // `count` points strictly inside `polygon`, rejection-sampled from its bounding
 // box. Drawn per polygon, since a point inside one means nothing for another,
 // and drawn on the integer polygon so that converting gives the ERational run —
