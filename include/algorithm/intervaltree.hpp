@@ -48,23 +48,22 @@ template <class Fn, class Arg>
  * does not imply that the original two-dimensional shapes meet or contain one
  * another.
  *
- * Nodes form a red-black tree ordered by `(low endpoint, high endpoint, node
- * ID)`. The ID keeps equal projected intervals distinct.
- * Every node caches the extrema of both endpoints in its subtree. In
- * particular, `maxHigh` is the standard augmented interval-tree value used to
- * prune subtrees lying completely before an intersection query. Query fields
- * are stored separately from insertion-only parent/color state, and 32-bit
- * node IDs keep the hot representation compact.
+ * Nodes form a red-black tree ordered by projected interval, equal intervals
+ * forming one contiguous run in arbitrary order. Every node caches the extrema
+ * of both endpoints in its subtree. In particular, `maxHigh` is the standard
+ * augmented interval-tree value used to prune subtrees lying completely before
+ * an intersection query. Query fields are stored separately from mutation-only
+ * parent/color state, and 32-bit node IDs keep the hot representation compact.
  *
- * Removal tombstones a node rather than unlinking it: the node keeps its place
- * in the tree but owns no shape, so it stops matching queries, and the whole
- * index is rebuilt only once tombstones outnumber live nodes. Removals are
- * therefore logarithmic on average, and the node array never exceeds twice the
- * number of stored shapes. A node ID still indexes the stored shapes directly:
- * the live nodes are exactly the first `size()` slots, so a removal moves the
- * last live node into the freed slot and the tombstone to the end. One tree
- * can hold at most `2^32 - 2` nodes, shapes and tombstones together, so at
- * least `2^31 - 1` shapes always fit.
+ * A node ID is also the index of the shape the node owns, so the nodes occupy
+ * exactly the first `size()` slots: a removal unlinks its node from the tree
+ * and moves the last node into the freed slot. One tree holds at most
+ * `2^32 - 1` shapes.
+ *
+ * For `n` stored shapes, a projection query takes `O((k + 1) log n)` time,
+ * where `k` is the number of stored shapes whose projection matches. An exact
+ * query takes the same time, with `k` counting those projection candidates,
+ * plus one shape predicate per candidate.
  *
  * @tparam S Shape type exposing a finite `bbox()`.
  * @tparam Axis Coordinate used for the one-dimensional projection.
@@ -89,9 +88,7 @@ class IntervalTree {
 
     // Fields touched by range queries stay together in a compact array. Node
     // IDs also index elements_, so no element index or insertion serial is
-    // stored per node; the IDs at least elements_.size() are the tombstones.
-    // `count` is the number of live nodes in the subtree, so a tombstone adds
-    // nothing to it and a subtree with `count == 0` can be skipped entirely.
+    // stored per node. `count` is the number of nodes in the subtree.
     struct QueryNode {
         NumberType low{};
         NumberType high{};
@@ -104,7 +101,7 @@ class IntervalTree {
         NodeId right = invalidNode;
     };
 
-    // Insertion-only state is kept cold so queries do not pull it into cache.
+    // Mutation-only state is kept cold so queries do not pull it into cache.
     struct MutationNode {
         NodeId parent = invalidNode;
         Color color = Color::black;
@@ -151,21 +148,8 @@ class IntervalTree {
         return mutationNodes_[static_cast<std::size_t>(id)];
     }
 
-    // Live nodes own the shape stored at their own ID, and removals keep them
-    // packed in the first elements_.size() slots, so anything past that is a
-    // tombstone: still in the tree, matching nothing.
-    [[nodiscard]] bool live(NodeId id) const {
-        return static_cast<std::size_t>(id) < elements_.size();
-    }
-
     [[nodiscard]] const ShapeType& shapeOf(NodeId id) const {
         return elements_[static_cast<std::size_t>(id)];
-    }
-
-    // Every live node owns exactly one stored shape, so the nodes left over
-    // are the tombstones.
-    [[nodiscard]] std::size_t tombstones() const {
-        return nodes_.size() - elements_.size();
     }
 
     [[nodiscard]] static Color colorOf(const IntervalTree& tree, NodeId id) {
@@ -209,13 +193,10 @@ class IntervalTree {
         if (id == invalidNode) {
             return;
         }
-        // A tombstone still contributes its own endpoints to the extrema.
-        // Keeping them is conservative: pruning stays correct and merely loses
-        // a little sharpness until the next rebuild.
         QueryNode& n = node(id);
         n.minLow = n.maxLow = n.low;
         n.minHigh = n.maxHigh = n.high;
-        n.count = live(id) ? 1 : 0;
+        n.count = 1;
         for (const NodeId child : {n.left, n.right}) {
             if (child == invalidNode) {
                 continue;
@@ -263,27 +244,10 @@ class IntervalTree {
         }
     }
 
-    // Appends a slot and moves `from` into it. Nothing else changes if the
-    // growth throws.
-    NodeId relocateNodeToEnd(NodeId from) {
-        nodes_.push_back(QueryNode{});
-        try {
-            mutationNodes_.push_back(MutationNode{});
-        } catch (...) {
-            nodes_.pop_back();
-            throw;
-        }
-        const NodeId to = static_cast<NodeId>(nodes_.size() - 1);
-        relocateNode(from, to);
-        return to;
-    }
-
-    // Puts a fresh red node in `slot`, which is the element index of the shape
-    // it will own. That slot is either one past the last node or the first
-    // tombstone, which moves to the end to make room. One ID is left unused so
-    // that a removal always has a spare slot to swap two nodes through.
-    [[nodiscard]] NodeId allocateNode(const NumberType& low, const NumberType& high, NodeId slot) {
-        if (nodes_.size() + 1 >= static_cast<std::size_t>(invalidNode)) {
+    // Appends a fresh red node, whose ID is the element index of the shape it
+    // will own. Nothing changes if the growth throws.
+    [[nodiscard]] NodeId allocateNode(const NumberType& low, const NumberType& high) {
+        if (nodes_.size() >= static_cast<std::size_t>(invalidNode)) {
             throw std::length_error("IntervalTree exceeds its 32-bit node capacity");
         }
 
@@ -291,20 +255,14 @@ class IntervalTree {
         fresh.low = fresh.minLow = fresh.maxLow = low;
         fresh.high = fresh.minHigh = fresh.maxHigh = high;
         fresh.count = 1;
-        if (static_cast<std::size_t>(slot) == nodes_.size()) {
-            nodes_.push_back(std::move(fresh));
-            try {
-                mutationNodes_.push_back(MutationNode{invalidNode, Color::red});
-            } catch (...) {
-                nodes_.pop_back();
-                throw;
-            }
-        } else {
-            relocateNodeToEnd(slot);
-            node(slot) = std::move(fresh);
-            mutationNode(slot) = MutationNode{invalidNode, Color::red};
+        nodes_.push_back(std::move(fresh));
+        try {
+            mutationNodes_.push_back(MutationNode{invalidNode, Color::red});
+        } catch (...) {
+            nodes_.pop_back();
+            throw;
         }
-        return slot;
+        return static_cast<NodeId>(nodes_.size() - 1);
     }
 
     void rotateLeft(NodeId x) {
@@ -388,8 +346,9 @@ class IntervalTree {
         mutationNode(root_).color = Color::black;
     }
 
-    void insertExisting(const NumberType& low, const NumberType& high, NodeId slot) {
-        const NodeId z = allocateNode(low, high, slot);
+    // Links a node for the shape just appended to elements_.
+    void insertLast(const NumberType& low, const NumberType& high) {
+        const NodeId z = allocateNode(low, high);
 
         NodeId parent = invalidNode;
         NodeId current = root_;
@@ -414,17 +373,125 @@ class IntervalTree {
         updateUpward(z);
     }
 
-    // Discards the node structure, tombstones included, and rebuilds it by
-    // reinserting the surviving shapes in storage order.
-    void rebuildFromElements() {
-        nodes_.clear();
-        mutationNodes_.clear();
-        nodes_.reserve(elements_.size());
-        mutationNodes_.reserve(elements_.size());
-        root_ = invalidNode;
-        for (std::size_t i = 0; i < elements_.size(); ++i) {
-            const auto [low, high] = project(elements_[i]);
-            insertExisting(low, high, static_cast<NodeId>(i));
+    // Puts the subtree rooted at `v` (possibly empty) where `u` hangs.
+    void transplant(NodeId u, NodeId v) {
+        const NodeId parent = mutationNode(u).parent;
+        if (parent == invalidNode) {
+            root_ = v;
+        } else if (node(parent).left == u) {
+            node(parent).left = v;
+        } else {
+            node(parent).right = v;
+        }
+        if (v != invalidNode) {
+            mutationNode(v).parent = parent;
+        }
+    }
+
+    // Restores the red-black invariants after unlinking a black node, where `x`
+    // (possibly empty) carries the extra black and `parent` is its parent. The
+    // augmented values are already right on entry and every rotation keeps
+    // them right.
+    void eraseFixup(NodeId x, NodeId parent) {
+        while (x != root_ && colorOf(*this, x) == Color::black) {
+            if (x == node(parent).left) {
+                NodeId sibling = node(parent).right;
+                if (colorOf(*this, sibling) == Color::red) {
+                    mutationNode(sibling).color = Color::black;
+                    mutationNode(parent).color = Color::red;
+                    rotateLeft(parent);
+                    sibling = node(parent).right;
+                }
+                if (colorOf(*this, node(sibling).left) == Color::black &&
+                    colorOf(*this, node(sibling).right) == Color::black) {
+                    mutationNode(sibling).color = Color::red;
+                    x = parent;
+                    parent = mutationNode(x).parent;
+                } else {
+                    if (colorOf(*this, node(sibling).right) == Color::black) {
+                        mutationNode(node(sibling).left).color = Color::black;
+                        mutationNode(sibling).color = Color::red;
+                        rotateRight(sibling);
+                        sibling = node(parent).right;
+                    }
+                    mutationNode(sibling).color = mutationNode(parent).color;
+                    mutationNode(parent).color = Color::black;
+                    mutationNode(node(sibling).right).color = Color::black;
+                    rotateLeft(parent);
+                    x = root_;
+                }
+            } else {
+                NodeId sibling = node(parent).left;
+                if (colorOf(*this, sibling) == Color::red) {
+                    mutationNode(sibling).color = Color::black;
+                    mutationNode(parent).color = Color::red;
+                    rotateRight(parent);
+                    sibling = node(parent).left;
+                }
+                if (colorOf(*this, node(sibling).right) == Color::black &&
+                    colorOf(*this, node(sibling).left) == Color::black) {
+                    mutationNode(sibling).color = Color::red;
+                    x = parent;
+                    parent = mutationNode(x).parent;
+                } else {
+                    if (colorOf(*this, node(sibling).left) == Color::black) {
+                        mutationNode(node(sibling).right).color = Color::black;
+                        mutationNode(sibling).color = Color::red;
+                        rotateLeft(sibling);
+                        sibling = node(parent).left;
+                    }
+                    mutationNode(sibling).color = mutationNode(parent).color;
+                    mutationNode(parent).color = Color::black;
+                    mutationNode(node(sibling).left).color = Color::black;
+                    rotateRight(parent);
+                    x = root_;
+                }
+            }
+        }
+        if (x != invalidNode) {
+            mutationNode(x).color = Color::black;
+        }
+    }
+
+    // Unlinks node `z` from the tree, rebalancing it and refreshing the
+    // augmented values, in O(log n) time. Its slot is left in place.
+    void unlinkNode(NodeId z) {
+        NodeId x = invalidNode;
+        NodeId xParent = invalidNode;
+        Color removedColor = mutationNode(z).color;
+        const NodeId zLeft = node(z).left;
+        const NodeId zRight = node(z).right;
+        if (zLeft == invalidNode) {
+            x = zRight;
+            xParent = mutationNode(z).parent;
+            transplant(z, zRight);
+        } else if (zRight == invalidNode) {
+            x = zLeft;
+            xParent = mutationNode(z).parent;
+            transplant(z, zLeft);
+        } else {
+            // The successor has no left child; it takes z's place and color.
+            const NodeId y = minimumNode(zRight);
+            removedColor = mutationNode(y).color;
+            x = node(y).right;
+            if (mutationNode(y).parent == z) {
+                xParent = y;
+            } else {
+                xParent = mutationNode(y).parent;
+                transplant(y, node(y).right);
+                node(y).right = zRight;
+                mutationNode(zRight).parent = y;
+            }
+            transplant(z, y);
+            node(y).left = zLeft;
+            mutationNode(zLeft).parent = y;
+            mutationNode(y).color = mutationNode(z).color;
+        }
+        // Every node whose subtree lost z lies on the path from xParent up,
+        // the successor included when it moved.
+        updateUpward(xParent);
+        if (removedColor == Color::black) {
+            eraseFixup(x, xParent);
         }
     }
 
@@ -470,7 +537,7 @@ class IntervalTree {
             if (!equivalent(n.low, low) || !equivalent(n.high, high)) {
                 break;
             }
-            if (live(id) && shapeOf(id) == shape) {
+            if (shapeOf(id) == shape) {
                 return id;
             }
         }
@@ -513,10 +580,7 @@ class IntervalTree {
             return false;
         }
         const QueryNode& n = node(id);
-        if (n.count == 0) {
-            return false;
-        }
-        if (live(id) && detail::invokeIntervalTreeVisitor(fn, shapeOf(id))) {
+        if (detail::invokeIntervalTreeVisitor(fn, shapeOf(id))) {
             return true;
         }
         return visitAll(n.left, fn) || visitAll(n.right, fn);
@@ -529,13 +593,13 @@ class IntervalTree {
             return false;
         }
         const QueryNode& n = node(id);
-        if (n.count == 0 || !mayIntersect(n, low, high)) {
+        if (!mayIntersect(n, low, high)) {
             return false;
         }
         if (allIntersect(n, low, high)) {
             return visitAll(id, fn);
         }
-        if (live(id) && intersects(n, low, high) &&
+        if (intersects(n, low, high) &&
             detail::invokeIntervalTreeVisitor(fn, shapeOf(id))) {
             return true;
         }
@@ -550,13 +614,13 @@ class IntervalTree {
             return false;
         }
         const QueryNode& n = node(id);
-        if (n.count == 0 || !mayContain(n, low, high)) {
+        if (!mayContain(n, low, high)) {
             return false;
         }
         if (allContainedIn(n, low, high)) {
             return visitAll(id, fn);
         }
-        if (live(id) && containedIn(n, low, high) &&
+        if (containedIn(n, low, high) &&
             detail::invokeIntervalTreeVisitor(fn, shapeOf(id))) {
             return true;
         }
@@ -575,14 +639,12 @@ class IntervalTree {
             return false;
         }
         const QueryNode& n = node(id);
-        if (n.count == 0 || !mayIntersect(n, low, high)) {
+        if (!mayIntersect(n, low, high)) {
             return false;
         }
-        if (live(id)) {
-            const ShapeType& shape = shapeOf(id);
-            if (shape.intersects(q) && detail::invokeIntervalTreeVisitor(fn, shape)) {
-                return true;
-            }
+        const ShapeType& shape = shapeOf(id);
+        if (shape.intersects(q) && detail::invokeIntervalTreeVisitor(fn, shape)) {
+            return true;
         }
         return visitShapeIntersecting(n.left, low, high, q, fn) ||
                visitShapeIntersecting(n.right, low, high, q, fn);
@@ -595,14 +657,12 @@ class IntervalTree {
             return false;
         }
         const QueryNode& n = node(id);
-        if (n.count == 0 || !mayContain(n, low, high)) {
+        if (!mayContain(n, low, high)) {
             return false;
         }
-        if (live(id)) {
-            const ShapeType& shape = shapeOf(id);
-            if (q.contains(shape) && detail::invokeIntervalTreeVisitor(fn, shape)) {
-                return true;
-            }
+        const ShapeType& shape = shapeOf(id);
+        if (q.contains(shape) && detail::invokeIntervalTreeVisitor(fn, shape)) {
+            return true;
         }
         return visitShapeContainedIn(n.left, low, high, q, fn) ||
                visitShapeContainedIn(n.right, low, high, q, fn);
@@ -615,13 +675,13 @@ class IntervalTree {
             return 0;
         }
         const QueryNode& n = node(id);
-        if (n.count == 0 || !mayIntersect(n, low, high)) {
+        if (!mayIntersect(n, low, high)) {
             return 0;
         }
         if (allIntersect(n, low, high)) {
             return n.count;
         }
-        return (live(id) && intersects(n, low, high) ? 1 : 0) +
+        return (intersects(n, low, high) ? 1 : 0) +
                countIntersecting(n.left, low, high) + countIntersecting(n.right, low, high);
     }
 
@@ -632,13 +692,13 @@ class IntervalTree {
             return 0;
         }
         const QueryNode& n = node(id);
-        if (n.count == 0 || !mayContain(n, low, high)) {
+        if (!mayContain(n, low, high)) {
             return 0;
         }
         if (allContainedIn(n, low, high)) {
             return n.count;
         }
-        return (live(id) && containedIn(n, low, high) ? 1 : 0) +
+        return (containedIn(n, low, high) ? 1 : 0) +
                countContainedIn(n.left, low, high) + countContainedIn(n.right, low, high);
     }
 
@@ -686,12 +746,16 @@ class IntervalTree {
     /** @brief Returns a constant iterator past the last stored shape. */
     [[nodiscard]] const_iterator cend() const { return elements_.cend(); }
 
-    /** @brief Inserts @p shape and its selected closed bounding-box interval. */
+    /**
+     * @brief Inserts @p shape and its selected closed bounding-box interval.
+     *
+     * Takes `O(log n)` amortized time for `n` stored shapes.
+     */
     void insert(const ShapeType& shape) {
         const auto [low, high] = project(shape);
         elements_.push_back(shape);
         try {
-            insertExisting(low, high, static_cast<NodeId>(elements_.size() - 1));
+            insertLast(low, high);
         } catch (...) {
             elements_.pop_back();
             throw;
@@ -701,19 +765,14 @@ class IntervalTree {
     /**
      * @brief Removes one stored shape equal to @p shape.
      *
-     * The owning node is located through the projected interval and then
-     * tombstoned: it stays in the tree, keeping it balanced, but owns no shape
-     * and is counted by nothing, so every query ignores it. The shape itself is
-     * swap-removed from storage, so @ref shapes() stays compact and only the
-     * element order may change; the last live node moves into the freed slot so
-     * that a node ID keeps being the index of the shape it owns.
+     * The owning node is located through the projected interval, unlinked,
+     * and the tree rebalanced. The shape itself is swap-removed from storage,
+     * so @ref shapes() stays compact and only the element order may change;
+     * the last node moves into the freed slot so that a node ID keeps being
+     * the index of the shape it owns.
      *
-     * Once tombstones outnumber the live nodes, the index is rebuilt from the
-     * surviving shapes, yielding a structure with the same red-black and
-     * augmentation invariants as a freshly constructed tree. A rebuild costs
-     * `O(n log n)` but follows at least `n / 2` removals, so a removal costs
-     * `O(log n + k)` amortized, where `k` is the number of stored intervals
-     * sharing the projected endpoints of @p shape.
+     * Takes `O(log n + k)` time for `n` stored shapes, where `k` is the number
+     * of stored shapes whose projected interval equals that of @p shape.
      *
      * @param shape Shape to remove.
      * @return `true` if a matching shape was found and removed, `false` otherwise.
@@ -728,33 +787,29 @@ class IntervalTree {
             return false;
         }
 
-        // The node ID is the element index, so the slot that has to become a
-        // tombstone is the last live one. When the removed shape is not already
-        // there, the last live node and the removed one exchange slots through
-        // a temporary at the end, each move keeping the tree structure intact.
+        unlinkNode(id);
+
+        // The node ID is the element index, so the slot that has to go is the
+        // last one: the last node moves into the freed slot, keeping its place
+        // in the tree.
         const NodeId last = static_cast<NodeId>(elements_.size() - 1);
         if (id != last) {
-            const NodeId temporary = relocateNodeToEnd(id);
             relocateNode(last, id);
-            relocateNode(temporary, last);
-            nodes_.pop_back();
-            mutationNodes_.pop_back();
             elements_[static_cast<std::size_t>(id)] =
                 std::move(elements_[static_cast<std::size_t>(last)]);
         }
+        nodes_.pop_back();
+        mutationNodes_.pop_back();
         elements_.pop_back();
-
-        // The node now in slot `last` is the tombstone: it and its ancestors
-        // lose it from their live counts.
-        updateUpward(last);
-
-        if (tombstones() > elements_.size()) {
-            rebuildFromElements();
-        }
         return true;
     }
 
-    /** @brief Returns whether a shape equal to @p shape is stored. */
+    /**
+     * @brief Returns whether a shape equal to @p shape is stored.
+     *
+     * Takes `O(log n + k)` time for `n` stored shapes, where `k` is the number
+     * of stored shapes whose projected interval equals that of @p shape.
+     */
     [[nodiscard]] bool has(const ShapeType& shape) const {
         if (root_ == invalidNode) {
             return false;

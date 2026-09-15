@@ -3018,22 +3018,99 @@ constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const Oth
     bool b_check = false;
     bool c_check = !contains(other.get(-1));
 
+    // What the scan needs to know about one edge of `other`: whether this
+    // separates it, contains it, meets it, and contains its upper endpoint.
+    struct EdgeFacts {
+        bool separated = false;
+        bool contained = false;
+        bool met = false;
+        bool upperOn = false;
+    };
+    using OtherSegment = Segment<typename OtherChain::PointType>;
+    const std::size_t n = size();
+    // A point of an edge lies lexicographically between its endpoints, so only
+    // the edges of this whose lexicographic range overlaps the other edge's can
+    // meet it: a contiguous window, whose start only moves forward as the
+    // other chain's edges advance. Everything is read off that window, with
+    // the same predicates the per-edge calls separates(edge), contains(edge),
+    // intersects(edge) and contains(point) would evaluate over it.
+    std::size_t start = 0;
+    const auto factsOf = [&](const OtherSegment& edge) {
+        EdgeFacts facts;
+        const auto& lower = edge.min();
+        const auto& upper = edge.max();
+        if (n == 1) {
+            const PointType vertex = (*this)[0];
+            facts.separated = edge.interiorContains(vertex);
+            facts.met = edge.contains(vertex);
+            facts.upperOn = vertex == upper;
+            facts.contained = vertex == lower && vertex == upper;
+            return facts;
+        }
+        while (start + 2 < n && (*this)[start + 1] < lower) {
+            ++start;
+        }
+        bool lowerOn = false;
+        bool between = true;  // chain vertices strictly inside (lower, upper) are collinear
+        // State of the walk over the connected components of (this ∩ edge),
+        // as in separatesOneDimensional; edges outside the window miss the edge.
+        bool active = false;
+        bool touched = false;
+        for (std::size_t i = start; i + 1 < n && !(upper < (*this)[i]); ++i) {
+            const PointType vertex = (*this)[i];
+            if (lower < vertex && vertex < upper && orientationSign(lower, upper, vertex) != 0) {
+                between = false;
+            }
+            const auto mine = this->template boundaryAt<false>(i);
+            const bool holdsLower = mine.contains(lower);
+            const bool holdsUpper = mine.contains(upper);
+            lowerOn = lowerOn || holdsLower;
+            facts.upperOn = facts.upperOn || holdsUpper;
+            if (mine.intersects(edge)) {
+                facts.met = true;
+                const bool connected = active && edge.contains(vertex);
+                if (!connected) {
+                    if (active && !touched) {
+                        facts.separated = true;
+                    }
+                    touched = false;
+                }
+                active = true;
+                if (holdsLower || holdsUpper) {
+                    touched = true;
+                }
+            } else {
+                if (active && !touched) {
+                    facts.separated = true;
+                }
+                active = false;
+                touched = false;
+            }
+        }
+        if (active && !touched) {
+            facts.separated = true;
+        }
+        facts.contained = lowerOn && facts.upperOn && between;
+        return facts;
+    };
+
     for (std::size_t i = 1; i < other.size(); ++i) {
-        Segment<typename OtherChain::PointType> edge(other[i-1], other[i]);
-        if (separates(edge)) {
+        const OtherSegment edge(other[i-1], other[i]);
+        const EdgeFacts facts = factsOf(edge);
+        if (facts.separated) {
             return true; // If edge is separated, then a,b,c are in edge
         }
         if (!a_check) { // We did not find point a st !this->contains(a) yet
-            if (!contains(edge)) {
+            if (!facts.contained) {
                 a_check = true; // point of edge not contained in this is a
-                b_check = contains(other[i]); // maybe b st this->contains(b) is in edge
+                b_check = facts.upperOn; // maybe b st this->contains(b) is in edge
             }
         }
         else if (!b_check) { // We did not find point b > a st this->contains(b) yet
-            b_check = intersects(edge); // If the edge intersects this, we found b
+            b_check = facts.met; // If the edge intersects this, we found b
         }
         else if (!c_check) { // We did not find point c > b st !this->contains(c) yet
-            c_check = !contains(edge); // If edge is not contained, we found c
+            c_check = !facts.contained; // If edge is not contained, we found c
         }
 
         if (a_check && b_check && c_check) { // All points found
@@ -4731,10 +4808,6 @@ bool disconnectedOnItsOwn(const Target& target) {
  * cut them into. No convexity is asked of a face: a cell's closure meets
  * another cell only along shared faces of the complex, and `c ∪ f` is connected
  * whenever `f` is such a face of `c`, whatever shape `c` has.
- *
- * Complexity is that of the arrangement — the split of the m boundary edges at
- * their crossings, then O(k log k) for the k arrangement edges — plus one
- * containment test in each operand per cell, exact throughout.
  */
 template <class Target, class Remover>
 bool cellSeparates(const Target& target, const Remover& remover) {
@@ -5143,6 +5216,8 @@ bool regionSeparatesDisk(const Region& region, const OtherDisk& disk) {
  * lying on it makes coverage constant on each piece, and a piece is covered by
  * an edge exactly when that edge holds both of its endpoints. A valid region
  * never covers a stretch three times, so two means pinched shut.
+ *
+ * Complexity: O(n²) for a valid region of n ring vertices.
  */
 template <class Region>
 std::vector<Segment<typename Region::PointType>> regionSlits(const Region& region) {
@@ -5671,12 +5746,13 @@ bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherHoledRegi
 template <class PointType, class LabelType>
 bool PolygonSet<PointType, LabelType>::isConnected() const {
     // Each component is connected on its own, so the set is connected exactly
-    // when the graph joining components that meet is — a union-find over the
-    // pairs whose boxes overlap.
+    // when the graph joining components that meet is — a union-find, by size
+    // with path halving, over the pairs whose boxes overlap.
     if (components_.size() < 2) {
         return true;
     }
     std::vector<std::size_t> parent(components_.size());
+    std::vector<std::size_t> weight(components_.size(), 1);
     for (std::size_t i = 0; i < parent.size(); ++i) {
         parent[i] = i;
     }
@@ -5688,18 +5764,22 @@ bool PolygonSet<PointType, LabelType>::isConnected() const {
         return x;
     };
     std::size_t pieces = components_.size();
-    for (std::size_t i = 0; i < components_.size(); ++i) {
-        for (std::size_t j = i + 1; j < components_.size(); ++j) {
-            if (findRoot(i) == findRoot(j) ||
-                !components_[i].bbox().intersects(components_[j].bbox())) {
-                continue;
+    detail::anyIntersectingBoxPair(
+        components_.size(),
+        [this](std::size_t i) -> const auto& { return components_[i].bbox(); },
+        [&](std::size_t i, std::size_t j) {
+            std::size_t rootI = findRoot(i);
+            std::size_t rootJ = findRoot(j);
+            if (rootI == rootJ || !components_[i].intersects(components_[j])) {
+                return false;
             }
-            if (components_[i].intersects(components_[j])) {
-                parent[findRoot(i)] = findRoot(j);
-                --pieces;
+            if (weight[rootI] < weight[rootJ]) {
+                std::swap(rootI, rootJ);
             }
-        }
-    }
+            parent[rootJ] = rootI;
+            weight[rootI] += weight[rootJ];
+            return --pieces == 1;  // nothing left to join
+        });
     return pieces == 1;
 }
 

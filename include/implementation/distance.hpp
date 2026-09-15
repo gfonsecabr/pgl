@@ -1183,7 +1183,33 @@ template <class ResultNumber, DiskConcept OtherDisk>
 detail::floating_result_t<ResultNumber> Convex<PointType_, LabelType>::squaredDistance(
     const OtherDisk& other) const {
     using Float = detail::floating_result_t<ResultNumber>;
-    if (intersects(other)) {
+    // Beyond a few edges the per-edge test is replaced by one exact comparison:
+    // the disk meets the polygon exactly when the circumcenter of its boundary
+    // points is within the circumradius of it, and that distance is an O(log n)
+    // search. Both sides are computed in ERational from the boundary points
+    // themselves, which is the circle the per-edge in-circle test reads.
+    bool meets = false;
+    if (size() <= 32) {
+        meets = intersects(other);
+    } else if (other.isDegenerate()) {
+        // A collapsed disk is its point; the collinear ones are undefined.
+        meets = contains(other.a());
+    } else {
+        using E = ERational;
+        const auto exact = [](const auto& value) { return static_cast<E>(value); };
+        const E ax = exact(other.a().x()), ay = exact(other.a().y());
+        const E bx = exact(other.b().x()), by = exact(other.b().y());
+        const E cx = exact(other.c().x()), cy = exact(other.c().y());
+        const E aa = ax * ax + ay * ay;
+        const E bb = bx * bx + by * by;
+        const E cc = cx * cx + cy * cy;
+        const E denominator = E(2) * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+        const Point<E> center((aa * (by - cy) + bb * (cy - ay) + cc * (ay - by)) / denominator,
+                              (aa * (cx - bx) + bb * (ax - cx) + cc * (bx - ax)) / denominator);
+        const E squaredRadius = center.template squaredDistance<E>(Point<E>(ax, ay));
+        meets = !(squaredRadius < this->template squaredDistance<E>(center));
+    }
+    if (meets) {
         return Float{0};
     }
     return detail::diskExteriorSquaredDistance<Float>(other, *this);

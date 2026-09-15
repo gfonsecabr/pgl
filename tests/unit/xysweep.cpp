@@ -186,6 +186,40 @@ TEST_CASE("xy sweeps scale past the pairwise scan") {
     CHECK(sweptCrossings == bruteCrossings);
 }
 
+TEST_CASE("xy sweeps agree with the pairwise scan after closing tall boxes") {
+    // Short boxes that close early leave tall y-extents behind in the active
+    // set's history; the long boxes entering afterwards meet none of them.
+    using Point = pgl::Point<long long>;
+    const long long m = 200;
+    const long long wide = 100000, tall = 10000, above = 5000;
+    std::vector<pgl::Segment<Point>> segs;
+    segs.emplace_back(Point(0, -10 * tall), Point(wide, -10 * tall + 1));
+    for (long long i = 1; i <= m; ++i) {
+        segs.emplace_back(Point(10 * i, 10 * i), Point(10 * i + 1, tall));
+        segs.emplace_back(Point(10 * i + 2, 10 * i + 5), Point(wide, 10 * i + 6));
+    }
+    const long long start = 10 * (m + 1);
+    for (long long j = 1; j <= m; ++j) {
+        segs.emplace_back(Point(start + j, above + 10 * j), Point(wide, above + 10 * j + 1));
+    }
+    // A few pairs that do meet, among the boxes closed and still open.
+    segs.emplace_back(Point(15, 0), Point(15, tall));
+    segs.emplace_back(Point(start + 50, above), Point(start + 50, above + 600));
+
+    auto swept = pgl::detail::xyIntersections(segs);
+    auto brute = pgl::detail::bruteForceIntersections(segs);
+    sortPairs(swept);
+    sortPairs(brute);
+    CHECK_FALSE(brute.empty());
+    CHECK(swept == brute);
+
+    auto sweptCrossings = pgl::detail::xyCrossings(segs);
+    auto bruteCrossings = pgl::detail::bruteForceCrossings(segs);
+    sortPairs(sweptCrossings);
+    sortPairs(bruteCrossings);
+    CHECK(sweptCrossings == bruteCrossings);
+}
+
 // ------------------------------------------------- isSimple on the sweep path
 
 TEST_CASE("Polygon::isSimple takes the sweep path for large floating-point rings") {

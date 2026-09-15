@@ -609,3 +609,160 @@ TEST_CASE("Interior intersections are crossings and collinear overlaps with leng
     CHECK(pgl::findInteriorIntersections(touching).empty());
     CHECK_FALSE(pgl::detectInteriorIntersections(touching));
 }
+
+// Degenerate families on which the sweep used to spend far more than its bound:
+// a run of segments through one point tested every pair of the run although a
+// long collinear block made nearly all of them overlaps, a vertical segment
+// walked every segment through its endpoint to find none it crossed, and a
+// detection finished a whole run after the answer was known. They are checked
+// here for the answers, at a size where any mistake in the pairs listed
+// outright shows.
+namespace families {
+
+using Point = pgl::Point<int>;
+using Segment = pgl::Segment<Point>;
+
+// Nested collinear segments, a few of them sharing an endpoint or only
+// overlapping, crossed at distinct points by parallel transversals, one of
+// them through the bundle's common endpoint.
+std::vector<Segment> bundleWithTransversals(int m) {
+    std::vector<Segment> segs;
+    const int width = 2 * m + 2;
+    for (int i = 1; i <= m; ++i) {
+        segs.emplace_back(Point(-width - i, 0), Point(width + i, 0));
+    }
+    segs.emplace_back(Point(-width - 1, 0), Point(3, 0));
+    segs.emplace_back(Point(1, 0), Point(width + m + 5, 0));
+    for (int j = 0; j < m; ++j) {
+        const int c = 2 * j - m;
+        segs.emplace_back(Point(c - 1, -1), Point(c + 1, 1));
+    }
+    segs.emplace_back(Point(width, -2), Point(width + 2, 2));
+    segs.emplace_back(Point(3, -3), Point(3, 3));
+    return segs;
+}
+
+// Collinear horizontals with verticals standing on them, hanging from them,
+// crossing them, reduced to a point on them, and overlapping one another.
+std::vector<Segment> verticalsOnBundle(int m) {
+    std::vector<Segment> segs;
+    const int length = 4 * m + 10;
+    for (int i = 0; i < m; ++i) {
+        segs.emplace_back(Point(-i, 0), Point(length + i, 0));
+    }
+    for (int j = 0; j < m; ++j) {
+        const int x = 4 * j + 1;
+        switch (j % 5) {
+        case 0: segs.emplace_back(Point(x, 0), Point(x, 1)); break;
+        case 1: segs.emplace_back(Point(x, -1), Point(x, 0)); break;
+        case 2: segs.emplace_back(Point(x, -1), Point(x, 1)); break;
+        case 3: segs.emplace_back(Point(x, 0), Point(x, 0)); break;
+        default:
+            segs.emplace_back(Point(x, 0), Point(x, 2));
+            segs.emplace_back(Point(x, 1), Point(x, 3));
+            segs.emplace_back(Point(x, -2), Point(x, 0));
+            break;
+        }
+    }
+    // A vertical through the bundle's left end, and one where it ends.
+    segs.emplace_back(Point(-(m - 1), -1), Point(-(m - 1), 1));
+    segs.emplace_back(Point(length, 0), Point(length, 4));
+    return segs;
+}
+
+// Segments through the origin, several of them on each line, kept apart until
+// the origin by blockers that end there.
+std::vector<Segment> starWithBlockers(int m) {
+    std::vector<Segment> segs;
+    for (int i = 1; i <= m; ++i) {
+        segs.emplace_back(Point(-2, -4 * i), Point(2, 4 * i));
+        if (i % 3 == 0) {
+            segs.emplace_back(Point(-1, -2 * i), Point(3, 6 * i));
+            segs.emplace_back(Point(-4, -8 * i), Point(1, 2 * i));
+        }
+    }
+    for (int i = 1; i < m; ++i) {
+        segs.emplace_back(Point(-4, -8 * i - 4), Point(0, 0));
+    }
+    segs.emplace_back(Point(-3, 0), Point(3, 0));
+    return segs;
+}
+
+template <class Number, class Coordinate>
+std::vector<pgl::Segment<pgl::Point<Number>>> mapped(const std::vector<Segment> &segs,
+                                                   const Coordinate &coordinate) {
+    std::vector<pgl::Segment<pgl::Point<Number>>> out;
+    for (const Segment &s : segs) {
+        out.emplace_back(pgl::Point<Number>(coordinate(s.min().x()), coordinate(s.min().y())),
+                         pgl::Point<Number>(coordinate(s.max().x()), coordinate(s.max().y())));
+    }
+    return out;
+}
+
+void checkFamily(const std::vector<Segment> &segs) {
+    methods::checkMethodsAgree(segs);
+    methods::checkMethodsAgree(mapped<pgl::ERational>(
+        segs, [](int c) { return pgl::ERational(c, 3) + pgl::ERational(1, 7); }));
+    methods::checkMethodsAgree(mapped<long long>(segs, [](int c) { return (1LL << 40) + c; }));
+}
+
+}  // namespace families
+
+TEST_CASE("Sweep agrees with brute force on a collinear bundle crossed by transversals") {
+    for (const int m : {1, 2, 3, 7, 16}) {
+        CAPTURE(m);
+        families::checkFamily(families::bundleWithTransversals(m));
+    }
+    // Every transversal crosses the whole bundle at one point.
+    CHECK(pgl::detail::bruteForceCrossings(families::bundleWithTransversals(16)).size() > 16 * 16);
+}
+
+TEST_CASE("Sweep agrees with brute force on verticals touching a collinear bundle") {
+    for (const int m : {1, 2, 5, 11, 20}) {
+        CAPTURE(m);
+        families::checkFamily(families::verticalsOnBundle(m));
+    }
+}
+
+TEST_CASE("Sweep agrees with brute force on a star through a point with blockers") {
+    for (const int m : {2, 3, 6, 13}) {
+        CAPTURE(m);
+        families::checkFamily(families::starWithBlockers(m));
+    }
+}
+
+TEST_CASE("A nested vertical zigzag is not simple") {
+    for (const int size : {12, 40, 101}) {
+        CAPTURE(size);
+        std::vector<pgl::Point<int>> zigzag;
+        for (int i = 0; i < size / 2; ++i) {
+            zigzag.emplace_back(0, i);
+            zigzag.emplace_back(0, size - i);
+        }
+        CHECK_FALSE(pgl::Polyline<pgl::Point<int>>(zigzag).isSimple());
+        std::vector<pgl::Point<pgl::ERational>> exact;
+        for (const auto &p : zigzag) {
+            exact.emplace_back(pgl::ERational(p.x()), pgl::ERational(p.y()));
+        }
+        CHECK_FALSE(pgl::Polyline<pgl::Point<pgl::ERational>>(exact).isSimple());
+        zigzag.emplace_back(1, size / 2);
+        zigzag.push_back(zigzag.front());
+        CHECK_FALSE(pgl::Polyline<pgl::Point<int>>(zigzag).isSimple());
+    }
+    // A simple comb whose teeth share abscissas with one another.
+    std::vector<pgl::Point<int>> comb;
+    for (int i = 0; i < 20; ++i) {
+        comb.emplace_back(4 * i, 0);
+        comb.emplace_back(4 * i, 5);
+        comb.emplace_back(4 * i + 2, 5);
+        comb.emplace_back(4 * i + 2, 0);
+    }
+    CHECK(pgl::Polyline<pgl::Point<int>>(comb).isSimple());
+    comb.emplace_back(78, -1);
+    comb.emplace_back(0, -1);
+    comb.push_back(comb.front());
+    CHECK(pgl::Polyline<pgl::Point<int>>(comb).isSimple());
+    // Its closing edge run up along the first tooth instead.
+    comb.back() = pgl::Point<int>(0, 1);
+    CHECK_FALSE(pgl::Polyline<pgl::Point<int>>(comb).isSimple());
+}

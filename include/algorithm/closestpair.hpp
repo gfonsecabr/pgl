@@ -124,7 +124,8 @@ void closestPairBaseCase(const PointType* points, std::size_t count,
 }
 
 /**
- * @brief Copies the points within `best` of the split line into @p strip.
+ * @brief The run `[low, high)` of a range holding the points within `best` of
+ *        the split line.
  *
  * A pair closer than the best so far has both of its points within that
  * distance of the split line, so only this strip can still improve on it.
@@ -142,13 +143,12 @@ void closestPairBaseCase(const PointType* points, std::size_t count,
  * @param half Index the range was split at; `points[half].x()` is @p splitX.
  * @param splitX Abscissa of the split line.
  * @param best Running best pair, whose distance is the strip's half-width.
- * @param strip Buffer of at least @p count points to copy into.
- * @return The number of points written to @p strip.
+ * @return The bounds of the strip, as indices into @p points.
  */
 template <class PointType>
-std::size_t closestPairGatherStrip(const PointType* points, std::size_t count, std::size_t half,
-                                   closest_pair_coordinate_t<PointType> splitX,
-                                   const ClosestPairCandidate<PointType>& best, PointType* strip) {
+std::pair<std::size_t, std::size_t> closestPairGatherStrip(
+    const PointType* points, std::size_t count, std::size_t half,
+    closest_pair_coordinate_t<PointType> splitX, const ClosestPairCandidate<PointType>& best) {
     using Coordinate = closest_pair_coordinate_t<PointType>;
 
     // Squared throughout, so the half-width is never rooted and the test stays
@@ -168,9 +168,98 @@ std::size_t closestPairGatherStrip(const PointType* points, std::size_t count, s
         ++high;
     }
 
-    std::size_t stripCount = 0;
-    for (std::size_t i = low; i < high; ++i) {
-        strip[stripCount++] = points[i];
+    return {low, high};
+}
+
+/**
+ * @brief The rank of every input point in the y-order of the whole input,
+ *        computed the first time a strip needs it.
+ *
+ * The order is the one @ref closestPairLessY gives, its ties among coincident
+ * points broken by the x-order the input is kept in, so every rank is distinct.
+ */
+template <class PointType>
+struct ClosestPairRanks {
+    const PointType* points;  ///< The whole input, sorted lexicographically.
+    std::size_t count;        ///< Number of points in the whole input.
+    std::vector<std::size_t> rankOf;  ///< Rank of each point; empty until used.
+    std::vector<std::size_t> order;   ///< Index of the point of each rank.
+    std::vector<std::size_t> keys;    ///< Scratch: the ranks of one strip.
+    std::vector<std::size_t> buffer;  ///< Scratch for the radix passes.
+
+    /** @brief Computes the ranks unless an earlier strip already did. */
+    void prepare() {
+        if (!rankOf.empty()) {
+            return;
+        }
+        order.resize(count);
+        for (std::size_t i = 0; i < count; ++i) {
+            order[i] = i;
+        }
+        // The points are in (x, y) order, so a stable sort by ordinate alone
+        // breaks its ties by abscissa and then by position.
+        using Number = typename PointType::NumberType;
+        bool ordered = false;
+        if constexpr (RadixSortable<std::size_t, Number>) {
+            constexpr std::size_t radixThreshold = 256;
+            if (count >= radixThreshold) {
+                const PointType* all = points;
+                radixSort(order, buffer, [all](std::size_t i) { return radixKey(all[i].y()); });
+                ordered = true;
+            }
+        }
+        if (!ordered) {
+            std::sort(order.begin(), order.end(), [this](std::size_t a, std::size_t b) {
+                if (points[a].y() < points[b].y()) {
+                    return true;
+                }
+                if (points[b].y() < points[a].y()) {
+                    return false;
+                }
+                return a < b;
+            });
+        }
+        rankOf.resize(count);
+        for (std::size_t rank = 0; rank < count; ++rank) {
+            rankOf[order[rank]] = rank;
+        }
+    }
+};
+
+/**
+ * @brief Strips longer than this are ordered by rank rather than compared.
+ *
+ * Comparing a strip of `s <= 256` points into order costs `O(s log 256)`
+ * comparisons, so either way a strip costs `O(s)`.
+ */
+inline constexpr std::size_t closestPairComparedStripLimit = 256;
+
+/**
+ * @brief Copies `points[low, high)` into @p strip in y-order.
+ *
+ * A short strip is sorted by @ref closestPairLessY. A long one is radix sorted by
+ * the ranks of @p ranks, whose word-sized keys take a fixed number of linear
+ * passes, so a strip of `s` points costs `O(s)` whatever its length, plus the
+ * `O(n log n)` of computing the ranks the first time.
+ *
+ * @return The number of points written, `high - low`.
+ */
+template <class PointType>
+std::size_t closestPairOrderStrip(const PointType* points, std::size_t low, std::size_t high,
+                                  ClosestPairRanks<PointType>& ranks, PointType* strip) {
+    const std::size_t stripCount = high - low;
+    if (stripCount <= closestPairComparedStripLimit) {
+        std::copy(points + low, points + high, strip);
+        std::sort(strip, strip + stripCount, closestPairLessY<PointType>);
+        return stripCount;
+    }
+    ranks.prepare();
+    const auto base = static_cast<std::size_t>(points - ranks.points);
+    ranks.keys.assign(ranks.rankOf.begin() + static_cast<std::ptrdiff_t>(base + low),
+                      ranks.rankOf.begin() + static_cast<std::ptrdiff_t>(base + high));
+    radixSort(ranks.keys, ranks.buffer, [](std::size_t rank) { return rank; });
+    for (std::size_t k = 0; k < stripCount; ++k) {
+        strip[k] = ranks.points[ranks.order[ranks.keys[k]]];
     }
     return stripCount;
 }
@@ -205,15 +294,15 @@ void closestPairScanStrip(const PointType* strip, std::size_t stripCount,
  * @brief Improves @p best with the closest pair within `points[0, count)`.
  *
  * The range is sorted by x on entry and keeps that order throughout: the only
- * thing ever put in y-order is the strip around the split line, sorted right
- * before it is scanned. The textbook alternative carries a y-order up the
- * recursion instead, merging the two orders its children left behind, which is
- * asymptotically better — O(n log n) against the O(n log^2 n) reached here when
- * the strip keeps holding a constant fraction of the range. It is nonetheless
- * the slower of the two on ordinary inputs, where strips are a handful of points
- * and sorting them costs far less than merging the whole range at every node.
- * Keeping the x-order is also what lets @ref closestPairGatherStrip find the
- * strip by walking out from the split index instead of filtering the range.
+ * thing ever put in y-order is the strip around the split line, right before it
+ * is scanned, by @ref closestPairOrderStrip in time linear in the strip. A node
+ * therefore costs what its strip costs, and the recursion `O(n log n)` however
+ * much of a range its strips hold. The textbook alternative carries a y-order
+ * up the recursion instead, merging the two orders its children left behind;
+ * it has the same bound but pays for the whole range at every node, which on
+ * ordinary inputs, where strips are a handful of points, costs several times
+ * more. Keeping the x-order is also what lets @ref closestPairGatherStrip find
+ * the strip by walking out from the split index instead of filtering the range.
  *
  * @p best is the running answer over everything examined so far, anywhere in the
  * input — not the answer for this range. Threading it down rather than combining
@@ -233,6 +322,7 @@ void closestPairScanStrip(const PointType* strip, std::size_t stripCount,
  * @param count Number of points in the range; at least two.
  * @param scratch Uninitialized-or-stale buffer of at least @p count points, not
  *        overlapping @p points.
+ * @param ranks The y-order ranks of the whole input that @p points is part of.
  * @param best Running best pair, improved in place.
  * @tparam Threshold Range size to stop recursing at; see
  *         @ref closestPairBruteForceThreshold. At least 3, so that a range that
@@ -243,6 +333,7 @@ void closestPairScanStrip(const PointType* strip, std::size_t stripCount,
  */
 template <std::size_t Threshold, class PointType>
 void closestPairRecursive(const PointType* points, std::size_t count, PointType* scratch,
+                          ClosestPairRanks<PointType>& ranks,
                           ClosestPairCandidate<PointType>& best) {
     using Coordinate = closest_pair_coordinate_t<PointType>;
     static_assert(Threshold >= 3,
@@ -261,14 +352,13 @@ void closestPairRecursive(const PointType* points, std::size_t count, PointType*
     const std::size_t half = count / 2;
     const Coordinate splitX = static_cast<Coordinate>(points[half].x());
 
-    closestPairRecursive<Threshold>(points, half, scratch, best);
-    closestPairRecursive<Threshold>(points + half, count - half, scratch + half, best);
+    closestPairRecursive<Threshold>(points, half, scratch, ranks, best);
+    closestPairRecursive<Threshold>(points + half, count - half, scratch + half, ranks, best);
 
-    // The range is in x-order, so the strip comes out in x-order too and has to
-    // be sorted before it can be scanned.
-    const std::size_t stripCount =
-        closestPairGatherStrip(points, count, half, splitX, best, scratch);
-    std::sort(scratch, scratch + stripCount, closestPairLessY<PointType>);
+    // The range is in x-order, so the strip is found in x-order too and has to
+    // be put in y-order before it can be scanned.
+    const auto [low, high] = closestPairGatherStrip(points, count, half, splitX, best);
+    const std::size_t stripCount = closestPairOrderStrip(points, low, high, ranks, scratch);
     closestPairScanStrip(scratch, stripCount, best);
 }
 
@@ -295,7 +385,8 @@ closestPairDriver(const Container& input) {
     ClosestPairCandidate<InputPoint> best{
         points[0], points[1],
         points[0].template squaredDistance<Coordinate>(points[1])};
-    closestPairRecursive<Threshold>(points.data(), points.size(), scratch.data(), best);
+    ClosestPairRanks<InputPoint> ranks{points.data(), points.size(), {}, {}, {}, {}};
+    closestPairRecursive<Threshold>(points.data(), points.size(), scratch.data(), ranks, best);
 
     return Segment<InputPoint>(best.first, best.second);
 }
@@ -307,8 +398,9 @@ closestPairDriver(const Container& input) {
  *
  * The points are sorted by abscissa and split in half by a vertical line. Each
  * half is solved recursively, and only the points lying within the better of the
- * two half-solutions of the split line can still form a closer pair; sorting
- * that strip by ordinate and scanning it settles them in linear time.
+ * two half-solutions of the split line can still form a closer pair; putting
+ * that strip in ordinate order and scanning it settles them in time linear in
+ * the strip.
  *
  * The recursion stops and tries every pair once a range gets small enough that
  * brute force is the cheaper of the two; where that is depends on the coordinate
@@ -324,10 +416,7 @@ closestPairDriver(const Container& input) {
  * @pre @p input holds at least two points; fewer is undefined behavior.
  * @return Segment joining two points at minimum distance from each other.
  *
- * @complexity O(n log n) time on inputs whose strips stay short, which is the
- *             ordinary case; O(n log^2 n) worst case, approached when the points
- *             are so clustered along one line that the strip keeps holding a
- *             constant fraction of the range. O(n) additional space.
+ * @complexity O(n log n) time. O(n) additional space.
  */
 template <class Container>
 [[nodiscard]] Segment<detail::closest_pair_input_point_t<Container>>

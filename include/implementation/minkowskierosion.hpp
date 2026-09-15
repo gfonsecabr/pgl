@@ -31,16 +31,17 @@
  *     A ⊖ B = ⋂ᵢ (Hᵢ ⊖ B)      whenever  A = ⋂ᵢ Hᵢ,
  *
  * a **convex receiver** needs nothing but its own half-planes and the operand's
- * support function: one clamp per constraint, `O(a·b)` in the two operands'
- * sizes, and no arithmetic beyond a cross product and a subtraction. Three
- * consequences are worth stating, because they are what the contract below is
- * made of:
+ * support function: one clamp per constraint, `O(a + h)` for `a` constraints
+ * and an operand hull of `h` vertices once that hull is known, and no
+ * arithmetic beyond a cross product and a subtraction. Three consequences are
+ * worth stating, because they are what the contract below is made of:
  *
  * - **The operand need not be convex.** A support function only sees the convex
  *   hull, so `A ⊖ B` is `A ⊖ hull(B)` for convex `A`, and a `Polygon`, a
  *   `PolygonWithHoles`, a `PolygonSet`, a `Polyline` and a `MonotoneChain` are
- *   all as cheap to erode by as their vertex count. That is why the pairs the
- *   sum forwards to a region-valued overload come back here as a convex region.
+ *   all as cheap to erode by as their hull, `O(m log m)` for `m` vertices. That
+ *   is why the pairs the sum forwards to a region-valued overload come back here
+ *   as a convex region.
  * - **It is exact on the lattice.** Every constraint of the result is a
  *   constraint of the receiver translated by one vertex of the operand, so the
  *   half-planes are integral whenever both operands are — even though the
@@ -78,8 +79,8 @@
  * operand is first moved onto one of its own vertices and the answer moved back.
  * See @ref pgl::detail::regularizedMinkowskiErosion.
  *
- * A **convex** receiver that merely arrived as a `Polygon` or a hole-free region
- * skips all of that for the linear clamp above, exactly as the sum's first
+ * A **convex** receiver that merely arrived as a `Polygon`, a hole-free region
+ * or a set of one such region skips all of that for the clamp above, exactly as the sum's first
  * construction skips the arrangement for the linear merge.
  *
  * ### Two contracts, and why they differ
@@ -287,48 +288,135 @@ minkowskiErosionConstraints(const ShapeT& shape) {
  * - An operand covering no point has no constraint to fail, and the erosion is
  *   the **whole plane** — every translate of the empty set fits in anything.
  *
- * The insertion does the rest, as it does for @ref minkowskiPolyhedralSum:
- * @ref HalfplaneIntersection::insert drops a redundant constraint, keeps the
- * tighter of two facing the same way, and notices both emptiness and a result
- * that has dropped below two dimensions, so an erosion that is a point, a
- * segment or a line comes back recognizable through `getIfPoint`,
- * `getIfSegment` or `getIfLine`.
+ * The range constructor of @ref HalfplaneIntersection does the rest, as the
+ * insertions do for @ref minkowskiPolyhedralSum: it drops a redundant
+ * constraint, keeps the tighter of two facing the same way, and notices both
+ * emptiness and a result that has dropped below two dimensions, so an erosion
+ * that is a point, a segment or a line comes back recognizable through
+ * `getIfPoint`, `getIfSegment` or `getIfLine`.
  *
  * The operand is read only through @ref minkowskiPolyhedronOf, which is why a
  * non-convex one is free: what it reduces to for a bounded operand is that
  * operand's hull, and `A ⊖ B` is `A ⊖ hull(B)` whenever `A` is convex.
  *
- * Complexity: `O(a·b)` cross products for a receiver of `a` constraints and an
- * operand of `b` vertices, plus what the insertions cost.
+ * The constraints are taken in direction order, and the support point then
+ * only moves forward around the operand's anchors, as the two edge sequences
+ * of @ref minkowskiConvexSum do; the result's constraints come out in the
+ * order the region stores them, so the region is built without a sort.
+ *
+ * Complexity: `O(a + h)` for a receiver of `a` constraints and an operand
+ * whose hull has `h` vertices, plus the operand's reduction: `O(m)` for a
+ * `Convex` or a full-dimensional `HalfplaneIntersection` of `m` vertices or
+ * constraints, `O(m log m)` for any other operand of `m` vertices (its hull),
+ * and `O(1)` for the fixed-size ones. A receiver that is not a `Convex`,
+ * `HalfplaneIntersection` or fixed-size shape (a non-convex one against an
+ * unbounded operand) adds `O(a log a)` for its own hull.
  */
 template <class A, class B>
 constexpr auto minkowskiConvexErosion(const A& a, const B& b) {
     using ResultPoint = minkowskiErosionPoint_t<A, B>;
+    using Constraint = MinkowskiErosionConstraint<ResultPoint>;
     using Region = HalfplaneIntersection<ResultPoint>;
 
-    const MinkowskiPolyhedron<ResultPoint> eroder = minkowskiPolyhedronOf<ResultPoint>(b);
+    MinkowskiPolyhedron<ResultPoint> eroder = minkowskiPolyhedronOf<ResultPoint>(b);
     if (eroder.empty) {
         return Region();  // the whole plane, which is what no constraint means
     }
-    const auto constraints = minkowskiErosionConstraints<ResultPoint>(a);
+    auto constraints = minkowskiErosionConstraints<ResultPoint>(a);
     if (!constraints) {
         return Region(Convex<ResultPoint>());  // nothing fits in the empty set
     }
+    std::vector<Constraint>& list = *constraints;
 
-    Region region;
-    for (const auto& constraint : *constraints) {
-        const std::optional<ResultPoint> support =
-            minkowskiInfimumPoint(eroder, constraint.direction);
-        if (!support) {
+    // Direction order, counterclockwise from the +x axis. A convex polygon's
+    // edges and a region's stored constraints are already in that order up to
+    // a rotation; only the fixed-size lists (a point's pins, a segment's caps)
+    // need the sort.
+    const auto before = [](const Constraint& left, const Constraint& right) {
+        return minkowskiDirectionOrder(left.direction, right.direction) < 0;
+    };
+    if (!list.empty()) {
+        std::rotate(list.begin(), std::min_element(list.begin(), list.end(), before), list.end());
+        if (!std::is_sorted(list.begin(), list.end(), before)) {
+            std::stable_sort(list.begin(), list.end(), before);
+        }
+    }
+
+    // The walk below needs the anchors to be the vertices of a strictly convex
+    // polygon, counterclockwise. A hull and a full-dimensional region's
+    // vertices are; a degenerate region's may repeat or line up, and those are
+    // hulled here, which leaves every infimum as it was.
+    std::vector<ResultPoint>& anchors = eroder.anchors;
+    if (anchors.size() >= 3) {
+        const std::size_t h = anchors.size();
+        bool convexPosition = true;
+        std::size_t wraps = 0;
+        const auto lowerHalf = [&anchors, h](std::size_t i) {
+            const ResultPoint& from = anchors[i];
+            const ResultPoint& to = anchors[(i + 1) % h];
+            return !(to.y() > from.y() || (to.y() == from.y() && to.x() > from.x()));
+        };
+        for (std::size_t i = 0; i < h && convexPosition; ++i) {
+            convexPosition =
+                orientationSign(anchors[i], anchors[(i + 1) % h], anchors[(i + 2) % h]) > 0;
+            if (lowerHalf(i) && !lowerHalf((i + 1) % h)) {
+                ++wraps;
+            }
+        }
+        if (!convexPosition || wraps != 1) {
+            anchors = grahamScan(anchors);
+        }
+    }
+    const std::size_t h = anchors.size();
+
+    // With the anchors counterclockwise, the one minimizing `cross(d, ·)` moves
+    // forward as `d` turns counterclockwise: from the last minimizer, the
+    // values strictly decrease up to the next one, as long as `d` turned by
+    // less than half a turn. A larger turn (at most two in a full circle, and
+    // the first constraint) rescans.
+    std::vector<Halfplane<ResultPoint>> halfplanes;
+    halfplanes.reserve(list.size());
+    std::size_t cursor = 0;
+    const ResultPoint* previous = nullptr;
+    for (const Constraint& constraint : list) {
+        const ResultPoint& direction = constraint.direction;
+        for (const auto& recession : eroder.recessions) {
+            if (crossSign(direction, recession) < 0) {
+                return Region(Convex<ResultPoint>());  // the operand recedes through it
+            }
+        }
+        if (h == 0) {
             return Region(Convex<ResultPoint>());
         }
-        const ResultPoint base(constraint.anchor.x() - support->x(),
-                               constraint.anchor.y() - support->y());
-        region.insert(Halfplane<ResultPoint>(
-            base, ResultPoint(base.x() + constraint.direction.x(),
-                              base.y() + constraint.direction.y())));
+        const bool turnedLittle =
+            previous != nullptr &&
+            (crossSign(*previous, direction) > 0 ||
+             (crossSign(*previous, direction) == 0 && dotSign(*previous, direction) > 0));
+        if (turnedLittle) {
+            for (;;) {
+                const std::size_t next = cursor + 1 == h ? 0 : cursor + 1;
+                if (next != cursor && minkowskiCross(direction, anchors[next]) <
+                                          minkowskiCross(direction, anchors[cursor])) {
+                    cursor = next;
+                } else {
+                    break;
+                }
+            }
+        } else {
+            cursor = 0;
+            for (std::size_t i = 1; i < h; ++i) {
+                if (minkowskiCross(direction, anchors[i]) < minkowskiCross(direction, anchors[cursor])) {
+                    cursor = i;
+                }
+            }
+        }
+        previous = &direction;
+        const ResultPoint& support = anchors[cursor];
+        const ResultPoint base(constraint.anchor.x() - support.x(),
+                               constraint.anchor.y() - support.y());
+        halfplanes.emplace_back(base, ResultPoint(base.x() + direction.x(), base.y() + direction.y()));
     }
-    return region;
+    return Region(halfplanes);
 }
 
 /**
@@ -501,9 +589,11 @@ constexpr auto minkowskiErosionOf(const A& a, const B& b) {
  * Two constructions, and the first is the sum's first construction turned
  * around:
  *
- * - **A convex receiver** — a `Polygon` that happens to be convex, or a region
- *   whose holes are gone and whose outer ring is — is an intersection of its own
- *   half-planes, so @ref minkowskiConvexErosion answers it in `O(a·b)` with no
+ * - **A convex receiver** — a `Polygon` that happens to be convex, a region
+ *   whose holes are gone and whose outer ring is, or a set of one such region —
+ *   is an intersection of its own
+ *   half-planes, so @ref minkowskiConvexErosion answers it in `O(a + m log m)`
+ *   for `a` receiver vertices and `m` operand vertices, with no
  *   arrangement at all, and the bounded convex region that comes back converts
  *   to the one polygon it is. The operand's shape is irrelevant to this path;
  *   only the receiver's convexity is.
@@ -533,9 +623,8 @@ constexpr auto minkowskiErosionOf(const A& a, const B& b) {
  * the sum are all built over the exact type, and only the final difference
  * converts to @p ResultPoint.
  *
- * Complexity: the sum's, on an operand pair no larger than `(a + 4, b)`, plus
- * two arrangements — `Θ(a²b²)` in the worst case, and `O(a·b)` on the convex
- * path.
+ * Complexity: for a receiver of `a` vertices and an operand of `b` vertices,
+ * `O(a + b log b)` on the convex path. No bound is given for the other path.
  *
  * @throws std::logic_error when the operand covers no point, whose erosion is
  *         the whole plane and not a set of bounded regions.
@@ -559,14 +648,22 @@ PolygonSet<ResultPoint> regularizedMinkowskiErosion(const ShapeA& a, const Shape
         return {};
     }
 
+    const auto convexPath = [&b](const auto& convexReceiver) {
+        const auto region = minkowskiConvexErosion(minkowskiAsConvex(convexReceiver), b);
+        if (region.isDegenerate()) {
+            return PolygonSet<ResultPoint>();  // nothing with area survives the regularization
+        }
+        return PolygonSet<ResultPoint>(PolygonWithHoles<ResultPoint>(
+            Polygon<ResultPoint>(region.template asConvex<ResultNumber>().asPolygon())));
+    };
     if constexpr (is_polygon_v<ShapeA> || is_polygon_with_holes_v<ShapeA>) {
         if (minkowskiIsConvex(a)) {
-            const auto region = minkowskiConvexErosion(minkowskiAsConvex(a), b);
-            if (region.isDegenerate()) {
-                return {};  // nothing with area survives the regularization
-            }
-            return PolygonSet<ResultPoint>(PolygonWithHoles<ResultPoint>(
-                Polygon<ResultPoint>(region.template asConvex<ResultNumber>().asPolygon())));
+            return convexPath(a);
+        }
+    } else if constexpr (is_polygon_set_v<ShapeA>) {
+        // One component with no hole and a convex outer ring is a convex set.
+        if (a.components().size() == 1 && minkowskiIsConvex(a.components().front())) {
+            return convexPath(a.components().front());
         }
     }
 

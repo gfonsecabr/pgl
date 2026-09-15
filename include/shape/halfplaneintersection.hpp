@@ -276,7 +276,9 @@ struct HalfplaneIntersection {
      * makes redundant sit at either end of the stored run and are dropped
      * without moving the rest.
      *
-     * Complexity: O(n log n) untrusted, O(n) trusted.
+     * Complexity: O(n log n) untrusted, O(n) untrusted when the range is
+     * already sorted by boundary pseudo-angle (counterclockwise from the `+x`
+     * axis), O(n) trusted.
      *
      * A region is itself a range of half-planes, so this constructor is excluded
      * for one: copying a region must copy it, and rebuilding it from its stored
@@ -548,8 +550,9 @@ struct HalfplaneIntersection {
      * An undefined (degenerate) half-plane bounds no side of the plane, so it
      * carries no constraint and is ignored, leaving the region unchanged.
      *
-     * Complexity: O(log n) comparisons amortized, plus O(n) vector element
-     * moves in the worst case.
+     * Complexity: O(log n + k) comparisons, where `n` is the number of stored
+     * half-planes and `k` the number this call removes, plus O(n) element
+     * moves; O(n) in the worst case.
      *
      * @return `true` if the region changed, `false` if the half-plane was
      * discarded as redundant or undefined.
@@ -601,42 +604,84 @@ struct HalfplaneIntersection {
         // Cascade: a stored half-plane g between angular neighbors pred and
         // succ is redundant exactly when the wedge pred ∩ succ fits inside g,
         // which (for an angular gap below pi) reduces to the wedge apex lying
-        // weakly inside g. Deletions are paid for once, so the cascade is
-        // amortized O(1) tests per insertion.
-        while (halfplanes_.size() >= 3) {
-            const std::size_t s1 = nextIndex(pos);
-            const std::size_t s2 = nextIndex(s1);
+        // weakly inside g. The cascades only decide what goes; the half-planes
+        // they drop form the cyclic runs just after and just before pos, so
+        // they are erased at the end in one compaction instead of one erase
+        // (and one shift of the tail) each.
+        const std::size_t n = halfplanes_.size();
+        const auto cyclic = [n, pos](std::size_t offset) { return (pos + offset) % n; };
+        std::size_t forward = 0;  // drops cyclic(1) ... cyclic(forward)
+        while (n - forward >= 3) {
+            const std::size_t s1 = cyclic(forward + 1);
+            const std::size_t s2 = cyclic(forward + 2);
             if (s2 == pos) {
                 break;
             }
             if (detail::directionCross(halfplanes_[pos], halfplanes_[s2]) > 0 &&
                 detail::vertexSide(halfplanes_[pos], halfplanes_[s2], halfplanes_[s1]) >= 0) {
-                halfplanes_.erase(halfplanes_.begin() + static_cast<std::ptrdiff_t>(s1));
-                if (s1 < pos) {
-                    --pos;
-                }
+                ++forward;
             } else {
                 break;
             }
         }
-        while (halfplanes_.size() >= 3) {
-            const std::size_t p1 = prevIndex(pos);
-            const std::size_t p2 = prevIndex(p1);
+        std::size_t backward = 0;  // drops cyclic(n - 1) ... cyclic(n - backward)
+        while (n - forward - backward >= 3) {
+            // The survivors after pos, read backward from pos, are
+            // cyclic(n - 1), cyclic(n - 2), ... down to cyclic(forward + 1).
+            const std::size_t p1 = cyclic(n - 1 - backward);
+            const std::size_t p2 = cyclic(n - 2 - backward);
             if (p2 == pos) {
                 break;
             }
             if (detail::directionCross(halfplanes_[p2], halfplanes_[pos]) > 0 &&
                 detail::vertexSide(halfplanes_[p2], halfplanes_[pos], halfplanes_[p1]) >= 0) {
-                halfplanes_.erase(halfplanes_.begin() + static_cast<std::ptrdiff_t>(p1));
-                if (p1 < pos) {
-                    --pos;
-                }
+                ++backward;
             } else {
                 break;
             }
         }
+        if (forward + backward > 0) {
+            std::size_t kept = 0;
+            for (std::size_t i = 0; i < n; ++i) {
+                const std::size_t offset = (i + n - pos) % n;
+                const bool dropped = (offset >= 1 && offset <= forward) || (offset != 0 && offset >= n - backward);
+                if (!dropped) {
+                    if (kept != i) {
+                        halfplanes_[kept] = std::move(halfplanes_[i]);
+                    }
+                    ++kept;
+                }
+            }
+            halfplanes_.erase(halfplanes_.begin() + static_cast<std::ptrdiff_t>(kept), halfplanes_.end());
+        }
         resetCache();
         return true;
+    }
+
+    /**
+     * @brief Returns what @ref insert would return for the half-plane, without
+     * changing the region.
+     *
+     * `false` exactly when the half-plane is undefined or the region already
+     * lies inside it (the empty region lies inside every half-plane), so this
+     * is also the test of whether the half-plane contains the region.
+     *
+     * Complexity: O(log n) for `n` stored half-planes.
+     */
+    template <HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool insertChanges(const OtherHalfplane& other) const {
+        if (empty_) {
+            return false;
+        }
+        const HalfplaneType h(PointType(other.source()), PointType(other.target()));
+        if (h.isUndefined()) {
+            return false;
+        }
+        if (halfplanes_.empty()) {
+            return true;
+        }
+        const SupStatus supremum = supStatus(h);
+        return supremum != SupStatus::below && supremum != SupStatus::on;
     }
 
     /**
@@ -997,6 +1042,10 @@ struct HalfplaneIntersection {
      * `std::logic_error` when the region is unbounded (including the whole
      * plane).
      *
+     * The vertices already come counterclockwise, so no hull scan is needed.
+     *
+     * Complexity: O(n) for `n` stored half-planes.
+     *
      * @warning Divides coordinates after casting to ResultNumber; request
      * `pgl::Rational` coordinates for exact vertices.
      */
@@ -1008,7 +1057,9 @@ struct HalfplaneIntersection {
         if (!isBounded()) {
             throw std::logic_error("HalfplaneIntersection::asConvex requires a bounded region");
         }
-        return Convex<Point<ResultNumber, typename PointType::LabelType>>(vertices<ResultNumber>());
+        // The vertices come out in boundary order, so the hull needs no sort.
+        return Convex<Point<ResultNumber, typename PointType::LabelType>>(
+            detail::hullOfXBitonicRing(vertices<ResultNumber>(), {}), trusted);
     }
 
     /**
@@ -2050,7 +2101,8 @@ struct HalfplaneIntersection {
      * with empty interior contributes only its carrier — a point, a segment, a
      * ray or a line — clipped to the polygon.
      *
-     * Complexity: O(n m log(n + m)) for n stored half-planes and m vertices.
+     * Complexity: O(n·m log(n + m) + (n + m)²) for n stored half-planes and m
+     * vertices.
      *
      * @tparam ResultNumber The number type for the result.
      * @tparam OtherPolygon The polygon type.
@@ -2100,9 +2152,10 @@ struct HalfplaneIntersection {
     // --- distances (defined in the implementation layer) ---
     //
     // Zero when the shapes intersect; otherwise the minimum over the region's
-    // boundary edges of the edge-to-shape distance. Complexity: O(n) edge
-    // queries for n stored half-planes. The empty region has no distance to
-    // anything; querying it is undefined behavior.
+    // boundary edges of the edge-to-shape distance. Complexity, for n stored
+    // half-planes: O(n) against a shape of constant size, O((n + m)·m) against
+    // a convex polygon of m vertices or a region of m half-planes. The empty
+    // region has no distance to anything; querying it is undefined behavior.
 
     /** @brief Returns the squared Euclidean distance to the given shape. @warning Divides after casting to ResultNumber; request a floating-point or pgl::Rational result type for an accurate value. */
     template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
@@ -2565,7 +2618,6 @@ struct HalfplaneIntersection {
     // can query the run it is building before adopting it.
     template <HalfplaneConcept Query>
     static constexpr SupStatus supStatusIn(std::span<const HalfplaneType> stored, const Query& query) {
-        const std::size_t n = stored.size();
         // The supremum in direction of the query's outward normal is attained
         // where the stored boundary directions bracket the query's direction.
         const std::size_t pos = static_cast<std::size_t>(
@@ -2574,6 +2626,16 @@ struct HalfplaneIntersection {
                                  return detail::directionLess(value, element);
                              }) -
             stored.begin());
+        return supStatusAt(stored, query, pos);
+    }
+
+    // supStatusIn with the bracket already found: `pos` is the first index of
+    // `stored` whose direction is strictly greater than the query's (possibly
+    // stored.size()). O(1).
+    template <HalfplaneConcept Query>
+    static constexpr SupStatus supStatusAt(std::span<const HalfplaneType> stored, const Query& query,
+                                           std::size_t pos) {
+        const std::size_t n = stored.size();
         const std::size_t predIdx = (pos == 0 ? n : pos) - 1;
         const auto& pred = stored[predIdx];
         if (detail::directionEqual(pred, query)) {
@@ -2610,8 +2672,15 @@ struct HalfplaneIntersection {
     // Precondition: the region is the whole plane.
     constexpr void buildFromUnsorted(std::vector<HalfplaneType> input) {
         std::erase_if(input, [](const HalfplaneType& h) { return h.isUndefined(); });
-        std::sort(input.begin(), input.end(),
-                  [](const HalfplaneType& a, const HalfplaneType& b) { return detail::directionLess(a, b); });
+        const auto byDirection = [](const HalfplaneType& a, const HalfplaneType& b) {
+            return detail::directionLess(a, b);
+        };
+        // A caller that already has its constraints in direction order (a
+        // convex polygon's edges read from the right place) pays a linear
+        // check instead of the sort.
+        if (!std::is_sorted(input.begin(), input.end(), byDirection)) {
+            std::sort(input.begin(), input.end(), byDirection);
+        }
         // Of two half-planes with the same direction, the one whose boundary
         // lies strictly inside the other is contained in it; keep that one.
         std::size_t kept = 0;
@@ -2629,14 +2698,31 @@ struct HalfplaneIntersection {
         std::vector<HalfplaneType> run;
         run.reserve(input.size());
         std::size_t first = 0;  // run[first, end) is the region so far
+        // Upper bound of the current half-plane's opposite direction in `run`.
+        // That direction turns once around the circle as the input does, and
+        // the run only changes at its two ends, so walking this index from its
+        // last position costs O(n) over the whole build: while the input is in
+        // the upper half-circle every stored direction lies below the opposite
+        // one and the index sits at the end, the wrap to the lower half walks
+        // it back once, and from there it only advances.
+        std::size_t oppositeBound = 0;
         for (const HalfplaneType& h : input) {
             const std::span<const HalfplaneType> stored(run.data() + first, run.size() - first);
             if (!stored.empty()) {
-                const SupStatus supremum = supStatusIn(stored, h);
+                // Sorted and one per direction: h follows every stored one.
+                const SupStatus supremum = supStatusAt(stored, h, stored.size());
                 if (supremum == SupStatus::below || supremum == SupStatus::on) {
                     continue;
                 }
-                const SupStatus infimum = supStatusIn(stored, h.opposite());
+                const HalfplaneType reversed = h.opposite();
+                oppositeBound = std::min(std::max(oppositeBound, first), run.size());
+                while (oppositeBound > first && detail::directionLess(reversed, run[oppositeBound - 1])) {
+                    --oppositeBound;
+                }
+                while (oppositeBound < run.size() && !detail::directionLess(reversed, run[oppositeBound])) {
+                    ++oppositeBound;
+                }
+                const SupStatus infimum = supStatusAt(stored, reversed, oppositeBound - first);
                 if (infimum == SupStatus::below) {
                     halfplanes_.clear();
                     empty_ = true;

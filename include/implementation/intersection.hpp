@@ -1505,7 +1505,8 @@ constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::Lab
 // Clip the convex polygon to a closed half-plane. The vertices inside the
 // half-plane form one contiguous arc (orientation is unimodal along a convex
 // hull), so finding one inside vertex and walking outward to the two boundary
-// crossings yields the clipped region in O(log n + k) for an output of size k.
+// crossings yields the clipped region in O(log n + k) for an output of size k
+// (O(log n + k log k) where rounding into ResultNumber breaks the hull below).
 template <class PointType, class LabelType>
 template <class ResultNumber, HalfplaneConcept OtherHalfplane>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType, LabelType>::intersection(const OtherHalfplane& other) const {
@@ -1570,22 +1571,254 @@ constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::Lab
     }
     result.push_back(crossing(f, f + 1));   // leaving crossing
 
-    ResultConvex convex(std::move(result));
+    // The clipped cycle is counterclockwise, but a vertex on the boundary line
+    // repeats its crossing, and rounding into ResultNumber can collapse or bend
+    // neighbours. The cycle is x-bitonic, so it is re-hulled in O(k) without a
+    // sort (and by an O(k log k) sort where rounding breaks even that).
+    ResultConvex convex(detail::hullOfXBitonicRing(result, {}), pgl::trusted);
     if (convex.size() == 1) return convex[0];
     if (convex.size() == 2) return ResultSegment(convex[0], convex[1]);
     return convex;
 }
 
+namespace detail {
+
+/** @brief The point, segment or convex polygon an area clip returns, or nothing. */
+template <class ResultNumber, class ResultLabel>
+using AreaClip = std::optional<std::variant<Point<ResultNumber, ResultLabel>,
+                                            Segment<Point<ResultNumber, ResultLabel>>,
+                                            Convex<Point<ResultNumber, ResultLabel>>>>;
+
+/**
+ * @brief Clips a convex polygon to a small convex polygon given by its corners.
+ *
+ * The vertices of @p convex inside each edge half-plane of the clip form one
+ * cyclic arc, whose two ends are binary searches between the extreme vertices
+ * in the edge's normal direction. The vertices inside all of them are the arcs'
+ * common part, walked once. The other vertices of the result are clip corners
+ * inside @p convex and crossings of a clip edge with one of the two convex edges
+ * that leave its arc. The walked vertices keep their boundary order, so the hull
+ * comes out of @ref hullOfXBitonicRing without a sort.
+ *
+ * Complexity: O(m log n + m² + k) for n vertices of @p convex, m clip corners
+ * and k vertices in the result, plus O(k log k) where rounding into
+ * @p ResultNumber breaks the ring's x-bitonicity.
+ *
+ * @tparam ResultLabel Point label type of the result.
+ * @param convex The polygon to clip, with at least three vertices.
+ * @param corners The clip polygon's corners, counterclockwise and in convex
+ *        position; two distinct corners stand for the segment between them.
+ */
+template <class ResultNumber, class ResultLabel, class ConvexType, class ClipPoint>
+AreaClip<ResultNumber, ResultLabel> clipConvexToCorners(const ConvexType& convex,
+                                                        const std::vector<ClipPoint>& corners) {
+    using ResultPoint = Point<ResultNumber, ResultLabel>;
+    const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(convex.size());
+    const std::size_t m = corners.size();
+    const auto wrap = [n](std::ptrdiff_t i) { return ((i % n) + n) % n; };
+    const auto indices = std::views::iota(std::ptrdiff_t{0}, n);
+
+    // The inside arc of each edge half-plane, as its first index and its length
+    // minus one; a full arc has length n.
+    std::vector<std::pair<std::ptrdiff_t, std::ptrdiff_t>> arcs;
+    std::vector<bool> fullArc;
+    std::vector<std::size_t> arcOf;
+    arcs.reserve(m);
+    for (std::size_t j = 0; j < m; ++j) {
+        const ClipPoint& from = corners[j];
+        const ClipPoint& to = corners[(j + 1) % m];
+        const auto side = [&](std::ptrdiff_t i) { return orientationSign(from, to, convex.get(i)); };
+        const std::ptrdiff_t top = *cyclicMax(indices.begin(), indices.end(), [&](std::ptrdiff_t i) {
+            return orientationDeterminant(from, to, convex.get(i));
+        });
+        const std::ptrdiff_t bottom = *cyclicMax(indices.begin(), indices.end(), [&](std::ptrdiff_t i) {
+            return orientationDeterminant(to, from, convex.get(i));
+        });
+        if (side(top) < 0) {
+            return {};  // every vertex, hence the whole polygon, strictly outside
+        }
+        if (side(bottom) >= 0) {
+            fullArc.push_back(true);  // every vertex inside
+            arcOf.push_back(0);
+            continue;
+        }
+        // Along either walk from top to bottom the side only descends, so the
+        // inside vertices are a prefix of it.
+        const auto lastInside = [&](std::ptrdiff_t step) {
+            std::ptrdiff_t lo = 0, hi = wrap(step * (bottom - top));
+            while (lo < hi) {
+                const std::ptrdiff_t mid = (lo + hi + 1) / 2;
+                if (side(top + step * mid) >= 0) {
+                    lo = mid;
+                } else {
+                    hi = mid - 1;
+                }
+            }
+            return lo;
+        };
+        const std::ptrdiff_t forward = lastInside(1);
+        const std::ptrdiff_t backward = lastInside(-1);
+        fullArc.push_back(false);
+        arcOf.push_back(arcs.size());
+        arcs.emplace_back(wrap(top - backward), forward + backward);
+    }
+
+    // Membership in every arc changes only where one begins or ends.
+    std::vector<std::ptrdiff_t> cuts{0};
+    for (const auto& [first, span] : arcs) {
+        cuts.push_back(first);
+        cuts.push_back(wrap(first + span + 1));
+    }
+    std::sort(cuts.begin(), cuts.end());
+    cuts.erase(std::unique(cuts.begin(), cuts.end()), cuts.end());
+    const auto insideAll = [&](std::ptrdiff_t i) {
+        return std::all_of(arcs.begin(), arcs.end(), [&](const auto& arc) {
+            return wrap(i - arc.first) <= arc.second;
+        });
+    };
+    std::vector<ResultPoint> ring;
+    for (std::size_t c = 0; c < cuts.size(); ++c) {
+        const std::ptrdiff_t end = c + 1 < cuts.size() ? cuts[c + 1] : n;
+        if (insideAll(cuts[c])) {
+            for (std::ptrdiff_t i = cuts[c]; i < end; ++i) {
+                // Two corners bound a line, not yet the segment between them.
+                if (m > 2 || Segment<ClipPoint>(corners[0], corners[1]).contains(convex.get(i))) {
+                    ring.push_back(static_cast<ResultPoint>(convex.get(i)));
+                }
+            }
+        }
+    }
+
+    std::vector<ResultPoint> loose;
+    const auto keep = [&loose](const auto& overlap) {
+        if (!overlap) {
+            return;
+        }
+        if (const auto* point = std::get_if<ResultPoint>(&*overlap)) {
+            loose.push_back(*point);
+        } else {
+            const auto& segment = std::get<Segment<ResultPoint>>(*overlap);
+            loose.push_back(segment[0]);
+            loose.push_back(segment[1]);
+        }
+    };
+    for (std::size_t j = 0; j < m; ++j) {
+        if (convex.contains(corners[j])) {
+            loose.push_back(static_cast<ResultPoint>(corners[j]));
+        }
+    }
+    for (std::size_t j = 0; j < m; ++j) {
+        if (fullArc[j]) {
+            continue;
+        }
+        // A convex edge crosses the edge's line only where it leaves the inside
+        // arc, and nowhere else.
+        const auto& [first, span] = arcs[arcOf[j]];
+        const Segment<ResultPoint> clipEdge(static_cast<ResultPoint>(corners[j]),
+                                           static_cast<ResultPoint>(corners[(j + 1) % m]));
+        for (const auto& [inside, outside] : {std::pair{first, first - 1}, std::pair{first + span, first + span + 1}}) {
+            const Segment<ResultPoint> crossing(static_cast<ResultPoint>(convex.get(inside)),
+                                                static_cast<ResultPoint>(convex.get(outside)));
+            keep(crossing.template intersection<ResultNumber>(clipEdge));
+        }
+    }
+
+    Convex<ResultPoint> hull(hullOfXBitonicRing(ring, std::move(loose)), pgl::trusted);
+    if (hull.size() == 0) {
+        return {};
+    }
+    if (hull.size() == 1) {
+        return hull[0];
+    }
+    if (hull.size() == 2) {
+        return Segment<ResultPoint>(hull[0], hull[1]);
+    }
+    return hull;
+}
+
+/**
+ * @brief Clips a convex polygon to a convex polygon given by its canonical
+ *        corners, either of them possibly a point or a segment.
+ *
+ * Complexity: O(m log n + n log m + m² + k) for n vertices of @p convex, m
+ * clip corners and k vertices in the result: O(log n + k) for a bounded m, plus
+ * O(k log k) where rounding into @p ResultNumber breaks the result's
+ * x-bitonicity.
+ */
+template <class ResultNumber, class ResultLabel, class ConvexType, class ClipPoint>
+AreaClip<ResultNumber, ResultLabel> clipConvexToConvex(const ConvexType& convex,
+                                                       const std::vector<ClipPoint>& corners) {
+    using ResultPoint = Point<ResultNumber, ResultLabel>;
+    const std::size_t n = convex.size();
+    const std::size_t m = corners.size();
+    if (n == 0 || m == 0) {
+        return {};
+    }
+    const Convex<ClipPoint> clip(corners, pgl::trusted);
+    if (n == 1) {
+        if (clip.contains(convex[0])) {
+            return static_cast<ResultPoint>(convex[0]);
+        }
+        return {};
+    }
+    if (m == 1) {
+        if (convex.contains(corners[0])) {
+            return static_cast<ResultPoint>(corners[0]);
+        }
+        return {};
+    }
+    if (n >= 3) {
+        return clipConvexToCorners<ResultNumber, ResultLabel>(convex, corners);
+    }
+    using ConvexPoint = typename ConvexType::PointType;
+    if (m >= 3) {
+        return clipConvexToCorners<ResultNumber, ResultLabel>(clip, std::vector<ConvexPoint>{convex[0], convex[1]});
+    }
+    const Segment<ResultPoint> own(static_cast<ResultPoint>(convex[0]), static_cast<ResultPoint>(convex[1]));
+    const auto overlap = own.template intersection<ResultNumber>(
+        Segment<ResultPoint>(static_cast<ResultPoint>(corners[0]), static_cast<ResultPoint>(corners[1])));
+    if (!overlap) {
+        return {};
+    }
+    if (const auto* point = std::get_if<ResultPoint>(&*overlap)) {
+        return *point;
+    }
+    return std::get<Segment<ResultPoint>>(*overlap);
+}
+
+}  // namespace detail
+
 template <class PointType, class LabelType>
 template <class ResultNumber, RectangleConcept OtherRectangle>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType, LabelType>::intersection(const OtherRectangle& other) const {
-    return intersection<ResultNumber>(other.asConvex());
+    using RectanglePoint = typename OtherRectangle::PointType;
+    std::vector<RectanglePoint> corners;
+    if (other.empty()) {
+        return {};
+    }
+    if (other.isPoint()) {
+        corners = {other.min()};
+    } else if (other.isDegenerate()) {
+        corners = {other.min(), other.max()};
+    } else {
+        corners = {other[0], other[1], other[2], other[3]};
+    }
+    return detail::clipConvexToConvex<ResultNumber, typename PointType::LabelType>(*this, corners);
 }
 
 template <class PointType, class LabelType>
 template <class ResultNumber, TriangleConcept OtherTriangle>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType, LabelType>::intersection(const OtherTriangle& other) const {
-    return intersection<ResultNumber>(other.asConvex());
+    using TrianglePoint = typename OtherTriangle::PointType;
+    std::vector<TrianglePoint> corners;
+    if (other.isPoint()) {
+        corners = {other.a()};
+    } else if (other.isDegenerate()) {
+        corners = {std::min({other.a(), other.b(), other.c()}), std::max({other.a(), other.b(), other.c()})};
+    } else {
+        corners = {other.a(), other.b(), other.c()};
+    }
+    return detail::clipConvexToConvex<ResultNumber, typename PointType::LabelType>(*this, corners);
 }
 
 template <class PointType, class LabelType>

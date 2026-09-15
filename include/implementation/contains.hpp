@@ -287,12 +287,13 @@ constexpr bool Triangle<PointType, LabelType>::contains(const OtherConvex& other
     if (!bbox().contains(other.bbox())) {
         return false;
     }
-    for (std::size_t i = 0; i < other.size(); ++i) {
-        if (!contains(other[i])) {
-            return false;
-        }
-    }
-    return true;
+    // The triangle is convex, so it contains the polygon iff it contains every
+    // vertex, and every vertex lies on the inner side of an edge iff the vertex
+    // deepest on the outer side does. Those three vertices are found by the
+    // extreme-vertex search and then tested whole, which keeps the answer
+    // identical to testing every vertex.
+    return detail::triangleContainsConvexVertices(*this, other,
+        [this](const auto& vertex) { return this->contains(vertex); });
 }
 
 template <class PointType, class LabelType>
@@ -1464,16 +1465,18 @@ constexpr bool Polygon<PointType, LabelType>::contains(const OtherConvex& other)
 // red-blue plane sweep (sweepContains, in algorithm/redbluesweep.hpp) and the
 // pairwise test of the two boundaries' lexicographically monotone chains
 // (containsChainBased, below — the same argument contains(Convex) runs against
-// a convex hull's fixed two chains). Neither dominates: the chain test costs
-// the product of the two chain counts, cheap for near-convex boundaries and
-// O(n*m) for a comb or a star, while the sweep is O((n+m) log(n+m)) always but
-// carries setup a small input never earns back. preferSweep is where that
-// tradeoff is decided, once, for every predicate built on it.
+// a convex hull's fixed two chains). Neither dominates: for n vertices in c_a
+// chains of `this` and m vertices in c_b chains of `other`, the chain test
+// costs O(c_b·n + c_a·m), O(n + m) for near-convex boundaries and O(n*m) for a
+// comb or a star, while the sweep is O((n+m) log(n+m)) but carries setup a
+// small input never earns back. preferSweep is where that tradeoff is decided,
+// once, for every predicate built on it.
 //
 // The two agree on every input: sweepContains follows the same three steps as
 // containsChainBased — bbox and degenerate-point rejects, one vertex of `other`
-// inside `this`, no boundary crossing — and falls back to the same quadratic
-// edge scan when the boundaries touch without a crossing being found.
+// inside `this`, no boundary crossing — and falls back to the same O(n*m)
+// edge scan when the boundaries touch without a crossing being found, so both
+// are O(n*m) in the worst case.
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
 constexpr bool Polygon<PointType, LabelType>::contains(const OtherPolygon& other) const {
@@ -2908,9 +2911,9 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::areaContains(const OtherA
     }
     // A sweep pre-check was tried here (any crossing between the operand's
     // boundary and this region's full boundary settles the question outright,
-    // in O((n + m) log(n + m)) instead of the O(n * m) the edge scan below
-    // costs in the worst case). Measured against the shape-pair benchmark
-    // cube it was a net loss, not a win: this loop already returns on the
+    // in O((n + m) log(n + m)) instead of the O(n² * m) the edge scan below
+    // costs in the worst case, an edge's test against the holes being O(n²)).
+    // Measured against the shape-pair benchmark cube it was a net loss, not a win: this loop already returns on the
     // first violating edge, so on the ordinary (non-adversarially-jagged)
     // regions that cube generates it was already fast, and the pre-check's
     // own cost — chainCount() over every ring, plus materializing edges()
@@ -3218,18 +3221,12 @@ bool PolygonSet<PointType, LabelType>::isPinched() const {
     if (pinched_ >= 0) {
         return pinched_ != 0;
     }
-    pinched_ = 0;
-    for (std::size_t i = 0; i < components_.size() && pinched_ == 0; ++i) {
-        for (std::size_t j = i + 1; j < components_.size(); ++j) {
-            if (!components_[i].bbox().intersects(components_[j].bbox())) {
-                continue;  // the boxes prefilter the quadratic scan
-            }
-            if (components_[i].intersects(components_[j])) {
-                pinched_ = 1;
-                break;
-            }
-        }
-    }
+    // Only components whose bounding boxes meet can touch.
+    pinched_ = detail::anyIntersectingBoxPair(
+        components_.size(),
+        [this](std::size_t i) -> const auto& { return components_[i].bbox(); },
+        [this](std::size_t i, std::size_t j) { return components_[i].intersects(components_[j]); })
+        ? 1 : 0;
     return pinched_ != 0;
 }
 
@@ -3470,7 +3467,8 @@ bool PolygonSet<PointType, LabelType>::contains(const OtherShape& other) const {
         // `false` for almost every operand that reaches it: the operand's box
         // must sit inside the set's, and its first vertex, like every other
         // point of it, must be in the set. Both are what the general test would
-        // establish anyway, at O(1) and at one point location.
+        // establish anyway, at one point location and two boxes, cached after a
+        // first pass over the set's and the operand's vertices.
         if (!bbox().contains(other.bbox()) || !contains(other.outer()[0])) {
             return false;
         }

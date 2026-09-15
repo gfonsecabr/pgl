@@ -2,6 +2,7 @@
 #include "doctest.h"
 
 #include <cstddef>
+#include <random>
 #include <set>
 #include <stdexcept>
 #include <type_traits>
@@ -454,4 +455,49 @@ TEST_CASE("The coordinate type is the caller's") {
                                  pgl::PolygonSet<pgl::Point<double>>>,
                   "an explicit ResultNumber is the result's coordinate type");
     CHECK(floating.componentCount() == 1);
+}
+
+TEST_CASE("A set of one convex region erodes as that region does") {
+    // The set takes the convex receivers' construction when its one component
+    // has no hole and a convex outer ring, so it must agree with the polygon,
+    // the hole-free region and the convex receiver -- collinear vertices on the
+    // ring included, which the receiver's hull drops.
+    const PolygonShape withMidpoints({Point(0, 0), Point(3, 0), Point(6, 0), Point(6, 2), Point(6, 5),
+                                      Point(3, 5), Point(0, 5), Point(0, 3)});
+    const RectangleShape operand(0, 0, 2, 1);
+    const RegionSet set{Region(withMidpoints)};
+    const auto fromSet = set.minkowskiErosion(operand);
+    CHECK(fromSet == withMidpoints.minkowskiErosion(operand));
+    CHECK(fromSet == Region(withMidpoints).minkowskiErosion(operand));
+    checkCells(fromSet, withMidpoints, operand, -2, 8);
+    REQUIRE(fromSet.componentCount() == 1);
+    CHECK(fromSet.component(0).outer() ==
+          EPolygonShape(pgl::Rectangle<EPoint>(EPoint(0, 0), EPoint(4, 4)).asPolygon()));
+
+    // Random convex receivers against a non-convex operand.
+    std::mt19937 engine(2026);
+    std::uniform_int_distribution<int> coordinate(-6, 6);
+    const PolygonShape notch = uShape();
+    for (int trial = 0; trial < 60; ++trial) {
+        std::vector<Point> cloud;
+        for (int i = 0; i < 8; ++i) {
+            const int x = coordinate(engine);
+            cloud.emplace_back(x * 3, coordinate(engine) * 3);
+        }
+        const Convex hull(cloud);
+        if (hull.size() < 3) {
+            continue;
+        }
+        const PolygonShape ring(hull.vertices());
+        const auto expected = ring.minkowskiErosion(notch);
+        CHECK(RegionSet(Region(ring)).minkowskiErosion(notch) == expected);
+        const auto convexAnswer = hull.minkowskiErosion(notch);
+        if (convexAnswer.isDegenerate()) {
+            CHECK(expected.componentCount() == 0);
+        } else {
+            REQUIRE(expected.componentCount() == 1);
+            CHECK(expected.component(0).outer() ==
+                  EPolygonShape(convexAnswer.asConvex<pgl::ERational>().asPolygon()));
+        }
+    }
 }

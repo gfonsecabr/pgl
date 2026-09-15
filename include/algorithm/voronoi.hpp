@@ -258,7 +258,7 @@ void voronoiPairEdges(const std::vector<VoronoiSite<Number>>& sites, std::size_t
     if (k == 1) {
         // The one run wanted is where no site is nearer, an intersection of
         // halflines and hence a single interval. Tracking it directly skips the
-        // sort, and the interval usually empties after a handful of sites.
+        // sort, and the scan stops as soon as the interval empties.
         std::optional<Number> from;
         std::optional<Number> to;
         for (std::size_t m = 0; m < sites.size(); ++m) {
@@ -566,8 +566,8 @@ struct VoronoiOwnersHash {
  * The cell of the `k - 1` element set @p owners is subdivided by the ordinary
  * Voronoi diagram of the sites that are not in it, so a piece of the bisector of
  * two of those is an edge of the order-`k` diagram exactly where it is inside
- * the cell and no third of them is nearer. Both halves of that come to a
- * handful of affine conditions along the bisector, in the sites' own
+ * the cell and no third of them is nearer. Both halves of that come to affine
+ * conditions along the bisector, one per neighbor and owner, in the sites' own
  * coordinates:
  *
  *   - the pair is no farther than any site in @p neighbors, which
@@ -906,11 +906,11 @@ std::uint32_t voronoiFarthestAmong(const std::vector<VoronoiSite<Number>>& sites
  * @brief Labels every face of @p diagram with the cell of @p cells it is.
  *
  * The faces are walked rather than looked up. Crossing an edge swaps one site
- * for another, and both of them are a handful of power distances away at a point
- * of that edge: the site coming in is the nearest of what the face can gain, and
- * the one going out is the farthest the face owns. So a face named names its
- * neighbors, and one face of each connected piece — in practice one face, the
- * cells of a diagram tiling the plane — is named by a pass over the sites.
+ * for another, and both of them are read off power distances at a point of that
+ * edge: the site coming in is the nearest of what the face can gain, and the
+ * one going out is the farthest the face owns. So a face named names its
+ * neighbors, and one face of each connected piece is named by a pass over the
+ * sites.
  *
  * @param diagram The order-`k` diagram, its faces unlabeled.
  * @param sites Every site.
@@ -1217,7 +1217,7 @@ voronoi_dual_t<ResultNumber, SiteRange> ordinaryDiagram(const SiteRange& sites,
  * hull edge just the same. Every other site is therefore dropped, and repeated
  * hull vertices with them down to the first copy of each, which the labels
  * would have picked out of the tie anyway. What is left is every site the
- * construction has to see: `h` of the `n`, and usually far fewer.
+ * construction has to see: `h` of the `n`.
  *
  * There is no Delaunay dual to borrow and no refinement to climb here — the
  * cells are unbounded, and the diagram is a tree rather than a subdivision with
@@ -1356,7 +1356,8 @@ voronoi_diagram_t<ResultNumber, SiteRange> diagramOf(const SiteRange& sites, int
  * them, or all equal or all collinear — fall back to the bisector construction
  * the order-`k` overload describes, at `k = 1`.
  *
- * Complexity: `O(n log n)`.
+ * Complexity for `n` sites in general position: the construction time of their
+ * Delaunay triangulation plus `O(n log n)`.
  *
  * @tparam ResultNumber Coordinate type of the arrangement vertices. The default
  *         is exact and overflow-free for integral input.
@@ -1390,20 +1391,18 @@ template <class ResultNumber = void, std::ranges::input_range SiteRange>
  * single swap. Cells that are empty do not appear, so the number of faces is
  * generally far below the number of `k`-element subsets.
  *
- * Complexity: `O(k^2 n log n)` for sites whose cells have a bounded number of
- * neighbors each, which is the usual case; refining a cell with `d` of them
- * costs `O(d^3)`. The order-1 cells are the Delaunay triangulation's, and each
- * order after them is Lee's refinement of the one below: every cell of the
- * order-`k - 1` diagram is subdivided by the ordinary diagram of the sites it
- * does not own, which is a few conditions per neighboring pair rather than a
- * pass over the sites. Only the order asked for is ever laid out in the plane —
+ * The order-1 cells are the Delaunay triangulation's, and each order after them is
+ * Lee's refinement of the one below: every cell of the order-`k - 1` diagram is
+ * subdivided by the ordinary diagram of the sites it does not own, which tests
+ * each neighboring pair against the cell's neighbors and owners rather than
+ * against every site. Only the order asked for is ever laid out in the plane —
  * the orders below it are cells named by their sites and nothing else — and
  * since two edges of one diagram meet only at a shared endpoint, the one
  * @ref Arrangement that is built needs no splitting step.
  *
  * Repeated sites, and sites that are all collinear, have no refinement to take
  * and fall back to the general construction, which cuts each of the `O(n^2)`
- * bisectors against every site at `O(n^3 log n)`.
+ * bisectors against every site.
  *
  * @tparam ResultNumber Coordinate type of the arrangement vertices. The default
  *         is exact and overflow-free for integral input.
@@ -1508,8 +1507,8 @@ template <class ResultNumber = void, std::ranges::input_range SiteRange>
  * Delaunay dual nor Lee's refinement is available: a disk's center need not lie
  * in its own cell, and a light disk can own a region buried inside a heavy
  * one's cell, which no neighbor of that cell names. So every order, `k` of 1
- * included, cuts each of the `O(n^2)` bisectors against every site, at
- * `O(n^3 log n)`.
+ * included, cuts each of the `O(n^2)` bisectors against every site. For
+ * `k = 1` this costs `O(n^3 log n)`; no bound is given for larger orders.
  *
  * @tparam ResultNumber Coordinate type of the arrangement vertices. The default
  *         is exact and overflow-free for integral input.

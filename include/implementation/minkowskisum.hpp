@@ -28,8 +28,7 @@
  * `Aᵢ ⊕ Bⱼ` is then the linear convex merge, and the union of the `|A|·|B|`
  * results is one call to @ref pgl::regularizedUnionOf — the cell engine
  * of `booleans.hpp`, which increment 11 observed was already n-ary in everything
- * but its signature. That is @ref pgl::detail::decomposedMinkowskiSum, and it
- * costs `Θ(a²b²)`.
+ * but its signature. That is @ref pgl::detail::decomposedMinkowskiSum.
  *
  * It is also the *last* thing @ref pgl::detail::regularizedMinkowskiSum tries,
  * because it charges for both operands' concavity whether or not either has any.
@@ -59,7 +58,7 @@
  * None changes the worst case — a boundary that turns at every vertex has one
  * monotone run per edge, a convolution as many segments as the two boundaries
  * have pairs, and the one-sided decomposition still ends in an arrangement of
- * `Θ(a·b)` edges — and none is a special case in the contract: all five return
+ * `O(a·b)` edges, `O(a·b²)` against a self-crossing polyline — and none is a special case in the contract: all five return
  * the same answer, and the paragraphs below describe all of them.
  *
  * Two consequences worth stating, because they are what tells this entry point
@@ -291,8 +290,8 @@ decltype(auto) holeFilteredFor(const Shape& shape, const OtherShape& other) {
 }
 
 /**
- * @brief The Minkowski sum of two convex operands, decomposed into pairs of
- *        convex pieces and united — the fallback every pair can take.
+ * @brief The Minkowski sum of two operands, decomposed into pairs of convex
+ *        pieces and united — the fallback every pair can take.
  *
  * Decomposes both operands into convex pieces, sums every pair of them with the
  * linear convex merge, and takes one regularized union of the results. Pieces
@@ -300,11 +299,10 @@ decltype(auto) holeFilteredFor(const Shape& shape, const OtherShape& other) {
  * merely an optimization: a closed set with empty interior cannot add an
  * interior point to a closed union, so the regularized answer does not see it.
  *
- * Complexity: `|A|·|B|` convex merges, then the cell engine over their combined
- * boundary — O(m²) segment intersections for m edges in total, over the
- * arrangement of them. That is quadratic in a quantity that is itself quadratic
- * in the operands, which is why @ref regularizedMinkowskiSum sends every pair it
- * can somewhere else first.
+ * For operands of `a` and `b` vertices this is `|A|·|B|` convex merges, `O(a·b)`
+ * time together, then the cell engine over their combined boundary —
+ * `m = O(a·b)` edges with up to `O(m²)` crossings among them — which is why
+ * @ref regularizedMinkowskiSum sends every pair it can somewhere else first.
  */
 template <class ResultPoint, class ShapeA, class ShapeB>
 PolygonSet<ResultPoint> decomposedMinkowskiSum(const ShapeA& a,
@@ -386,17 +384,32 @@ bool minkowskiHasArea(const Shape& shape) {
  * and for anything but a `Convex` that means a Graham scan. Harmless when the
  * call happens once, but the chain sweep below makes one call per chain edge, so
  * a `Polygon` operand would be re-hulled `n` times. Converting up front makes
- * that scan happen once.
+ * that scan happen once, and for a convex `Polygon` or hole-free region it is
+ * linear, the ring already being in boundary order.
+ *
+ * Complexity: O(n) for a convex ring of n vertices; O(n log n) otherwise.
  */
 template <class Shape>
 auto minkowskiAsConvex(const Shape& shape) {
     using ShapePoint = typename Shape::PointType;
     if constexpr (is_convex_v<Shape>) {
         return shape;
-    } else if constexpr (is_polygon_v<Shape>) {
-        return Convex<ShapePoint>(shape.vertices());
-    } else if constexpr (is_polygon_with_holes_v<Shape>) {
-        return Convex<ShapePoint>(shape.outer().vertices());
+    } else if constexpr (is_polygon_v<Shape> || is_polygon_with_holes_v<Shape>) {
+        // A convex ring is x-bitonic, so its hull needs no sort: O(n), with
+        // collinear vertices dropped. A ring that is not falls back to the sort.
+        const auto& ring = [&]() -> const auto& {
+            if constexpr (is_polygon_v<Shape>) {
+                return shape;
+            } else {
+                return shape.outer();
+            }
+        }();
+        std::vector<ShapePoint> vertices;
+        vertices.reserve(ring.size());
+        for (const auto& vertex : ring.vertices()) {
+            vertices.emplace_back(vertex);
+        }
+        return Convex<ShapePoint>(hullOfXBitonicRing(vertices, {}), pgl::trusted);
     } else {
         std::vector<ShapePoint> vertices;
         for (const auto& vertex : shape.vertices()) {
@@ -1163,9 +1176,9 @@ std::vector<std::vector<typename Shape::PointType>> minkowskiBoundaryRuns(const 
  * identity is just `A = ∂A`.
  *
  * That trades the triangulation's `n − 2` pieces for `k + 1`, where `k` counts
- * the boundary's monotone runs: the arrangement is fed `O(n + k·m)` edges instead
- * of `Θ(n·m)`, and it is fed *polygons* whose own overlaps the chain sweep has
- * already resolved. `k` is 1 for a boundary that turns back on itself once, `n`
+ * the boundary's monotone runs of `n` vertices in all, against an operand of
+ * `m`: the arrangement is fed `O(n·m)` edges either way, but it is fed
+ * *polygons* whose own overlaps the chain sweep has already resolved. `k` is 1 for a boundary that turns back on itself once, `n`
  * for a zigzag, and the worst case is therefore unchanged — what changes is
  * everything between.
  *
@@ -1391,8 +1404,9 @@ PolygonSet<ResultPoint> regularizedMinkowskiSum(const ShapeA& a,
  * where the all-pairs decomposition produced `|A|·|B|` convex pieces, and the
  * cost of the sum is the arrangement of them:
  *
- * - **Edges.** A piece here carries `O(b)` of them, so the arrangement is fed
- *   `Θ(a·b)` either way — but the all-pairs decomposition feeds it `a·b` separate
+ * - **Edges.** A piece here carries `O(|Aᵢ|·b)` of them (`O(|Aᵢ|·b + b²)` for a
+ *   self-crossing polyline `B`), so the arrangement is fed `O(a·b)` either way
+ *   (`O(a·b²)` for such a `B`) — but the all-pairs decomposition feeds it `a·b` separate
  *   hexagons, where every one of the `b` pieces of `B` contributes its own copy of
  *   the operand's `3` edges. Forcing the pieces through the all-pairs sum too, so
  *   that only the shape of the final union differs, still measured 2x–5x, which is
@@ -1438,10 +1452,10 @@ std::vector<PolygonWithHoles<ExactPoint>> minkowskiOneSidedPieces(const ShapeA& 
  * faster than the all-pairs decomposition and the other 4x slower. What decides
  * is how much the pieces
  * cross each other, since that is what the arrangement is charged for. The pieces
- * of `⋃ᵢ (Aᵢ ⊕ B)` are copies of `B` fattened by a triangle and scattered over
- * `A`, so two of them meet only where their own triangles lie within `diam(B)` of
- * each other, and a pair that does meet crosses in `O(b)` points — that being how
- * many edges a piece carries. For `p` pieces over an operand of area `S`:
+ * of `⋃ᵢ (Aᵢ ⊕ B)` are copies of `B` fattened by a convex piece and scattered
+ * over `A`, so two of them meet only where their own pieces lie within `diam(B)`
+ * of each other, and a pair that does meet crosses in `O(|Aᵢ|·b)` points — that
+ * being how many edges a piece carries. For `p` pieces over an operand of area `S`:
  *
  *     crossings(A decomposed)  ≈  pₐ² · min(1, S_b/S_a) · p_b
  *     crossings(B decomposed)  ≈  p_b² · min(1, S_a/S_b) · pₐ
@@ -1727,12 +1741,14 @@ std::vector<PolygonWithHoles<ExactPoint>> minkowskiConvolvedPieces(const Decompo
  *    the answer is that convex polygon. No arrangement, no rational arithmetic,
  *    `O(a + b)`. This is the same construction `Convex ⊕ Convex` has always taken
  *    and it is worst-case optimal; what it adds is that a `Polygon` or a region
- *    that *happens* to be convex now takes it too, where it used to pay the full
- *    `Θ(a²b²)` for an `O(a + b)` answer.
+ *    that *happens* to be convex now takes it too, where it used to pay for the
+ *    full decomposition for an `O(a + b)` answer.
  * 2. **One convex operand with area, the other a simple polygon** —
  *    @ref minkowskiConvolutionSum: the two boundaries' convolution, and the points
  *    it winds around. One arrangement of `O(a + b·k)` lattice segments for a
- *    polygon whose normal sweeps `k` times around, no decomposition of either
+ *    polygon of `a` vertices and a convex operand of `b`, `k` being the most
+ *    times the polygon's edge direction sweeps past any one direction, forward
+ *    or back — no decomposition of either
  *    operand, and nothing divided before the arrangement — so it takes
  *    floating-point coordinates as readily as exact ones.
  * 3. **One convex operand with area, exact coordinates, and a boundary worth
@@ -1768,9 +1784,9 @@ std::vector<PolygonWithHoles<ExactPoint>> minkowskiConvolvedPieces(const Decompo
  * — see @ref holeFilteredFor — which is also what lets a holed region reach
  * constructions 1 and 2 at all.
  *
- * None of the five changes the worst case, which stays `Θ(a²b²)`: two boundaries
- * that turn at every vertex cross that many times however the pieces are cut.
- * What they change is everything either side of that.
+ * None of the five avoids the worst case: for operands of `a` and `b` vertices,
+ * two boundaries that turn at every vertex give a sum of `Θ(a²b²)` vertices
+ * however the pieces are cut.
  */
 template <class ResultPoint, class ShapeA, class ShapeB>
 PolygonSet<ResultPoint> regularizedMinkowskiSum(const ShapeA& a,

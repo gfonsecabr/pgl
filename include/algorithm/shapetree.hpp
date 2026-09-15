@@ -4,9 +4,10 @@
 
 /**
  * @file shapetree.hpp
- * @brief Static 2D shape tree over any bounded shape (one exposing `bbox()`).
+ * @brief 2D shape tree over any bounded shape (one exposing `bbox()`).
  *
- * The tree stores shapes by value and is built once from a container. Space is
+ * The tree stores shapes by value and is built from a container; later
+ * insertions and removals do not rebalance it (see @ref ShapeTree::insert). Space is
  * split by a coordinate value. At each node the axis and split value are chosen
  * adaptively to minimize `maxChild + straddlers`, balancing the children while
  * keeping few elements stuck at the node; a set of long horizontal segments is
@@ -137,7 +138,7 @@ struct LInfMetric {
 }  // namespace detail
 
 /**
- * @brief Static shape tree of bounded shapes.
+ * @brief Shape tree of bounded shapes.
  *
  * @tparam S Any shape type exposing `bbox()` (Point, Segment, Triangle,
  *         Rectangle, Convex, Polygon, ...). Infinite shapes such as Line, Ray
@@ -260,6 +261,11 @@ class ShapeTree {
         std::size_t count = 0;  // Number of elements in the whole subtree.
         [[no_unique_address]] WeightType weightSum{};  // Sum of subtree weights.
         std::vector<std::size_t> elementIndices;  // Elements owned by this node.
+        // How many elements this leaf held when a split last found no way to
+        // separate them, or 0. An insertion retries the split only once the
+        // leaf has doubled or halved since, which is what keeps a leaf of
+        // identical boxes from being sorted again at every insertion.
+        std::size_t unsplittableAt = 0;
 
         // This node's index in `tree.nodes_`, which is what addresses its cached
         // filter box. Both are elements of that one array, so the difference is
@@ -1095,6 +1101,7 @@ class ShapeTree {
             // No axis can separate the elements (e.g. many identical boxes):
             // keep them all here as a leaf.
             nodes_[id].elementIndices = indices;
+            nodes_[id].unsplittableAt = indices.size();
             aggregate(id);
             return id;
         }
@@ -1138,6 +1145,7 @@ class ShapeTree {
 
         const Split best = chooseSplit(ends, level);
         if (!best.found) {
+            nodes_[id].unsplittableAt = indices.size();
             nodes_[id].elementIndices = std::move(indices);
             aggregate(id);
             return id;
@@ -1220,9 +1228,11 @@ class ShapeTree {
         const Split best = chooseSplit(indices, level);
         if (!best.found) {
             // Cannot separate (e.g. identical boxes): stays an oversized leaf.
+            nodes_[id].unsplittableAt = indices.size();
             nodes_[id].elementIndices = std::move(indices);
             return;
         }
+        nodes_[id].unsplittableAt = 0;
 
         std::vector<std::size_t> leftIndices, rightIndices, straddlers;
         partitionBySplit(indices, best, leftIndices, rightIndices, straddlers);
@@ -1252,7 +1262,9 @@ class ShapeTree {
 
         if (nodes_[id].left == -1 && nodes_[id].right == -1) {
             nodes_[id].elementIndices.push_back(i);
-            if (nodes_[id].elementIndices.size() > leafSize_) {
+            const std::size_t size = nodes_[id].elementIndices.size();
+            const std::size_t failedAt = nodes_[id].unsplittableAt;
+            if (size > leafSize_ && (size >= 2 * failedAt || 2 * size <= failedAt)) {
                 splitNode(id, level);
             }
             return;
@@ -1790,11 +1802,18 @@ class ShapeTree {
      * child boxes of a node stay disjoint: a child takes the element only if its
      * grown box remains disjoint from its sibling's; when both qualify the one
      * enlarged least is chosen; when neither does the element is kept at the
-     * node. A leaf that overflows the leaf size is split with the best split.
+     * node. A leaf that overflows the leaf size is split with the best split;
+     * one whose elements no split can separate (identical boxes) stays
+     * oversized, and the split is retried only once that leaf has doubled or
+     * halved.
      *
-     * Each insertion is `O(height)` and never reshapes the existing nodes, so
-     * the tree quality degrades over many insertions; rebuild from @ref shapes()
-     * to restore it.
+     * Routing costs `O(height)`, and splitting a leaf of `s` elements sorts it
+     * in `O(s log s)`; with leaf size `B` and `n` stored shapes that adds
+     * amortized `O(B log B + log n)` per insertion. Insertion never reshapes
+     * the existing nodes and keeps an element at an internal node when neither
+     * child can take it, so the height is not bounded once the tree has been
+     * modified: many insertions can drive it, and the cost of every query, up
+     * to `Θ(n)`. @ref rebuild restores the tree construction gives.
      *
      * @param shape Shape to insert.
      */

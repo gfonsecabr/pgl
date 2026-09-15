@@ -373,8 +373,10 @@ struct PolygonSet {
     /**
      * @brief Erases the component equal to the given region, if the set has one.
      *
-     * The components are sorted, so this finds it by binary search: O(log k)
-     * comparisons for k components, plus the element moves the erase costs.
+     * The components are sorted, so this finds it by binary search.
+     *
+     * Complexity: O(k + s log k) for k components and a @p component of s
+     * vertices.
      *
      * @param component The component to erase.
      * @return `true` when a component was erased, `false` when the set has no
@@ -703,7 +705,8 @@ struct PolygonSet {
      * components sit relative to one another. Use @ref isValid for the
      * structural contract.
      *
-     * Complexity: O(n log n) over the total vertex count.
+     * Complexity: O(n log n) over the total vertex count n for integer and
+     * rational coordinates, O(n² log n) for floating-point ones.
      */
     template <class Rational = pgl::Rational<pgl::BigInt>>
     [[nodiscard]] bool isSimple() const {
@@ -730,9 +733,11 @@ struct PolygonSet {
      * than enforced by the constructor — mirroring @ref Polygon and
      * @ref PolygonWithHoles, which likewise leave their contracts to the caller.
      *
-     * Complexity: the components' own @ref PolygonWithHoles::isValid, plus one
-     * interior-overlap test and one edge-overlap scan per pair of components
-     * whose bounding boxes meet.
+     * Complexity: the components' own @ref PolygonWithHoles::isValid, plus
+     * O(k log k + B) for k components, B pairs of which have intersecting
+     * bounding boxes, plus, per such pair (i, j), one
+     * @ref PolygonWithHoles::interiorsIntersect and an O(nᵢ nⱼ) edge-overlap scan
+     * over their nᵢ and nⱼ vertices.
      */
     template <class Rational = pgl::Rational<pgl::BigInt>>
     [[nodiscard]] bool isValid() const;
@@ -895,10 +900,12 @@ struct PolygonSet {
      *
      * The boundary included: a point on an edge is a point of the shape. The
      * boundary answers for its own points, edge by edge as segments, and a
-     * sweep over the columns of the bounding box answers for the rest, so the
-     * cost is one pass over the edges plus one point per point reported.
+     * sweep over the columns of the bounding box answers for the rest.
      * A point shared by two components, which can only be a boundary point of
      * both, is reported once.
+     *
+     * Complexity: O((W + 1)·n log n + k log k) for n vertices over all rings, W
+     * integer columns across the bounding box and k points reported.
      *
      * @tparam ResultNumber Integer coordinate type of the points: the shape's
      *         own coordinate type when that is a signed integer, the integer a
@@ -1207,10 +1214,6 @@ struct PolygonSet {
      * Componentwise for every operand but a one-dimensional one, which may run
      * from one component into another through a point where they touch; see the
      * section note above.
-     *
-     * Complexity: O(n) over the total vertex count for the componentwise answer,
-     * plus one split of the operand against every component boundary when the
-     * components touch and no single one contains it.
      */
     template <detail::SetOperandConcept OtherShape>
     [[nodiscard]] bool contains(const OtherShape& other) const;
@@ -1438,8 +1441,9 @@ struct PolygonSet {
      * Memoized, since the whole point of it is to be asked before the general
      * machinery is.
      *
-     * Complexity: one bounding-box test per component pair, plus one
-     * @ref PolygonWithHoles::intersects per pair whose boxes meet.
+     * Complexity: O(k log k + B) for k components, B pairs of which have
+     * intersecting bounding boxes, plus one @ref PolygonWithHoles::intersects
+     * per such pair, on the first call.
      */
     [[nodiscard]] bool isPinched() const;
 
@@ -1455,8 +1459,9 @@ struct PolygonSet {
      * This is what the cut predicates ask before dismissing a remover that
      * misses the set: `B ∖ A` is disconnected whenever `B` already was.
      *
-     * Complexity: one @ref PolygonWithHoles::intersects per component pair whose
-     * bounding boxes meet.
+     * Complexity: O(k log k + B) for k components, B pairs of which have
+     * intersecting bounding boxes, plus at most one
+     * @ref PolygonWithHoles::intersects per such pair.
      */
     [[nodiscard]] bool isConnected() const;
 
@@ -1523,8 +1528,10 @@ struct PolygonSet {
      * regions holds none of it. A receiver with no area erodes to the empty set
      * for the same reason.
      *
-     * A convex receiver is answered by its own constraints in `O(a·b)`;
-     * everything else pays for a complement, a sum and a difference. See
+     * A convex receiver (one component, with no hole and a convex outer ring of
+     * `a` vertices) is answered by its own constraints in `O(a + b log b)` for
+     * an operand of `b` vertices; everything else pays for a complement, a sum
+     * and a difference. See
      * `implementation/minkowskierosion.hpp` for both constructions and their
      * cost.
      *
@@ -1550,9 +1557,10 @@ struct PolygonSet {
      *     (⋃ᵢ Aᵢ) ⊕ B = ⋃ᵢ (Aᵢ ⊕ B),
      *
      * so this sums each component against the operand — against each of *its*
-     * components too, when the operand is a set — and unites the results in a
-     * single arrangement rather than one per step. Each component sum is the
-     * region-valued construction of `implementation/minkowskisum.hpp`; see
+     * components too, when the operand is a set — and unites the results with
+     * @ref pgl::regularizedUnionOf rather than one step at a time. Each
+     * component sum is the region-valued construction of
+     * `implementation/minkowskisum.hpp`; see
      * @ref Polygon::minkowskiSum for what it does and what it costs.
      *
      * **This is the one receiver with no precondition to observe**, and the one
@@ -1562,8 +1570,8 @@ struct PolygonSet {
      * buy is that each *component's* sum is a single region — components merge
      * or stay apart, but none of them shatters.
      *
-     * Complexity: the per-component sums, then one arrangement over all the
-     * regions they leave.
+     * Complexity: the per-component sums, then @ref pgl::regularizedUnionOf over
+     * all the regions they leave.
      *
      * @tparam ResultNumber The number type for the result.
      * @param other The shape to sum with.
@@ -1842,9 +1850,6 @@ struct PolygonSet {
      *
      * Exact: the strip midpoints and the crossings along them are held over the
      * pair's exact rational type, as in @ref segmentIn.
-     *
-     * Complexity: `O(nB)` strips, each cut by the `O(nB)` edges of the operand,
-     * with one point location per component per elementary interval.
      */
     template <class OtherRegion>
     bool regionIn(const OtherRegion& region) const;

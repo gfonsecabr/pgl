@@ -762,6 +762,74 @@ TEST_CASE("ShapeTree erase keeps the node array compact under interleaved insert
     }
 }
 
+TEST_CASE("ShapeTree stays correct under many insertions into a leaf no split can separate") {
+    // Triangles spanning the same box [400, 600]^2: no split separates identical
+    // boxes, so the leaf holding them stays oversized, while triangles elsewhere
+    // and erasures keep changing whether a split exists.
+    std::vector<Triangle> ref = makeTriangles(40, 0x4545);
+    pgl::ShapeTree<Triangle> tree(ref, 4);
+    Rng rng{0x7a7a};
+    const auto sameBox = [&]() {
+        for (;;) {
+            const Point a(400, 400), b(600, rng.range(401, 599)), c(rng.range(401, 599), 600);
+            if (pgl::orientationSign(a, b, c) != 0) {
+                return Triangle(a, b, c);
+            }
+        }
+    };
+    const auto check = [&]() {
+        CHECK(tree.size() == ref.size());
+        for (const Rect& q : queryWindows()) {
+            CHECK(tree.countIntersecting(q) == bruteCountIntersecting(ref, q));
+            CHECK(tree.countContainedIn(q) == bruteCountContained(ref, q));
+        }
+        for (const Triangle& t : ref) {
+            CHECK(tree.has(t));
+        }
+        if (!ref.empty()) {
+            for (const Point& p : makePoints(20, 0x3131)) {
+                CHECK(p.squaredDistance<int64_t>(tree.nearestNeighbor(p)) ==
+                      bruteNearestDistance<int64_t>(ref, p));
+            }
+        }
+    };
+    const auto eraseAt = [&](std::size_t k) {
+        CHECK(tree.erase(ref[k]));
+        ref.erase(ref.begin() + static_cast<std::ptrdiff_t>(k));
+    };
+
+    for (int iter = 0; iter < 600; ++iter) {
+        const int kind = rng.range(0, 9);
+        if (kind < 7) {
+            const Triangle t = sameBox();
+            tree.insert(t);
+            ref.push_back(t);
+        } else if (kind < 8) {
+            const Triangle t = makeTriangles(1, rng.next()).front();
+            tree.insert(t);
+            ref.push_back(t);
+        } else {
+            eraseAt(static_cast<std::size_t>(rng.range(0, static_cast<int>(ref.size()) - 1)));
+        }
+        if (iter % 150 == 149) {
+            check();
+        }
+    }
+    // Shrink the oversized leaf well below half, then grow it again.
+    for (std::size_t k = ref.size(); k-- > 0;) {
+        if (ref[k].bbox() == Rect(400, 400, 600, 600) && rng.range(0, 3) != 0) {
+            eraseAt(k);
+        }
+    }
+    check();
+    for (int iter = 0; iter < 100; ++iter) {
+        const Triangle t = iter % 3 == 0 ? makeTriangles(1, rng.next()).front() : sameBox();
+        tree.insert(t);
+        ref.push_back(t);
+    }
+    check();
+}
+
 TEST_CASE("ShapeTree rebuild after erases restores a queryable tree") {
     std::vector<Triangle> ref = makeTriangles(200, 41);
     pgl::ShapeTree<Triangle> tree(ref, 4);

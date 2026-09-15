@@ -44,8 +44,9 @@ concept ownsChainStorage = requires(Storage& s, const PointType& p) {
  * @brief True when every point of a non-empty range is the same point.
  *
  * Backs @ref MonotoneChain::isPoint and, further down the include chain,
- * @ref Polyline::isPoint and @ref Polygon::isPoint. Stops at the first
- * differing point, so a non-degenerate shape usually costs O(1).
+ * @ref Polyline::isPoint and @ref Polygon::isPoint.
+ *
+ * Complexity: O(n) for n points, returning at the first differing point.
  *
  * @return `false` for an empty range: a point needs a defining vertex.
  */
@@ -65,8 +66,9 @@ constexpr bool allPointsEqual(const Range& points) {
  * they span a segment of positive length.
  *
  * Backs the `isSegment` predicates of @ref MonotoneChain, @ref Polyline and
- * @ref Polygon. Stops at the first non-collinear point, so a shape with real
- * area usually costs O(1).
+ * @ref Polygon.
+ *
+ * Complexity: O(n) for n points, returning at the first non-collinear point.
  */
 template <std::ranges::forward_range Range>
 constexpr bool pointsSpanSegment(const Range& points) {
@@ -855,8 +857,8 @@ struct MonotoneChain {
      * x-coordinate lies inside an existing edge's x-range *reroutes* the chain
      * through the new vertex (the vertices are a point set, §constructor).
      *
-     * Complexity: O(log n) comparisons plus O(n) vector shift; amortized O(1)
-     * shift when appending at either end.
+     * Complexity: O(log n) comparisons plus O(n) vector shift for n vertices;
+     * the shift is amortized O(1) only when appending after the last vertex.
      *
      * @param point The vertex to add.
      */
@@ -1177,7 +1179,8 @@ struct MonotoneChain {
      * straight sub-path of this chain (and its vertices for a degenerate
      * other).
      *
-     * Complexity: O(m (log n + k)) for m vertices of the other chain.
+     * Complexity: O(m log n + n) for n vertices of this chain and m of the
+     * other.
      */
     template<MonotoneChainConcept OtherChain>
     [[nodiscard]] constexpr bool contains(const OtherChain& other) const;
@@ -1498,7 +1501,7 @@ struct MonotoneChain {
      * Merge sweep over the open edge pairs plus the crossing-at-a-non-extreme-
      * vertex checks in both directions.
      *
-     * Complexity: O(n + m log n) for chains with n and m vertices.
+     * Complexity: O(n + m) for chains with n and m vertices.
      */
     template<MonotoneChainConcept OtherChain>
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherChain& other) const;
@@ -1876,8 +1879,7 @@ struct MonotoneChain {
      * covered by a reported segment are dropped. Computed by the same merge
      * sweep as @ref intersects(const OtherChain&).
      *
-     * Complexity: O(n + m) intersection tests for chains with n and m
-     * vertices, plus sorting the resulting pieces.
+     * Complexity: O((n + m) log(n + m)) for chains with n and m vertices.
      *
      * @tparam ResultNumber Number type of the returned coordinates.
      * @tparam OtherChain Type of the other chain.
@@ -1902,7 +1904,9 @@ struct MonotoneChain {
      * Zero when the shapes intersect, otherwise the minimum over the chain
      * edges. The chain must have at least one edge.
      *
-     * Complexity: O(n) edge queries for n vertices, plus the intersection test.
+     * Complexity: O(n) for n vertices against a point, a line-like shape, a
+     * half-plane, a rectangle or a triangle; O(n log m) against a convex polygon
+     * of m vertices; O(n m) against a chain of m vertices.
      *
      * @tparam ResultNumber Coordinate type of the returned distance (default: @ref division_result_t).
      *
@@ -2278,8 +2282,8 @@ struct MonotoneChain {
      * regions holds none of it. A receiver with no area erodes to the empty set
      * for the same reason.
      *
-     * A convex receiver is answered by its own constraints in `O(a·b)`;
-     * everything else pays for a complement, a sum and a difference. See
+     * A chain has no area, so this is the empty set, found without building
+     * anything. See
      * `implementation/minkowskierosion.hpp` for both constructions and their
      * cost.
      *
@@ -2324,11 +2328,9 @@ struct MonotoneChain {
      * @ref minkowskiSum(const OtherSegment&) const, which is also the overload a
      * flat operand's point set is available from.
      *
-     * Complexity: one convex merge per chain edge, `O(nm)` for a chain of `n`
-     * vertices and an operand of `m`, then one sweep merging the pieces' arcs
-     * into the two boundaries. The pieces arrive already sorted along x, so the
-     * sweep touches only what an incoming piece can still reach: no arrangement
-     * is built and nothing is triangulated.
+     * One convex merge per chain edge, then one sweep merging the pieces' arcs
+     * into the two boundaries: no arrangement is built and nothing is
+     * triangulated.
      *
      * @tparam ResultNumber The number type for the result.
      * @param other The shape to sum with.

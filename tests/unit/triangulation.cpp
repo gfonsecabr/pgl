@@ -2513,6 +2513,44 @@ TEST_CASE_TEMPLATE("The point-location index answers as the bare walk does",
     CHECK(mesh.has(mesh.locateId(vertex)));
 }
 
+TEST_CASE("A deep point-location index answers as the bare walk does") {
+    // Enough vertices for a score of levels, so that the cells each level makes
+    // are replaced by the levels above it many times over.
+    using Point = pgl::Point<int>;
+    using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;
+    std::vector<Point> points;
+    std::uint32_t state = 0x2468aceu;
+    std::set<std::pair<int, int>> seen;
+    while (points.size() < 2500) {
+        state = state * 1664525u + 1013904223u;
+        const int x = static_cast<int>((state >> 8) % 3000) * 3;
+        state = state * 1664525u + 1013904223u;
+        const int y = static_cast<int>((state >> 8) % 3000) * 3;
+        if (seen.insert({x, y}).second) {
+            points.emplace_back(x, y);
+        }
+    }
+    Mesh mesh(points);
+    const Mesh bare(points);
+    mesh.buildPointLocation();
+    REQUIRE(mesh.hasPointLocation());
+
+    for (const auto& triangle : mesh.triangles()) {
+        const Point query = (triangle.a() + triangle.b() + triangle.c()) / 3;
+        CHECK(mesh.locateId(query) == bare.locateId(query));
+    }
+    for (int x = -300; x <= 9300; x += 97) {
+        for (int y = -300; y <= 9300; y += 89) {
+            const Point query(x, y);
+            CHECK(mesh.locateId(query).valid() == bare.locateId(query).valid());
+            const auto located = mesh.locate(query);
+            if (located) {
+                CHECK(located->contains(query));
+            }
+        }
+    }
+}
+
 TEST_CASE_TEMPLATE("The point-location index takes a hull with collinear vertices", Point,
                    pgl::Point<int>, pgl::EPoint) {
     using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;

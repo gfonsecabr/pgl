@@ -157,6 +157,58 @@ TEST_CASE("union: shapes sharing a stretch of boundary fuse; a point does not") 
     CHECK(twiceAreaOf(corner) == 2 * 200);
 }
 
+TEST_CASE("union: a zigzag touching both sides of a box leaves no vertex in a straight stretch") {
+    // The zigzag meets the bottom of the box at (4i + 2, 0) and its top at
+    // (4i + 2, 4), so every such point is a vertex of the arrangement lying in
+    // the middle of a straight side of the union, and the pieces the zigzag
+    // leaves behind are triangles meeting only at those points.
+    for (const int k : {1, 2, 3, 7, 20}) {
+        std::vector<Point> vertices;
+        for (int i = 0; i < k; ++i) {
+            vertices.emplace_back(4 * i, 1);
+            vertices.emplace_back(4 * i + 2, 0);
+        }
+        vertices.emplace_back(4 * k, 1);
+        vertices.emplace_back(4 * k, 3);
+        for (int i = k - 1; i >= 0; --i) {
+            vertices.emplace_back(4 * i + 2, 4);
+            vertices.emplace_back(4 * i, 3);
+        }
+        const PolygonShape zigzag(vertices);
+        const int zigzagTwiceArea = zigzag.twiceArea();
+
+        const auto whole = box(0, 0, 4 * k, 4).regularizedUnion<int>(zigzag);
+        REQUIRE(whole.componentCount() == 1);
+        CHECK(whole.component(0).holeCount() == 0);
+        CHECK(whole.component(0).outer() == box(0, 0, 4 * k, 4));
+
+        const auto exact = pgl::EPolygon(box(0, 0, 4 * k, 4)).regularizedUnion(pgl::EPolygon(zigzag));
+        REQUIRE(exact.componentCount() == 1);
+        CHECK(exact.component(0).outer() == pgl::EPolygon(box(0, 0, 4 * k, 4)));
+
+        const auto met = Region(box(0, 0, 4 * k, 4)).regularizedIntersection<int>(zigzag);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.component(0).outer() == zigzag);
+
+        const auto left = box(0, 0, 4 * k, 4).difference<int>(zigzag);
+        CHECK(left.componentCount() == static_cast<std::size_t>(2 * k + 2));
+        CHECK(twiceAreaOf(left) == 2 * 16 * k - zigzagTwiceArea);
+        for (const Region& piece : left.components()) {
+            CHECK(piece.outer().size() == 3);
+        }
+
+        // Inside a hole, the triangles become holes meeting each other and the
+        // zigzag only at single points.
+        const Region frame(box(-2, -2, 4 * k + 2, 6), std::vector<PolygonShape>{box(0, 0, 4 * k, 4)});
+        const auto filled = frame.regularizedUnion<int>(zigzag);
+        REQUIRE(filled.componentCount() == 1);
+        CHECK(filled.component(0).outer() == box(-2, -2, 4 * k + 2, 6));
+        CHECK(filled.component(0).holeCount() == static_cast<std::size_t>(2 * k + 2));
+        CHECK(filled.component(0).twiceArea() == frame.twiceArea() + zigzagTwiceArea);
+        CHECK(filled.component(0).isValid());
+    }
+}
+
 TEST_CASE("union: disjoint shapes come back side by side") {
     const auto pieces = square(0, 10).regularizedUnion<int>(box(20, 20, 30, 30));
 

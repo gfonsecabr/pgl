@@ -699,8 +699,8 @@ public:
      * The frontier is a lazy binary heap (`std::priority_queue`): an edge is
      * pushed when one endpoint enters the tree and discarded when popped if
      * its other endpoint has since been reached. Complexity is
-     * $O(m \log m)$ weight comparisons and $O(m)$ calls to @p weight for a
-     * graph with $m$ edges.
+     * $O(n + m \log m)$ time, with $O(m \log m)$ weight comparisons and $O(m)$
+     * calls to @p weight, for a graph with $n$ vertices and $m$ edges.
      *
      * @tparam WeightFunction Callable taking two vertices and returning a
      * copyable, less-than-comparable edge weight; the weight type is chosen by

@@ -706,9 +706,11 @@ constexpr auto Triangle<PointType, LabelType>::distanceL1(const OtherTriangle& o
 // -----------------------------------------------------------------------------
 // Convex
 //
-// Always uses the O(n) edge scan below (no cyclic support-function fast path):
-// see the distanceL1 declarations in convex.hpp for why the Euclidean fast
-// path's search functional does not carry over to the L1 gauge.
+// Always scans the edges below (no cyclic support-function fast path): O(n)
+// against a point, segment, line, ray, half-plane, triangle or rectangle, and
+// O(n·m) against another convex polygon of m vertices. See the distanceL1
+// declarations in convex.hpp for why the Euclidean fast path's search
+// functional does not carry over to the L1 gauge.
 
 template <class PointType_, class LabelType>
 template <class ResultNumber, PointConcept OtherPoint>

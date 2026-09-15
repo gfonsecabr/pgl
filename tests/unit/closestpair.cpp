@@ -232,12 +232,55 @@ TEST_CASE("the recursion leaves its range in abscissa order") {
     std::vector<IntPoint> scratch(points.size());
     pgl::detail::ClosestPairCandidate<IntPoint> best{
         points[0], points[1], points[0].squaredDistance<std::int64_t>(points[1])};
-    pgl::detail::closestPairRecursive<6>(points.data(), points.size(), scratch.data(), best);
+    pgl::detail::ClosestPairRanks<IntPoint> ranks{points.data(), points.size(), {}, {}, {}, {}};
+    pgl::detail::closestPairRecursive<6>(points.data(), points.size(), scratch.data(), ranks, best);
 
     CHECK(points == before);
     CHECK(std::is_sorted(points.begin(), points.end()));
     // And it did find the answer while leaving the range alone.
     CHECK(best.squaredDistance == bruteForceClosestPair(before).second);
+}
+
+// Points crowded into a few columns keep every strip holding most of its range,
+// so strips run past the length that is compared into order and are ordered by
+// rank instead -- the ranks radix sorted for integers and compared for the rest.
+// Duplicates and shared ordinates make the rank ties matter.
+TEST_CASE("closestPair matches brute force when the strips hold most of their range") {
+    Rng rng{8080};
+    for (int trial = 0; trial < 6; ++trial) {
+        const int count = rng.range(300, 900);
+        const int columns = rng.range(1, 3);
+        const int spacing = trial < 3 ? 5 : 1;  // Distinct ordinates, then crowded ones.
+        std::vector<IntPoint> points;
+        std::vector<pgl::Point<pgl::Rational<>>> rationals;
+        std::vector<pgl::Point<int, int>> labelled;
+        for (int i = 0; i < count; ++i) {
+            const int x = rng.range(0, columns - 1);
+            const int y = trial < 3 ? spacing * i : rng.range(0, 4 * count);
+            points.emplace_back(x, y);
+            rationals.emplace_back(pgl::Rational<>(x, 3), pgl::Rational<>(y, 7));
+            labelled.emplace_back(x, y, i);
+        }
+        if (trial == 5) {
+            points.push_back(points[static_cast<std::size_t>(count / 2)]);
+            rationals.push_back(rationals[static_cast<std::size_t>(count / 3)]);
+        }
+        checkAgainstBruteForce(points);
+        checkAgainstBruteForce(rationals);
+        const auto expected = bruteForceClosestPair(points).second;
+        checkEveryThreshold<3, 6, 64>(points, expected);
+
+        const auto found = pgl::closestPair(labelled);
+        CHECK(found.min().squaredDistance<std::int64_t>(found.max()) ==
+              bruteForceClosestPair(labelled).second);
+        CHECK(found.min().label() != found.max().label());
+        const auto isInput = [&](const pgl::Point<int, int>& p) {
+            return labelled[static_cast<std::size_t>(p.label())].x() == p.x() &&
+                   labelled[static_cast<std::size_t>(p.label())].y() == p.y();
+        };
+        CHECK(isInput(found.min()));
+        CHECK(isInput(found.max()));
+    }
 }
 
 TEST_CASE("closestPair handles arbitrary-precision integer coordinates") {

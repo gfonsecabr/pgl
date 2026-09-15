@@ -336,7 +336,7 @@ struct Polyline {
      *
      * Same as `insert(size(), points)`.
      *
-     * Complexity: O(m) for m appended points.
+     * Complexity: amortized O(m) for m appended points.
      *
      * @tparam Range Input range whose elements can be converted to @ref PointType.
      * @param points Vertices to append, in traversal order.
@@ -676,9 +676,14 @@ struct Polyline {
      * vertex) also makes the polyline not simple. A polyline with fewer than
      * two vertices is vacuously simple.
      *
-     * Uses a brute-force pairwise edge test in O(n^2) for few edges (n <= 8)
-     * or floating-point coordinates, and the Bentley-Ottmann sweep
-     * (O(n log n)) for larger exact (integer or rational) polylines.
+     * Uses a brute-force pairwise edge test for few edges (n <= 8), the
+     * Bentley-Ottmann sweep for larger exact (integer or rational) polylines,
+     * and for floating-point ones the pairwise test up to 128 edges and a sweep
+     * over the edges' bounding boxes above.
+     *
+     * Complexity: O(n log n) for n vertices with exact coordinates; with
+     * floating-point ones O((n + B) log n) for B pairs of edges whose bounding
+     * boxes overlap, which is O(n^2 log n) in the worst case.
      *
      * @tparam Rational Exact rational type used by the sweep for large polylines.
      * @return `true` if no two edges meet except consecutive edges at their
@@ -1222,8 +1227,9 @@ struct Polyline {
      *
      * Folds the chain's own (pruned) segment test over the polyline edges.
      *
-     * Complexity: O(n (log m + k)) for a polyline with n vertices and a chain
-     * with m vertices.
+     * Complexity: O(n log m + k) for a polyline with n vertices and a chain
+     * with m vertices, where k <= n m is the number of pairs of a polyline edge
+     * and a chain edge whose x-ranges overlap.
      */
     template<MonotoneChainConcept OtherChain>
     [[nodiscard]] constexpr bool intersects(const OtherChain& other) const;
@@ -1353,8 +1359,6 @@ struct Polyline {
      * components. Because the polyline may self-intersect, the pieces are
      * collected as a set and joined through every shared point that survives
      * the removal (see `detail::separates1DSet`).
-     *
-     * Complexity: O(n^2) exact piece tests for n vertices.
      */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool separates(const OtherSegment& other) const;
@@ -1410,8 +1414,6 @@ struct Polyline {
      * Set semantics: the other polyline's free pieces may reconnect through
      * its own self-intersections, so removing an interior point of a closed
      * polyline does not disconnect it.
-     *
-     * Complexity: O((n m)^2) piece tests for polylines with n and m vertices.
      */
     template<PolylineConcept OtherPolyline>
     [[nodiscard]] constexpr bool separates(const OtherPolyline& other) const;
@@ -1590,9 +1592,6 @@ struct Polyline {
      * segment-vs-shape intersection, then coalesces the pieces like
      * @ref intersection(const OtherPolyline&) const.
      *
-     * Complexity: O(n) segment intersections for n vertices, plus coalescing
-     * the resulting pieces (quadratic in their count).
-     *
      * @tparam ResultNumber Number type of the returned coordinates.
      * @return Vector of points and segments forming the intersection.
      * @warning Divides coordinates after casting to ResultNumber.
@@ -1649,9 +1648,6 @@ struct Polyline {
      * All-pairs edge test, preceded by a bounding-box cull; the pieces are
      * coalesced like @ref intersection(const OtherPolyline&) const.
      *
-     * Complexity: O(n m) for a polyline with n vertices and a chain with m
-     * vertices, plus coalescing the resulting pieces.
-     *
      * @tparam ResultNumber Number type of the returned coordinates.
      * @return Vector of points and segments forming the intersection.
      * @warning Divides coordinates after casting to ResultNumber.
@@ -1671,9 +1667,6 @@ struct Polyline {
      * come from non-consecutive edges of a self-intersecting polyline — and
      * points covered by a reported segment or repeated by several edge pairs
      * are dropped. Computed by an all-pairs edge test with a bounding-box cull.
-     *
-     * Complexity: O(n m) for polylines with n and m vertices, plus coalescing
-     * the resulting pieces (quadratic in their count).
      *
      * @tparam ResultNumber Number type of the returned coordinates.
      * @tparam OtherPolyline Type of the other polyline.
@@ -1703,9 +1696,6 @@ struct Polyline {
      * pairs and call this helper (and `polyline.intersection(area)` reaches it by
      * forwarding up). Keeping it here reuses the polyline's coalescing and labels
      * the pieces with the polyline's label.
-     *
-     * Complexity: O(n) area-vs-segment clips for n vertices, plus coalescing the
-     * resulting pieces.
      *
      * @tparam ResultNumber Number type of the returned coordinates.
      * @tparam OtherArea Type of the polygon or region.
@@ -1742,7 +1732,9 @@ struct Polyline {
      * Zero when the shapes intersect, otherwise the minimum over the polyline
      * edges. The polyline must have at least one edge.
      *
-     * Complexity: O(n) edge queries for n vertices, plus the intersection test.
+     * Complexity: O(n) for n vertices against a point, a line-like shape, a
+     * half-plane, a rectangle or a triangle; O(n log m) against a convex polygon
+     * of m vertices; O(n m) against a chain or a polyline of m vertices.
      *
      * @tparam ResultNumber Coordinate type of the returned distance (default: @ref division_result_t).
      *
@@ -2179,8 +2171,8 @@ struct Polyline {
      * regions holds none of it. A receiver with no area erodes to the empty set
      * for the same reason.
      *
-     * A convex receiver is answered by its own constraints in `O(a·b)`;
-     * everything else pays for a complement, a sum and a difference. See
+     * A chain has no area, so this is the empty set, found without building
+     * anything. See
      * `implementation/minkowskierosion.hpp` for both constructions and their
      * cost.
      *
@@ -2224,8 +2216,8 @@ struct Polyline {
      * else: a polyline is not convex, so @ref MinkowskiSummableConcept rejects
      * every other pair. A second `Polyline` is not an operand.
      *
-     * Complexity: one convex merge per edge of the polyline, then a constrained
-     * triangulation over the arrangement of all of them.
+     * Complexity: one sum per edge or monotone run of the polyline, then the
+     * regularized union of all of them.
      *
      * @tparam ResultNumber The number type for the result.
      * @param other The shape to sum with.
@@ -2261,7 +2253,7 @@ struct Polyline {
      * while the chain contributes its edges.
      *
      * Complexity: one convex merge per pair of chain edge and operand triangle,
-     * then a constrained triangulation over the arrangement of all of them.
+     * then the regularized union of all of them.
      */
     template <class ResultNumber = division_result_t<NumberType>, PolygonConcept OtherPolygon>
     [[nodiscard]] PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>
@@ -2289,7 +2281,7 @@ struct Polyline {
      * that has none — is a body and is on the contract.
      *
      * Complexity: one convex merge per pair of chain edge and operand piece, then
-     * a constrained triangulation over the arrangement of all of them.
+     * the regularized union of all of them.
      */
     template <class ResultNumber = division_result_t<NumberType>, PolygonWithHolesConcept OtherRegion>
     [[nodiscard]] PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>
@@ -2314,8 +2306,8 @@ struct Polyline {
      * the two edges across it, with what joined them dropped. Every one of those
      * is `A ⊕ B` losing what has no area, not the sum being unsupported.
      *
-     * Complexity: one convex merge per edge of the chain, then a constrained
-     * triangulation over the arrangement of all of them.
+     * Complexity: one convex merge per edge of the chain, then the regularized
+     * union of all of them.
      */
     template <class ResultNumber = division_result_t<NumberType>, SegmentConcept OtherSegment>
     [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
@@ -2348,8 +2340,8 @@ struct Polyline {
      * pieces or empty. Two parallel segments spelled as chains are the smallest
      * example, and they come back empty.
      *
-     * Complexity: one convex merge per pair of edges, then a constrained
-     * triangulation over the arrangement of all of them.
+     * Complexity: one convex merge per pair of edges, then the regularized
+     * union of all of them.
      *
      * @tparam ResultNumber The number type for the result.
      * @param other The chain to sum with.

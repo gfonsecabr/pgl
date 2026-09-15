@@ -210,13 +210,10 @@ constexpr bool Triangle<PointType, LabelType>::interiorContains(const OtherConve
         return false;
     }
     // The triangle is convex, so it interior-contains the convex iff it
-    // interior-contains every vertex.
-    for (std::size_t i = 0; i < other.size(); ++i) {
-        if (!interiorContains(other[i])) {
-            return false;
-        }
-    }
-    return true;
+    // interior-contains every vertex; as in contains(Convex), the vertex
+    // deepest outside each edge stands in for the rest.
+    return detail::triangleContainsConvexVertices(*this, other,
+        [this](const auto& vertex) { return this->interiorContains(vertex); });
 }
 
 /**
@@ -1020,11 +1017,14 @@ constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherTriang
     return true;
 }
 
-// A convex polygon's boundary is exactly two lex-monotone chains — its lower and
-// upper hull — so we can run the interiorContains(Polygon) criterion (one vertex
-// strictly inside and the boundaries fully disjoint) without building a
-// BoundaryChains decomposition (or an asPolygon copy) of the convex: just test
-// this polygon's chains against those two known hull chains for any shared point.
+// The interiorContains(Polygon) criterion: one vertex strictly inside and the
+// boundaries fully disjoint. A convex polygon's boundary is exactly two
+// lex-monotone chains — its lower and upper hull — so when this polygon has few
+// chains, testing each of them against those two hull chains is cheapest. Each
+// such test is a merge over the convex's whole hull chain in the worst case, so
+// with many chains (a comb whose teeth span the convex) that costs the product
+// of the chain count and m; past a log factor over n + m the red-blue sweep
+// takes over, which is O((n + m) log(n + m)) whatever the boundaries look like.
 template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
 constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherConvex& other) const {
@@ -1041,6 +1041,10 @@ constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherConvex
 
     if (!interiorContains(other[0])) {
         return false;
+    }
+
+    if (preferSweepOverHullChains(*this, other)) {
+        return !boundariesMeet(edgesView(), other.edgesView());
     }
 
     const MonotoneChain<OtherPoint> lower = other.lowerHull();

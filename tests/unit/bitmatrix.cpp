@@ -1183,6 +1183,86 @@ TEST_CASE("a set of regions comes back from a disconnected matrix") {
     CHECK_THROWS_AS(static_cast<void>(matrix.asPolygonWithHoles()), std::logic_error);
 }
 
+TEST_CASE("components agree with a brute-force flood across word boundaries") {
+    // The groups of a brute-force flood, each as its set of cells.
+    auto bruteGroups = [](const Matrix& matrix, GridAdjacency adjacency) {
+        CellSet left = cellsOf(matrix);
+        std::set<CellSet> groups;
+        while (!left.empty()) {
+            CellSet group;
+            std::vector<std::pair<int, int>> stack{*left.begin()};
+            left.erase(left.begin());
+            while (!stack.empty()) {
+                const auto [x, y] = stack.back();
+                stack.pop_back();
+                group.emplace(x, y);
+                for (int dx = -1; dx <= 1; ++dx) {
+                    for (int dy = -1; dy <= 1; ++dy) {
+                        if ((dx == 0) == (dy == 0) && (adjacency == GridAdjacency::edge || dx == 0)) {
+                            continue;
+                        }
+                        const auto found = left.find({x + dx, y + dy});
+                        if (found != left.end()) {
+                            stack.push_back(*found);
+                            left.erase(found);
+                        }
+                    }
+                }
+            }
+            groups.insert(std::move(group));
+        }
+        return groups;
+    };
+
+    std::vector<Matrix> matrices;
+    // Every other cell of a long row over an empty one: many one-cell groups,
+    // each looked around in a row that holds nothing.
+    for (const int width : {63, 64, 65, 200}) {
+        Matrix sparse(Point(-3, 2), width, 2);
+        for (int x = 0; x < width; x += 2) {
+            sparse.set(-3 + x, 2);
+        }
+        matrices.push_back(sparse);
+        Matrix stairs(Point(0, 0), width, 3);
+        for (int x = 0; x < width; ++x) {
+            stairs.set(x, x % 3);
+        }
+        matrices.push_back(stairs);
+    }
+    Rng rng;
+    for (int trial = 0; trial < 60; ++trial) {
+        const Point origin(rng.range(-5, 5), rng.range(-5, 5));
+        Matrix matrix(origin, rng.range(60, 140), rng.range(1, 6));
+        const int threshold = rng.range(1, 7);
+        for (int i = 0; i < matrix.width(); ++i) {
+            for (int j = 0; j < matrix.height(); ++j) {
+                if (rng.range(1, 10) <= threshold) {
+                    matrix.set(origin.x() + i, origin.y() + j);
+                }
+            }
+        }
+        matrices.push_back(matrix);
+    }
+
+    for (const Matrix& matrix : matrices) {
+        for (const GridAdjacency adjacency : {GridAdjacency::edge, GridAdjacency::vertex}) {
+            const std::set<CellSet> expected = bruteGroups(matrix, adjacency);
+            CHECK(matrix.componentCount(adjacency) == expected.size());
+            std::set<CellSet> groups;
+            for (const Matrix& component : matrix.connectedComponents(adjacency)) {
+                groups.insert(cellsOf(component));
+            }
+            CHECK(groups == expected);
+        }
+        const pgl::PolygonSet<Point> set = matrix.asPolygonSet();
+        CHECK(set.componentCount() == matrix.componentCount());
+        CHECK(set.area<long long>() == static_cast<long long>(matrix.count()));
+        if (matrix.componentCount() == 1) {
+            CHECK(matrix.asPolygonWithHoles() == set.components().front());
+        }
+    }
+}
+
 TEST_CASE("a canvas draws the covered region as one element") {
     Matrix matrix(Point(0, 0), 10, 3);
     matrix.set(0, 0);

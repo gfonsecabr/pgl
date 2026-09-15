@@ -58,6 +58,17 @@ struct sweepHeightNumber<pgl::Rational<Int>, Part, Fraction> {
 template <class Coefficient, class Part, class Fraction>
 using sweepHeightNumber_t = typename sweepHeightNumber<Coefficient, Part, Fraction>::type;
 
+/**
+ * @brief The Bentley-Ottmann sweep over exact segments.
+ *
+ * For `n` segments, `findCrossings`, `findIntersections` and
+ * `findInteriorIntersections` run in `O((n + k) log n)`, `k` being the number of
+ * pairs reported; `detectCrossings`, `detectIntersections`,
+ * `detectInteriorIntersections`, `testPolygon` and `testPolyLine` run in
+ * `O(n log n)`. Both hold for degenerate input: many segments through one
+ * point, collinear overlaps, and vertical segments touching others at an end.
+ * Arithmetic operations count as `O(1)`.
+ */
 template <class Rational, SegmentConcept Segment>
 class BentleyOttmann {
     using Point = Segment::PointType;
@@ -247,11 +258,15 @@ class BentleyOttmann {
     // Scratch reused across steps, for the same reason @ref events is: a sweep
     // takes a step per event, and these are small enough that allocating them
     // afresh costs more than what they hold. A segment is gathered into a run
-    // at this step when @ref collectedAt holds this step's @ref step;
-    // @ref runOrder is one run's nodes in the order the crossing leaves them in.
+    // at this step when @ref collectedAt holds this step's @ref step.
     std::vector<std::uint32_t> collectedAt;
     std::uint32_t step = 0;
-    std::vector<Node> runOrder;
+    // This step's collinear blocks, every run's in turn (see @ref Run), and the
+    // permutation @ref reorderRun applies: the position each place of the run
+    // takes its node from, and which of the run's old places each place holds
+    // now and where each old place's node is.
+    std::vector<std::uint32_t> runBlocks;
+    std::vector<std::uint32_t> runTarget, runHolds, runWhere;
 
     /**
      * @brief One crossing's worth of the status tree: the segments meeting the
@@ -268,6 +283,13 @@ class BentleyOttmann {
         // same set of positions, so the run's two ends are still its two ends.
         std::vector<Node> nodes;
         std::vector<Id> ids;
+        // The run's maximal stretches of collinear segments, as positions in
+        // `ids`: block b is `ids[runBlocks[firstBlock + b]]` up to
+        // `ids[runBlocks[firstBlock + b + 1]]`, for b below `blockCount`. Set by
+        // @ref reorderRun. Two segments of one block overlap and two of
+        // different blocks cross, at the run's point.
+        std::size_t firstBlock = 0;
+        std::size_t blockCount = 0;
     };
 
     // The pairs found. Crossings are hashed, since the sweep asks whether it
@@ -915,6 +937,9 @@ class BentleyOttmann {
             removeFromTree(it1);
 
             possibleCrossing(it0, it2);
+            if (stopNow) {
+                return;
+            }
         }
 
     }
@@ -1004,56 +1029,66 @@ class BentleyOttmann {
      * nearly always this is a single exchange and no predicate at all.
      *
      * Leaves `run.nodes` in the run's new order, which is the same stretch of
-     * the tree it occupied before.
+     * the tree it occupied before, and records the run's collinear blocks in
+     * @ref runBlocks. `O(s)` for a run of `s` segments: one orientation per
+     * neighbouring pair and at most one exchange per position.
      */
     void reorderRun(Run &run) {
         const std::size_t size = run.nodes.size();
+        run.firstBlock = runBlocks.size();
+        runBlocks.push_back(0);
+        for (std::size_t i = 1; i < size; ++i) {
+            // A two-segment run is the event's own crossing pair. Otherwise
+            // both pass through the crossing, and the far endpoint is not the
+            // crossing, so it lies on the other's line exactly when the two
+            // share a line.
+            if (size == 2 ||
+                pgl::detail::orientationSignOf(endsOf[run.ids[i - 1]].lo, endsOf[run.ids[i - 1]].hi,
+                                               endsOf[run.ids[i]].hi).value() != 0) {
+                runBlocks.push_back(static_cast<std::uint32_t>(i));
+            }
+        }
+        runBlocks.push_back(static_cast<std::uint32_t>(size));
+        run.blockCount = runBlocks.size() - run.firstBlock - 1;
         if (size < 2) {
             return;
         }
-        runOrder.assign(run.nodes.rbegin(), run.nodes.rend());
-        // A two-segment run is the event's own crossing pair.
-        if (size > 2) {
-            for (std::size_t begin = 0; begin < size;) {
-                std::size_t end = begin + 1;
-                // Both pass through the crossing, and the far endpoint is not
-                // the crossing, so it lies on the other's line exactly when the
-                // two share a line.
-                while (end < size) {
-                    const Ends &p = endsOf[runOrder[end - 1]->value];
-                    const Ends &q = endsOf[runOrder[end]->value];
-                    if (pgl::detail::orientationSignOf(p.lo, p.hi, q.hi).value() != 0) {
-                        break;
-                    }
-                    ++end;
-                }
-                std::reverse(runOrder.begin() + static_cast<std::ptrdiff_t>(begin),
-                             runOrder.begin() + static_cast<std::ptrdiff_t>(end));
-                begin = end;
+
+        // The new order is the blocks' order reversed, each block keeping its
+        // own: `runTarget[t]` is the old place whose node goes to place t.
+        runTarget.clear();
+        for (std::size_t b = run.blockCount; b-- > 0;) {
+            for (std::uint32_t p = runBlocks[run.firstBlock + b];
+                 p < runBlocks[run.firstBlock + b + 1]; ++p) {
+                runTarget.push_back(p);
             }
         }
-        assert(std::is_sorted(runOrder.begin(), runOrder.end(), [this](Node a, Node b) {
-            return CompareAlongLine(a->value, b->value);
-        }));
 
-        // `run.nodes[i]` is the node at the run's i-th position as the exchanges
-        // go on, and ends up being the run's new order. Each step puts the right
-        // node in the next position and sends whatever was there to where that
-        // node came from, so one pass over the run settles it. The inner scan is
-        // over a run, not over the tree.
-        for (std::size_t i = 0; i < size; ++i) {
-            if (run.nodes[i] == runOrder[i]) {
+        // `run.nodes[t]` is the node at the run's t-th place as the exchanges go
+        // on, and ends up being the run's new order. Each exchange puts the
+        // right node in the next place and sends whatever was there to where
+        // that node was, which the two maps say without a search.
+        runHolds.resize(size);
+        runWhere.resize(size);
+        std::iota(runHolds.begin(), runHolds.end(), std::uint32_t(0));
+        std::iota(runWhere.begin(), runWhere.end(), std::uint32_t(0));
+        for (std::uint32_t t = 0; t < size; ++t) {
+            const std::uint32_t wanted = runTarget[t];
+            const std::uint32_t from = runWhere[wanted];
+            if (from == t) {
                 continue;
             }
-            std::size_t from = i + 1;
-            while (from < size && run.nodes[from] != runOrder[i]) {
-                ++from;
-            }
-            assert(from < size && "the run's nodes are a permutation of themselves");
-            tree.swap(run.nodes[i], run.nodes[from]);
-            run.nodes[from] = run.nodes[i];
-            run.nodes[i] = runOrder[i];
+            tree.swap(run.nodes[t], run.nodes[from]);
+            std::swap(run.nodes[t], run.nodes[from]);
+            const std::uint32_t displaced = runHolds[t];
+            runHolds[from] = displaced;
+            runWhere[displaced] = from;
+            runHolds[t] = wanted;
+            runWhere[wanted] = t;
         }
+        assert(std::is_sorted(run.nodes.begin(), run.nodes.end(), [this](Node a, Node b) {
+            return CompareAlongLine(a->value, b->value);
+        }));
     }
 
     void processCROSS(std::vector<Event> &evts, const Rational &currentX) {
@@ -1070,6 +1105,7 @@ class BentleyOttmann {
 
         // 4) Move the line to currentX
         line = crossing;
+        runBlocks.clear();
 
         // 5) Turn each crossing over.
         //    Past the crossing the run's segments occupy the same stretch of
@@ -1096,13 +1132,26 @@ class BentleyOttmann {
             possibleCrossing(Tree::prev(it1), it1);
             possibleCrossing(it2, Tree::next(it2));
         }
+        if (stopNow) {
+            return;
+        }
 
         // 7) Add crossings to set
+        //    Every segment of a run has the run's point in its interior, so two
+        //    of them cross exactly when they are not collinear, which is when
+        //    they lie in different blocks. Those pairs are listed outright, in
+        //    time proportional to them; the pairs within a block overlap, and
+        //    were reported, where a mode reports them, by whichever of the two
+        //    went into the status second. Testing every pair of the run instead
+        //    cost the square of the run even where a long collinear block made
+        //    nearly all of them overlaps.
         for (const Run &run : crossingAt) {
             const std::vector<Id> &ids = run.ids;
-            for (size_t i = 0; i+1 < ids.size(); i++) {
-                for (size_t j = i+1; j < ids.size(); j++) {
-                    if (seg(ids[i]).crosses(seg(ids[j]))) {
+            const std::uint32_t *starts = runBlocks.data() + run.firstBlock;
+            for (std::size_t b = 0; b + 1 < run.blockCount; ++b) {
+                for (std::uint32_t i = starts[b]; i < starts[b + 1]; ++i) {
+                    for (std::size_t j = starts[b + 1]; j < ids.size(); ++j) {
+                        assert(seg(ids[i]).crosses(seg(ids[j])));
                         if (addCrossing(ids[i], ids[j])) {
                             return;
                         }
@@ -1134,20 +1183,43 @@ class BentleyOttmann {
         }
     }
 
+    // The segments of the status meeting each vertical segment at this
+    // abscissa. Every one of them has the meeting point in its interior, since
+    // the segments ending here are already out and those starting here not yet
+    // in, so it meets the vertical at a point of height between the vertical's
+    // two ends, and crosses it exactly when that height is strictly between
+    // them. Reporting intersections, the walk covers the closed range of
+    // heights; reporting crossings, which is also what an interior intersection
+    // with a vertical segment is, it covers the open one, so that a stack of
+    // segments through one of the vertical's endpoints, none of which it
+    // crosses, is never walked. Either way it is `O(log n)` for the search plus
+    // one step per pair reported.
     void processVERTICAL(const std::vector<Event> &evts) {
         for (const Event &ev : evts) {
             const Segment &vertical = seg(ev.s1);
-            for (Node it = tree.lowerBound(ev.s1); it; it = Tree::next(it)) {
-                const Segment &other = seg(it->value);
-                if (!vertical.intersects(other))
-                    break;
-                if (onlyCrossings) {
-                    if (vertical.crosses(other)) {
-                        addCrossing(ev.s1, it->value);
+            if (!onlyCrossings) {
+                for (Node it = tree.lowerBound(ev.s1); it; it = Tree::next(it)) {
+                    if (!vertical.intersects(seg(it->value)))
+                        break;
+                    if (addCrossing(ev.s1, it->value)) {
+                        return;
                     }
                 }
-                else {
-                    addCrossing(ev.s1, it->value);
+                continue;
+            }
+            if (vertical.isDegenerate()) {
+                continue;
+            }
+            // The first segment strictly above the vertical's lower end, up to
+            // the first not strictly below its upper end, which a probe
+            // standing on that end tells.
+            const Point &top = vertical.max();
+            extras[2] = Segment(top.x(), top.y(), top.x(), top.y() + 1);
+            for (Node it = tree.upperBound(ev.s1); it && CompareAlongLine(it->value, probeId());
+                 it = Tree::next(it)) {
+                assert(vertical.crosses(seg(it->value)));
+                if (addCrossing(ev.s1, it->value)) {
+                    return;
                 }
             }
         }
@@ -1173,8 +1245,8 @@ class BentleyOttmann {
             for (auto it = std::lower_bound(order.begin(), order.end(), std::make_pair(y1, Id(0)));
                  it != order.end() && it->first < y2;
                  ++it) {
-                if (it->second != ev.s1) {
-                    addIntersection(ev.s1, it->second);
+                if (it->second != ev.s1 && addIntersection(ev.s1, it->second)) {
+                    return;
                 }
             }
         }
@@ -1190,13 +1262,16 @@ class BentleyOttmann {
             queue.emplace(static_cast<Rational>(s.max().x()), EventEnum::RIGHT, ev.s1);
             possibleCrossing(it0, it1);
             possibleCrossing(it1, it2);
+            if (stopNow) {
+                break;
+            }
 
             if (!onlyCrossings) {
-                while (it0 && seg(it0->value).contains(s.min())) {
+                while (it0 && !stopNow && seg(it0->value).contains(s.min())) {
                     addIntersection(it0->value, ev.s1);
                     it0 = Tree::prev(it0);
                 }
-                while (it2 && seg(it2->value).contains(s.min())) {
+                while (it2 && !stopNow && seg(it2->value).contains(s.min())) {
                     addIntersection(it2->value, ev.s1);
                     it2 = Tree::next(it2);
                 }
@@ -1310,6 +1385,12 @@ class BentleyOttmann {
 
             // 2) Do all RIGHT events
             processRIGHT(events[(size_t)EventEnum::RIGHT]);
+            // A detection stops at the first pair reported, and every phase
+            // checks: a step can hold a run or a walk as long as the input,
+            // and finishing one after the answer is known is what kept a
+            // detection from its bound.
+            if (stopNow)
+                break;
 
             // 3) Check possible new cross events
             // 4) Do all CROSS removals from tree
@@ -1318,6 +1399,8 @@ class BentleyOttmann {
             // 7) Create all CROSS new events
             // 8) Add new crossings to the output
             processCROSS(events[1], currentX);
+            if (stopNow)
+                break;
 
             if (!onlyCrossings) {
                 processRIGHT_interior(events[(size_t)EventEnum::RIGHT]);
@@ -1327,6 +1410,8 @@ class BentleyOttmann {
 
             // 10) Do all VERTICAL events
             processVERTICAL(events[(size_t)EventEnum::VERTICAL]);
+            if (stopNow)
+                break;
             if (interiorsOnly) {
                 processVERTICAL_overlaps(events[(size_t)EventEnum::VERTICAL]);
                 if (stopNow)
@@ -1689,10 +1774,10 @@ enum class SegmentPairRelation {
  * predicate, and over coordinates that filter, that predicate reads endpoint
  * approximations taken once per segment rather than once per test.
  *
- * Its cost is the number of pairs whose extents overlap on the swept axis plus
- * the number whose boxes overlap, which on most inputs is a small multiple of
- * the output but can be quadratic on inputs with none: long parallel segments
- * side by side overlap everywhere and meet nowhere. @ref sample measures
+ * Its cost, past the sort, is the number of pairs whose extents overlap on the
+ * swept axis plus the number whose boxes overlap, which is at least the output
+ * but can be quadratic on inputs with none: long parallel segments side by side
+ * overlap everywhere and meet nowhere. @ref sample measures
  * both counts on random pairs, and @ref scan takes a callback that abandons the
  * sweep once its work outgrows a budget, so a caller can hand such an input to
  * @ref BentleyOttmann, whose cost does not depend on the boxes.
@@ -2476,18 +2561,10 @@ bool PolygonWithHoles<PointType_, LabelType>::isValid() const {
     // Hole interiors pairwise disjoint — the whole of the contract between two
     // holes. Boundaries meeting at points or along shared edges is allowed,
     // which is exactly what interiorsIntersect lets through; overlapping and
-    // nested holes are not. The bounding boxes prefilter the quadratic scan.
-    for (std::size_t i = 0; i < holes_.size(); ++i) {
-        for (std::size_t j = i + 1; j < holes_.size(); ++j) {
-            if (!holes_[i].bbox().intersects(holes_[j].bbox())) {
-                continue;
-            }
-            if (holes_[i].interiorsIntersect(holes_[j])) {
-                return false;
-            }
-        }
-    }
-    return true;
+    // nested holes are not. Only pairs whose bounding boxes meet are tested.
+    return !detail::anyIntersectingBoxPair(
+        holes_.size(), [this](std::size_t i) -> const auto& { return holes_[i].bbox(); },
+        [this](std::size_t i, std::size_t j) { return holes_[i].interiorsIntersect(holes_[j]); });
 }
 
 // Next to isValid because that is where a reader looks for the structural
@@ -2518,15 +2595,15 @@ bool PolygonSet<PointType_, LabelType>::isValid() const {
             return false;
         }
     }
-    for (std::size_t i = 0; i < components_.size(); ++i) {
-        for (std::size_t j = i + 1; j < components_.size(); ++j) {
-            if (!components_[i].bbox().intersects(components_[j].bbox())) {
-                continue;  // the boxes prefilter the quadratic scan
-            }
+    // Only pairs whose bounding boxes meet can break the two pairwise clauses.
+    const bool broken = detail::anyIntersectingBoxPair(
+        components_.size(),
+        [this](std::size_t i) -> const auto& { return components_[i].bbox(); },
+        [this](std::size_t i, std::size_t j) {
             // Interiors pairwise disjoint. Boundaries meeting at isolated points
             // is allowed, which is exactly what interiorsIntersect lets through.
             if (components_[i].interiorsIntersect(components_[j])) {
-                return false;
+                return true;
             }
             // And no stretch of edge in common. Two components glued along one
             // would have interior points belonging to neither component's
@@ -2539,13 +2616,13 @@ bool PolygonSet<PointType_, LabelType>::isValid() const {
                 for (const auto& second : components_[j].edges()) {
                     const auto shared = first.template intersection<NumberType>(second);
                     if (shared && std::holds_alternative<ExactSegment>(*shared)) {
-                        return false;
+                        return true;
                     }
                 }
             }
-        }
-    }
-    return true;
+            return false;
+        });
+    return !broken;
 }
 
 } // namespace pgl

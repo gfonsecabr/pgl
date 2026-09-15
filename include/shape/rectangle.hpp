@@ -2179,10 +2179,9 @@ struct Rectangle {
      * An erosion reads the operand only through its support function, and a
      * support function sees no further than the convex hull -- `A ⊖ B` is
      * `A ⊖ hull(B)` for a convex `A`. So this shape keeps the pair and answers
-     * it with the same convex region it erodes to by any other operand, at a
-     * cost linear in the two sizes: a `Polygon`, a `PolygonWithHoles`, a
-     * `PolygonSet`, a `Polyline` and a `MonotoneChain` are all as cheap here as
-     * their vertex count.
+     * it with the same convex region it erodes to by any other operand.
+     *
+     * Complexity: `O(b log b)` for an operand of `b` vertices (its hull).
      *
      * @tparam OtherShape Type of the shape to erode by.
      * @param other Shape to erode by.

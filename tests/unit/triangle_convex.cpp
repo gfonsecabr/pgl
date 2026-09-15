@@ -3,6 +3,10 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <random>
 #include <variant>
 #include <vector>
 
@@ -193,5 +197,128 @@ TEST_CASE("Triangle unites with Convex into a set of regions") {
         const Triangle away(Point(10, 10), Point(12, 10), Point(10, 12));
         CHECK(square.regularizedUnion<int>(away).componentCount() == 2);
         CHECK(away.regularizedUnion<int>(square) == square.regularizedUnion<int>(away));
+    }
+}
+
+namespace {
+
+// The vertex-by-vertex answer the O(log n) Triangle ⊇ Convex tests replaced.
+template <class TriangleT, class ConvexT>
+bool containsEveryVertex(const TriangleT& triangle, const ConvexT& polygon, bool interior) {
+    for (std::size_t i = 0; i < polygon.size(); ++i) {
+        const bool inside = interior ? triangle.interiorContains(polygon[i])
+                                     : triangle.contains(polygon[i]);
+        if (!inside) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class Number>
+void checkTriangleContainsConvexAgainstVertices() {
+    using Point = pgl::Point<Number>;
+    using Convex = pgl::Convex<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    std::uint64_t state = 0x9E3779B97F4A7C15ull;
+    const auto next = [&state](int range) {
+        state = state * 6364136223846793005ull + 1442695040888963407ull;
+        return static_cast<int>((state >> 33) % static_cast<std::uint64_t>(range));
+    };
+    const std::vector<Triangle> triangles{
+        Triangle(Point(0, 0), Point(12, 0), Point(0, 12)),
+        Triangle(Point(-2, -3), Point(14, 1), Point(3, 15)),
+        Triangle(Point(0, 0), Point(6, 6), Point(12, 12)),  // collinear
+        Triangle(Point(0, 0), Point(12, 0), Point(12, 0)),  // two equal vertices
+        Triangle(Point(4, 4), Point(4, 4), Point(4, 4)),    // a point
+    };
+    for (int trial = 0; trial < 3000; ++trial) {
+        std::vector<Point> points;
+        const int count = 1 + next(12);
+        const int span = 1 + next(13);
+        const int ox = next(8) - 2;
+        const int oy = next(8) - 2;
+        for (int k = 0; k < count; ++k) {
+            points.emplace_back(ox + next(span), oy + next(span));
+        }
+        if (trial % 5 == 0) {
+            // Points on the triangles' edges, so boundary contact is common.
+            points.emplace_back(next(13), 0);
+            points.emplace_back(0, next(13));
+        }
+        const Convex polygon(points);
+        for (const auto& triangle : triangles) {
+            CHECK_MESSAGE(triangle.contains(polygon) == containsEveryVertex(triangle, polygon, false),
+                          triangle, " contains ", polygon);
+            CHECK_MESSAGE(triangle.interiorContains(polygon) == containsEveryVertex(triangle, polygon, true),
+                          triangle, " interiorContains ", polygon);
+        }
+    }
+    // Polygons sharing the triangle's edges and a vertex, inside, and poking out.
+    const Triangle triangle(Point(0, 0), Point(12, 0), Point(0, 12));
+    const Convex touching(std::vector<Point>{{0, 0}, {6, 0}, {6, 6}, {0, 6}});
+    CHECK(triangle.contains(touching));
+    CHECK_FALSE(triangle.interiorContains(touching));
+    const Convex inner(std::vector<Point>{{1, 1}, {5, 1}, {5, 5}, {1, 5}});
+    CHECK(triangle.contains(inner));
+    CHECK(triangle.interiorContains(inner));
+    const Convex poking(std::vector<Point>{{1, 1}, {7, 1}, {7, 6}, {1, 5}});
+    CHECK_FALSE(triangle.contains(poking));
+    CHECK_FALSE(triangle.interiorContains(poking));
+}
+
+}  // namespace
+
+TEST_CASE("Triangle contains Convex agrees with testing every vertex") {
+    checkTriangleContainsConvexAgainstVertices<int>();
+    checkTriangleContainsConvexAgainstVertices<pgl::ERational>();
+}
+
+namespace {
+
+template <class Point>
+pgl::Convex<Point> randomTriangleClipConvex(std::mt19937& generator) {
+    using Number = typename Point::NumberType;
+    std::vector<Point> points;
+    const bool scattered = generator() % 3 == 0;
+    const int count = scattered ? 1 + static_cast<int>(generator() % 5) : 3 + static_cast<int>(generator() % 60);
+    const int radius = 4 + static_cast<int>(generator() % 40);
+    for (int i = 0; i < count; ++i) {
+        if (scattered) {
+            points.emplace_back(Number(static_cast<int>(generator() % 9) - 4),
+                                Number(static_cast<int>(generator() % 9) - 4));
+        } else {
+            const double angle = 2 * 3.141592653589793 * i / count;
+            points.emplace_back(Number(static_cast<int>(std::lround(radius * std::cos(angle)))),
+                                Number(static_cast<int>(std::lround(radius * std::sin(angle)))));
+        }
+    }
+    return pgl::Convex<Point>(points);
+}
+
+}  // namespace
+
+TEST_CASE_TEMPLATE("A triangle clip equals the clip by the triangle as a Convex",
+                   Point, pgl::Point<int>, pgl::Point<double>, pgl::Point<pgl::ERational>) {
+    using Number = typename Point::NumberType;
+    using ResultPoint = pgl::Point<pgl::ERational>;
+    std::mt19937 generator(15);
+    for (int trial = 0; trial < 400; ++trial) {
+        const pgl::Convex<Point> convex = randomTriangleClipConvex<Point>(generator);
+        const auto coordinate = [&] { return Number(static_cast<int>(generator() % 81) - 40); };
+        const Point a(coordinate(), coordinate());
+        const Point b(coordinate(), coordinate());
+        // Now and then collinear with a and b, or equal to one of them.
+        const Point c = generator() % 5 == 0 ? Point(a.x() + (b.x() - a.x()) * Number(2), a.y() + (b.y() - a.y()) * Number(2))
+                                             : Point(coordinate(), coordinate());
+        const pgl::Triangle<Point> triangle(a, b, c);
+        const auto clipped = convex.template intersection<pgl::ERational>(triangle);
+        // Clipped in exact coordinates, where the reference needs no rounding.
+        const pgl::Triangle<ResultPoint> exactTriangle{ResultPoint(a), ResultPoint(b), ResultPoint(c)};
+        const auto expected = pgl::Convex<ResultPoint>(convex).template intersection<pgl::ERational>(exactTriangle.asConvex());
+        CHECK_MESSAGE(clipped == expected, convex, " ", triangle);
+        if (clipped && std::holds_alternative<pgl::Convex<ResultPoint>>(*clipped)) {
+            CHECK(std::get<pgl::Convex<ResultPoint>>(*clipped).size() >= 3);
+        }
     }
 }

@@ -5,10 +5,13 @@
 
 #include <algorithm>
 #include <functional>
+#include <cstdint>
 #include <iterator>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <unordered_set>
+#include <variant>
 #include <vector>
 
 using Point = pgl::Point<int>;
@@ -616,4 +619,182 @@ TEST_CASE("PolygonSet latticePoints answers for every component at once") {
         CHECK(set.contains(point));
     }
     CHECK(RegionSet().latticePoints().empty());
+}
+
+namespace {
+
+std::uint64_t nextRandom(std::uint64_t& state) {
+    state = state * 6364136223846793005ull + 1442695040888963407ull;
+    return state >> 33;
+}
+
+template <class Number>
+void checkBoxPairsAgainstAllPairs() {
+    using BoxPoint = pgl::Point<Number>;
+    using Box = pgl::Rectangle<BoxPoint>;
+    std::uint64_t state = 7;
+    for (int trial = 0; trial < 60; ++trial) {
+        const std::size_t count = 1 + nextRandom(state) % 120;
+        const int span = 4 + static_cast<int>(nextRandom(state) % 40);
+        std::vector<Box> boxes;
+        for (std::size_t i = 0; i < count; ++i) {
+            if (nextRandom(state) % 13 == 0) {
+                boxes.emplace_back();  // empty
+                continue;
+            }
+            const int x = static_cast<int>(nextRandom(state) % span);
+            const int y = static_cast<int>(nextRandom(state) % span);
+            const int w = static_cast<int>(nextRandom(state) % 5);  // zero width happens
+            const int h = static_cast<int>(nextRandom(state) % 5);
+            boxes.emplace_back(BoxPoint(x, y), BoxPoint(x + w, y + h));
+        }
+        std::set<std::pair<std::size_t, std::size_t>> expected;
+        for (std::size_t i = 0; i < count; ++i) {
+            for (std::size_t j = i + 1; j < count; ++j) {
+                if (boxes[i].intersects(boxes[j])) {
+                    expected.insert({i, j});
+                }
+            }
+        }
+        std::set<std::pair<std::size_t, std::size_t>> reported;
+        bool repeated = false;
+        const bool stopped = pgl::detail::anyIntersectingBoxPair(
+            count, [&boxes](std::size_t i) -> const Box& { return boxes[i]; },
+            [&](std::size_t i, std::size_t j) {
+                CHECK(i < j);
+                repeated = repeated || !reported.insert({i, j}).second;
+                return false;
+            });
+        CHECK_FALSE(stopped);
+        CHECK_FALSE(repeated);
+        CHECK(reported == expected);
+        if (!expected.empty()) {
+            std::size_t calls = 0;
+            CHECK(pgl::detail::anyIntersectingBoxPair(
+                count, [&boxes](std::size_t i) -> const Box& { return boxes[i]; },
+                [&calls](std::size_t, std::size_t) { return ++calls == 1; }));
+            CHECK(calls == 1);
+        }
+    }
+}
+
+// Diamonds centred on a lattice of spacing 2 meet their neighbours at vertices
+// only; a few squares dropped on top overlap them or glue along edges.
+template <class Number>
+pgl::PolygonSet<pgl::Point<Number>> latticeSet(std::uint64_t& state, bool withSquares) {
+    using SetPoint = pgl::Point<Number>;
+    using Ring = pgl::Polygon<SetPoint>;
+    using SetRegion = pgl::PolygonWithHoles<SetPoint>;
+    std::vector<SetRegion> regions;
+    for (int cx = 0; cx < 20; cx += 2) {
+        for (int cy = 0; cy < 12; cy += 2) {
+            if (nextRandom(state) % 3 == 0) {
+                continue;
+            }
+            regions.emplace_back(Ring(std::vector<SetPoint>{
+                SetPoint(cx + 1, cy), SetPoint(cx, cy + 1), SetPoint(cx - 1, cy), SetPoint(cx, cy - 1)}));
+        }
+    }
+    if (withSquares) {
+        for (int k = 0; k < 2; ++k) {
+            const int x = static_cast<int>(nextRandom(state) % 30) - 5;
+            const int y = static_cast<int>(nextRandom(state) % 20) - 5;
+            regions.emplace_back(Ring(std::vector<SetPoint>{
+                SetPoint(x, y), SetPoint(x + 1, y), SetPoint(x + 1, y + 1), SetPoint(x, y + 1)}));
+        }
+    }
+    return pgl::PolygonSet<SetPoint>(regions);
+}
+
+template <class Number>
+void checkSetPairQueriesAgainstAllPairs() {
+    using SetPoint = pgl::Point<Number>;
+    using Set = pgl::PolygonSet<SetPoint>;
+    std::uint64_t state = 11;
+    int connectedSeen = 0;
+    int validSeen = 0;
+    for (int trial = 0; trial < 40; ++trial) {
+        const Set set = latticeSet<Number>(state, trial % 2 == 1);
+        const std::size_t k = set.componentCount();
+        bool pinched = false;
+        bool pairsValid = true;
+        std::vector<std::size_t> parent(k);
+        for (std::size_t i = 0; i < k; ++i) {
+            parent[i] = i;
+        }
+        const auto root = [&parent](std::size_t x) {
+            while (parent[x] != x) {
+                x = parent[x];
+            }
+            return x;
+        };
+        for (std::size_t i = 0; i < k; ++i) {
+            for (std::size_t j = i + 1; j < k; ++j) {
+                const auto& first = set.component(i);
+                const auto& second = set.component(j);
+                if (first.intersects(second)) {
+                    pinched = true;
+                    parent[root(i)] = root(j);
+                }
+                if (first.interiorsIntersect(second)) {
+                    pairsValid = false;
+                }
+                for (const auto& edge : first.edges()) {
+                    for (const auto& other : second.edges()) {
+                        const auto shared = edge.template intersection<Number>(other);
+                        if (shared && std::holds_alternative<pgl::Segment<SetPoint>>(*shared)) {
+                            pairsValid = false;
+                        }
+                    }
+                }
+            }
+        }
+        std::size_t roots = 0;
+        for (std::size_t i = 0; i < k; ++i) {
+            roots += root(i) == i ? 1 : 0;
+        }
+        bool componentsValid = true;
+        for (std::size_t i = 0; i < k; ++i) {
+            componentsValid = componentsValid && set.component(i).isValid();
+        }
+        const bool connected = k < 2 || roots == 1;
+        connectedSeen += connected ? 1 : 0;
+        validSeen += (componentsValid && pairsValid) ? 1 : 0;
+        CHECK(set.isPinched() == pinched);
+        CHECK(set.isConnected() == connected);
+        CHECK(set.isValid() == (componentsValid && pairsValid));
+    }
+    CHECK(validSeen > 0);
+    CHECK(validSeen < 40);
+    CHECK(connectedSeen > 0);
+    CHECK(connectedSeen < 40);
+}
+
+}  // namespace
+
+TEST_CASE("PolygonSet pair queries visit exactly the pairs whose boxes meet") {
+    checkBoxPairsAgainstAllPairs<int>();
+    checkBoxPairsAgainstAllPairs<pgl::ERational>();
+    checkSetPairQueriesAgainstAllPairs<int>();
+    checkSetPairQueriesAgainstAllPairs<pgl::ERational>();
+}
+
+TEST_CASE("PolygonWithHoles validity tests hole pairs whose boxes meet") {
+    // Many small holes on a lattice, far above the plain-scan limit.
+    std::vector<PolygonShape> holes;
+    for (int x = 1; x < 40; x += 3) {
+        for (int y = 1; y < 12; y += 3) {
+            holes.push_back(PolygonShape({x, y, x + 2, y, x, y + 2}));
+        }
+    }
+    const PolygonShape outer({0, 0, 50, 0, 50, 20, 0, 20});
+    CHECK(Region(outer, holes).isValid());
+    // Holes touching at a vertex are still valid.
+    std::vector<PolygonShape> touching = holes;
+    touching.push_back(PolygonShape({3, 1, 4, 0, 4, 1}));
+    CHECK(Region(outer, touching).isValid());
+    // One overlapping pair among many makes it invalid.
+    std::vector<PolygonShape> overlapping = holes;
+    overlapping.push_back(PolygonShape({19, 2, 21, 0, 21, 2}));
+    CHECK_FALSE(Region(outer, overlapping).isValid());
 }

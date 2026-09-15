@@ -14,20 +14,20 @@
  * - **Most pairs cannot agree at all.** A defined line is unbounded and a
  *   segment is not; a disk with area has a curved boundary and a convex polygon
  *   does not; a rectangle with area has four corners and a triangle three. Such
- *   a pair is `false` in O(1) once each operand that has collapsed below its
- *   natural dimension is reduced onto the point or segment it covers, which is
- *   the only way the two can meet.
+ *   a pair is `false` once each operand that has collapsed below its natural
+ *   dimension is reduced onto the point or segment it covers, which is the only
+ *   way the two can meet; telling whether it has collapsed is O(n) for an
+ *   operand of n vertices.
  * - **Shapes are stored canonically.** A `Segment` orders its endpoints, a
  *   `Rectangle` its corners, and `Rectangle`, `Triangle`, `Convex` and
  *   `Polygon` all present their ring counterclockwise from its
  *   lexicographically smallest vertex — a vertex that is a function of the
  *   point set alone, never of how the shape was built. A cached bounding box
- *   and that one vertex settle two independently built rings in O(1), which is
- *   what makes the expected cost of this predicate constant rather than linear.
+ *   and that one vertex reject rings that differ in either without a walk.
  *   Rings that agree on both are compared vertex for vertex, and only rings
  *   that disagree there are walked corner by corner, skipping the vertices that
  *   merely subdivide a straight edge — the one freedom two equal rings have
- *   left.
+ *   left. Two rings of n and m vertices cost O(n + m) in the worst case.
  * - **No definition sums an area.** Twice the area of a ring overflows an
  *   integral coordinate type long before its vertices do, and it costs a full
  *   pass over a shape whose first vertex would have answered the question.
@@ -132,9 +132,10 @@ constexpr auto collapsedSegment(const TShape& shape) {
 /**
  * @brief Tests whether a shape has collapsed below two dimensions.
  *
- * Cheaper than it looks: both probes stop at the first vertex that is off the
- * line through the first two, so a shape with area normally costs O(1) and
- * never costs an area sum.
+ * Both probes stop at the first vertex that is off the line through the first
+ * two, and neither sums an area.
+ *
+ * Complexity: O(n) for n vertices.
  */
 template <class TShape>
 constexpr bool collapsedBelowArea(const TShape& shape) {
@@ -343,11 +344,13 @@ constexpr std::size_t nextRingCorner(const Ring& ring, std::size_t index) {
  * `Rectangle`, `Triangle`, `Convex`, `Polygon` and the rings of a region all
  * present their vertices counterclockwise from the lexicographically smallest
  * one. Equal point sets share that vertex — the smallest point of a closed
- * polygonal set is a corner of it — so a single comparison rejects rings that
- * differ, in O(1). Rings that pass it are compared vertex for vertex, which is
- * already the answer whenever the two were built the same way; only rings that
- * disagree there are walked corner by corner, since the one freedom two equal
- * rings have left is where they subdivide their straight edges.
+ * polygonal set is a corner of it — so a single comparison rejects rings whose
+ * smallest vertices differ. Rings that pass it are compared vertex for vertex,
+ * which is already the answer whenever the two were built the same way; only
+ * rings that disagree there are walked corner by corner, since the one freedom
+ * two equal rings have left is where they subdivide their straight edges.
+ *
+ * Complexity: O(n + m) for rings of n and m vertices.
  */
 template <class First, class Second>
 constexpr bool sameRingPointSet(const First& first, const Second& second) {
@@ -696,7 +699,8 @@ template <class First, class Second>
 constexpr bool samePolylinePointSet(const First& first, const Second& second) {
     if (!sameBoundingBox(first, second)) {
         // Both shapes cache their box, and having no canonical first vertex to
-        // compare, this is the O(1) rejection they do have.
+        // compare, this is the one rejection they have that walks no vertex
+        // once the boxes are known.
         return false;
     }
     if (sameRepresentation(first, second)) {

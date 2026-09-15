@@ -3,7 +3,9 @@
 
 #include "pgl.hpp"
 
+#include <algorithm>
 #include <compare>
+#include <numeric>
 #include <random>
 #include <sstream>
 #include <stdexcept>
@@ -748,4 +750,179 @@ TEST_CASE("HalfplaneIntersection latticePoints needs a bounded region") {
     CHECK_THROWS_AS(static_cast<void>(strip().latticePoints()), std::logic_error);
     CHECK_THROWS_AS(static_cast<void>(Region().latticePoints()), std::logic_error);
     CHECK(emptyRegion().latticePoints().empty());
+}
+
+namespace {
+// A strictly convex lattice polygon: the primitive vectors of [-r, r]^2 laid
+// end to end in direction order. Its vertex count grows like r^2.
+std::vector<Point> latticeRing(int r) {
+    std::vector<Point> steps;
+    for (int dx = -r; dx <= r; ++dx) {
+        for (int dy = -r; dy <= r; ++dy) {
+            if ((dx != 0 || dy != 0) && std::gcd(dx, dy) == 1) {
+                steps.emplace_back(dx, dy);
+            }
+        }
+    }
+    std::sort(steps.begin(), steps.end(), [](const Point& u, const Point& v) {
+        return pgl::detail::minkowskiDirectionOrder(u, v) < 0;
+    });
+    std::vector<Point> ring;
+    Point at(0, 0);
+    for (const Point& step : steps) {
+        ring.push_back(at);
+        at = Point(at.x() + step.x(), at.y() + step.y());
+    }
+    return ring;
+}
+
+std::vector<Halfplane> edgeHalfplanes(const std::vector<Point>& ring) {
+    std::vector<Halfplane> edges;
+    for (std::size_t i = 0; i < ring.size(); ++i) {
+        edges.emplace_back(ring[i], ring[(i + 1) % ring.size()]);
+    }
+    return edges;
+}
+
+Halfplane randomHalfplane(std::mt19937& rng, int c) {
+    std::uniform_int_distribution<int> coordinate(-c, c);
+    for (;;) {
+        const Point a(coordinate(rng), coordinate(rng));
+        const Point b(coordinate(rng), coordinate(rng));
+        if (a != b) {
+            return Halfplane(a, b);
+        }
+    }
+}
+}  // namespace
+
+TEST_CASE("Insert drops a long run of redundant half-planes at once") {
+    const std::vector<Point> ring = latticeRing(12);
+    const std::vector<Halfplane> edges = edgeHalfplanes(ring);
+    int low = ring.front().y();
+    int high = low;
+    int left = ring.front().x();
+    int right = left;
+    for (const Point& p : ring) {
+        low = std::min(low, p.y());
+        high = std::max(high, p.y());
+        left = std::min(left, p.x());
+        right = std::max(right, p.x());
+    }
+    const int cut = low + (high - low) / 2;
+    const int xcut = left + (right - left) / 2;
+    // Cutting either half away removes a contiguous run of about n/2 stored
+    // constraints, and the run wraps around the end of the storage for the
+    // lower cut (the stored order starts at direction 0).
+    for (const Halfplane& knife : {Halfplane(Point(1, cut), Point(0, cut)), Halfplane(Point(0, cut), Point(1, cut)),
+                                   Halfplane(Point(xcut, 0), Point(xcut, 1)), Halfplane(Point(xcut, 1), Point(xcut, 0))}) {
+        Region inserted(edges);
+        const std::size_t before = inserted.size();
+        CHECK(inserted.insert(knife));
+        std::vector<Halfplane> all = edges;
+        all.push_back(knife);
+        const Region built(all);
+        CHECK(inserted == built);
+        CHECK(inserted.size() < before / 2 + 3);
+        for (const Point& p : ring) {
+            CHECK(inserted.contains(p) == (Region(edges).contains(p) && knife.contains(p)));
+        }
+    }
+}
+
+TEST_CASE("Insert agrees with the range constructor on random constraints") {
+    std::mt19937 rng(20260915);
+    for (int trial = 0; trial < 3000; ++trial) {
+        std::vector<Halfplane> constraints;
+        const int count = static_cast<int>(rng() % 14);
+        for (int i = 0; i < count; ++i) {
+            constraints.push_back(randomHalfplane(rng, 1 + static_cast<int>(rng() % 6)));
+        }
+        Region inserted;
+        for (const Halfplane& h : constraints) {
+            inserted.insert(h);
+        }
+        const Region built(constraints);
+        CHECK(inserted.empty() == built.empty());
+        CHECK(inserted.isDegenerate() == built.isDegenerate());
+        CHECK(inserted.samePointSet(built));
+        if (!inserted.isDegenerate()) {
+            CHECK(inserted == built);
+        }
+        // Already sorted input takes the linear path and must agree with it.
+        std::sort(constraints.begin(), constraints.end(),
+                  [](const Halfplane& a, const Halfplane& b) { return pgl::detail::directionLess(a, b); });
+        const Region sorted(constraints);
+        CHECK(sorted == built);
+        CHECK(sorted.isDegenerate() == built.isDegenerate());
+    }
+}
+
+TEST_CASE("insertChanges answers what insert would, without inserting") {
+    std::mt19937 rng(7);
+    for (int trial = 0; trial < 3000; ++trial) {
+        Region region;
+        const int count = static_cast<int>(rng() % 10);
+        for (int i = 0; i < count; ++i) {
+            region.insert(randomHalfplane(rng, 4));
+        }
+        if (trial % 5 == 1) {
+            region = Region(Point(static_cast<int>(rng() % 5) - 2, static_cast<int>(rng() % 5) - 2));
+        } else if (trial % 5 == 2) {
+            region = Region(pgl::Segment<Point>(Point(0, 0), Point(static_cast<int>(rng() % 5) - 2, 2)));
+        } else if (trial % 5 == 3) {
+            region = Region(pgl::Line<Point>(Point(0, 0), Point(static_cast<int>(rng() % 5) - 2, 1)));
+        }
+        for (int q = 0; q < 8; ++q) {
+            const Halfplane h = randomHalfplane(rng, 5);
+            Region copy = region;
+            const bool changed = copy.insert(h);
+            CHECK(region.insertChanges(h) == changed);
+            // The reverse predicates that read it, against the copy-and-insert
+            // definition they used to spell out.
+            const auto inside = [&region](const Halfplane& g) {
+                Region scratch = region;
+                return !scratch.insert(g);
+            };
+            CHECK(h.contains(region) == inside(h));
+            const pgl::Line<Point> line(h.source(), h.target());
+            CHECK(line.contains(region) == (inside(h) && inside(h.opposite())));
+            if (!region.empty() && !region.isDegenerate()) {
+                CHECK(line.separates(region) == (!inside(h) && !inside(h.opposite())));
+                CHECK(region.crosses(line) == line.crosses(region));
+            }
+            CHECK(h.source().contains(region) ==
+                  (inside(Halfplane(h.source(), Point(h.source().x() + 1, h.source().y()))) &&
+                   inside(Halfplane(Point(h.source().x() + 1, h.source().y()), h.source())) &&
+                   inside(Halfplane(h.source(), Point(h.source().x(), h.source().y() + 1))) &&
+                   inside(Halfplane(Point(h.source().x(), h.source().y() + 1), h.source()))));
+        }
+    }
+}
+
+TEST_CASE("asConvex matches the hull of the vertices") {
+    std::mt19937 rng(11);
+    for (int trial = 0; trial < 3000; ++trial) {
+        Region region;
+        const int count = 3 + static_cast<int>(rng() % 8);
+        for (int i = 0; i < count; ++i) {
+            region.insert(randomHalfplane(rng, 5));
+        }
+        if (trial % 4 == 1) {
+            region = Region(pgl::Segment<Point>(Point(static_cast<int>(rng() % 5), 1), Point(-2, static_cast<int>(rng() % 5))));
+        } else if (trial % 4 == 2) {
+            region = Region(Point(1, 2));
+        }
+        if (region.empty() || !region.isBounded()) {
+            continue;
+        }
+        using EPoint = pgl::Point<pgl::ERational>;
+        CHECK(region.asConvex<pgl::ERational>() == pgl::Convex<EPoint>(region.vertices<pgl::ERational>()));
+        CHECK(region.asConvex<int>() == pgl::Convex<Point>(region.vertices<int>()));
+        CHECK(region.asConvex<double>() == pgl::Convex<pgl::Point<double>>(region.vertices<double>()));
+    }
+    const std::vector<Point> ring = latticeRing(6);
+    const Region polygon(edgeHalfplanes(ring));
+    CHECK(polygon.asConvex<pgl::ERational>() ==
+          pgl::Convex<pgl::Point<pgl::ERational>>(polygon.vertices<pgl::ERational>()));
 }

@@ -1,9 +1,12 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <numeric>
 #include <optional>
+#include <random>
 #include <stdexcept>
 #include <tuple>
 #include <type_traits>
@@ -589,4 +592,230 @@ TEST_CASE("A convex receiver's erosion agrees with the region engine") {
     REQUIRE(regionAnswer.componentCount() == 1);
     CHECK(regionAnswer.component(0).outer() ==
           pgl::Polygon<EPoint>(convexAnswer.asConvex<pgl::ERational>().asPolygon()));
+}
+
+// -----------------------------------------------------------------------------
+// The convex clamp against its definition, constraint by constraint.
+//
+// The reference clamps the receiver's constraints in the order the receiver
+// lists them, scanning every anchor of the operand for each and inserting the
+// half-planes one at a time: the construction spelled out with no ordering to
+// get wrong. The library walks the constraints in direction order and builds
+// the region in one pass, so the two must describe the same point set.
+
+template <class A, class B>
+static auto referenceConvexErosion(const A& a, const B& b) {
+    using ResultPoint = pgl::detail::minkowskiErosionPoint_t<A, B>;
+    using ResultRegion = pgl::HalfplaneIntersection<ResultPoint>;
+    const auto eroder = pgl::detail::minkowskiPolyhedronOf<ResultPoint>(b);
+    if (eroder.empty) {
+        return ResultRegion();
+    }
+    const auto constraints = pgl::detail::minkowskiErosionConstraints<ResultPoint>(a);
+    if (!constraints) {
+        return ResultRegion(pgl::Convex<ResultPoint>());
+    }
+    ResultRegion region;
+    for (const auto& constraint : *constraints) {
+        const auto support = pgl::detail::minkowskiInfimumPoint(eroder, constraint.direction);
+        if (!support) {
+            return ResultRegion(pgl::Convex<ResultPoint>());
+        }
+        const ResultPoint base(constraint.anchor.x() - support->x(), constraint.anchor.y() - support->y());
+        region.insert(pgl::Halfplane<ResultPoint>(
+            base, ResultPoint(base.x() + constraint.direction.x(), base.y() + constraint.direction.y())));
+    }
+    return region;
+}
+
+namespace {
+
+struct Random {
+    std::mt19937 engine;
+    int operator()(int lo, int hi) { return std::uniform_int_distribution<int>(lo, hi)(engine); }
+    Point point(int c) {
+        const int x = (*this)(-c, c);
+        return Point(x, (*this)(-c, c));
+    }
+};
+
+// The primitive vectors of [-r, r]^2, in direction order.
+std::vector<Point> primitiveSteps(int r) {
+    std::vector<Point> steps;
+    for (int dx = -r; dx <= r; ++dx) {
+        for (int dy = -r; dy <= r; ++dy) {
+            if ((dx != 0 || dy != 0) && std::gcd(dx, dy) == 1) {
+                steps.emplace_back(dx, dy);
+            }
+        }
+    }
+    std::sort(steps.begin(), steps.end(), [](const Point& u, const Point& v) {
+        return pgl::detail::minkowskiDirectionOrder(u, v) < 0;
+    });
+    return steps;
+}
+
+// A simple polygon: one vertex along each primitive direction of [-2, 2]^2, in
+// direction order, at a random distance from a random centre. Every angular gap
+// is below half a turn, so the ring is star-shaped around the centre.
+PolygonShape randomStar(Random& random, int c) {
+    const Point centre = random.point(c);
+    std::vector<Point> ring;
+    for (const Point& step : primitiveSteps(2)) {
+        const int r = random(1, 3);
+        ring.emplace_back(centre.x() + r * step.x(), centre.y() + r * step.y());
+    }
+    return PolygonShape(ring);
+}
+
+Intersection randomIntersection(Random& random, int c) {
+    Intersection region;
+    const int count = random(0, 8);
+    for (int i = 0; i < count; ++i) {
+        const Point a = random.point(c);
+        const Point b = random.point(c);
+        if (a != b) {
+            region.insert(Halfplane(a, b));
+        }
+    }
+    switch (random(0, 5)) {
+        case 1: return Intersection(random.point(c));
+        case 2: {
+            const Point a = random.point(c);
+            return Intersection(Segment(a, random.point(c)));
+        }
+        case 3: {
+            const Point a = random.point(c);
+            return Intersection(RectangleShape(a, random.point(c)));
+        }
+        default: return region;
+    }
+}
+
+template <class A, class B>
+void checkAgainstReference(const A& a, const B& b) {
+    // A region receiver takes only the operands its sum takes.
+    if constexpr (erodable<A, B>) {
+        const auto erosion = a.minkowskiErosion(b);
+        const auto reference = referenceConvexErosion(a, b);
+        CHECK(erosion.empty() == reference.empty());
+        CHECK(erosion.isDegenerate() == reference.isDegenerate());
+        CHECK(erosion.samePointSet(reference));
+        if (!reference.isDegenerate()) {
+            CHECK(erosion == reference);  // canonical for a full-dimensional region
+        }
+    }
+}
+
+}  // namespace
+
+TEST_CASE("A convex receiver's erosion matches the constraint-by-constraint clamp") {
+    Random random{std::mt19937(915)};
+    for (int trial = 0; trial < 300; ++trial) {
+        const int c = random(1, 7);
+        std::vector<Point> cloud;
+        for (int i = random(1, 10); i > 0; --i) {
+            cloud.push_back(random.point(c));
+        }
+        const Convex convex(cloud);
+        const Point t0 = random.point(c);
+        const Point t1 = random.point(c);
+        const Triangle triangle(t0, t1, random.point(c));
+        const Point r0 = random.point(c);
+        const RectangleShape rectangle(r0, random.point(c));
+        const Point s0 = random.point(c);
+        const Segment segment(s0, random.point(c));
+        const Point o0 = random.point(c);
+        const OrientedSegment oriented(o0, random.point(c));
+        const Intersection region = randomIntersection(random, c);
+        const Point lineFrom = random.point(c);
+        Point lineTo = random.point(c);
+        if (lineFrom == lineTo) {
+            lineTo = Point(lineFrom.x() + 1, lineFrom.y() - 1);
+        }
+        const Line line(lineFrom, lineTo);
+        const Ray ray(lineFrom, lineTo);
+
+        std::vector<Point> other;
+        for (int i = random(1, 10); i > 0; --i) {
+            other.push_back(random.point(c));
+        }
+        const Convex convexOperand(other);
+        const PolygonShape star = randomStar(random, c);
+        std::vector<Point> path;
+        int x = -c;
+        for (int i = random(2, 7); i > 0; --i) {
+            path.emplace_back(x, random(-c, c));
+            x += random(0, 2);
+        }
+        const PolylineShape polyline(path);
+        const Chain chain(path);
+        const Region holed(star);
+        const RegionSet set(holed);
+        const Intersection regionOperand = randomIntersection(random, c);
+        const Point u0 = random.point(c);
+        const Point u1 = random.point(c);
+        const Triangle triangleOperand(u0, u1, random.point(c));
+        const Point v0 = random.point(c);
+        const Segment segmentOperand(v0, random.point(c));
+        const Point opFrom = random.point(c);
+        Point opTo = random.point(c);
+        if (opFrom == opTo) {
+            opTo = Point(opFrom.x(), opFrom.y() + 1);
+        }
+        const Line lineOperand(opFrom, opTo);
+        const Ray rayOperand(opFrom, opTo);
+        const Halfplane halfplaneOperand(opFrom, opTo);
+
+        const auto everyReceiver = [&](const auto& operand) {
+            checkAgainstReference(convex, operand);
+            checkAgainstReference(triangle, operand);
+            checkAgainstReference(segment, operand);
+            checkAgainstReference(oriented, operand);
+            checkAgainstReference(region, operand);
+            checkAgainstReference(rectangle, operand);
+        };
+        everyReceiver(convexOperand);
+        everyReceiver(star);
+        everyReceiver(polyline);
+        everyReceiver(chain);
+        everyReceiver(holed);
+        everyReceiver(set);
+        everyReceiver(regionOperand);
+        everyReceiver(triangleOperand);
+        everyReceiver(segmentOperand);
+        everyReceiver(lineOperand);
+        everyReceiver(rayOperand);
+        checkAgainstReference(line, regionOperand);
+        checkAgainstReference(line, lineOperand);
+        checkAgainstReference(line, rayOperand);
+        checkAgainstReference(line, halfplaneOperand);
+        checkAgainstReference(ray, regionOperand);
+        checkAgainstReference(ray, halfplaneOperand);
+        checkAgainstReference(region, halfplaneOperand);
+        checkAgainstReference(convex, halfplaneOperand);
+    }
+}
+
+TEST_CASE("A large convex receiver erodes by a large operand in one pass") {
+    // Both walks wrap: the receiver's constraints start at its lowest vertex's
+    // edge, not at direction zero, and the operand's anchors start wherever its
+    // hull does.
+    std::vector<Point> ring;
+    Point at(0, 0);
+    for (const Point& step : primitiveSteps(9)) {
+        ring.push_back(at);
+        at = Point(at.x() + step.x(), at.y() + step.y());
+    }
+    const Convex receiver(ring);
+    std::vector<Point> small;
+    for (std::size_t i = 0; i < ring.size(); i += 7) {
+        small.emplace_back(ring[i].x() / 5, ring[i].y() / 5);
+    }
+    const Convex smallConvex(small);
+    checkAgainstReference(receiver, PolygonShape(smallConvex.vertices()));
+    checkAgainstReference(receiver, smallConvex);
+    checkAgainstReference(receiver, Segment(Point(0, 0), Point(3, 1)));
+    checkAgainstReference(Intersection(receiver), Intersection(smallConvex));
+    checkAgainstReference(Intersection(receiver), smallConvex);
 }

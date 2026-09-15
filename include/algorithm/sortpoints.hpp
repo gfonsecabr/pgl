@@ -235,9 +235,8 @@ void hilbertSortMedian(RandomIt begin, RandomIt end, bool xAxis, bool upX, bool 
  * @brief Sorts points along a Hilbert space-filling curve.
  *
  * Reorders @p points in place so that points close together in the plane are
- * close together in the sequence. This spatial coherence makes the order a
- * useful preprocessing step for incremental algorithms — for example, inserting
- * points in Hilbert order keeps each point-location walk short.
+ * close together in the sequence, which makes the order a useful insertion
+ * order for incremental algorithms that locate each point by walking.
  *
  * The order is produced by the median policy: the set is recursively split into
  * four quadrants by nested medians, following the Hilbert curve's recursive

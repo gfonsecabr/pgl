@@ -566,11 +566,15 @@ struct Polygon {
      * @brief Tests whether the polygon is simple (its boundary does not
      *        touch or cross itself).
      *
-     * Uses a brute-force pairwise edge test in O(n^2) for few vertices (n <= 8)
-     * or floating-point coordinates, and the Bentley-Ottmann sweep (O(n log n))
-     * for larger exact (integer or rational) polygons. A polygon with fewer than
-     * three vertices, or a zero-length edge (a repeated consecutive vertex), is
-     * not simple.
+     * Uses a brute-force pairwise edge test for few vertices (n <= 8), the
+     * Bentley-Ottmann sweep for larger exact (integer or rational) polygons, and
+     * for floating-point ones the pairwise test up to 128 edges and a sweep over
+     * the edges' bounding boxes above. A polygon with fewer than three vertices,
+     * or a zero-length edge (a repeated consecutive vertex), is not simple.
+     *
+     * Complexity: O(n log n) for n vertices with exact coordinates; with
+     * floating-point ones O((n + B) log n) for B pairs of edges whose bounding
+     * boxes overlap, which is O(n^2 log n) in the worst case.
      *
      * @tparam Rational Exact rational type used by the sweep for large polygons.
      * @return `true` if no two edges meet except adjacent edges at their shared vertex.
@@ -728,8 +732,10 @@ struct Polygon {
      *
      * The boundary included: a point on an edge is a point of the shape. The
      * boundary answers for its own points, edge by edge as segments, and a
-     * sweep over the columns of the bounding box answers for the rest, so the
-     * cost is one pass over the edges plus one point per point reported.
+     * sweep over the columns of the bounding box answers for the rest.
+     *
+     * Complexity: O((W + 1) n log n + k log k) for n vertices, W integer
+     * columns crossed by the polygon and k points reported.
      *
      * @tparam ResultNumber Integer coordinate type of the points: the shape's
      *         own coordinate type when that is a signed integer, the integer a
@@ -805,13 +811,13 @@ struct Polygon {
      * pair of distinct contained vertices.
      *
      * Triangulates the polygon and runs one cone-clipped traversal of the mesh
-     * per vertex — triangular expansion — whose cost is proportional to the part
-     * of the polygon that vertex actually sees. A convex polygon skips the
+     * per vertex — triangular expansion — then walks the mesh along every
+     * visibility edge that passes through a vertex. A convex polygon skips the
      * triangulation: every segment between its vertices is inside it, so the
      * answer is the complete graph. See @ref Triangulation::visibilityGraph.
      *
-     * Complexity: O(n·t + m) time for n vertices, m visibility edges and t
-     * triangles seen per vertex, plus O(m) space for the returned graph.
+     * Complexity: O(n^2) for a convex polygon of n vertices. No bound is given
+     * for other polygons.
      *
      * @return An undirected graph whose vertices are this polygon's vertices.
      */
@@ -830,8 +836,6 @@ struct Polygon {
      *
      * The answer is meaningful for a simple polygon. A degenerate polygon has no
      * interior, so its vertices come back with no edges at all.
-     *
-     * Complexity: as @ref visibilityGraph, with no convex shortcut.
      *
      * @return An undirected graph whose vertices are this polygon's vertices.
      */
@@ -860,8 +864,6 @@ struct Polygon {
      * The answer is meaningful for a simple polygon. A degenerate polygon has
      * every vertex collinear with every side, so the tangency test passes
      * everywhere and the result matches @ref visibilityGraph.
-     *
-     * Complexity: as @ref visibilityGraph, plus O(m) for m visibility edges.
      *
      * @return An undirected graph whose vertices are this polygon's vertices.
      */
@@ -1185,10 +1187,6 @@ struct Polygon {
      *
      * A convex polygon comes back as a single piece.
      *
-     * Complexity: O(n^3 log n) worst-case time and O(n^2) space for n polygon
-     * vertices; the dual search usually avoids most of the quadratic candidate
-     * pairs even though the worst-case bound is unchanged.
-     *
      * @return The convex covering, in canonical order.
      */
     [[nodiscard]] std::vector<Convex<PointType>> convexCovering() const;
@@ -1251,8 +1249,8 @@ struct Polygon {
      * The pieces are not nested: an island of this polygon stranded inside a
      * hole of the result comes back as a region of its own.
      *
-     * Complexity: O(m²) for m boundary edges, then a constrained triangulation
-     * over the arrangement of both boundaries.
+     * Complexity: O((n + m)(n + m + k)) for n and m vertices and k pairs of
+     * boundary edges that meet.
      *
      * @tparam ResultNumber The number type for the result.
      * @param other The shape to remove.
@@ -1336,8 +1334,8 @@ struct Polygon {
      * not have a self-touching outer ring. Disjoint operands come back as two
      * pieces.
      *
-     * Complexity: O(m²) for m boundary edges, then a constrained triangulation
-     * over the arrangement of both boundaries.
+     * Complexity: O((n + m + k) log(n + m)) for n and m vertices and k pairs
+     * of boundary edges that meet.
      *
      * @tparam ResultNumber The number type for the result.
      * @param other The shape to unite with.
@@ -1396,8 +1394,8 @@ struct Polygon {
      * operands. It is the union of the two differences, and inherits holes from
      * both.
      *
-     * Complexity: O(m²) for m boundary edges, then a constrained triangulation
-     * over the arrangement of both boundaries.
+     * Complexity: O((n + m)(n + m + k)) for n and m vertices and k pairs of
+     * boundary edges that meet.
      *
      * @tparam ResultNumber The number type for the result.
      * @param other The other shape.
@@ -1469,10 +1467,10 @@ struct Polygon {
      * in one shape are exactly the pairs @ref MinkowskiSummableConcept accepts,
      * and this overload set takes the rest.
      *
-     * Complexity: against a convex operand, one arrangement over the two
+     * Against a convex operand, the sum is one arrangement over the two
      * boundaries' convolution; against a non-convex polygon, one such
      * arrangement per convex piece of one operand, then the union of their
-     * results. `Θ(a²b²)` in the worst case, the size of the sum's arrangement.
+     * results.
      *
      * @tparam ResultNumber The number type for the result.
      * @param other The shape to sum with.
@@ -1597,7 +1595,7 @@ struct Polygon {
      * classified by its midpoint, so the test is correct for non-convex
      * polygons (both endpoints inside does not suffice).
      *
-     * Complexity: O(n log n) for n vertices.
+     * Complexity: O(n) for n vertices.
      */
     template<SegmentConcept OtherSegment>
     constexpr bool contains(const OtherSegment& other) const;
@@ -1605,7 +1603,7 @@ struct Polygon {
     /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
-     * Complexity: O(n log n) for n vertices.
+     * Complexity: O(n) for n vertices.
      */
     template<OrientedSegmentConcept OtherOrientedSegment>
     constexpr bool contains(const OtherOrientedSegment& other) const;
@@ -1637,7 +1635,7 @@ struct Polygon {
     /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
-     * Complexity: O(n log n) for n vertices.
+     * Complexity: O(n) for n vertices.
      */
     template<RectangleConcept OtherRectangle>
     constexpr bool contains(const OtherRectangle& other) const;
@@ -1645,7 +1643,7 @@ struct Polygon {
     /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
-     * Complexity: O(n log n) for n vertices.
+     * Complexity: O(n) for n vertices.
      */
     template<TriangleConcept OtherTriangle>
     constexpr bool contains(const OtherTriangle& other) const;
@@ -1653,7 +1651,7 @@ struct Polygon {
     /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
-     * Complexity: O((n + m) log n) for n and m vertices.
+     * Complexity: O(n m) for n and m vertices.
      */
     template<ConvexConcept OtherConvex>
     constexpr bool contains(const OtherConvex& other) const;
@@ -1664,7 +1662,7 @@ struct Polygon {
      * For simple polygons (no holes) this holds iff every edge of @p other is
      * contained, which is what this checks.
      *
-     * Complexity: O((n + m) log n) for n and m vertices.
+     * Complexity: O(n m) for n and m vertices.
      */
     template<PolygonConcept OtherPolygon>
     constexpr bool contains(const OtherPolygon& other) const;
@@ -1676,10 +1674,10 @@ struct Polygon {
      * Reaches the same answer by testing this polygon's and @p other's
      * lexicographically monotone chains (see @ref BoundaryChains) against each
      * other pairwise instead of running a combined plane sweep. Cheaper when
-     * both boundaries are near-convex (few chains), since its cost is the
-     * product of the two chain counts; that product degrades to O(n * m) on a
-     * jagged, comb-like or star-shaped boundary, where @ref sweepContains stays
-     * at O((n + m) log(n + m)) regardless.
+     * both boundaries have few chains: for c_a chains of this polygon and c_b
+     * of @p other the chain test costs O(c_b·n + c_a·m), which is O(n * m) on a
+     * jagged, comb-like or star-shaped boundary, where the sweep of
+     * @ref sweepContains costs O((n + m) log(n + m)) regardless.
      *
      * @ref contains calls whichever of the two @ref preferSweep judges cheaper
      * for the operands at hand, so reach for it rather than this; naming this
@@ -1687,8 +1685,7 @@ struct Polygon {
      * orders of magnitude. It stays public so a benchmark can time the two
      * strategies against each other over the same inputs.
      *
-     * Complexity: O(chains(A) * chains(B) * average chain length), i.e. O(n)
-     * for near-convex input and O(n * m) in the worst case.
+     * Complexity: O(n * m) for n and m vertices.
      */
     template<PolygonConcept OtherPolygon>
     constexpr bool containsChainBased(const OtherPolygon& other) const;
@@ -1793,7 +1790,7 @@ struct Polygon {
     /**
      * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      *
-     * Complexity: O(n log n) for n vertices.
+     * Complexity: O(n) for n vertices.
      */
     template<RectangleConcept OtherRectangle>
     constexpr bool interiorContains(const OtherRectangle& other) const;
@@ -1801,7 +1798,7 @@ struct Polygon {
     /**
      * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      *
-     * Complexity: O(n log n) for n vertices.
+     * Complexity: O(n) for n vertices.
      */
     template<TriangleConcept OtherTriangle>
     constexpr bool interiorContains(const OtherTriangle& other) const;
@@ -1809,7 +1806,7 @@ struct Polygon {
     /**
      * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      *
-     * Complexity: O((n + m) log n) for n and m vertices.
+     * Complexity: O((n + m) log(n + m)) for n and m vertices.
      */
     template<ConvexConcept OtherConvex>
     constexpr bool interiorContains(const OtherConvex& other) const;
@@ -1817,10 +1814,10 @@ struct Polygon {
     /**
      * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      *
-     * Like @ref contains(const Polygon&), this reduces to an edge-by-edge check,
-     * which is exact for simple polygons (no holes).
+     * This reduces to one vertex of @p other strictly inside and the two
+     * boundaries disjoint, which is exact for simple polygons (no holes).
      *
-     * Complexity: O((n + m) log n) for n and m vertices.
+     * Complexity: O(n m) for n and m vertices.
      */
     template<PolygonConcept OtherPolygon>
     constexpr bool interiorContains(const OtherPolygon& other) const;
@@ -1867,7 +1864,7 @@ struct Polygon {
     /**
      * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
-     * Complexity: O(n) per edge for n vertices.
+     * Complexity: O(n) for n vertices.
      */
     template<RectangleConcept OtherRectangle>
     constexpr bool boundaryContains(const OtherRectangle& other) const;
@@ -1875,7 +1872,7 @@ struct Polygon {
     /**
      * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
-     * Complexity: O(n) per edge for n vertices.
+     * Complexity: O(n) for n vertices.
      */
     template<TriangleConcept OtherTriangle>
     constexpr bool boundaryContains(const OtherTriangle& other) const;
@@ -2227,8 +2224,12 @@ struct Polygon {
      * decompositions are produced in lockstep and every newly produced chain is
      * tested against all already-produced chains of the other polygon, so all
      * computed pairs are covered before the next chain is built and the search
-     * stops at the first shared point. This underlies both @ref intersects and
-     * @ref interiorsIntersect, which add the interior reasoning on top.
+     * stops at the first shared point. When @ref preferSweep judges it cheaper,
+     * one red-blue sweep over both edge sets answers instead. This underlies
+     * both @ref intersects and @ref interiorsIntersect, which add the interior
+     * reasoning on top.
+     *
+     * Complexity: O(n m) for n and m vertices.
      *
      * @return `true` if the boundaries touch or cross anywhere.
      */
@@ -2307,7 +2308,7 @@ struct Polygon {
     /**
      * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
-     * Complexity: O(n m) for polygons with n and m vertices.
+     * Complexity: O(n^2) for n vertices.
      */
     template<RectangleConcept OtherRectangle>
     constexpr bool interiorsIntersect(const OtherRectangle& other) const;
@@ -2315,7 +2316,7 @@ struct Polygon {
     /**
      * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
-     * Complexity: O(n m) for polygons with n and m vertices.
+     * Complexity: O(n^2) for n vertices.
      */
     template<TriangleConcept OtherTriangle>
     constexpr bool interiorsIntersect(const OtherTriangle& other) const;
@@ -2323,7 +2324,7 @@ struct Polygon {
     /**
      * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
-     * Complexity: O(n m) for polygons with n and m vertices.
+     * Complexity: O(n (n + m)) for n and m vertices.
      */
     template<ConvexConcept OtherConvex>
     constexpr bool interiorsIntersect(const OtherConvex& other) const;
@@ -2490,7 +2491,9 @@ struct Polygon {
      * result is the minimum over the boundary edges of the edge-to-shape squared
      * distance.
      *
-     * Complexity: O(n) edge queries for n vertices, each against the other shape.
+     * Complexity: O(n) for n vertices against a point, a line-like shape, a
+     * half-plane, a rectangle or a triangle; O(n log m) against a convex
+     * polygon of m vertices; O(n m) against a polygon of m vertices.
      *
      * @tparam ResultNumber Coordinate type of the returned distance (default: @ref division_result_t).
      *
@@ -2848,7 +2851,7 @@ struct Polygon {
      * cycle. These become a @ref Point, a @ref Polyline, and a @ref Polygon
      * respectively, returned in no particular order.
      *
-     * Complexity: O(n m log(n + m)) for polygons with n and m vertices.
+     * Complexity: O(n^2 m^2) for polygons with n and m vertices.
      *
      * @tparam ResultNumber The number type for the result.
      * @tparam OtherPoint The point type of the other polygon.
@@ -2955,7 +2958,7 @@ struct Polygon {
      * are @ref Segment rather than @ref Polyline, because every 1D part of the
      * intersection lies on the half-plane's straight boundary and so is collinear.
      *
-     * Complexity: O(n log n) for n vertices.
+     * Complexity: O(n^2) for n vertices.
      *
      * @tparam ResultNumber The number type for the result.
      * @tparam OtherPoint The point type of the half-plane.
@@ -3151,8 +3154,9 @@ struct Polygon {
      * regions holds none of it. A receiver with no area erodes to the empty set
      * for the same reason.
      *
-     * A convex receiver is answered by its own constraints in `O(a·b)`;
-     * everything else pays for a complement, a sum and a difference. See
+     * A convex receiver of `a` vertices is answered by its own constraints in
+     * `O(a + b log b)` for an operand of `b` vertices; everything else pays for
+     * a complement, a sum and a difference. See
      * `implementation/minkowskierosion.hpp` for both constructions and their
      * cost.
      *

@@ -62,6 +62,60 @@ Segment randomSegment(Rng& rng) {
                    Point(rng.range(-50, 50), rng.range(-50, 50)));
 }
 
+// A coordinate that counts its comparisons, so a test can bound how much of the
+// tree an operation touches.
+std::size_t comparisons = 0;
+
+struct CountedNumber {
+    int value = 0;
+
+    friend bool operator<(const CountedNumber& a, const CountedNumber& b) {
+        ++comparisons;
+        return a.value < b.value;
+    }
+};
+
+// A one-dimensional shape whose bounding box has the closed interval
+// [low, high] as both of its projections.
+struct Stick {
+    int low = 0;
+    int high = 0;
+    int id = 0;
+
+    struct Corner {
+        CountedNumber coordinate;
+        [[nodiscard]] CountedNumber x() const { return coordinate; }
+        [[nodiscard]] CountedNumber y() const { return coordinate; }
+    };
+
+    struct Box {
+        Corner lower;
+        Corner upper;
+        [[nodiscard]] Corner min() const { return lower; }
+        [[nodiscard]] Corner max() const { return upper; }
+    };
+
+    [[nodiscard]] Box bbox() const {
+        return Box{Corner{CountedNumber{low}}, Corner{CountedNumber{high}}};
+    }
+
+    bool operator==(const Stick&) const = default;
+};
+
+std::size_t bruteSticksIntersecting(const std::vector<Stick>& sticks, int low, int high) {
+    return static_cast<std::size_t>(std::count_if(sticks.begin(), sticks.end(),
+        [&](const Stick& s) { return s.low <= high && low <= s.high; }));
+}
+
+std::size_t floorLog2(std::size_t n) {
+    std::size_t result = 0;
+    while (n > 1) {
+        n /= 2;
+        ++result;
+    }
+    return result;
+}
+
 }  // namespace
 
 TEST_CASE("IntervalTree indexes closed x and y projections") {
@@ -229,7 +283,7 @@ TEST_CASE("IntervalTree matches brute force through randomized inserts and erase
     }
 }
 
-TEST_CASE("IntervalTree queries stay exact while tombstones accumulate and rebuild") {
+TEST_CASE("IntervalTree queries stay exact through a long run of removals") {
     Rng rng{0x9e3779b97f4a7c15ULL};
     std::vector<Segment> reference;
     pgl::IntervalTree<Segment> tree;
@@ -240,9 +294,8 @@ TEST_CASE("IntervalTree queries stay exact while tombstones accumulate and rebui
         tree.insert(shape);
     }
 
-    // Removing nearly everything one shape at a time crosses the rebuild
-    // threshold repeatedly, so most of these queries run over a tree holding
-    // tombstones next to live nodes.
+    // Removing nearly everything one shape at a time rebalances the tree
+    // through every removal case, and each state is queried.
     while (reference.size() > 4) {
         const std::size_t index =
             static_cast<std::size_t>(rng.range(0, static_cast<int>(reference.size() - 1)));
@@ -276,8 +329,8 @@ TEST_CASE("IntervalTree queries stay exact while tombstones accumulate and rebui
         CHECK(tree.reportContainedIn(query).size() == inside);
     }
 
-    // Tombstones never reach the stored shapes: iteration and shapes() stay
-    // compact and hold exactly the surviving shapes.
+    // Iteration and shapes() stay compact and hold exactly the surviving
+    // shapes.
     std::vector<Segment> stored(tree.begin(), tree.end());
     CHECK(stored.size() == reference.size());
     CHECK(tree.shapes().size() == reference.size());
@@ -351,4 +404,108 @@ TEST_CASE("IntervalTree survives removals among equal intervals and duplicate sh
         CHECK(tree.size() == reference.size());
     }
     CHECK(tree.empty());
+}
+
+TEST_CASE("IntervalTree queries do not pay for removed intervals") {
+    // Long intervals are inserted among short ones and then removed, the way
+    // the xy sweep closes boxes. A query meeting only the removed intervals
+    // must stay logarithmic: pruning follows the stored intervals alone.
+    const int m = 3000;
+    const int ceiling = 1000000;
+    std::vector<Stick> live;
+    std::vector<Stick> removed;
+    pgl::IntervalTree<Stick> tree;
+    for (int i = 0; i < m; ++i) {
+        removed.push_back({10 * i, ceiling, 2 * i});
+        live.push_back({10 * i + 5, 10 * i + 6, 2 * i + 1});
+        tree.insert(removed.back());
+        tree.insert(live.back());
+    }
+    Rng rng{0x5bd1e9955bd1e995ULL};
+    for (std::size_t i = removed.size(); i > 1; --i) {
+        std::swap(removed[i - 1],
+                  removed[static_cast<std::size_t>(rng.range(0, static_cast<int>(i - 1)))]);
+    }
+
+    const std::size_t logBound = 64 * (floorLog2(2 * static_cast<std::size_t>(m)) + 1);
+    for (std::size_t i = 0; i < removed.size(); ++i) {
+        CHECK(tree.erase(removed[i]));
+        if (i % 97 != 0 && i + 1 != removed.size()) {
+            continue;
+        }
+        std::vector<Stick> stored = live;
+        stored.insert(stored.end(), removed.begin() + static_cast<std::ptrdiff_t>(i + 1),
+                      removed.end());
+        CHECK(tree.size() == stored.size());
+
+        // Above every short interval, below the ceiling.
+        const int low = 10 * m + 100;
+        comparisons = 0;
+        const std::size_t count = tree.countProjectionsIntersecting(
+            Stick{low, low + 1, -1});
+        CHECK(count == bruteSticksIntersecting(stored, low, low + 1));
+        if (i + 1 == removed.size()) {
+            CHECK(count == 0);
+            CHECK(comparisons <= logBound);
+        }
+
+        const int a = rng.range(0, 10 * m);
+        const int b = a + rng.range(0, 40);
+        CHECK(tree.countProjectionsIntersecting(Stick{a, b, -1}) ==
+              bruteSticksIntersecting(stored, a, b));
+        CHECK(tree.reportProjectionsIntersecting(Stick{a, b, -1}).size() ==
+              bruteSticksIntersecting(stored, a, b));
+    }
+
+    // With the long intervals gone, every narrow query reports at most a few
+    // shapes and so touches a logarithmic part of the tree.
+    for (int q = 0; q < 50; ++q) {
+        const int a = rng.range(-20, 10 * m + 20);
+        comparisons = 0;
+        std::size_t reported = 0;
+        (void)tree.visitProjectionsIntersecting(Stick{a, a + 3, -1},
+                                                [&](const Stick&) { ++reported; });
+        CHECK(reported == bruteSticksIntersecting(live, a, a + 3));
+        CHECK(comparisons <= logBound * (reported + 1));
+    }
+}
+
+TEST_CASE("IntervalTree removal does not pay for removed equal intervals") {
+    // Many shapes share one projected interval and nearly all are removed;
+    // looking up that interval must then cost only the shapes still sharing it.
+    const int m = 3000;
+    pgl::IntervalTree<Stick, pgl::ProjectionAxis::y> tree;
+    std::vector<Stick> others;
+    for (int i = 0; i < m; ++i) {
+        tree.insert(Stick{0, 10, i});
+    }
+    for (int i = 0; i <= m; ++i) {
+        others.push_back({100 + 3 * i, 101 + 3 * i, m + i});
+        tree.insert(others.back());
+    }
+    for (int i = 0; i + 1 < m; ++i) {
+        CHECK(tree.erase(Stick{0, 10, i}));
+    }
+    CHECK(tree.size() == static_cast<std::size_t>(m + 2));
+
+    const std::size_t logBound = 64 * (floorLog2(static_cast<std::size_t>(2 * m)) + 1);
+    const Stick kept{0, 10, m - 1};
+    const Stick absent{0, 10, -1};
+    for (int round = 0; round < 20; ++round) {
+        comparisons = 0;
+        CHECK_FALSE(tree.erase(absent));
+        CHECK_FALSE(tree.has(absent));
+        CHECK(tree.has(kept));
+        CHECK(comparisons <= 3 * logBound);
+
+        comparisons = 0;
+        CHECK(tree.erase(kept));
+        tree.insert(kept);
+        CHECK(comparisons <= 3 * logBound);
+    }
+    CHECK(tree.countProjectionsIntersecting(Stick{0, 10, -1}) == 1);
+    for (const Stick& other : others) {
+        CHECK(tree.has(other));
+    }
+    CHECK(tree.size() == static_cast<std::size_t>(m + 2));
 }

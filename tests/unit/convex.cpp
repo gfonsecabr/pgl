@@ -2360,3 +2360,84 @@ TEST_CASE("Convex vertex access keeps the vertex labels") {
     REQUIRE(collapsed.getIfPoint());
     CHECK(collapsed.getIfPoint()->label() == "p");
 }
+
+namespace {
+
+// A random convex polygon for the rebuild tests: usually many vertices close to
+// a circle, sometimes a handful of scattered points, so that the hull is often a
+// point, a segment or a sliver as well.
+template <class Point>
+pgl::Convex<Point> randomRebuildConvex(std::mt19937& generator) {
+    using Number = typename Point::NumberType;
+    std::vector<Point> points;
+    if (generator() % 3 == 0) {
+        const int count = 1 + static_cast<int>(generator() % 5);
+        for (int i = 0; i < count; ++i) {
+            points.emplace_back(Number(static_cast<int>(generator() % 9) - 4),
+                                Number(static_cast<int>(generator() % 9) - 4));
+        }
+    } else {
+        const int count = 3 + static_cast<int>(generator() % 60);
+        const int radius = 5 + static_cast<int>(generator() % 200);
+        for (int i = 0; i < count; ++i) {
+            const double angle = 2 * 3.141592653589793 * i / count;
+            points.emplace_back(Number(static_cast<int>(std::lround(radius * std::cos(angle)))),
+                                Number(static_cast<int>(std::lround(radius * std::sin(angle)))));
+        }
+    }
+    return pgl::Convex<Point>(points);
+}
+
+}  // namespace
+
+TEST_CASE_TEMPLATE("Scaling a Convex in place rebuilds the hull the sorting constructor would",
+                   Point, pgl::Point<int>, pgl::Point<double>, pgl::Point<pgl::ERational>) {
+    using Number = typename Point::NumberType;
+    std::mt19937 generator(20260915);
+    for (int trial = 0; trial < 300; ++trial) {
+        const pgl::Convex<Point> convex = randomRebuildConvex<Point>(generator) + Point(Number(3), Number(-2));
+        const int factor = static_cast<int>(generator() % 9) - 4;
+
+        pgl::Convex<Point> product = convex;
+        product *= factor;
+        std::vector<Point> products;
+        for (const Point& vertex : convex) {
+            Point moved = vertex;
+            moved *= factor;
+            products.push_back(moved);
+        }
+        CHECK(product == pgl::Convex<Point>(products));
+
+        if (factor != 0) {
+            pgl::Convex<Point> quotient = convex;
+            quotient /= factor;
+            std::vector<Point> quotients;
+            for (const Point& vertex : convex) {
+                Point moved = vertex;
+                moved /= factor;
+                quotients.push_back(moved);
+            }
+            CHECK(quotient == pgl::Convex<Point>(quotients));
+        }
+    }
+}
+
+TEST_CASE("Dividing an integer Convex collapses and straightens vertices canonically") {
+    using Point = pgl::Point<int>;
+    // Truncation moves (5,2) inside the hull of its neighbours.
+    pgl::Convex<Point> convex(std::vector<Point>{{0, -7}, {3, -7}, {5, 2}, {7, 3}, {1, 5}});
+    convex /= 2;
+    std::vector<Point> truncated{{0, -3}, {1, -3}, {2, 1}, {3, 1}, {0, 2}};
+    CHECK(convex == pgl::Convex<Point>(truncated));
+    CHECK(convex[0] == Point(0, -3));
+
+    pgl::Convex<Point> flattened(std::vector<Point>{{0, 0}, {1, 1}, {0, 1}});
+    flattened /= 2;
+    CHECK(flattened.size() == 1);
+    CHECK(flattened[0] == Point(0, 0));
+
+    pgl::Convex<Point> reflected(std::vector<Point>{{0, 0}, {4, 0}, {4, 2}});
+    reflected *= -1;
+    CHECK(reflected == pgl::Convex<Point>(std::vector<Point>{{0, 0}, {-4, 0}, {-4, -2}}));
+    CHECK(reflected[0] == Point(-4, -2));
+}

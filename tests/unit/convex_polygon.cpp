@@ -3,6 +3,9 @@
 
 #include "pgl.hpp"
 
+#include <cmath>
+#include <vector>
+
 // Convex::separates(Polygon) asks whether removing the convex region from the
 // polygon leaves two or more connected pieces.  Triangle::separates(Polygon)
 // and Rectangle::separates(Polygon) both delegate to the Convex overload.
@@ -379,4 +382,69 @@ TEST_CASE("Polygon::intersection(Convex) forwards to the polygon overload") {
         const pgl::Convex<pgl::Point<int>> away({20, 20, 30, 20, 25, 30});
         CHECK(square.intersection<pgl::ERational>(away).empty());
     }
+}
+
+namespace {
+
+// A comb: a solid base below y = 0 and, above it, horizontal teeth that span
+// the whole width, so every boundary chain of the comb overlaps the convex
+// polygon in x. Enough teeth push interiorContains(Convex) onto the sweep.
+template <class Number>
+pgl::Polygon<pgl::Point<Number>> spanningComb(int teeth, int width) {
+    using CombPoint = pgl::Point<Number>;
+    std::vector<CombPoint> ring{CombPoint(-2 * width, -width), CombPoint(width, -width)};
+    for (int k = 0; k < teeth; ++k) {
+        const int bottom = 4 * k;
+        ring.emplace_back(width, bottom + 2);
+        ring.emplace_back(-width - width / 2, bottom + 2);
+        ring.emplace_back(-width - width / 2, bottom + 4);
+        ring.emplace_back(width, bottom + 4);
+    }
+    ring.emplace_back(-2 * width, 4 * teeth + 2);
+    return pgl::Polygon<CombPoint>(ring);
+}
+
+template <class Number>
+pgl::Convex<pgl::Point<Number>> roundConvex(int vertices, int radius, int cx, int cy) {
+    using RoundPoint = pgl::Point<Number>;
+    std::vector<RoundPoint> points;
+    for (int k = 0; k < vertices; ++k) {
+        const double angle = 2 * 3.141592653589793 * k / vertices;
+        points.emplace_back(cx + static_cast<int>(std::lround(radius * std::cos(angle))),
+                            cy + static_cast<int>(std::lround(radius * std::sin(angle))));
+    }
+    return pgl::Convex<RoundPoint>(points);
+}
+
+template <class Number>
+void checkPolygonInteriorContainsConvexAgainstPolygon() {
+    using RoundPoint = pgl::Point<Number>;
+    using ConvexShape = pgl::Convex<RoundPoint>;
+    const int width = 2000;
+    const auto comb = spanningComb<Number>(150, width);
+    const std::vector<ConvexShape> operands{
+        roundConvex<Number>(400, 900, 0, -width / 2),       // strictly inside the base
+        roundConvex<Number>(400, width / 2, 0, -width / 2),  // tangent to the bottom edge
+        roundConvex<Number>(400, 1100, 0, -width / 2 + 200), // pokes into a gap
+        ConvexShape(std::vector<RoundPoint>{                  // a vertex on a comb vertex
+            RoundPoint(width, -width), RoundPoint(0, -10), RoundPoint(-10, -width + 10)}),
+        ConvexShape(std::vector<RoundPoint>{                  // an edge along the bottom edge
+            RoundPoint(-10, -width), RoundPoint(10, -width), RoundPoint(0, -10)}),
+    };
+    CHECK(preferSweepOverHullChains(comb, operands[0]));
+    int inside = 0;
+    for (const auto& convex : operands) {
+        const bool answer = comb.interiorContains(convex);
+        CHECK(answer == comb.interiorContains(convex.asPolygon()));
+        inside += answer ? 1 : 0;
+    }
+    CHECK(inside == 1);
+    CHECK(comb.interiorContains(operands[0]));
+}
+
+}  // namespace
+
+TEST_CASE("Polygon interiorContains Convex agrees with the polygon operand") {
+    checkPolygonInteriorContainsConvexAgainstPolygon<int>();
+    checkPolygonInteriorContainsConvexAgainstPolygon<pgl::ERational>();
 }

@@ -51,7 +51,6 @@
 #include <cstdint>
 #include <cstddef>
 #include <limits>
-#include <map>
 #include <numeric>
 #include <optional>
 #include <ranges>
@@ -71,27 +70,47 @@ namespace detail {
  * is a vertex of both cells beside it even where the boundary runs straight
  * through. Dropping those keeps the result equal to what one would write by
  * hand, and it never changes the point set.
+ *
+ * One pass keeps the vertices on a stack, popping the top while it is
+ * collinear with the one below it and the vertex arriving, which leaves every
+ * triple but the two across the seam turning; the seam is then settled from
+ * both ends. Each vertex is pushed and removed at most once, so a ring of `r`
+ * vertices costs `O(r)`. A ring bounding no area may come out with fewer than
+ * three vertices.
  */
 template <class ExactPoint>
 void dropCollinearRingVertices(std::vector<ExactPoint>& ring) {
-    bool changed = true;
-    while (changed && ring.size() > 3) {
-        changed = false;
-        for (std::size_t i = 0; i < ring.size() && ring.size() > 3;) {
-            const ExactPoint& previous = ring[(i + ring.size() - 1) % ring.size()];
-            const ExactPoint& next = ring[(i + 1) % ring.size()];
-            if (collinear(previous, ring[i], next)) {
-                ring.erase(ring.begin() + static_cast<std::ptrdiff_t>(i));
-                changed = true;
-            } else {
-                ++i;
-            }
+    if (ring.size() <= 3) {
+        return;
+    }
+    std::vector<ExactPoint> kept;
+    kept.reserve(ring.size());
+    for (ExactPoint& vertex : ring) {
+        while (kept.size() >= 2 && collinear(kept[kept.size() - 2], kept.back(), vertex)) {
+            kept.pop_back();
+        }
+        kept.push_back(std::move(vertex));
+    }
+    // Only the triples wrapping round from the back to the front are unchecked;
+    // removing a vertex there exposes the next triple across the seam and no
+    // other.
+    std::size_t front = 0;
+    while (kept.size() - front >= 3) {
+        const std::size_t back = kept.size() - 1;
+        if (collinear(kept[back - 1], kept[back], kept[front])) {
+            kept.pop_back();
+        } else if (collinear(kept[back], kept[front], kept[front + 1])) {
+            ++front;
+        } else {
+            break;
         }
     }
+    kept.erase(kept.begin(), kept.begin() + static_cast<std::ptrdiff_t>(front));
+    ring = std::move(kept);
 }
 
-// ringOrientation and splitWalkIntoRings, which the extraction below also
-// uses, live beside the arrangement in algorithm/arrangement.hpp: they are
+// ringOrientation, which the extraction below also uses, lives beside the
+// arrangement in algorithm/arrangement.hpp with splitWalkIntoRings: they are
 // what turns any cell complex's boundary walks into rings.
 
 /**
@@ -113,7 +132,14 @@ void dropCollinearRingVertices(std::vector<ExactPoint>& ring) {
  * pinches shut comes apart into two rings for free, with no fan to rebuild by
  * hand and no map keyed on rational points anywhere.
  *
- * Complexity: linear in the arrangement's faces and halfedges.
+ * Complexity: `O(H α(H) + k log k)` for an arrangement of `H` halfedges whose
+ * result has `k` rings, α being the inverse Ackermann function: linear apart
+ * from the union-find over the faces and the sorting of the holes and of the
+ * components. That assumes `ResultPoint` is the exact point type; a truncating
+ * one can make rings agree over long prefixes, which the sorts then compare,
+ * adding up to `O(H log k)`. (The safeguard for a piece with several outer
+ * rings, which an edge-connected piece never has, would add the product of
+ * its hole count and outer vertex count.)
  */
 template <class ResultPoint, class ExactPoint>
 PolygonSet<ResultPoint> regularizedCellsFromKeep(
@@ -132,6 +158,7 @@ PolygonSet<ResultPoint> regularizedCellsFromKeep(
     // have to come back as two regions, since neither a polygon nor a region may
     // have a self-touching outer ring.
     std::vector<std::size_t> parent(arrangement.faceCount());
+    std::vector<std::size_t> pieceSize(arrangement.faceCount(), 1);
     for (std::size_t i = 0; i < parent.size(); ++i) {
         parent[i] = i;
     }
@@ -149,8 +176,15 @@ PolygonSet<ResultPoint> regularizedCellsFromKeep(
             continue;
         }
         if (isKept(arrangement.twin(h))) {
-            parent[findRoot(arrangement.face(h).index())] =
-                findRoot(arrangement.face(arrangement.twin(h)).index());
+            std::size_t a = findRoot(arrangement.face(h).index());
+            std::size_t b = findRoot(arrangement.face(arrangement.twin(h)).index());
+            if (a != b) {
+                if (pieceSize[a] < pieceSize[b]) {
+                    std::swap(a, b);
+                }
+                parent[b] = a;
+                pieceSize[a] += pieceSize[b];
+            }
         } else {
             boundary.push_back(h);
         }
@@ -170,20 +204,48 @@ PolygonSet<ResultPoint> regularizedCellsFromKeep(
         return ahead;
     };
 
-    std::map<std::size_t, std::vector<std::vector<ExactPoint>>> ringsOfPiece;
+    // The rings of each piece, filed under the piece's root face. A walk is cut
+    // into rings at its repeated vertices exactly as @ref splitWalkIntoRings
+    // does, but keyed on the vertex handles, so no point is ever compared.
+    std::vector<std::size_t> pieceOfRoot(arrangement.faceCount(), none);
+    std::vector<std::vector<std::vector<ExactPoint>>> ringsOfPiece;
+    std::vector<std::size_t> position(arrangement.vertexCount(), none);
+    std::vector<std::size_t> pending;
     std::vector<char> walked(arrangement.halfedgeCount(), 0);
     for (const HalfedgeId start : boundary) {
         if (walked[start.index()] != 0) {
             continue;
         }
-        std::vector<ExactPoint> walk;
+        const std::size_t root = findRoot(arrangement.face(start).index());
+        if (pieceOfRoot[root] == none) {
+            pieceOfRoot[root] = ringsOfPiece.size();
+            ringsOfPiece.emplace_back();
+        }
+        std::vector<std::vector<ExactPoint>>& rings = ringsOfPiece[pieceOfRoot[root]];
+        const auto peel = [&](std::size_t from) {
+            std::vector<ExactPoint>& ring = rings.emplace_back();
+            ring.reserve(pending.size() - from);
+            for (std::size_t i = from; i < pending.size(); ++i) {
+                ring.push_back(arrangement[typename Arrangement<ExactPoint>::VertexId(
+                    static_cast<std::uint32_t>(pending[i]))]);
+                position[pending[i]] = none;
+            }
+            pending.resize(from);
+        };
         HalfedgeId h = start;
         do {
             walked[h.index()] = 1;
-            walk.push_back(arrangement[arrangement.source(h)]);
+            const std::size_t vertex = arrangement.source(h).index();
+            if (position[vertex] != none) {
+                peel(position[vertex]);
+            }
+            position[vertex] = pending.size();
+            pending.push_back(vertex);
             h = nextBoundary(h);
         } while (h != start);
-        splitWalkIntoRings(walk, ringsOfPiece[findRoot(arrangement.face(start).index())]);
+        if (!pending.empty()) {
+            peel(0);
+        }
     }
 
     // Converting an already canonical ring into the caller's coordinates keeps
@@ -200,10 +262,10 @@ PolygonSet<ResultPoint> regularizedCellsFromKeep(
         return ResultPolygon(std::move(converted), pgl::Trust(exact));
     };
 
-    for (auto& entry : ringsOfPiece) {
+    for (std::vector<std::vector<ExactPoint>>& piece : ringsOfPiece) {
         std::vector<ExactPolygon> outers;
         std::vector<ExactPolygon> holes;
-        for (std::vector<ExactPoint>& ring : entry.second) {
+        for (std::vector<ExactPoint>& ring : piece) {
             dropCollinearRingVertices(ring);
             const int orientation = ringOrientation(ring);
             if (orientation == 0) {
@@ -224,12 +286,21 @@ PolygonSet<ResultPoint> regularizedCellsFromKeep(
             continue;
         }
 
-        // An edge-connected piece has a single outer ring unless it pinches shut
-        // at a vertex, where the walk above cuts it into one ring per side. Each
-        // hole then goes to the smallest outer ring holding it, decided by a
-        // witness strictly inside the hole (the rings meet at most along their
-        // boundaries, so the closed containment is unambiguous).
+        // An edge-connected piece has a connected interior, so the walk above
+        // leaves it a single counterclockwise ring: at a vertex where it pinches
+        // shut, the loop peeled off encloses background and runs clockwise. The
+        // several-outers case is kept as a safeguard, each hole going to the
+        // smallest outer ring holding it, decided by a witness strictly inside
+        // the hole (the rings meet at most along their boundaries, so the closed
+        // containment is unambiguous).
         std::vector<std::vector<ResultPolygon>> holesOfOuter(outers.size());
+        std::vector<ExactNumber> outerAreas;
+        if (outers.size() > 1) {
+            outerAreas.reserve(outers.size());
+            for (const ExactPolygon& outer : outers) {
+                outerAreas.push_back(outer.twiceArea());
+            }
+        }
         for (const ExactPolygon& hole : holes) {
             std::size_t owner = 0;
             if (outers.size() > 1) {
@@ -237,7 +308,7 @@ PolygonSet<ResultPoint> regularizedCellsFromKeep(
                 std::size_t best = none;
                 for (std::size_t i = 0; i < outers.size(); ++i) {
                     if (outers[i].contains(witness) &&
-                        (best == none || outers[i].twiceArea() < outers[best].twiceArea())) {
+                        (best == none || outerAreas[i] < outerAreas[best])) {
                         best = i;
                     }
                 }
@@ -314,6 +385,9 @@ Arrangement<ExactPoint> framedArrangement(const std::vector<Segment<ExactPoint>>
 /**
  * @brief Builds an arrangement of cuts, classifies its bounded faces by witness,
  *        then extracts the selected cells.
+ *
+ * Complexity: that of the arrangement and of @ref regularizedCellsFromKeep,
+ * plus one call of @p keepWitness per bounded face.
  */
 template <class ResultPoint, class ExactPoint, class KeepWitness>
 PolygonSet<ResultPoint> regularizedCells(
@@ -361,6 +435,10 @@ PolygonSet<ResultPoint> regularizedCells(
  * covers no area — which is exactly how `A ∖ point` and `A △ point` came back
  * empty instead of `A` when the arrangement happened to pick that point as the
  * witness for A's interior.
+ *
+ * Complexity: `O((n + m + k)(n + m))` for operands of `n` and `m` edges, `k`
+ * pairs of which meet: the arrangement has `O(n + m + k)` faces, and each pays
+ * one containment test in each operand.
  */
 template <class ResultPoint, class ShapeA, class ShapeB, class KeepCell>
 PolygonSet<ResultPoint> regularizedBoolean(const ShapeA& a, const ShapeB& b, KeepCell keepCell) {
@@ -385,9 +463,9 @@ PolygonSet<ResultPoint> regularizedBoolean(const ShapeA& a, const ShapeB& b, Kee
  *
  * Crossing a ring toggles membership in the shape that carries it, so a face's
  * membership is its neighbour's with the crossed edge's origins flipped, and one
- * depth-first walk of the face adjacency graph settles every face in `O(E)` bit
- * flips — where a witness scan costs one exact containment query per face and
- * per shape. Parity reads insideness off a ring set only because the rings are
+ * depth-first walk of the face adjacency graph settles every face in `O(N + K)`
+ * bit flips for `N` input edges, `K` pairs of which meet — where a witness scan
+ * costs one exact containment query per face and per shape. Parity reads insideness off a ring set only because the rings are
  * disjoint: a region's outer ring counts once and a hole twice, which is exactly
  * `inside outer and outside every hole`.
  *
@@ -508,19 +586,17 @@ PolygonSet<ResultPoint> regularizedUnionByCoverage(
 // line against its three half-planes. Subtracting those intervals leaves only
 // the exposed pieces. All the rejection and clipping arithmetic stays in
 // int128; rationals are constructed only for actual interval ends on the output
-// boundary. The final, usually small arrangement turns those pieces into the
-// canonical PolygonSet and handles touching/collinear degeneracies centrally.
+// boundary. A final arrangement of those pieces turns them into the canonical
+// PolygonSet and handles touching/collinear degeneracies centrally.
 //
-// The subtraction is what keeps the scan from being quadratic in earnest. An
-// edge carries what is still uncovered of it, as a short sorted list of
-// disjoint intervals, and a triangle that covers nothing left of it costs one
-// clip and nothing else; the moment the list empties the edge is done and the
-// remaining triangles are never looked at. Only an edge with a piece on the
-// output boundary is ever tested against all of them, so the work is
-// n x (output complexity) rather than n² whenever the union covers itself —
-// which is the case a union of many overlapping pieces actually is. Testing the
-// largest triangles first is the same bet: a big one covers a long stretch of
-// whatever it meets, so the list empties in fewer tests.
+// The subtraction is what lets the scan stop early. An edge carries what is
+// still uncovered of it, as a sorted list of disjoint intervals, and a triangle
+// that covers nothing left of it costs one clip and nothing else; the moment
+// the list empties the edge is done and the remaining triangles are never
+// looked at. Testing the largest triangles first is the same bet: a big one
+// covers a long stretch of whatever it meets, so the list empties in fewer
+// tests. An edge with a piece on the output boundary is still tested against
+// every triangle, however small the output.
 template <class ResultPoint, class TriangleType>
 std::optional<PolygonSet<ResultPoint>> regularizedUnionOfIntegralTriangles(
     const std::vector<TriangleType>& triangles) {
@@ -636,8 +712,7 @@ std::optional<PolygonSet<ResultPoint>> regularizedUnionOfIntegralTriangles(
     constexpr Fraction zero{0, 1};
     constexpr Fraction one{1, 1};
     std::vector<ExactSegment> exposed;
-    // What is still uncovered of the edge being scanned: sorted, disjoint, and
-    // usually one interval or none.
+    // What is still uncovered of the edge being scanned: sorted and disjoint.
     std::vector<std::pair<Fraction, Fraction>> uncovered;
 
     for (std::size_t owner = 0; owner < integral.size(); ++owner) {
@@ -769,8 +844,8 @@ std::optional<PolygonSet<ResultPoint>> regularizedUnionByGroups(const std::vecto
  * @brief The regularized union of arbitrarily many shapes, as a set of regions.
  *
  * One arrangement over all their boundaries settles the whole union, where
- * folding @ref regularizedUnion over the range would build one per step and
- * re-triangulate everything accumulated so far. That is what makes it the right
+ * folding @ref regularizedUnion over the range would build one per step over
+ * everything accumulated so far. That is what makes it the right
  * back end for a construction whose natural form is a union of many pieces —
  * the Minkowski sum of two non-convex shapes is one. Pieces that overlap heavily
  * are the exception: they are united in compact groups first, see
@@ -1042,9 +1117,9 @@ PolygonSet<ResultPoint> regularizedUnion(const ShapeA& a, const ShapeB& b) {
  * monotone, so `A° ⊆ bbox(A)°`, and operands whose boxes share no area
  * intersect in nothing that survives regularization — including the case where
  * one of them has no area at all, whose box is degenerate. Worth the test
- * because the engine's first step is quadratic in the boundary size *before*
- * anything has been triangulated, so the alternative is to pay for the whole
- * arrangement to discover that no cell is kept.
+ * because the engine's first step builds the arrangement of both boundaries,
+ * which can have a crossing for every pair of edges, so the alternative is to
+ * pay for the whole arrangement to discover that no cell is kept.
  *
  * This is narrower than "the operands are disjoint", and deliberately so: two
  * interleaved combs share no area at all while their boxes coincide, and that

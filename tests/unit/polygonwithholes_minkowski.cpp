@@ -423,6 +423,46 @@ TEST_CASE("minkowskiSum: a convex receiver answers as the convex merge does") {
     }
 }
 
+TEST_CASE("minkowskiSum: convex polygons with collinear vertices sum as their hulls do") {
+    // Both operands convex take the linear merge, whose Convex operands are
+    // rebuilt from the rings without a sort; collinear and many vertices must
+    // still come out as the hull the sorting constructor builds.
+    std::vector<Point> octagon;
+    for (int i = 0; i < 8; ++i) {
+        octagon.push_back(Point(i, 0));
+    }
+    for (int i = 0; i < 8; ++i) {
+        octagon.push_back(Point(8 + i, i));
+    }
+    for (int i = 0; i < 8; ++i) {
+        octagon.push_back(Point(16 - i, 8 + i));
+    }
+    octagon.push_back(Point(0, 16));
+    for (int i = 15; i > 0; --i) {
+        octagon.push_back(Point(0, i));
+    }
+    const PolygonShape collinear(octagon);
+    const PolygonShape square({Point(0, 0), Point(2, 0), Point(4, 0), Point(4, 4), Point(0, 4), Point(0, 2)});
+    const Region holeFree(square);
+    REQUIRE(collinear.isConvex());
+
+    const Convex collinearHull(collinear.vertices());
+    const Convex squareHull(square.vertices());
+    const Convex summand(std::vector<Point>{Point(0, 0), Point(3, 1), Point(1, 3)});
+
+    const auto withConvex = collinear.minkowskiSum<int>(summand);
+    CHECK(withConvex.holeCount() == 0);
+    CHECK(withConvex.outer() == collinearHull.minkowskiSum(summand).asPolygon());
+
+    const auto withPolygon = collinear.minkowskiSum<int>(square);
+    CHECK(withPolygon.holeCount() == 0);
+    CHECK(withPolygon.outer() == collinearHull.minkowskiSum(squareHull).asPolygon());
+
+    const auto withRegion = holeFree.minkowskiSum<int>(collinear);
+    CHECK(withRegion.holeCount() == 0);
+    CHECK(withRegion.outer() == squareHull.minkowskiSum(collinearHull).asPolygon());
+}
+
 TEST_CASE("minkowskiSum: shear invariance carries the answers off the axes") {
     // The sum commutes with every linear map, and an integer shear is a
     // bijection of the lattice, so the sheared answer must be *equal as a set of

@@ -548,7 +548,8 @@ HalfplaneIntersection<PointType, LabelType>::bbox() const {
     // The extreme point in an outward normal direction a = (dy, -dx) sits
     // where the stored boundary directions bracket the query direction
     // (dx, dy) — the same bracketing as supStatus, but producing the extreme
-    // coordinate as an exact fraction. O(log n) per direction.
+    // coordinate as an exact fraction. O(log n) per direction, after the O(n)
+    // isBounded() test above.
     const auto extreme = [&](NumberType dx, NumberType dy, bool wantX) -> Fraction {
         const HalfplaneType query(PointType(NumberType(0), NumberType(0)), PointType(dx, dy));
         const std::size_t n = halfplanes_.size();

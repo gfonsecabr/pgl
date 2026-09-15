@@ -1122,9 +1122,9 @@ constexpr bool Polygon<PointType, LabelType>::boundariesIntersect(const OtherPol
     if (const auto vertex = other.getIfPoint()) {
         return boundaryContains(*vertex);
     }
-    // One combined sweep over both edge sets, in O((n + m) log(n + m)) whatever
-    // the boundaries look like, when the chain-pair test below would cost more
-    // (see preferSweep).
+    // One combined sweep over both edge sets, in O((n + m) log(n + m)), when
+    // preferSweep judges the chain-pair test below costlier. That test costs
+    // O(c_b·n + c_a·m) for c_a and c_b chains, so O(n·m) in the worst case.
     if (preferSweep(*this, other)) {
         return boundariesMeet(edgesView(), other.edgesView());
     }
@@ -1217,14 +1217,14 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherPoly
     // once: it puts points of each polygon on both sides of the other's
     // boundary right there, so the interiors overlap regardless of anything
     // else. Only a mere touch (boundaries meet, no crossing found) reaches the
-    // quadratic scan below.
+    // O(n * m) scan below.
     //
     // Both bits come either from one combined sweep over the two edge sets, in
-    // O((n + m) log(n + m)) whatever the boundaries look like, or from testing
-    // their lexicographically monotone chains against each other pairwise (see
-    // BoundaryChains), whose product-of-chain-counts cost wins on near-convex
-    // or small input and degrades to O(n * m) on a jagged, comb-like or
-    // star-shaped boundary. preferSweep picks.
+    // O((n + m) log(n + m)), or from testing their lexicographically monotone
+    // chains against each other pairwise (see BoundaryChains), which costs
+    // O(c_b·n + c_a·m) for c_a chains of `this` and c_b of `other`: O(n + m)
+    // on near-convex input and O(n * m) on a jagged, comb-like or star-shaped
+    // boundary. preferSweep picks. Either way the whole test is O(n * m).
 
     bool boundaries_intersect = false;
 
@@ -1705,18 +1705,36 @@ constexpr bool MonotoneChain<PointType, LabelType, Storage>::interiorsIntersect(
         }
     }
     // The open edges miss the chains' own vertices, but the non-extreme ones
-    // are interior, whichever chain they belong to.
-    for (std::size_t v = 1; v + 1 < size(); ++v) {
-        if (other.interiorContains((*this)[v])) {
-            return true;
+    // are interior, whichever chain they belong to. Both vertex sequences are
+    // lexicographically sorted and a point on an edge lies lexicographically
+    // between its endpoints, so one merge per direction finds, for every
+    // non-extreme vertex, the only edge of the other chain that could carry it.
+    const auto interiorVertexInInteriorOf = [](const auto& chain, const auto& on) {
+        const std::size_t last = on.size() - 1;
+        std::size_t j = 0;  // candidate edge (j, j + 1) of `on`
+        for (std::size_t v = 1; v + 1 < chain.size(); ++v) {
+            const auto vertex = chain[v];
+            if (vertex < on[0]) {
+                continue;
+            }
+            while (j < last && on[j + 1] < vertex) {
+                ++j;
+            }
+            if (j == last) {
+                return false;  // every later vertex is past the other chain
+            }
+            if (vertex == on[j + 1]) {
+                if (j + 1 < last) {
+                    return true;  // a shared vertex, non-extreme on both
+                }
+            } else if (vertex != on[j] &&
+                       orientationSign(on[j], on[j + 1], vertex) == 0) {
+                return true;  // strictly inside an edge of `on`
+            }
         }
-    }
-    for (std::size_t v = 1; v + 1 < other.size(); ++v) {
-        if (interiorContains(other[v])) {
-            return true;
-        }
-    }
-    return false;
+        return false;
+    };
+    return interiorVertexInInteriorOf(*this, other) || interiorVertexInInteriorOf(other, *this);
 }
 
 template <class PointType, class LabelType>

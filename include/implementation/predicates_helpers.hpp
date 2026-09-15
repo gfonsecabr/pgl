@@ -2,6 +2,13 @@
 
 #include "implementation/duality.hpp"
 
+#include <algorithm>
+#include <cstddef>
+#include <ranges>
+#include <set>
+#include <utility>
+#include <vector>
+
 /**
  * @file predicates_helpers.hpp
  * @brief Small dispatch traits and geometry helpers reused by the implementations.
@@ -11,6 +18,222 @@
 namespace pgl {
 
 namespace detail {
+
+/**
+ * @brief Tests the vertices of a convex polygon that decide its containment in a triangle.
+ *
+ * A triangle contains (or interior-contains) a convex polygon iff it does so
+ * for every vertex. For a non-degenerate, counterclockwise triangle every vertex
+ * is on the inner side of an edge iff the vertex deepest on its outer side is,
+ * and that vertex maximizes a linear functional over the polygon, so the
+ * cyclic extreme-vertex search finds it. Only those three vertices go through
+ * @p vertexTest, which keeps the answer identical to testing all of them. A
+ * polygon of at most three vertices, or a degenerate triangle, has at most
+ * three vertices tested directly: a valid polygon with three or more vertices is
+ * not collinear, so it never fits in the segment a degenerate triangle is.
+ *
+ * Complexity: O(log n) for a polygon of n vertices, plus the cost of three
+ * @p vertexTest calls.
+ */
+template <class TriangleType, class ConvexType, class VertexTest>
+constexpr bool triangleContainsConvexVertices(
+    const TriangleType& triangle, const ConvexType& polygon, VertexTest vertexTest) {
+    const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(polygon.size());
+    if (n <= 3 || triangle.isDegenerate()) {
+        for (std::ptrdiff_t k = 0; k < std::min<std::ptrdiff_t>(n, 3); ++k) {
+            if (!vertexTest(polygon[k])) {
+                return false;
+            }
+        }
+        return true;
+    }
+    const auto indices = std::views::iota(std::ptrdiff_t{0}, n);
+    const auto testDeepestOutside = [&](const auto& from, const auto& to) {
+        // Deepest on the right of from->to = maximum of the negated determinant.
+        const std::ptrdiff_t deepest = *cyclicMax(indices.begin(), indices.end(),
+            [&](std::ptrdiff_t k) { return -orientationDeterminant(from, to, polygon[k]); });
+        return vertexTest(polygon[deepest]);
+    };
+    return testDeepestOutside(triangle.a(), triangle.b()) &&
+           testDeepestOutside(triangle.b(), triangle.c()) &&
+           testDeepestOutside(triangle.c(), triangle.a());
+}
+
+/**
+ * @brief Visits every pair of closed boxes that intersect, stopping when the
+ *        visitor asks to.
+ *
+ * Boxes are swept left to right; the boxes the sweep line crosses are kept by
+ * the ranks of their y-ranges, both in a segment tree (for the ones reaching
+ * down past a new box's bottom) and in an ordered set by bottom (for the ones
+ * starting inside its y-range), so every intersecting pair is reported once,
+ * when the second of the two boxes enters. Empty boxes meet nothing and are
+ * skipped. A handful of boxes goes through the plain pair scan instead.
+ *
+ * Complexity: O(k log k + B) for k boxes, B of whose pairs intersect, plus the
+ * visitor's calls.
+ *
+ * @param count Number of boxes k.
+ * @param boxOf Maps an index in `[0, count)` to its box (a Rectangle).
+ * @param visit Called as `visit(i, j)` with `i < j` for each intersecting
+ *        pair; returning `true` stops the scan.
+ * @return `true` if some call to @p visit returned `true`.
+ */
+template <class BoxOf, class Visit>
+bool anyIntersectingBoxPair(std::size_t count, BoxOf boxOf, Visit visit) {
+    constexpr std::size_t plainScanLimit = 32;
+    if (count < plainScanLimit) {
+        for (std::size_t i = 0; i < count; ++i) {
+            for (std::size_t j = i + 1; j < count; ++j) {
+                if (boxOf(i).intersects(boxOf(j)) && visit(i, j)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    std::vector<std::size_t> live;
+    live.reserve(count);
+    for (std::size_t i = 0; i < count; ++i) {
+        if (!boxOf(i).empty()) {
+            live.push_back(i);
+        }
+    }
+    const std::size_t k = live.size();
+    if (k < 2) {
+        return false;
+    }
+    using Number = std::remove_cvref_t<decltype(boxOf(0).min().y())>;
+
+    // Ranks of the y-coordinates, so the tree can be built over positions.
+    std::vector<Number> ys;
+    ys.reserve(2 * k);
+    for (const std::size_t i : live) {
+        ys.push_back(boxOf(i).min().y());
+        ys.push_back(boxOf(i).max().y());
+    }
+    std::sort(ys.begin(), ys.end());
+    ys.erase(std::unique(ys.begin(), ys.end()), ys.end());
+    const auto rankOf = [&ys](const Number& y) {
+        return static_cast<std::size_t>(std::lower_bound(ys.begin(), ys.end(), y) - ys.begin());
+    };
+    std::vector<std::size_t> low(k);
+    std::vector<std::size_t> high(k);
+    for (std::size_t s = 0; s < k; ++s) {
+        low[s] = rankOf(boxOf(live[s]).min().y());
+        high[s] = rankOf(boxOf(live[s]).max().y());
+    }
+    const std::size_t leaves = ys.size();
+
+    // Segment tree over the ranks: each box sits in the O(log k) nodes that
+    // cover its y-range canonically, so a root-to-leaf path meets it at most
+    // once. Each node entry remembers its slot in the box's cover list and
+    // vice versa, which makes removal a swap with the node's last entry.
+    struct Entry {
+        std::size_t box;
+        std::size_t coverSlot;
+    };
+    struct Placement {
+        std::size_t node;
+        std::size_t position;
+    };
+    std::vector<std::vector<Entry>> nodes(4 * leaves);
+    std::vector<std::vector<Placement>> cover(k);
+    const auto insertBox = [&](std::size_t box) {
+        const auto place = [&](const auto& self, std::size_t node, std::size_t from,
+                               std::size_t to) -> void {
+            if (high[box] < from || to < low[box]) {
+                return;
+            }
+            if (low[box] <= from && to <= high[box]) {
+                cover[box].push_back(Placement{node, nodes[node].size()});
+                nodes[node].push_back(Entry{box, cover[box].size() - 1});
+                return;
+            }
+            const std::size_t middle = from + (to - from) / 2;
+            self(self, 2 * node + 1, from, middle);
+            self(self, 2 * node + 2, middle + 1, to);
+        };
+        place(place, 0, 0, leaves - 1);
+    };
+    const auto removeBox = [&](std::size_t box) {
+        for (const Placement& placement : cover[box]) {
+            auto& list = nodes[placement.node];
+            list[placement.position] = list.back();
+            cover[list[placement.position].box][list[placement.position].coverSlot].position =
+                placement.position;
+            list.pop_back();
+        }
+        cover[box].clear();
+    };
+    std::set<std::pair<std::size_t, std::size_t>> byLow;
+
+    // Enter events before leave events at one x: closed boxes that only touch
+    // along a vertical line still intersect.
+    std::vector<std::pair<std::size_t, bool>> events;  // (box, leaves)
+    events.reserve(2 * k);
+    for (std::size_t s = 0; s < k; ++s) {
+        events.emplace_back(s, false);
+        events.emplace_back(s, true);
+    }
+    std::vector<Number> xs;
+    xs.reserve(2 * k);
+    for (std::size_t s = 0; s < k; ++s) {
+        xs.push_back(boxOf(live[s]).min().x());
+        xs.push_back(boxOf(live[s]).max().x());
+    }
+    std::sort(events.begin(), events.end(), [&xs](const auto& first, const auto& second) {
+        const Number& x1 = xs[2 * first.first + (first.second ? 1 : 0)];
+        const Number& x2 = xs[2 * second.first + (second.second ? 1 : 0)];
+        if (x1 < x2) return true;
+        if (x2 < x1) return false;
+        return first.second < second.second;
+    });
+
+    const auto report = [&](std::size_t one, std::size_t two) {
+        const std::size_t i = live[one];
+        const std::size_t j = live[two];
+        return i < j ? visit(i, j) : visit(j, i);
+    };
+    for (const auto& [box, leaving] : events) {
+        if (leaving) {
+            removeBox(box);
+            byLow.erase({low[box], box});
+            continue;
+        }
+        // Boxes starting inside this y-range...
+        for (auto it = byLow.lower_bound({low[box], 0}); it != byLow.end() && it->first <= high[box]; ++it) {
+            if (report(it->second, box)) {
+                return true;
+            }
+        }
+        // ...and boxes starting below it that reach its bottom.
+        std::size_t node = 0;
+        std::size_t from = 0;
+        std::size_t to = leaves - 1;
+        while (true) {
+            for (const Entry& entry : nodes[node]) {
+                if (low[entry.box] < low[box] && report(entry.box, box)) {
+                    return true;
+                }
+            }
+            if (from == to) {
+                break;
+            }
+            const std::size_t middle = from + (to - from) / 2;
+            if (low[box] <= middle) {
+                node = 2 * node + 1;
+                to = middle;
+            } else {
+                node = 2 * node + 2;
+                from = middle + 1;
+            }
+        }
+        insertBox(box);
+        byLow.insert({low[box], box});
+    }
+    return false;
+}
 
 /**
  * @brief Exact coordinate type for a mixed pair, mirroring separates1DSet.
@@ -275,14 +498,14 @@ using region_exact_number_t =
 /**
  * @brief Tests whether the region is contained in the half-plane.
  *
- * Uses the redundancy test of `insert` on a copy: the half-plane is discarded
- * exactly when the region is already inside it. The empty region is inside
- * every half-plane. Complexity: O(n) for the copy, O(log n) comparisons.
+ * The redundancy test of `insert`, asked without inserting: the half-plane is
+ * discarded exactly when the region is already inside it. The empty region is
+ * inside every half-plane. Complexity: O(log n) for a region of `n` stored
+ * half-planes.
  */
 template <class Region, HalfplaneConcept OtherHalfplane>
 constexpr bool regionInsideHalfplane(const Region& region, const OtherHalfplane& halfplane) {
-    std::remove_cvref_t<Region> copy(region);
-    return !copy.insert(halfplane);
+    return !region.insertChanges(halfplane);
 }
 
 /**

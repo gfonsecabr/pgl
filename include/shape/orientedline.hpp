@@ -543,7 +543,8 @@ struct OrientedLine {
      * pgl::detail::integralLinePartBits) and in @ref pgl::BigInt beyond that.
      * Both paths run the same code and return the same line.
      *
-     * Complexity: O(1) exact-integer operations, one extended gcd among them.
+     * Complexity: O(1) exact-integer operations, a gcd and an extended gcd
+     * among them.
      *
      * @tparam ResultNumber Integer coordinate type of the result (default: the
      *         integer type the coordinates' Rational is built on).

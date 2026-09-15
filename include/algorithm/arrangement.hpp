@@ -230,12 +230,16 @@ public:
      * are merged into a single edge, which then remembers every input shape it
      * came from (@ref originsOf).
      *
-     * Complexity: `O(E log E)` in the size of the arrangement — interning the
-     * vertices, sorting each rotational fan, tracing the cycles, and nesting
-     * each boundary cycle in the face holding it — and the splitting step is
-     * `O((n + k) log n)` in the distinct input segments and the pairs of them
-     * that meet, so the whole construction follows the size of what it
-     * produces. The split finds its pairs as @ref pgl::findIntersections
+     * Complexity: `O(E log E)` for the `E` edges of the arrangement — interning
+     * the vertices, sorting each rotational fan, tracing the cycles, and nesting
+     * each boundary cycle in the face holding it — on top of the splitting
+     * step, `O(N log N + (n + k) log n + n m + P log P)` for `N` input segments
+     * (every edge of every input shape), `n` distinct ones, `k` pairs of
+     * distinct segments that meet, `m` isolated points and `P` pieces, a piece
+     * being an edge of the result paired with one input segment covering it.
+     * For floating-point coordinates `k` counts the pairs of distinct segments
+     * whose bounding boxes overlap instead. The split finds its pairs as
+     * @ref pgl::findIntersections
      * does: a sample of the input decides between a bounding-box scan, which
      * is several times cheaper per pair than a sweep line and is what sparse
      * input actually pays, and Bentley--Ottmann, and a scan that exceeds a
@@ -250,15 +254,14 @@ public:
      * at most `2E`, a question being one boundary cycle and the cycles being
      * halfedge-disjoint, so `O((E + Q) log E)` is `O(E log E)` either way.
      *
-     * Rays and lines add `O(k (k + n + m))` to all of that, for `k` distinct
-     * supporting lines among them, `n` distinct segments and `m` isolated
-     * points: they are tested against everything else one by one rather than
-     * swept, so a handful of them costs next to nothing, and only the nesting
-     * questions — one per boundary cycle — pay `O(k)` more apiece.
+     * Rays and lines are tested against everything else one by one rather than
+     * swept, so a handful of them costs next to nothing; no bound is given for
+     * input containing them.
      *
-     * Passing @p disjointInteriors drops the splitting step altogether, leaving
-     * `O(E log E)`, and that is the whole of what @ref pgl::voronoiDiagram
-     * saves: the dual of a Delaunay edge has that edge's two sites as its
+     * Passing @p disjointInteriors drops the search for meeting pairs, leaving
+     * `O(N log N + n m + P log P)` besides the `O(E log E)`, which is
+     * `O(E log E)` for the dual edges @ref pgl::voronoiDiagram passes, and that
+     * is the whole of what it saves: the dual of a Delaunay edge has that edge's two sites as its
      * nearest pair throughout its relative interior, so two dual edges can only
      * touch at a shared endpoint, and every crossing the splitter looks for is
      * one it will not find.
@@ -1689,10 +1692,9 @@ private:
     // The overlay for input containing a ray or a line. The segments still go
     // through @ref split, so they cost what they cost without the unbounded
     // curves; only the rays and lines are overlaid as intervals on exact
-    // carriers, and only they are tested against everything else. With `k`
-    // carriers, `n` distinct segments and `m` isolated points, that is
-    // `O(k (k + n + m))` on top of the bounded construction, which is what
-    // keeps a handful of rays and lines from making the whole overlay quadratic.
+    // carriers, and only they are tested against everything else, plus sorting
+    // the cuts they find, which is what keeps a handful of rays and lines from
+    // making the whole overlay quadratic.
     //
     // Collinear curves are grouped by hashing their supporting line rather than
     // by testing each new curve against the carriers already built: Line's hash
@@ -2478,9 +2480,8 @@ private:
     // Converts every interned vertex once, for those predicates to read back.
     //
     // They run inside comparators — the rotational sort around a vertex, the
-    // status order of the sweep — so a vertex takes part in a logarithmic number
-    // of them and converting per predicate re-derives the same few doubles over
-    // and over. Must run after @ref simplifyStoredCoordinates: an unreduced
+    // status order of the sweep — so a vertex takes part in many of them and
+    // converting per predicate re-derives the same few doubles over and over. Must run after @ref simplifyStoredCoordinates: an unreduced
     // fraction can overflow double in both parts, leaving a quotient the filter
     // can only abstain on. Stays empty, and unindexed, where
     // @ref detail::filtersSign says exact arithmetic is cheap enough already.

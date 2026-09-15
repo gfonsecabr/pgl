@@ -362,9 +362,10 @@ struct Triangulation {
         }
         // Store the vertices in Hilbert-curve order: spatially close points then
         // sit close together both in vertices_ and — because triangles are
-        // created in insertion order — in triangles_. That keeps the incremental
-        // build's point-location walks short (each is seeded from the previous
-        // insertion) and improves cache locality for later query walks too.
+        // created in insertion order — in triangles_. Each of the incremental
+        // build's point-location walks is seeded from the previous insertion, so
+        // that order tends to start it near its target, and it improves cache
+        // locality for later query walks too.
         // Vertex order is purely internal, so this is transparent downstream.
         hilbertSort(vertices_);
         syncVertexApproximations();
@@ -646,7 +647,8 @@ struct Triangulation {
      * and a convex-hull edge becomes an outward ray. Cocircular triangles may
      * have the same circumcenter; their zero-length dual edge is omitted.
      *
-     * Complexity: `O(n log n)` for a Delaunay triangulation, whose dual edges
+     * Complexity: `O(n log n)` for a Delaunay triangulation of `n` vertices,
+     * whose dual edges
      * meet only at shared endpoints and so need no splitting against each other,
      * and whose faces the dual itself names — the primal edge (`u`, `v`)
      * dualizes to the edge between their two cells, so one predicate per edge
@@ -656,8 +658,9 @@ struct Triangulation {
      * dual, and the connectivity is tested rather than assumed, because the two
      * differ in kind: a non-locally-Delaunay edge dualizes to an edge that
      * crosses others, so that dual is overlaid the ordinary way, with its
-     * crossings cut, at `O((n + c) log n)` for `c` of them. Its faces then
-     * outnumber the vertices and none of them is a Voronoi cell, so the labels
+     * crossings cut, at expected `O((n + c) log n + h n)` for `c` of them and
+     * `h` convex-hull edges. Its faces then outnumber the vertices and none of
+     * them is a Voronoi cell, so the labels
      * keep only what still holds: a labeled face carries a vertex that falls
      * inside it, faces no vertex falls in stay default-constructed, and where
      * several vertices share a face — which the Delaunay dual rules out and
@@ -976,10 +979,9 @@ struct Triangulation {
      * one triangle per level and arrives at the mesh triangle holding it.
      *
      * Until it is called, @ref locate and @ref locateId walk the mesh from the
-     * last query's answer, which is fast for queries that follow one another and
-     * linear for queries that do not. Afterwards a query whose coordinates
-     * convert losslessly to this triangulation's @ref PointType descends the
-     * hierarchy instead. What a query may return does not change: a point
+     * last query's answer, `O(V)` per query in the worst case. Afterwards a
+     * query whose coordinates convert losslessly to this triangulation's
+     * @ref PointType descends the hierarchy instead. What a query may return does not change: a point
      * strictly inside a triangle gets that triangle indexed or not, and one on
      * an edge or a vertex gets an incident triangle, which of them being as
      * unspecified as it is for the bare walk.
@@ -996,8 +998,13 @@ struct Triangulation {
      * @ref clearPointLocation to give it up and go back to walking from the
      * previous query's answer.
      *
-     * @complexity Expected `O(V)` time and space, both a small multiple of what
-     *             the mesh itself takes; `O(log V)` per query.
+     * @complexity `O(V)` time and space, both a small multiple of what the mesh
+     *             itself takes. A query costs `O(log V)` when its coordinates
+     *             are this triangulation's own, the coordinate type is exact
+     *             (integral or arbitrary precision), the mesh has not been
+     *             edited since, and the query lies strictly inside the convex
+     *             hull of the vertices or outside the enclosing box; any other
+     *             query may end in the walk, `O(V)` in the worst case.
      */
     void buildPointLocation();
 
@@ -1437,14 +1444,14 @@ struct Triangulation {
      * triangle comes back isolated rather than absent.
      *
      * Computed by triangular expansion: one cone-clipped traversal of the mesh
-     * per vertex, whose cost is proportional to the part of the domain that
-     * vertex actually sees, followed by a walk along each collinear chain. Every
-     * test is an orientation predicate on stored vertices, so an exact
-     * coordinate type stays exact and nothing is ever constructed.
+     * per vertex, followed by a walk along each collinear chain. Every test is
+     * an orientation predicate on stored vertices, so an exact coordinate type
+     * stays exact and nothing is ever constructed.
      *
-     * Complexity: `O(V·T + E)` for `V` vertices, `E` visibility edges and `T`
-     * triangles seen per vertex; `T` is `O(1)` in a corridor-like domain and
-     * `O(V)` at worst.
+     * Complexity: `O(V^3)` for `V` vertices. One vertex's traversal costs
+     * `O(V^2)`, since cones reaching a triangle along different paths are not
+     * merged, and `O(V)` when the dual graph of the domain's triangles is a
+     * tree, as in a simple polygon without interior vertices.
      *
      * @return An undirected graph over this triangulation's vertices.
      */
@@ -1466,7 +1473,7 @@ struct Triangulation {
      * Computed by the same triangular expansion as @ref visibilityGraph, with
      * the cone kept open, and without the collinear closure.
      *
-     * Complexity: `O(V·T + E)`, as for @ref visibilityGraph.
+     * Complexity: `O(V^3)`, as for @ref visibilityGraph.
      *
      * @return An undirected graph over this triangulation's vertices.
      */
@@ -1528,8 +1535,9 @@ struct Triangulation {
      * }
      * ```
      *
-     * Costs one cone-clipped traversal of the mesh, proportional to the part of
-     * the domain @p query actually sees — never the whole visibility graph.
+     * Costs a point location, one cone-clipped traversal of the mesh, a walk
+     * along each collinear chain and a sort of the result: `O(V^2)` for `V`
+     * vertices, never the whole visibility graph.
      *
      * @param query Point to look from; outside the domain nothing is visible.
      * @return The visible vertices, counterclockwise around @p query starting
@@ -1716,7 +1724,7 @@ struct Triangulation {
      * source. Consequently the result can omit a full-visibility edge whose
      * target lies outside the source's fully visible dual component. This is
      * deliberate: the resulting subgraph still gives a valid clique cover,
-     * while usually testing far fewer than all pairs. Candidate sides adjacent
+     * while it can test far fewer than all pairs. Candidate sides adjacent
      * to known-visible triangles provide an inexpensive visibility certificate,
      * domain-boundary sides provide an inexpensive rejection, and previously
      * discovered symmetric edges are reused without another containment test.
@@ -2513,6 +2521,9 @@ struct Triangulation {
         // moves toward whichever endpoint of the current hull edge is closer to the
         // supporting line a->b (smaller |orientation determinant|), so the descent
         // walks O(arc) ghosts toward a crossing rather than scanning all of them.
+        // A line missing the hull has no crossing to reach: the descent then
+        // bounces at the hull vertex nearest the line until the guard stops it,
+        // O(triangles) steps.
         //
         // That descent lands on *a* crossing, which need not be the entry: it may be
         // where the query leaves the hull, and a crossing where the line merely
@@ -2965,15 +2976,18 @@ struct Triangulation {
      * `{ t : t.intersects(shape) }` over the in-domain triangles, in an
      * unspecified order.
      *
-     * The work is local. A seed triangle meeting @p shape is found by
-     * navigation — tracing @p shape's boundary edges with the segment walk (for
-     * a bounded shape), or scanning the convex-hull boundary for an edge it
-     * crosses (for an unbounded one) — and the reported set is then grown by a
+     * A seed triangle meeting @p shape is found by navigation — tracing
+     * @p shape's boundary edges with the segment walk (for a bounded shape), or
+     * scanning the convex-hull boundary for an edge it crosses (for an unbounded
+     * one) — and the reported set is then grown by a
      * flood fill through edge/vertex adjacency that never strays past the
-     * triangles meeting @p shape and their immediate neighbours. The cost is
-     * therefore proportional to the number of triangles met, not to the size of
-     * the triangulation; the lone exception is the unbounded-shape seed search,
-     * which scans the hull and is O(hull).
+     * triangles meeting @p shape and their immediate neighbours. The fill makes
+     * `O(k d)` triangle tests against @p shape, for `k` triangles met and `d`
+     * the largest degree of their vertices. The seed search adds, in the worst
+     * case, `O(V)` per edge of @p shape tried (a point location and a segment
+     * walk), `O(hull)` for an unbounded shape or a disk reaching in from outside
+     * the hull, and `O(V)` when the boundary of @p shape misses a domain with
+     * holes.
      *
      * @p f follows the visitor convention: returning `true` stops the walk
      * early, a `void` return visits every such triangle. Returns whether it
@@ -3011,8 +3025,10 @@ struct Triangulation {
      * fill, the per-edge walks re-enter it — and a chain with a single vertex is
      * the point query.
      *
-     * The cost is that of the individual segment walks: proportional to the
-     * triangles met, plus one point location per edge.
+     * The cost is that of the individual segment walks: one step per triangle
+     * met, a rotation around each vertex the chain passes through, and `O(V)`
+     * per edge in the worst case to locate its start and, when that lies outside
+     * the hull, to find where the edge enters it.
      *
      * @p f follows the visitor convention: returning `true` stops the walk
      * early, a `void` return visits every such triangle. Returns whether it
@@ -3055,9 +3071,11 @@ struct Triangulation {
      *
      * Uses a stochastic (randomized) visibility walk, which terminates with
      * probability one on any valid triangulation, not just Delaunay ones; a
-     * generous step cap remains only as a defensive bound. After
-     * @ref buildPointLocation a query descends the point-location hierarchy
-     * instead, for the same answer in logarithmic time.
+     * step cap proportional to the triangle count bounds it, so a walk is `O(V)`
+     * in the worst case. After @ref buildPointLocation a query descends the
+     * point-location hierarchy instead, for the same answer in `O(log V)` time
+     * under the conditions stated there; a query outside the triangulated
+     * region still finishes with a walk from where the descent left it.
      *
      * @param p Query point; may use a different point type than the triangulation.
      * @return The containing triangle, or `std::nullopt` if @p p lies outside
@@ -3083,8 +3101,9 @@ struct Triangulation {
      * @ref interiorsIntersect, answer exactly what the shape predicates of the
      * same name would answer for that region as a `Polygon`, boundary and all: a
      * shape running along a polygon edge, or ending on one, is contained. The work
-     * is done on the mesh, though, so the cost is proportional to the triangles
-     * @p shape meets rather than to the size of the domain's boundary.
+     * is done on the mesh, though: point locations and a segment walk per edge of
+     * @p shape, `O(V)` apiece in the worst case, plus one containment test of a
+     * triangle in @p shape per hole of the domain.
      *
      * Every shape type is accepted. An unbounded one — a line, oriented line,
      * ray, or half-plane — is never contained in the bounded domain; the empty
@@ -4465,7 +4484,8 @@ struct Triangulation {
     //
     // Only vertices of the *other* rings can obstruct an edge — a ring is simple,
     // so a vertex of its own inside one of its edges would be a self-crossing —
-    // but scanning all of @p candidates is simpler and costs the same test.
+    // but scanning all of @p candidates is simpler. It tests every ring edge
+    // against every candidate, so it is quadratic in the ring vertices.
     std::vector<VertexIndex> expandRing(const std::vector<VertexIndex>& ring,
                                      const std::vector<VertexIndex>& candidates) const {
         std::vector<VertexIndex> expanded;
@@ -4992,10 +5012,12 @@ struct Triangulation {
     // same walk locateIndex() runs on the finished structure) and inserted by
     // carving out the triangles whose open circumdisk contains it — found by a
     // local flood-fill from the located triangle, not a global scan — then
-    // re-fanning the star-shaped cavity to the new vertex. With the random
-    // insertion order the walk is short (seeded from the previously inserted
-    // triangle), so the build is ~O(n^1.5) here rather than the O(n^2) of testing
-    // every triangle against every point.
+    // re-fanning the star-shaped cavity to the new vertex. Points go in the order
+    // given — Hilbert order from the constructors, not a random one — and each
+    // walk is seeded from the previously inserted triangle. Nothing bounds a walk
+    // but its O(n) step cap, a cavity can hold O(n) triangles, and pairing the
+    // spokes of a cavity with b boundary edges scans a list per edge. Points
+    // along a parabola already take Theta(n^2).
     static std::vector<std::array<VertexIndex, 3>>
     delaunayTriples(const std::vector<PointType>& pts,
                     const std::vector<detail::ApproximatePoint>& approximations,
@@ -6743,7 +6765,11 @@ void Triangulation<TriangleType, SegmentType>::buildPointLocation() {
         }
 
         blocked.assign(vertexCount, 0);
-        replaced.assign(kp->cells.size(), 0);
+        // Indexed by cell, and grown rather than cleared: a cell is only ever
+        // flagged as it leaves the active list for good, so a flag is never read
+        // again and the level pays for the cells it made, not for every cell
+        // the levels under it did.
+        replaced.resize(kp->cells.size(), 0);
         fresh.clear();
         for (const std::uint32_t slot : order) {
             if (blocked[slot]) {

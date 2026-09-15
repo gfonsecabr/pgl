@@ -3,6 +3,8 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 
+#include <cmath>
+#include <random>
 #include <vector>
 
 TEST_CASE("Disk contains and interiorContains Convex") {
@@ -190,4 +192,56 @@ TEST_CASE("Convex contains a collapsed Disk, boundary included") {
     const Convex vertex(std::vector<Point>{{-1, 0}});
     CHECK(vertex.contains(Disk({-1, 0}, {-1, 0}, {-1, 0})));
     CHECK_FALSE(vertex.contains(Disk({5, 0}, {5, 0}, {5, 0})));
+}
+
+TEST_CASE_TEMPLATE("Convex squaredDistance to a Disk is zero exactly when they intersect",
+                   Point, pgl::Point<int>, pgl::Point<double>, pgl::Point<pgl::ERational>) {
+    using Number = typename Point::NumberType;
+    // Past a few dozen edges the distance takes the logarithmic search; it must
+    // still agree with the per-edge intersection test and keep the gap.
+    std::vector<Point> points;
+    const int count = 96;
+    for (int i = 0; i < count; ++i) {
+        const double angle = 2 * 3.141592653589793 * i / count;
+        points.emplace_back(Number(static_cast<int>(std::lround(1000 * std::cos(angle)))),
+                            Number(static_cast<int>(std::lround(1000 * std::sin(angle)))));
+    }
+    const pgl::Convex<Point> convex(points);
+    REQUIRE(convex.size() > 32);
+
+    std::mt19937 generator(1234);
+    int meeting = 0;
+    int apart = 0;
+    for (int trial = 0; trial < 300; ++trial) {
+        const auto coordinate = [&] { return Number(static_cast<int>(generator() % 3001) - 1500); };
+        const pgl::Disk<Point> disk(Point(coordinate(), coordinate()), Point(coordinate(), coordinate()),
+                                    Point(coordinate(), coordinate()));
+        if (disk.isUndefined()) {
+            continue;
+        }
+        const double distance = convex.squaredDistance(disk);
+        if (convex.intersects(disk)) {
+            ++meeting;
+            CHECK(distance == 0);
+        } else {
+            ++apart;
+            const double gap = std::sqrt(static_cast<double>(convex.template squaredDistance<double>(disk.template center<double>()))) -
+                               disk.template radius<double>();
+            CHECK(distance == doctest::Approx(gap * gap));
+            CHECK(distance > 0);
+        }
+    }
+    CHECK(meeting > 0);
+    CHECK(apart > 0);
+
+    // Tangent from outside: the circle of radius 5 centred 1005 away on the axis
+    // touches the vertex (1000, 0).
+    const pgl::Disk<Point> tangent(Point(Number(1000), Number(0)), Point(Number(1010), Number(0)),
+                                   Point(Number(1005), Number(5)));
+    CHECK(convex.squaredDistance(tangent) == 0);
+    const pgl::Disk<Point> clear(Point(Number(1001), Number(0)), Point(Number(1011), Number(0)),
+                                 Point(Number(1006), Number(5)));
+    CHECK(convex.squaredDistance(clear) > 0);
+    const pgl::Disk<Point> dot(Point(Number(3), Number(4)), Point(Number(3), Number(4)), Point(Number(3), Number(4)));
+    CHECK(convex.squaredDistance(dot) == 0);
 }

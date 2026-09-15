@@ -79,8 +79,8 @@ PolygonWithHoles(OuterPolygon&&, HoleRange&&, bool) -> PolygonWithHoles<typename
  * predicate accounts for. What is rejected is a hole overlapping another hole,
  * a hole escaping the outer polygon, and any self-intersecting ring.
  *
- * @ref isValid checks all of this on demand in O((n + k) log(n + k)); the
- * constructor only canonicalizes.
+ * @ref isValid checks all of this on demand in O(n² log n) for n vertices over
+ * all rings; the constructor only canonicalizes.
  *
  * @tparam PointType_ The vertex point type.
  * @tparam TLabel Optional label payload.
@@ -294,8 +294,9 @@ struct PolygonWithHoles {
     /**
      * @brief Erases the hole equal to the given polygon, if the region has one.
      *
-     * The holes are sorted, so this finds it by binary search: O(log k)
-     * comparisons for k holes, plus the element moves the erase itself costs.
+     * The holes are sorted, so this finds it by binary search.
+     *
+     * Complexity: O(k + s log k) for k holes and a @p hole of s vertices.
      *
      * @param hole The hole to erase.
      * @return `true` when a hole was erased, `false` when the region has no
@@ -658,7 +659,8 @@ struct PolygonWithHoles {
      * This is a per-ring check only; it says nothing about how the rings sit
      * relative to one another. Use @ref isValid for the structural contract.
      *
-     * Complexity: O(n log n) over the total vertex count.
+     * Complexity: O(n log n) over the total vertex count n for integer and
+     * rational coordinates, O(n² log n) for floating-point ones.
      */
     template <class Rational = pgl::Rational<pgl::BigInt>>
     [[nodiscard]] bool isSimple() const {
@@ -686,9 +688,7 @@ struct PolygonWithHoles {
      * than enforced by the constructor — mirroring @ref Polygon, which likewise
      * leaves simplicity to the caller.
      *
-     * Complexity: O(n log n) over the total vertex count, plus one containment
-     * test per hole and one interior-overlap test per bounding-box-overlapping
-     * hole pair.
+     * Complexity: O(n² log n) over the total vertex count n.
      */
     template <class Rational = pgl::Rational<pgl::BigInt>>
     [[nodiscard]] bool isValid() const;
@@ -805,9 +805,6 @@ struct PolygonWithHoles {
      * can be occupied by it or a diagonal interrupted by it, so this
      * triangulates and takes a point inside the first triangle of the domain.
      *
-     * Complexity: O(n) when the outer-ring witness succeeds; O(n log n) over
-     * the total vertex count otherwise.
-     *
      * @tparam ResultNumber The number type for the result.
      * @return A point guaranteed to be inside the region.
      * @warning Divides coordinates by 4 (see @ref Triangle::pointInside), so it
@@ -865,9 +862,6 @@ struct PolygonWithHoles {
      * `outer().visibilityGraph()`; otherwise the region is triangulated and each
      * vertex runs a cone-clipped traversal of the mesh — see
      * @ref Triangulation::visibilityGraph.
-     *
-     * Complexity: O(n·t + m) time for n vertices, m visibility edges and t
-     * triangles seen per vertex.
      *
      * @return An undirected graph whose vertices are this region's vertices.
      */
@@ -1264,9 +1258,6 @@ struct PolygonWithHoles {
      * closed point set is too. Each polyline edge is clipped against the region
      * and the pieces are coalesced; they carry the polyline's label, matching
      * `polyline.intersection(region)`, which forwards here.
-     *
-     * Complexity: O(m n log n) for a polyline with m vertices and a region with
-     * n vertices over all rings, plus coalescing the resulting pieces.
      *
      * @tparam ResultNumber Number type of the returned coordinates.
      * @param other The polyline to clip.
@@ -1710,8 +1701,10 @@ struct PolygonWithHoles {
      * regions holds none of it. A receiver with no area erodes to the empty set
      * for the same reason.
      *
-     * A convex receiver is answered by its own constraints in `O(a·b)`;
-     * everything else pays for a complement, a sum and a difference. See
+     * A convex receiver (no hole, a convex outer ring of `a` vertices) is
+     * answered by its own constraints in `O(a + b log b)` for an operand of `b`
+     * vertices; everything else pays for a complement, a sum and a difference.
+     * See
      * `implementation/minkowskierosion.hpp` for both constructions and their
      * cost.
      *
@@ -1763,10 +1756,12 @@ struct PolygonWithHoles {
      *
      * The boundary included: a point on an edge is a point of the shape. The
      * boundary answers for its own points, edge by edge as segments, and a
-     * sweep over the columns of the bounding box answers for the rest, so the
-     * cost is one pass over the edges plus one point per point reported.
+     * sweep over the columns of the bounding box answers for the rest.
      * A hole is not part of the region, and neither are the points inside one;
      * the points *on* a hole's boundary are, as any boundary point is.
+     *
+     * Complexity: O((W + 1)·n log n + k log k) for n vertices over all rings, W
+     * integer columns across the bounding box and k points reported.
      *
      * @tparam ResultNumber Integer coordinate type of the points: the shape's
      *         own coordinate type when that is a signed integer, the integer a
@@ -1863,7 +1858,8 @@ struct PolygonWithHoles {
      * The segment is in the region when the outer polygon contains it and it
      * never enters a hole interior; running along a hole boundary is allowed.
      *
-     * Complexity: O(n·k) for a region of n vertices and k holes.
+     * Complexity: O(n·(c + 1)) for a total vertex count of n, where c is the
+     * number of ring vertices on the segment.
      */
     template <SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool contains(const OtherSegment& other) const;
@@ -1889,7 +1885,8 @@ struct PolygonWithHoles {
      * either endpoint may lie on an outer or hole boundary. A degenerate
      * segment is accepted exactly when its sole point is contained.
      *
-     * Complexity: O(n log n) over the total vertex count.
+     * Complexity: O(n·(c + 1)) for a total vertex count of n, where c is the
+     * number of ring vertices on the segment.
      */
     template <SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool interiorContainsInterior(const OtherSegment& other) const;
@@ -1931,8 +1928,9 @@ struct PolygonWithHoles {
      * holes counts, running along a ring does not, and neither does passing
      * through a point where two rings touch — the region pinches shut there.
      *
-     * Complexity: O(n + c²) for a total vertex count of n, where c is the number
-     * of boundary crossings the segment makes (typically a small constant).
+     * Complexity: O(n·(c + 1) + x²) for a total vertex count of n, where c is the
+     * number of ring vertices on the segment and x the number of ring edges it
+     * crosses.
      */
     template <SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherSegment& other) const;
@@ -2042,8 +2040,9 @@ struct PolygonWithHoles {
      * ring, and passing through a point where two rings touch all fail, and a
      * line swallowed by a hole that touches the outer ring twice fails as well.
      *
-     * Complexity: O(n + c²) for a total vertex count of n, where c is the number
-     * of boundary crossings the line makes.
+     * Complexity: O(n·(c + 1) + x²) for a total vertex count of n, where c is the
+     * number of ring vertices on the operand and x the number of ring edges it
+     * crosses.
      */
     template <LineConcept OtherLine>
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherLine& other) const;
@@ -2098,8 +2097,6 @@ struct PolygonWithHoles {
      * allowed, and so is enclosing a hole from outside — that hole's boundary is
      * part of the region, but its interior is not, so a shape that swallows one
      * is *not* contained.
-     *
-     * Complexity: O(n·m) for a region of n vertices and an operand of m.
      */
     template <RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr bool contains(const OtherRectangle& other) const;
@@ -2175,8 +2172,6 @@ struct PolygonWithHoles {
 
     /**
      * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
-     *
-     * Complexity: O(n·m) for a region of n vertices and an operand of m.
      */
     template <RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr bool intersects(const OtherRectangle& other) const;
@@ -2204,13 +2199,9 @@ struct PolygonWithHoles {
      * where two rings touch. When the operand's boundary misses the open region
      * entirely this triangulates, because the open region may come apart into
      * several pieces and no single witness point speaks for all of them.
-     *
-     * Complexity, for a region of n vertices and an operand of m: O(n·m) when an
-     * edge of the operand settles it, and O(n log n + n·m) for the triangulated
-     * fallback. Against another region with holes there is no edge shortcut —
-     * a region need not have interior beside its own boundary — and both domains
-     * are triangulated and compared triangle by triangle, O(n log n + m log m +
-     * n·m).
+     * Against another region with holes there is no edge shortcut — a region
+     * need not have interior beside its own boundary — and both domains are
+     * triangulated and compared triangle by triangle.
      */
     template <RectangleConcept OtherRectangle>
     [[nodiscard]] bool interiorsIntersect(const OtherRectangle& other) const;
@@ -2247,7 +2238,9 @@ struct PolygonWithHoles {
      * The chain is exactly the union of its edges, so it is in the region when
      * every edge is; an empty chain is contained trivially.
      *
-     * Complexity: O(n·m) for a region of n vertices and a chain of m.
+     * Complexity, for a region of n vertices and a chain of m: O(n·m) for
+     * intersects and interiorContains, O(n²·m) for contains and
+     * boundaryContains.
      */
     template <MonotoneChainConcept OtherChain>
     [[nodiscard]] constexpr bool contains(const OtherChain& other) const;
@@ -2344,8 +2337,6 @@ struct PolygonWithHoles {
      * A disk contributes no edges to scan, so once the cheap witness test fails
      * this triangulates: the domain triangles tile closure(A°), and the open
      * disk meets A° exactly when it meets one of their interiors.
-     *
-     * Complexity: O(n log n) for a region of n vertices.
      */
     template <DiskConcept OtherDisk>
     [[nodiscard]] bool interiorsIntersect(const OtherDisk& other) const;
@@ -2559,7 +2550,10 @@ struct PolygonWithHoles {
      * Zero when the shapes intersect; otherwise the smallest squared distance
      * between them, which the region attains on one of its ring edges.
      *
-     * Complexity: O(n) edge queries over the total vertex count.
+     * Complexity, for a total vertex count of n: O(n) against a shape of
+     * constant size, O(n·m) against a convex polygon, a monotone chain or a
+     * polyline of m vertices, and O(n·m + (n + m) log(n + m)) against a polygon
+     * or a region of m vertices.
      *
      * @tparam ResultNumber Coordinate type of the returned distance (default: @ref division_result_t).
      *

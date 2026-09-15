@@ -242,8 +242,10 @@ template <class ResultNumber, class SegmentType>
  * *on* the boundary, which is why the edges answer for those themselves.
  *
  * Only the edges a column actually crosses are examined, kept in an active list
- * as the sweep advances, so a shape costs one pass over its edges plus the
- * crossings it really has.
+ * as the sweep advances.
+ *
+ * Complexity: O((W + 1) n log n + k log k) for n edges, W integer columns
+ * crossed by some edge and k points reported.
  */
 template <class ResultPoint, class EdgeRange>
 [[nodiscard]] std::vector<ResultPoint> regionLatticePoints(const EdgeRange& edges) {

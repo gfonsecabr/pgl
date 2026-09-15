@@ -19,6 +19,11 @@
 
 
 namespace pgl::detail {
+
+// Defined in algorithm/convexhull.hpp.
+template <class Point>
+std::vector<Point> hullOfXBitonicRing(const std::vector<Point>& ring, std::vector<Point> loose);
+
 /**
  * @brief Finds the iterator pointing to the maximum element of a cyclic unimodal range.
  *
@@ -648,8 +653,10 @@ struct Convex {
      *
      * The boundary included: a point on an edge is a point of the shape. The
      * boundary answers for its own points, edge by edge as segments, and a
-     * sweep over the columns of the bounding box answers for the rest, so the
-     * cost is one pass over the edges plus one point per point reported.
+     * sweep over the columns of the bounding box answers for the rest.
+     *
+     * Complexity: O(n log n + W + k log k) for n vertices, W integer columns
+     * across the bounding box and k points reported.
      *
      * @tparam ResultNumber Integer coordinate type of the points: the shape's
      *         own coordinate type when that is a signed integer, the integer a
@@ -1323,7 +1330,7 @@ struct Convex {
     /**
      * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
-     * Complexity: O(log n) for n vertices (four edge checks).
+     * Complexity: O(log n) for n vertices.
      */
     template<RectangleConcept OtherRectangle>
     constexpr bool boundaryContains(const OtherRectangle& other) const;
@@ -1331,7 +1338,7 @@ struct Convex {
     /**
      * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
-     * Complexity: O(log n) for n vertices (three edge checks).
+     * Complexity: O(log n) for n vertices.
      */
     template<TriangleConcept OtherTriangle>
     constexpr bool boundaryContains(const OtherTriangle& other) const;
@@ -1362,7 +1369,8 @@ struct Convex {
     /**
      * @brief Returns two edges of the convex polygon that intersect with the vertical line at x.
      *
-     * If the vertical line at x does not intersect the polygon, then std::nullopt is returned.
+     * If the vertical line at x does not intersect the polygon, or the polygon has fewer than
+     * three vertices, then std::nullopt is returned.
      * If the vertical line at x intersects the polygon, then it returns an edge of the strict
      * upper convex boundary and an edge of the strict lower convex boundary. By strict I mean
      * that the edges returned are not vertical. If the intersection happens at a vertex between
@@ -1757,7 +1765,8 @@ struct Convex {
      * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      *
      * Complexity: O(min(n,m) log(n+m)) for convex polygons with n and m vertices.
-     * Cheap bounding-box check filters out disjoint cases in O(1).
+     * A bounding-box check, O(log n + log m) on first use, filters out disjoint
+     * cases.
      *
      * @tparam OtherPoint The point type of the other convex polygon.
      * @param other The convex polygon to check intersection with.
@@ -1873,7 +1882,8 @@ struct Convex {
      * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(min(n,m) log(m+n)) for polygons with n and m vertices.
-     * A bounding-box test filters disjoint inputs in O(1).
+     * A bounding-box test, O(log n + log m) on first use, filters disjoint
+     * inputs.
      */
     template<ConvexConcept OtherConvex>
     constexpr bool interiorsIntersect(const OtherConvex& other) const;
@@ -2205,7 +2215,7 @@ struct Convex {
     /**
      * @brief Tests whether the two shapes mutually separate each other (each disconnects the other).
      *
-     * Complexity: O(n) for n vertices, dominated by interiorsIntersect.
+     * Complexity: O(log n) for n vertices.
      */
     template<RectangleConcept OtherRectangle>
     constexpr bool crosses(const OtherRectangle& other) const;
@@ -2213,7 +2223,7 @@ struct Convex {
     /**
      * @brief Tests whether the two shapes mutually separate each other (each disconnects the other).
      *
-     * Complexity: O(n) for n vertices, dominated by interiorsIntersect.
+     * Complexity: O(log n) for n vertices.
      */
     template<TriangleConcept OtherTriangle>
     constexpr bool crosses(const OtherTriangle& other) const;
@@ -2221,7 +2231,7 @@ struct Convex {
     /**
      * @brief Tests whether the two shapes mutually separate each other (each disconnects the other).
      *
-     * Complexity: O(n log m + m log n) for this polygon with n vertices and
+     * Complexity: O(min(n,m) log(n+m)) for this polygon with n vertices and
      * the other with m vertices.
      */
     template<ConvexConcept OtherConvex>
@@ -2581,7 +2591,13 @@ struct Convex {
     template <class ResultNumber = division_result_t<NumberType>, OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr auto distanceL1(const OtherOrientedSegment& other) const;
 
-    /** @copydoc distanceL1(const OtherPoint&) const */
+    /**
+     * @brief Returns the Manhattan (L1) distance to the given shape.
+     *
+     * Scans the edges of the smaller polygon against the larger one.
+     *
+     * Complexity: O(n·m) for convex polygons with n and m vertices.
+     */
     template <class ResultNumber = division_result_t<NumberType>, ConvexConcept OtherConvex>
     [[nodiscard]] constexpr auto distanceL1(const OtherConvex& other) const;
 
@@ -2644,7 +2660,13 @@ struct Convex {
     template <class ResultNumber = division_result_t<NumberType>, OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr auto distanceLInf(const OtherOrientedSegment& other) const;
 
-    /** @copydoc distanceLInf(const OtherPoint&) const */
+    /**
+     * @brief Returns the Chebyshev (LInf) distance to the given shape.
+     *
+     * Scans the edges of the smaller polygon against the larger one.
+     *
+     * Complexity: O(n·m) for convex polygons with n and m vertices.
+     */
     template <class ResultNumber = division_result_t<NumberType>, ConvexConcept OtherConvex>
     [[nodiscard]] constexpr auto distanceLInf(const OtherConvex& other) const;
 
@@ -2909,7 +2931,9 @@ struct Convex {
      * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
      * Clips the convex polygon to the closed half-plane.
-     * Complexity: O(log n + k log k) where n is the input size and k is the output size.
+     * Complexity: O(log n + k) for n vertices and k vertices in the result, and
+     * O(log n + k log k) when rounding into @p ResultNumber breaks the result's
+     * x-bitonic vertex order.
      *
      * @tparam ResultNumber The number type for the result.
      * @tparam OtherHalfplane The half-plane type to intersect with.
@@ -2930,7 +2954,9 @@ struct Convex {
     /**
      * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
-     * Complexity: O(log n) for n vertices.
+     * Complexity: O(log n + k) for n vertices and k vertices in the result, and
+     * O(log n + k log k) when rounding into @p ResultNumber breaks the result's
+     * x-bitonic vertex order.
      *
      * @tparam ResultNumber The number type for the result.
      * @tparam OtherPoint The point type of the rectangle.
@@ -2946,7 +2972,9 @@ struct Convex {
     /**
      * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
-     * Complexity: O(log n) for n vertices.
+     * Complexity: O(log n + k) for n vertices and k vertices in the result, and
+     * O(log n + k log k) when rounding into @p ResultNumber breaks the result's
+     * x-bitonic vertex order.
      *
      * @tparam ResultNumber The number type for the result.
      * @tparam OtherPoint The point type of the triangle.
@@ -3105,10 +3133,10 @@ struct Convex {
      * An erosion reads the operand only through its support function, and a
      * support function sees no further than the convex hull -- `A ⊖ B` is
      * `A ⊖ hull(B)` for a convex `A`. So this shape keeps the pair and answers
-     * it with the same convex region it erodes to by any other operand, at a
-     * cost linear in the two sizes: a `Polygon`, a `PolygonWithHoles`, a
-     * `PolygonSet`, a `Polyline` and a `MonotoneChain` are all as cheap here as
-     * their vertex count.
+     * it with the same convex region it erodes to by any other operand.
+     *
+     * Complexity: `O(a + b log b)` for this polygon's `a` vertices and the
+     * operand's `b` vertices (the `log` factor is the operand's hull).
      *
      * @tparam OtherShape Type of the shape to erode by.
      * @param other Shape to erode by.
@@ -3288,7 +3316,7 @@ struct Convex {
     /**
      * @brief Scales the convex polygon by the given scalar.
      *
-     * Complexity: O(n) for n vertices since we need to apply the scaling to each vertex.
+     * Complexity: O(n) for n vertices, the canonical form included.
      *
      * @tparam Scalar The scalar type.
      * @param scalar The scaling factor.
@@ -3301,7 +3329,7 @@ struct Convex {
     /**
      * @brief Divides the convex polygon by the given scalar.
      *
-     * Complexity: O(n) for n vertices since we need to apply the division to each vertex.
+     * Complexity: O(n) for n vertices, the canonical form included.
      *
      * @tparam Scalar The scalar type.
      * @param scalar The divisor.

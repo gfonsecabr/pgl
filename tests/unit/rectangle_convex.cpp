@@ -3,6 +3,9 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 
+#include <algorithm>
+#include <cmath>
+#include <random>
 #include <variant>
 #include <vector>
 
@@ -184,5 +187,54 @@ TEST_CASE("Rectangle unites with Convex into a set of regions") {
         const Convex away(std::vector<Point>{{10, 10}, {13, 10}, {13, 13}, {10, 13}});
         CHECK(rect.regularizedUnion<int>(away).componentCount() == 2);
         CHECK(away.regularizedUnion<int>(rect) == rect.regularizedUnion<int>(away));
+    }
+}
+
+namespace {
+
+template <class Point>
+pgl::Convex<Point> randomRectangleClipConvex(std::mt19937& generator) {
+    using Number = typename Point::NumberType;
+    std::vector<Point> points;
+    const bool scattered = generator() % 3 == 0;
+    const int count = scattered ? 1 + static_cast<int>(generator() % 5) : 3 + static_cast<int>(generator() % 60);
+    const int radius = 4 + static_cast<int>(generator() % 40);
+    for (int i = 0; i < count; ++i) {
+        if (scattered) {
+            points.emplace_back(Number(static_cast<int>(generator() % 9) - 4),
+                                Number(static_cast<int>(generator() % 9) - 4));
+        } else {
+            const double angle = 2 * 3.141592653589793 * i / count;
+            points.emplace_back(Number(static_cast<int>(std::lround(radius * std::cos(angle)))),
+                                Number(static_cast<int>(std::lround(radius * std::sin(angle)))));
+        }
+    }
+    return pgl::Convex<Point>(points);
+}
+
+}  // namespace
+
+TEST_CASE_TEMPLATE("A rectangle clip equals the clip by the rectangle as a Convex",
+                   Point, pgl::Point<int>, pgl::Point<double>, pgl::Point<pgl::ERational>) {
+    using Number = typename Point::NumberType;
+    using ResultPoint = pgl::Point<pgl::ERational>;
+    std::mt19937 generator(2026);
+    for (int trial = 0; trial < 400; ++trial) {
+        const pgl::Convex<Point> convex = randomRectangleClipConvex<Point>(generator);
+        const auto coordinate = [&] { return static_cast<int>(generator() % 81) - 40; };
+        int x0 = coordinate(), y0 = coordinate(), x1 = coordinate(), y1 = coordinate();
+        if (generator() % 5 == 0) {
+            x1 = x0;  // a segment or a point
+        }
+        const pgl::Rectangle<Point> box(Point(Number(std::min(x0, x1)), Number(std::min(y0, y1))),
+                                        Point(Number(std::max(x0, x1)), Number(std::max(y0, y1))));
+        const auto clipped = convex.template intersection<pgl::ERational>(box);
+        // Clipped in exact coordinates, where the reference needs no rounding.
+        const pgl::Rectangle<ResultPoint> exactBox{ResultPoint(box.min()), ResultPoint(box.max())};
+        const auto expected = pgl::Convex<ResultPoint>(convex).template intersection<pgl::ERational>(exactBox.asConvex());
+        CHECK_MESSAGE(clipped == expected, convex, " ", box);
+        if (clipped && std::holds_alternative<pgl::Convex<ResultPoint>>(*clipped)) {
+            CHECK(std::get<pgl::Convex<ResultPoint>>(*clipped).size() >= 3);
+        }
     }
 }

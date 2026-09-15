@@ -1039,3 +1039,123 @@ TEST_CASE("MonotoneChain vertex access keeps the vertex labels") {
     REQUIRE(collapsed.getIfPoint());
     CHECK(collapsed.getIfPoint()->label() == "p");
 }
+
+namespace {
+
+// The per-vertex and per-edge formulations that the merges of
+// MonotoneChain::interiorsIntersect(chain) and separates(chain) replaced,
+// written with the public single-edge and single-point predicates.
+template <class ChainA, class ChainB>
+bool interiorsIntersectByPairs(const ChainA& a, const ChainB& b) {
+    if (a.size() < 2 || b.size() < 2) {
+        return false;
+    }
+    for (std::size_t i = 0; i + 1 < a.size(); ++i) {
+        for (std::size_t j = 0; j + 1 < b.size(); ++j) {
+            const pgl::Segment<typename ChainA::PointType> mine(a[i], a[i + 1]);
+            const pgl::Segment<typename ChainB::PointType> theirs(b[j], b[j + 1]);
+            if (mine.interiorsIntersect(theirs)) {
+                return true;
+            }
+        }
+    }
+    for (std::size_t v = 1; v + 1 < a.size(); ++v) {
+        if (b.interiorContains(a[v])) {
+            return true;
+        }
+    }
+    for (std::size_t v = 1; v + 1 < b.size(); ++v) {
+        if (a.interiorContains(b[v])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class ChainA, class ChainB>
+bool separatesByEdges(const ChainA& remover, const ChainB& other) {
+    if (!remover.bbox().intersects(other.bbox())) {
+        return false;
+    }
+    if (remover.bbox().separates(other.bbox())) {
+        return true;
+    }
+    bool a_check = false;
+    bool b_check = false;
+    bool c_check = !remover.contains(other.get(-1));
+    for (std::size_t i = 1; i < other.size(); ++i) {
+        const pgl::Segment<typename ChainB::PointType> edge(other[i - 1], other[i]);
+        if (remover.separates(edge)) {
+            return true;
+        }
+        if (!a_check) {
+            if (!remover.contains(edge)) {
+                a_check = true;
+                b_check = remover.contains(other[i]);
+            }
+        } else if (!b_check) {
+            b_check = remover.intersects(edge);
+        } else if (!c_check) {
+            c_check = !remover.contains(edge);
+        }
+        if (a_check && b_check && c_check) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class Number>
+void checkChainPairMergesAgainstReference() {
+    using ChainPoint = pgl::Point<Number>;
+    using Chain = pgl::MonotoneChain<ChainPoint>;
+    std::mt19937 rng(20260914);
+    int interiorHits = 0;
+    int separations = 0;
+    for (int trial = 0; trial < 6000; ++trial) {
+        const int span = 2 + static_cast<int>(rng() % 6);
+        const auto makeChain = [&]() {
+            std::vector<ChainPoint> points;
+            const int count = 1 + static_cast<int>(rng() % 9);
+            // A shared vertical line now and then, so vertical runs overlap.
+            const bool vertical = rng() % 6 == 0;
+            for (int k = 0; k < count; ++k) {
+                const int x = vertical ? 1 : static_cast<int>(rng() % span);
+                points.emplace_back(x, static_cast<int>(rng() % span));
+            }
+            return Chain(points);
+        };
+        const Chain a = makeChain();
+        const Chain b = makeChain();
+        const bool interiors = a.interiorsIntersect(b);
+        CHECK_MESSAGE(interiors == interiorsIntersectByPairs(a, b), a, " interiorsIntersect ", b);
+        CHECK_MESSAGE(b.interiorsIntersect(a) == interiors, b, " interiorsIntersect ", a);
+        const bool cuts = a.separates(b);
+        CHECK_MESSAGE(cuts == separatesByEdges(a, b), a, " separates ", b);
+        interiorHits += interiors ? 1 : 0;
+        separations += cuts ? 1 : 0;
+    }
+    CHECK(interiorHits > 100);
+    CHECK(separations > 100);
+}
+
+}  // namespace
+
+TEST_CASE("MonotoneChain pair merges agree with the per-vertex and per-edge tests") {
+    checkChainPairMergesAgainstReference<int>();
+    checkChainPairMergesAgainstReference<pgl::ERational>();
+
+    using Point = pgl::Point<int>;
+    using Chain = pgl::MonotoneChain<Point>;
+    // A shared non-extreme vertex, and extreme vertices touching only.
+    const Chain zig({Point(0, 0), Point(2, 2), Point(4, 0)});
+    const Chain zag({Point(0, 4), Point(2, 2), Point(4, 4)});
+    CHECK(zig.interiorsIntersect(zag));
+    const Chain flat({Point(0, 1), Point(1, 1), Point(3, 1)});
+    const Chain onVertex({Point(1, 1), Point(2, 5)});
+    CHECK_FALSE(flat.interiorsIntersect(onVertex));  // an extreme of onVertex only
+    CHECK(onVertex.separates(flat));
+    const Chain tail({Point(4, 0), Point(6, 3)});
+    CHECK_FALSE(zig.interiorsIntersect(tail));
+    CHECK_FALSE(zig.separates(tail));
+}

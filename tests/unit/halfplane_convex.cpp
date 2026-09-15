@@ -1,7 +1,10 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 
+#include <cmath>
+#include <random>
 #include <variant>
+#include <vector>
 
 #include "pgl.hpp"
 
@@ -172,5 +175,87 @@ TEST_CASE("Convex clipped by a half-plane") {
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Point>(*r));
         CHECK(std::get<Point>(*r) == Point(4, 4));
+    }
+}
+
+namespace {
+
+template <class Point>
+pgl::Convex<Point> randomClipConvex(std::mt19937& generator) {
+    using Number = typename Point::NumberType;
+    std::vector<Point> points;
+    const bool scattered = generator() % 3 == 0;
+    const int count = scattered ? 1 + static_cast<int>(generator() % 5) : 3 + static_cast<int>(generator() % 60);
+    const int radius = 4 + static_cast<int>(generator() % 40);
+    for (int i = 0; i < count; ++i) {
+        if (scattered) {
+            points.emplace_back(Number(static_cast<int>(generator() % 9) - 4),
+                                Number(static_cast<int>(generator() % 9) - 4));
+        } else {
+            const double angle = 2 * 3.141592653589793 * i / count;
+            points.emplace_back(Number(static_cast<int>(std::lround(radius * std::cos(angle)))),
+                                Number(static_cast<int>(std::lround(radius * std::sin(angle)))));
+        }
+    }
+    return pgl::Convex<Point>(points);
+}
+
+// Any shape of the three-way clip result, as the Convex over its points.
+template <class ResultPoint, class Result>
+pgl::Convex<ResultPoint> clipAsConvex(const Result& result) {
+    if (!result) {
+        return {};
+    }
+    if (const auto* point = std::get_if<ResultPoint>(&*result)) {
+        return pgl::Convex<ResultPoint>(std::vector<ResultPoint>{*point});
+    }
+    if (const auto* segment = std::get_if<pgl::Segment<ResultPoint>>(&*result)) {
+        return pgl::Convex<ResultPoint>(std::vector<ResultPoint>{(*segment)[0], (*segment)[1]});
+    }
+    return std::get<pgl::Convex<ResultPoint>>(*result);
+}
+
+template <class Result, class Point>
+void checkHalfplaneClip(const pgl::Convex<Point>& convex, const pgl::Halfplane<Point>& halfplane) {
+    using ResultPoint = pgl::Point<Result>;
+    std::vector<ResultPoint> points;
+    for (const Point& vertex : convex) {
+        if (halfplane.contains(vertex)) {
+            points.push_back(ResultPoint(vertex));
+        }
+    }
+    for (const auto& edge : convex.edges()) {
+        if (edge.isDegenerate()) {
+            continue;
+        }
+        const pgl::Segment<ResultPoint> exactEdge{ResultPoint(edge[0]), ResultPoint(edge[1])};
+        const auto crossing = exactEdge.template intersection<Result>(halfplane.asLine());
+        if (crossing && std::holds_alternative<ResultPoint>(*crossing)) {
+            points.push_back(std::get<ResultPoint>(*crossing));
+        }
+    }
+    const auto clipped = convex.template intersection<Result>(halfplane);
+    CHECK_MESSAGE(clipAsConvex<ResultPoint>(clipped) == pgl::Convex<ResultPoint>(points), convex, " ", halfplane);
+    if (clipped && std::holds_alternative<pgl::Convex<ResultPoint>>(*clipped)) {
+        CHECK(std::get<pgl::Convex<ResultPoint>>(*clipped).size() >= 3);
+    }
+}
+
+}  // namespace
+
+TEST_CASE_TEMPLATE("A half-plane clip is the hull the sorting constructor would build",
+                   Point, pgl::Point<int>, pgl::Point<double>, pgl::Point<pgl::ERational>) {
+    using Number = typename Point::NumberType;
+    std::mt19937 generator(915);
+    for (int trial = 0; trial < 400; ++trial) {
+        const pgl::Convex<Point> convex = randomClipConvex<Point>(generator);
+        const auto coordinate = [&] { return Number(static_cast<int>(generator() % 61) - 30); };
+        const Point source(coordinate(), coordinate());
+        const Point target(coordinate(), coordinate());
+        if (source == target) {
+            continue;
+        }
+        const pgl::Halfplane<Point> halfplane(source, target);
+        checkHalfplaneClip<pgl::ERational>(convex, halfplane);
     }
 }

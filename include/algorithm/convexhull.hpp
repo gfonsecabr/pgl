@@ -236,4 +236,120 @@ auto convexHullExtended (const Container &points_) {
     return grahamScanExtended(points_);
 }
 
+namespace detail {
+
+/**
+ * @brief The hull @ref grahamScan returns, for a cyclic sequence whose
+ *        x-coordinates are cyclically bitonic, plus a few loose points.
+ *
+ * A cyclic sequence is x-bitonic when, cut at a smallest and at a largest
+ * x-coordinate, both arcs between the cuts run weakly monotone in x. The
+ * vertices of a convex polygon in boundary order are, and so is any
+ * subsequence of them, and both stay so under any map that is weakly monotone
+ * in x -- a scaling, a truncating division, or the rounding of a conversion.
+ * The two arcs then merge into x-order in linear time, and of the points
+ * sharing an x-coordinate only the lowest and the highest can be hull
+ * vertices, which leaves the input of the scan sorted and distinct without a
+ * sort.
+ *
+ * The bitonicity is checked, not assumed: a sequence that fails it is hulled by
+ * @ref grahamScan, so the result is that function's either way.
+ *
+ * Complexity: O(n + e log e) for n ring points and e loose points when the
+ * ring is x-bitonic, and that of @ref grahamScan over the n + e points
+ * otherwise.
+ *
+ * @param ring Points in cyclic order.
+ * @param loose Points in no particular order.
+ * @return The hull vertices, lexicographically smallest first and
+ *         counterclockwise, exactly as @ref grahamScan returns them.
+ */
+template <class Point>
+std::vector<Point> hullOfXBitonicRing(const std::vector<Point>& ring, std::vector<Point> loose) {
+    const std::size_t n = ring.size();
+    const auto fallback = [&] {
+        std::vector<Point> all(ring);
+        all.insert(all.end(), loose.begin(), loose.end());
+        return grahamScan(all);
+    };
+
+    std::size_t lowest = 0, highest = 0;
+    for (std::size_t i = 1; i < n; ++i) {
+        if (ring[i].x() < ring[lowest].x()) {
+            lowest = i;
+        }
+        if (ring[highest].x() < ring[i].x()) {
+            highest = i;
+        }
+    }
+    // Arc A runs forward from `lowest` to `highest`, arc B backward; both hold
+    // the two cut points, and when they coincide B is the whole cycle.
+    const std::size_t lengthA = n == 0 ? 0 : (highest + n - lowest) % n + 1;
+    const std::size_t lengthB = n == 0 ? 0 : n + 2 - lengthA;
+    const auto arcA = [&](std::size_t k) -> const Point& { return ring[(lowest + k) % n]; };
+    const auto arcB = [&](std::size_t k) -> const Point& { return ring[(lowest + n - k % n) % n]; };
+    for (std::size_t k = 1; k < lengthA; ++k) {
+        if (arcA(k).x() < arcA(k - 1).x()) {
+            return fallback();
+        }
+    }
+    for (std::size_t k = 1; k < lengthB; ++k) {
+        if (arcB(k).x() < arcB(k - 1).x()) {
+            return fallback();
+        }
+    }
+    std::sort(loose.begin(), loose.end(), [](const Point& p, const Point& q) { return p.x() < q.x(); });
+
+    std::vector<Point> sorted;
+    sorted.reserve(lengthA + lengthB + loose.size());
+    const Point* low = nullptr;
+    const Point* high = nullptr;
+    const auto flush = [&] {
+        if (low != nullptr) {
+            sorted.push_back(*low);
+            if (low->y() < high->y()) {
+                sorted.push_back(*high);
+            }
+        }
+    };
+    const auto take = [&](const Point& p) {
+        if (low != nullptr && p.x() == low->x()) {
+            if (p.y() < low->y()) {
+                low = &p;
+            }
+            if (high->y() < p.y()) {
+                high = &p;
+            }
+        } else {
+            flush();
+            low = high = &p;
+        }
+    };
+
+    std::size_t a = 0, b = 0, l = 0;
+    while (a < lengthA || b < lengthB || l < loose.size()) {
+        const Point* next = nullptr;
+        int from = 0;
+        if (a < lengthA) {
+            next = &arcA(a);
+            from = 0;
+        }
+        if (b < lengthB && (next == nullptr || arcB(b).x() < next->x())) {
+            next = &arcB(b);
+            from = 1;
+        }
+        if (l < loose.size() && (next == nullptr || loose[l].x() < next->x())) {
+            next = &loose[l];
+            from = 2;
+        }
+        take(*next);
+        (from == 0 ? a : from == 1 ? b : l) += 1;
+    }
+    flush();
+
+    return grahamScanOf(sorted, false);
+}
+
+}  // namespace detail
+
 } // namespace pgl

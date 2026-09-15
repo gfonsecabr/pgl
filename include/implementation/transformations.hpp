@@ -1566,17 +1566,18 @@ constexpr Convex<PointType, LabelType>& Convex<PointType, LabelType>::operator-=
     return *this;
 }
 
-// Scaling in place cannot keep the stored vertices canonical on its own, so it
-// rebuilds through the normalizing constructor -- as rotate90 and the four
-// scaleUp/scaleDown mutators beside it already do. A positive factor would be
-// safe to apply vertex by vertex, but the other two cases are not: a negative
-// factor is a point reflection, which preserves the counterclockwise cycle but
-// reverses the lexicographic order, so the canonical lex-min-first rotation no
-// longer starts where it must; and a zero factor collapses every vertex onto the
-// origin, which has to come back as the one-vertex hull rather than as n copies
-// of it. A Convex whose rotation is wrong is not merely untidy: the convex
-// predicates binary-search the vertex cycle from that starting point, so such a
-// value answers `contains` incorrectly.
+// Scaling in place cannot keep the stored vertices canonical on its own. A
+// negative factor is a point reflection, which keeps the counterclockwise cycle
+// but moves the lexicographically smallest vertex; a zero factor collapses every
+// vertex onto the origin, which has to come back as the one-vertex hull; and a
+// truncating division or a rounded product can collapse neighbours, or leave a
+// vertex collinear with or even inside its neighbours. A Convex whose rotation is
+// wrong is not merely untidy: the convex predicates binary-search the vertex
+// cycle from that starting point, so such a value answers `contains` incorrectly.
+//
+// Every one of those maps is weakly monotone in x, though, and the same map in y,
+// so the scaled cycle is still x-bitonic and is re-hulled in linear time without
+// sorting it (see detail::hullOfXBitonicRing).
 template <class PointType, class LabelType>
 template <class Scalar>
 requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
@@ -1589,14 +1590,12 @@ constexpr Convex<PointType, LabelType>& Convex<PointType, LabelType>::operator*=
         scaled.push_back(std::move(moved));
     }
     auto saved = label_;
-    *this = Convex(std::move(scaled));
+    *this = Convex(detail::hullOfXBitonicRing(scaled, {}), pgl::trusted);
     label_ = std::move(saved);
     return *this;
 }
 
-// Rebuilt for the same reason as operator*=: a negative divisor reverses the
-// lexicographic order and leaves the canonical rotation starting in the wrong
-// place.
+// Rebuilt for the same reasons as operator*=.
 template <class PointType, class LabelType>
 template <class Scalar>
 requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
@@ -1609,7 +1608,7 @@ constexpr Convex<PointType, LabelType>& Convex<PointType, LabelType>::operator/=
         scaled.push_back(std::move(moved));
     }
     auto saved = label_;
-    *this = Convex(std::move(scaled));
+    *this = Convex(detail::hullOfXBitonicRing(scaled, {}), pgl::trusted);
     label_ = std::move(saved);
     return *this;
 }

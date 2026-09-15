@@ -499,19 +499,19 @@ We use the term above to refer to larger y coordinates and below to refer to sma
 - `P.isStrictlyMonotone()`: Returns true if no two vertices share an x-coordinate, so the chain is the graph of a function of x. Takes $O(n)$ time.
 - `P.insert(p)`: Extends the chain in order to contain another point `p` as a vertex.
 - `P.insert(points)`: Extends the chain in order to contain all the given points as vertices.
-- `P.erase(p)` / `P.erase(i)`: Removes a vertex, given as a point or by its index in the lexicographic order (as in `P[i]`), the first returning whether it was a vertex (found in $O(\log n)$ comparisons, since the vertices are sorted) and the second requiring `i` to be smaller than `P.size()`. Erasing an interior vertex reroutes the chain through a single edge between its neighbors, and erasing an extreme vertex shortens the chain.
+- `P.erase(p)` / `P.erase(i)`: Removes a vertex, given as a point or by its index in the lexicographic order (as in `P[i]`), the first returning whether it was a vertex and the second requiring `i` to be smaller than `P.size()`; both take $O(n)$ time. Erasing an interior vertex reroutes the chain through a single edge between its neighbors, and erasing an extreme vertex shortens the chain.
 - `P.indexAtX(x)`: Returns an `std::optional<size_t>` that is engaged if the chain contains a point of x-coordinate `x`. The returned value is the smallest index `i` such that `P[i].x() == x`, or the unique `i` with `P[i].x() < x < P[i+1].x()`. Takes $O(\log n)$ time.
 - `P.yAtX<ResultNumber>(x)`: Returns an `std::optional` with the y coordinate at `x` (at a vertical edge, the y of the edge's bottom vertex). Takes $O(\log n)$ time. Interpolation may divide, so integral receivers widen to ERational by default.
 - `P.isBelow(p)`: Returns an `std::optional<size_t>` that is engaged if a ray shot down from `p` intersects `P`; the value is the index `indexAtX` returns for `p.x()`. Takes $O(\log n)$ time, exactly.
 - `P.isAbove(p)`: The same for a ray shot up from `p`. Note that `isBelow` and `isAbove` are not complementary: both are engaged when `p` lies on the chain.
 - `P.latticePoints<ResultNumber>()`: The integer points on `P`, edge by edge and hence in increasing order, the vertex two edges share reported once. Same result type and same `std::logic_error` on a point too large for it as the segment's.
 - `P.length()`, `P.lengthL1()`, `P.lengthLInf()`: Return the Euclidean, Manhattan, and Chebyshev lengths of the chain.
-- `P.edgesCross(P2)`: Returns true if `P` has a point strictly above `P2` and a point strictly below it, i.e. every sufficiently small perturbation of the vertices of `P` and `P2` still yields intersecting chains. Unlike `P.crosses(P2)`, a touch that does not swap sides never counts. The x-extents of `P` and `P2` must overlap in more than a single point, or the result is false outright — a shared x that is only one chain's own extreme vertex (e.g. a chain that is a single vertical edge) is not robust to perturbation. Takes $O(n \log m + m \log n)$ time if `P2` has $m$ vertices.
+- `P.edgesCross(P2)`: Returns true if `P` has a point strictly above `P2` and a point strictly below it, i.e. every sufficiently small perturbation of the vertices of `P` and `P2` still yields intersecting chains. Unlike `P.crosses(P2)`, a touch that does not swap sides never counts. The x-extents of `P` and `P2` must overlap in more than a single point, or the result is false outright — a shared x that is only one chain's own extreme vertex (e.g. a chain that is a single vertical edge) is not robust to perturbation. Takes $O(n + m)$ time if `P2` has $m$ vertices.
 
 The monotone structure speeds up several predicates and constructions:
 
 - `P.contains(s)` takes $O(\log n)$ time if `s` is a point, and $O(\log n + k)$ if `s` is a segment whose x-range spans $k$ vertices (a chain contains a segment exactly when the segment is a straight sub-path of the chain).
-- `P.intersects(s)` takes $O(\log n + k)$ time for a segment overlapping $k$ edges of the chain.
+- `P.intersects(s)` takes $O(\log n + k)$ time for a segment, where $k$ is the number of edges of the chain whose x-range meets that of the segment.
 - `P.intersects(P2)` takes $O(n+m)$ time if `P2` is a chain with $m$ vertices, via a merge sweep over the two sorted vertex sequences.
 
 
@@ -527,7 +527,7 @@ A polyline `P` with $n$ vertices has methods such as:
 - `P.isPoint()` / `P.getIfPoint()`: Whether the polyline collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
 - `P.isSegment()` / `P.getIfSegment()`: Whether the polyline collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
 - `P.isUndefined()`: True only for an empty polyline, which has no vertex.
-- `P.isSimple()`: Returns true if the edges only intersect at the shared endpoints of consecutive edges. The first and last edges are consecutive exactly when the polyline is closed. Takes $O(n \log n)$ time for exact coordinate types. Floating-point coordinates, which the exact sweep line cannot take, go through a bounding-box sweep instead, for $O((n+k) \log n)$ time where $k$ is the number of pairs of edges with overlapping bounding boxes; that is $O(n \log n)$ unless the edges are long compared to the spacing of the vertices.
+- `P.isSimple()`: Returns true if the edges only intersect at the shared endpoints of consecutive edges. The first and last edges are consecutive exactly when the polyline is closed. Takes $O(n \log n)$ time for exact coordinate types. Floating-point coordinates, which the exact sweep line cannot take, go through a bounding-box sweep instead, for $O((n+k) \log n)$ time where $k$ is the number of pairs of edges with overlapping bounding boxes, which is $O(n^2 \log n)$ in the worst case.
 - `P.latticePoints<ResultNumber>()`: The integer points on `P`, edge by edge in traversal order, each of them once — a shared vertex, a crossing and a retraced part are all reported only where the polyline first reaches them. Same result type and same `std::logic_error` on a point too large for it as the segment's.
 - `P.length()`, `P.lengthL1()`, `P.lengthLInf()`: Return the Euclidean, Manhattan, and Chebyshev lengths of the polyline. A self-overlapping polyline counts every traversal of a repeated part.
 
@@ -566,7 +566,7 @@ If the convex polygon `c` has $n$ vertices, then:
 - `c.diameter()`, `c.smallestEnclosingRectangle()` and the three minimum-width methods take $O(n)$ time, each with a single rotating-calipers sweep. Comparing two candidate rectangle areas or two candidate widths is degree six in the coordinates, so it runs in `BigInt` for integral coordinates and in `ERational` for rational ones, floating point unchanged.
 - `c.intersects(s)` takes $O(\log n)$ time if `s` is a shape with $O(1)$ vertices (not including Disk).
 - `s.intersects(c)` takes $O(\log n)$ time if `s` is a shape with $O(1)$ vertices (not including Disk).
-- `c.intersects(c2)` takes $O(\min(n+m) \log(n+m))$ time if `c2` is a convex polygon with $m$ vertices.
+- `c.intersects(c2)` takes $O(\min(n,m) \log(n+m))$ time if `c2` is a convex polygon with $m$ vertices.
 - Other predicates take the same time as `intersects`.
 
 - Other methods:
@@ -583,7 +583,7 @@ A polygon `P` has methods such as:
 - `P.isSegment()` / `P.getIfSegment()`: Whether the polygon collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
 - `P.empty()`: True only for a polygon with no vertex, which is the empty set of points.
 - `P.isUndefined()`: True if the polygon is degenerate yet covers more than a segment, that is, when its zero area comes from a self-overlapping boundary rather than from collinear vertices. The empty polygon is *not* undefined; use `empty` for it.
-- `P.isSimple()`: Returns true if the edges only intersect at the endpoints of consecutive edges. Takes $O(n \log n)$ time for $n$ edges with exact coordinate types. Floating-point coordinates, which the exact sweep line cannot take, go through a bounding-box sweep instead, for $O((n+k) \log n)$ time where $k$ is the number of pairs of edges with overlapping bounding boxes; that is $O(n \log n)$ unless the edges are long compared to the spacing of the vertices.
+- `P.isSimple()`: Returns true if the edges only intersect at the endpoints of consecutive edges. Takes $O(n \log n)$ time for $n$ edges with exact coordinate types. Floating-point coordinates, which the exact sweep line cannot take, go through a bounding-box sweep instead, for $O((n+k) \log n)$ time where $k$ is the number of pairs of edges with overlapping bounding boxes, which is $O(n^2 \log n)$ in the worst case.
 - `P.isConvex()`: Returns true if the polygon is convex, possibly with vertices subdividing convex hull edges. Takes $O(n)$ time.
 - `P.isStarShaped()` / `P.getStarShapedKernel()`: Whether some point of the polygon sees all of it, and the set of such points (the kernel) as a `HalfplaneIntersection`, or `std::nullopt` when the polygon is not star-shaped. A polygon collapsed to a point or a segment is its own kernel. Only meaningful for a simple polygon. Takes $O(n \log n)$ time.
 - `P.asPolygonWithHoles()`: Returns the polygon as a hole-free `PolygonWithHoles` region.
@@ -624,7 +624,7 @@ A region `A` with $n$ vertices in total and $k$ holes has methods such as:
 - `A.outer()`: Returns the outer boundary polygon.
 - `A.holeCount()` / `A.hasHoles()` / `A.hole(i)` / `A.holes()`: The holes, in canonical (sorted) order. Iterating a region iterates its holes.
 - `A.addHole(h)`: Adds a hole, keeping the canonical order. A zero-area ring removes nothing and is ignored.
-- `A.eraseHole(i)` / `A.eraseHole(h)`: Fills a hole back in, by its index in the canonical order or by the polygon itself, the second returning whether it found one to erase (in $O(\log k)$ comparisons, since the holes are sorted).
+- `A.eraseHole(i)` / `A.eraseHole(h)`: Fills a hole back in, by its index in the canonical order or by the polygon itself, the second returning whether it found one to erase. Takes $O(k)$ time by index and $O(k + s \log k)$ for a hole of $s$ vertices.
 - `A.vertexCount()`: Returns the total number of vertices over all rings. Deliberately not named `size`: unlike a polygon's, it counts the outer boundary *and* every hole, and a name shared with a shape whose meaning differs would be a trap in generic code. For the same reason a region has no `operator[]`.
 - `A.vertices()` / `A.edges()`: The vertices and the boundary edges of every ring, outer boundary first.
 - `A.orientedEdges()`: The boundary edges directed so the region lies to the left: the outer ring counterclockwise as stored, the hole rings **reversed**, i.e. clockwise.
@@ -632,15 +632,15 @@ A region `A` with $n$ vertices in total and $k$ holes has methods such as:
 - `A.isDegenerate()`: Returns true if the region has null area.
 - `A.isPoint()` / `A.isSegment()`: Whether the region covers exactly one point, or exactly one segment of positive length. Zero-area holes are dropped at construction, so both are decided by the outer boundary alone.
 - `A.isUndefined()`: True if the region is degenerate without covering a point or a segment, which includes the empty region.
-- `A.isSimple()`: Returns true if every ring is simple. This is a per-ring check only and says nothing about how the rings sit relative to one another. Takes $O(n \log n)$ time.
-- `A.isValid()`: Tests the whole structural contract above. Takes $O(n \log n)$ time, plus one containment test per hole and one interior-overlap test per bounding-box-overlapping hole pair.
+- `A.isSimple()`: Returns true if every ring is simple. This is a per-ring check only and says nothing about how the rings sit relative to one another. Takes $O(n \log n)$ time for exact coordinate types and $O(n^2 \log n)$ for floating-point ones.
+- `A.isValid()`: Tests the whole structural contract above. Takes $O(n^2 \log n)$ time.
 - `A.isRegular()`: Returns true if the region is the closure of its own interior, $A = \mathrm{closure}(A^\circ)$. Since the contract above constrains interiors only, a valid region may pinch shut along a whole stretch of edge — a **slit**, region material with no area on either side of it, as when a hole shares an edge with another hole or with the outer boundary. A slit belongs to $A$ but not to $\mathrm{closure}(A^\circ)$, so a region with area is regular exactly when it has no slit. Pinching at an isolated *point* is not a slit: the interior still reaches the point from every side, so rings meeting at a vertex leave the region regular. Takes $O(n^2)$ time.
 - `A.regularized()`: Returns $\mathrm{closure}(A^\circ)$ — the region without its slits — as a `std::vector<PolygonWithHoles>`, the same regularization every [boolean operation](shape_methods.md#boolean-operations) applies to its own result. Dropping the slits can disconnect what they were holding together, which is why the result is a set of regions: a region whose slits are its only connective tissue comes back as several pieces, and a region with no area comes back empty. A region that is already regular is returned unchanged, vertex for vertex; the pieces of one that is not are read off an arrangement of its boundary, which drops vertices that no longer sit at a corner.
 - `A.twiceArea()`: Returns twice the area, `2·area(outer) − Σ 2·area(hole)`, exactly and without division.
 - `A.area<ResultNumber>()`: Returns the area; the final division by two is exact by default for integral receivers.
 - `A.centroid<ResultNumber>()`: Returns the area-weighted centroid, the holes entering with negative weight. When the net area is zero the region has no area-weighted centroid and the centroid of the vertex set is returned instead.
 - `A.verticesCentroid<ResultNumber>()`: Returns the centroid of the vertex set over all rings.
-- `A.pointInside<ResultNumber>()`: Returns a point strictly inside the region, so inside the outer boundary and outside every hole. A polygon finds one from an ear of its smallest vertex; that argument does not survive holes — an ear can be occupied by one — so this triangulates, in $O(n \log n)$ time. It may divide coordinates by four and is undefined for a region with no area.
+- `A.pointInside<ResultNumber>()`: Returns a point strictly inside the region, so inside the outer boundary and outside every hole. A polygon finds one from an ear of its smallest vertex; that argument does not survive holes — an ear can be occupied by one — so this triangulates. It may divide coordinates by four and is undefined for a region with no area.
 - `A.triangulation()`: Returns the constrained Delaunay [triangulation](data_structures.md#triangulation) of the region, optionally with extra interior constraint segments. Every ring becomes constrained edges and the hole interiors are left out of the domain, so the in-domain triangles cover exactly the part of the region that has area — a slit, having none, carries no triangle.
 - `A.latticePoints<ResultNumber>()`: The integer points of the region. A hole takes away the points strictly inside it and keeps the ones on its boundary, which belong to the region as any boundary point does.
 - `A.asBitMatrix<ResultNumber>()`: The region rasterized into a [`BitMatrix`](data_structures.md#bit-matrix) over its bounding box, the holes left unset. Every edge of every ring must be axis-parallel and every coordinate a whole number, otherwise it throws `std::logic_error`. Same `ResultNumber` rule as on a polygon.
@@ -649,9 +649,8 @@ A region `A` with $n$ vertices in total and $k$ holes has methods such as:
 
 Against a region of $n$ vertices and an operand of $m$:
 
-- The predicates against a point take $O(n)$ time, and those against a segment, a line, a ray, or a half-plane take $O(n)$ time as well (`interiorsIntersect` adds $O(c^2)$ for the $c$ boundary crossings the operand makes, and against a half-plane it is $O(n)$ when no rings touch and $O(n^3)$ in the worst case).
-- The predicates against a bounded shape with area take $O(n \cdot m)$ time, and `interiorsIntersect` takes $O(n \log n + n \cdot m)$ when it falls back on the triangulated domain — against another region, where there is no boundary shortcut, $O(n \log n + m \log m + n \cdot m)$.
-- The distances take $O(n)$ edge queries: the region is closed, so whenever it misses the other shape the nearest pair is realized on one of its ring edges.
+- The predicates against a point take $O(n)$ time. Against a segment, a line, a ray or a half-plane, `intersects` and `interiorContains` take $O(n)$ time, and `contains`, `boundaryContains` and `interiorsIntersect` take $O(n^2)$, except `interiorsIntersect` against a half-plane, which takes $O(n^3)$.
+- The distances take $O(n)$ time against a shape of constant size, $O(n \cdot m)$ against a convex polygon, a monotone chain or a polyline, and $O(n \cdot m + (n+m) \log(n+m))$ against a polygon or a region.
 
 - Other methods:
 
@@ -682,7 +681,7 @@ A set `A` with $k$ components and $n$ vertices in total has methods such as:
 
 - `A.componentCount()` / `A.component(i)` / `A.components()`: The components, in canonical (sorted) order. Iterating a set iterates its components. Deliberately not `size` and `operator[]`: `size` counts *defining points* on `Polygon`, `Convex`, `Polyline` and `MonotoneChain`, and a name whose meaning differs per shape is a trap in generic code — the same call `PolygonWithHoles` made for its holes.
 - `A.addComponent(c)`: Adds a component, keeping the canonical order. One with no area, or one already present, is ignored.
-- `A.eraseComponent(i)` / `A.eraseComponent(c)`: Drops a component, by its index in the canonical order or by the region itself, the second returning whether it found one to erase (in $O(\log k)$ comparisons, since the components are sorted).
+- `A.eraseComponent(i)` / `A.eraseComponent(c)`: Drops a component, by its index in the canonical order or by the region itself, the second returning whether it found one to erase. Takes $O(k)$ time by index and $O(k + s \log k)$ for a component of $s$ vertices.
 - `A.vertexCount()` / `A.vertices()` / `A.edges()` / `A.orientedEdges()`: The totals over every ring of every component, with the same meaning they have on a region.
 - `A.holeCount()` / `A.hasHoles()`: The total number of holes over all components, and whether there are any.
 - `A.empty()`: Returns true if the set has no components at all.
@@ -732,8 +731,8 @@ A half-plane intersection `k` has methods such as:
 
 If the region has $n$ half-planes, then:
 
-- `k.contains(p)`, `k.intersects(s)`, and the other predicates against points, segments, lines, rays, and half-planes take $O(\log n)$ time (`separates` against a half-plane takes $O(n)$).
-- `k.insert(h)` takes $O(\log n)$ amortized comparisons (plus vector element moves).
+- `k.contains(p)`, `k.intersects(s)`, and the other predicates against points, segments, lines, rays, and half-planes take $O(\log n)$ time, except that `separates` against a half-plane takes $O(n)$, and so, when the region is degenerate, do `crosses` against a segment or a ray and the predicates of those shapes against the region.
+- `k.insert(h)` takes $O(n)$ time.
 - `k.isBounded()` and `k.vertexCount()` take $O(n)$ time.
 
 - Other methods:

@@ -948,9 +948,11 @@ public:
      * a union of unit squares: the loops are read straight off the words, which
      * gives the outer ring and one ring per hole directly, with the vertices in
      * the middle of a straight stretch dropped along the way. A window of `w`
-     * cells whose components carry `b` boundary edges and split into `r` runs of
-     * cells therefore costs `O(w / 64 + b + r log r)`, against the arrangement a
-     * regularized union of unit squares would have to build.
+     * cells in `h` rows whose components carry `b` boundary edges and split into
+     * `r <= b / 2` runs of cells therefore costs `O(w / 64 + h + b log r)`: each
+     * loop and each pinch looks its cell up among the sorted runs of its row.
+     * That is against the arrangement a regularized union of unit squares would
+     * have to build.
      */
     [[nodiscard]] PolygonSetType asPolygonSet() const {
         if (emptyWindow()) {
@@ -1398,7 +1400,9 @@ public:
      *
      * The window of the result is exactly the bounding box of the sum. The cost
      * is one shifted or-assignment of the larger operand per cell of the smaller
-     * one, so summing a large region with a small structuring element is cheap.
+     * one: `O(a + b + r + s c)` for operands of `a` and `b` words and a result of
+     * `r` words, where `s` is the set-cell count of the operand with fewer set
+     * cells and `c` the word count of the other one's trimmed window.
      */
     [[nodiscard]] BitMatrix latticeMinkowskiSum(const BitMatrix& other) const {
         const BitMatrix left = trimmed(), right = other.trimmed();
@@ -2066,19 +2070,36 @@ private:
      * @pre `0 <= from <= width_`.
      */
     [[nodiscard]] std::int64_t nextSetInRow(const std::uint64_t* here, std::int64_t from) const {
-        assert(from >= 0 && from <= width_);
-        if (from >= width_) {
-            return width_;
+        return nextSetInRow(here, from, width_);
+    }
+
+    /**
+     * @brief First cell in `[from, limit)` that is set, or @p limit.
+     *
+     * Reads only the words holding that range, so looking around a short run
+     * costs the run and not the rest of the row. Takes `from >= limit` and
+     * answers @p limit, which is what lets a scan that has just consumed a run
+     * reaching past its range hand the run's end straight back.
+     *
+     * @pre `0 <= from` and `limit <= width_`.
+     */
+    [[nodiscard]] std::int64_t nextSetInRow(const std::uint64_t* here, std::int64_t from,
+                                            std::int64_t limit) const {
+        assert(from >= 0 && limit <= width_);
+        if (from >= limit) {
+            return limit;
         }
         std::size_t w = static_cast<std::size_t>(from) / 64;
+        const std::size_t last = static_cast<std::size_t>(limit - 1) / 64;
         std::uint64_t rest = here[w] & (~std::uint64_t(0) << (from % 64));
         while (rest == 0) {
-            if (++w >= words_) {
-                return width_;
+            if (++w > last) {
+                return limit;
             }
             rest = here[w];
         }
-        return static_cast<std::int64_t>(w) * 64 + std::countr_zero(rest);
+        return std::min<std::int64_t>(static_cast<std::int64_t>(w) * 64 + std::countr_zero(rest),
+                                      limit);
     }
 
     /**
@@ -2362,10 +2383,10 @@ private:
      * The cells are cleared from @p remaining, a row-major buffer laid out like
      * @ref bits_, and their runs appended to @p runs, which doubles as the queue
      * of runs still to be looked around. A run is found, cleared and queued in
-     * one word-parallel step, and taking it off the queue only rescans the row
-     * below and the row above it, so the flood costs one pass over the words of
-     * the rows it touches plus a constant per run, with no per-cell neighbor
-     * lookup and no set of visited cells.
+     * one word-parallel step, and taking it off the queue only rescans the words
+     * under it, widened by @p reach, in the row below and the row above, with no
+     * per-cell neighbor lookup and no set of visited cells. A group of `c` cells
+     * in `k` runs therefore costs `O(c / 64 + k)`.
      *
      * @param reach How far past the ends of a run a neighbor can sit: one cell
      *        for vertex adjacency, none for edge adjacency.
@@ -2387,8 +2408,8 @@ private:
             }
             const std::uint64_t* here = rowOf(at);
             high = std::min<std::int64_t>(high, width_);
-            for (std::int64_t cell = nextSetInRow(here, std::max<std::int64_t>(low, 0)); cell < high;
-                 cell = nextSetInRow(here, cell)) {
+            for (std::int64_t cell = nextSetInRow(here, std::max<std::int64_t>(low, 0), high);
+                 cell < high; cell = nextSetInRow(here, cell, high)) {
                 cell = take(at, cell).x1;
             }
         };
@@ -2420,8 +2441,9 @@ private:
     /**
      * @brief Calls @p fn once per connected group, with the runs of the group.
      *
-     * One @ref floodRuns per group over a scratch copy of the words, so the whole
-     * traversal costs one pass over the words plus a constant per run of cells.
+     * One @ref floodRuns per group over a scratch copy of the words, so a window
+     * of `w` cells in `h` rows whose set cells split into `r` runs costs
+     * `O(w / 64 + h + r)`, plus the calls to @p fn.
      *
      * The groups come out ordered by their lowest, then leftmost cell, and the
      * runs of a group in the order the fill reached them.
@@ -2460,8 +2482,8 @@ private:
      * each built a word at a time from the cell rows: an east edge at vertex
      * `(x, y)` is a set cell `(x, y)` over an unset `(x, y - 1)`, and the other
      * three directions are that same comparison shifted. Walking then only tests
-     * and sets bits, so a region of `n` cells costs one pass over its `n / 64`
-     * words plus a constant per boundary edge.
+     * and sets bits, so a window of `w` cells in `h` rows costs `O(w / 64 + h)`
+     * plus a constant per boundary edge.
      *
      * At a vertex where two diagonally opposite cells are filled and the other
      * two are empty the boundary pinches, and four directed edges meet there --
@@ -2756,7 +2778,8 @@ BitMatrix<PointType> rasterize(const Rectangle<PointType>& window, Predicate kee
  * @brief Rasterizes a shape into the cells it meets: its outer approximation.
  *
  * A cell is set when the shape intersects it, boundary included, so the result
- * covers the shape. Costs one exact predicate per cell of @p window, and works
+ * covers the shape. Costs one exact `shape.intersects(cell)` per cell of
+ * @p window, so `W H` of them over a window of `W` by `H` cells, and works
  * for every shape; @ref BitMatrix::BitMatrix(const PolygonWithHoles<PointType, TLabel>&) is the
  * cheap
  * path for a rectilinear region.
@@ -2775,7 +2798,8 @@ BitMatrix<PointType> outerRaster(const ShapeType& shape, const Rectangle<PointTy
  * @brief Rasterizes a shape into the cells it covers: its inner approximation.
  *
  * A cell is set when the shape contains the whole of it, so the result is
- * covered by the shape. Costs one exact predicate per cell of @p window.
+ * covered by the shape. Costs one exact `shape.contains(cell)` per cell of
+ * @p window, so `W H` of them over a window of `W` by `H` cells.
  *
  * @tparam PointType Cell type of the result, deduced from @p window.
  * @param shape Shape to rasterize.

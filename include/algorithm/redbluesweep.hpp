@@ -17,13 +17,14 @@
  * (the simple-polygon contract), so same-colour pairs cannot contribute an
  * intersection that the other colour does not already witness. That is what
  * makes a single status structure enough, and what keeps the whole thing at
- * O((n + m) log(n + m)) no matter how the boundaries wiggle — unlike a
- * decomposition into lexicographically monotone chains, whose cost is the
- * product of the two chain counts and therefore degrades to quadratic on
- * jagged, comb-like or star-shaped input.
+ * O((n + m) log(n + m)) no matter how the boundaries wiggle, as long as no two
+ * edges of one colour overlap in a segment — unlike a decomposition into
+ * lexicographically monotone chains, which runs one merge per chain pair and
+ * therefore degrades to quadratic on jagged, comb-like or star-shaped input.
  */
 
 #include <algorithm>
+#include <bit>
 #include <cstddef>
 #include <ranges>
 #include <set>
@@ -247,10 +248,11 @@ class RedBlueSweeper {
      * exactly those whose height at x falls inside its y-range: a contiguous
      * run, located in O(log n) and walked from below. The walk stops at the
      * first red-blue pair that merely touches, which keeps a vertical's cost
-     * O(log n) — at the price of possibly reporting @ref
-     * BoundaryContact::Touching where a later edge in the same run would have
-     * crossed. Same-coloured hits are skipped and, for a simple polygon, there
-     * are at most the two boundary edges sharing an endpoint with the vertical.
+     * O(log n) plus one step per same-coloured edge it skips — at the price of
+     * possibly reporting @ref BoundaryContact::Touching where a later edge in
+     * the same run would have crossed. For a simple polygon the skipped edges
+     * are at most the two boundary edges sharing an endpoint with the vertical;
+     * edges overlapping one another can make them any number.
      */
     bool scanUpright(std::size_t index) {
         const Edge& upright = edges_[index];
@@ -479,8 +481,9 @@ class RedBlueSweeper {
  * so nothing is evaluated in floating point that was not already, and the sweep
  * needs neither y-at-x interpolation nor rational arithmetic.
  *
- * Complexity: O((n + m) log(n + m)) for n red and m blue edges, whatever the
- * shape of either boundary and however many touchings there are.
+ * Complexity: O((n + m) log(n + m)) for n red and m blue edges when no two
+ * edges of the same colour overlap in a segment, whatever the shape of either
+ * boundary and however many touchings there are. No bound is given otherwise.
  *
  * @param red First edge set.
  * @param blue Second edge set.
@@ -555,13 +558,15 @@ SweepContact boundaryContactBits(const RedRange& red, const BlueRange& blue) {
  * Two ways to find out how two polygon boundaries meet, with opposite cost
  * profiles, and the single rule that picks between them.
  *
- * @ref redBlueSweep is O((n + m) log(n + m)) come what may. Testing the two
- * boundaries' maximal lexicographically monotone chains against each other
- * pairwise (see @ref Polygon::BoundaryChains) is not: it runs one merge per
- * chain pair, so it costs the *product* of the two chain counts — two chains a
- * side for a convex polygon, up to n for a comb or a star. Neither dominates:
+ * @ref redBlueSweep is O((n + m) log(n + m)) for boundaries of n and m edges
+ * without overlapping edges. Testing the two boundaries' maximal
+ * lexicographically monotone chains against each other pairwise (see
+ * @ref Polygon::BoundaryChains) is not: it runs one merge per chain pair, over
+ * the edges of both chains, so boundaries split into a and b chains can cost
+ * Θ(b·n + a·m) — two chains a side for a convex polygon, up to n for a comb or a
+ * star. Neither dominates:
  *
- *   - The chain test wins on near-convex input, where the product is tiny and
+ *   - The chain test wins on near-convex input, where the chains are few and
  *     the merges are seeded by binary search, and it wins again whenever the
  *     answer comes early, since it produces chains lazily and stops at the
  *     first hit. The sweep cannot stop early in the same sense: it builds and
@@ -721,6 +726,38 @@ constexpr bool preferSweep([[maybe_unused]] const RedShape& red,
 #endif
 }
 
+/**
+ * @brief Whether @p polygon against the two hull chains of @p convex is a job
+ * for @ref redBlueSweep rather than for testing each of the polygon's monotone
+ * chains against those two.
+ *
+ * Unlike @ref preferSweep, the rule caps the chain test's cost: each polygon
+ * chain may merge over a whole hull chain, so the chain test is only chosen
+ * while the chain count times m stays within (n + m) log(n + m), or while one
+ * operand is below the sweep's size floor (see @ref detail::clearsEdgeFloor),
+ * for n polygon and m convex vertices. The chain test is then
+ * O((n + m) log(n + m)), and so is the sweep for a polygon without overlapping
+ * edges.
+ *
+ * Complexity: O(1) below the size floor, O(n) otherwise, for n polygon vertices.
+ */
+template <class PolygonShape, class ConvexShape>
+constexpr bool preferSweepOverHullChains([[maybe_unused]] const PolygonShape& polygon,
+                                         [[maybe_unused]] const ConvexShape& convex) {
+#if PGL_BOUNDARY_STRATEGY == 1
+    return false;
+#elif PGL_BOUNDARY_STRATEGY == 2
+    return true;
+#else
+    if (!detail::clearsEdgeFloor(polygon.size(), convex.size())) {
+        return false;
+    }
+    const std::size_t edges = polygon.size() + convex.size();
+    return polygon.chainCount() * convex.size() >
+           edges * static_cast<std::size_t>(std::bit_width(edges));
+#endif
+}
+
 /** @} */
 
 /**
@@ -732,9 +769,12 @@ constexpr bool preferSweep([[maybe_unused]] const RedShape& red,
  * middle step done by @ref redBlueSweep instead of by testing the polygons'
  * lexicographically monotone chains against each other pairwise. The chain test
  * is the faster of the two whenever both boundaries decompose into few chains,
- * which is the near-convex case; its cost is the product of the two chain
- * counts, so a comb, a star or any boundary that reverses direction at most
- * vertices drives it to O(n·m), where the sweep stays at O((n + m) log(n + m)).
+ * which is the near-convex case; it runs one merge per chain pair, so a comb, a
+ * star or any boundary that reverses direction at most vertices drives it to
+ * Θ(n·m) for n and m vertices, where the sweep stays at O((n + m) log(n + m))
+ * for boundaries without overlapping edges. Boundaries that touch without
+ * crossing still take one `outer.contains(Segment)` per edge of @p inner, so
+ * the worst case is m such calls either way.
  *
  * The two are kept side by side deliberately: this one is the scalable
  * implementation, @ref Polygon::contains the one tuned for the common shapes.
