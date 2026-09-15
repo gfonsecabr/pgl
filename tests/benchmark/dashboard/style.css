@@ -86,7 +86,7 @@ body {
 
 /* ---- summary strip ---- */
 .summary {
-  max-width: 1340px; margin: 0 auto; padding: 18px 24px 0;
+  margin: 0 auto; padding: 18px 24px 0;
   display: flex; gap: 22px; flex-wrap: wrap;
   font-size: 12.5px; color: var(--muted);
 }
@@ -94,7 +94,6 @@ body {
 
 /* ---- content: single column of suite cards, stacked vertically ---- */
 main {
-  max-width: 1340px;
   margin: 0 auto;
   padding: 16px 24px 8px;
   display: grid;
@@ -218,7 +217,7 @@ dialog#chart-dialog::backdrop {
 
 /* ---- filter bar: one multi-select chip group per cube dimension ---- */
 .filters {
-  max-width: 1340px; margin: 0 auto; padding: 14px 24px 0;
+  margin: 0 auto; padding: 14px 24px 0;
   display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: flex-start;
 }
 .filter-group { display: flex; align-items: center; gap: 7px; min-width: 0; }
@@ -249,7 +248,7 @@ dialog#chart-dialog::backdrop {
 
 /* ---- asymptotic benchmark page ---- */
 .section-title {
-  max-width: 1340px; margin: 26px auto 0; padding: 0 24px;
+  margin: 26px auto 0; padding: 0 24px;
   font-size: 14px; font-weight: 700; letter-spacing: .3px; color: var(--blue-d);
 }
 .depth-picker { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
