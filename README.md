@@ -186,14 +186,23 @@ There are several architectural differences between Pangolin and [CGAL](https://
 
 ## Build
 
-As a header-only library with no dependency, you can clone the repository and then compile code directly with `g++` or `clang++`. C++20 is the minimum standard, but C++23 and C++26 also work:
+Pangolin is header-only and dependency-free: there is nothing to compile, nothing to link, and no configuration step. Put `include/` on the include path, compile as C++20 or newer, and `#include "pgl.hpp"`. Any single header (say `shape/polygon.hpp`) can also be included on its own, with the same effect as including `pgl.hpp`.
 
 ```bash
-g++ -std=c++23 -Iinclude/ -o example examples/example1.cpp
-clang++ -std=c++23 -Iinclude/ -o example examples/example1.cpp
+git clone https://github.com/gfonsecabr/pgl
+cd pgl
+g++     -std=c++23 -Iinclude/ -o example examples/example1.cpp
 ```
 
-A CMake package is also provided. If you want cmake to automatically download the library, you can include this snippet in your `CMakeLists.txt`:
+C++20 is the minimum standard, but C++23 and C++26 also work. Every push is tested with GCC, Clang and MSVC, currently GCC 13 and Clang 18 on Linux. MSVC is the one platform that is not dependency-free: it has no native 128-bit integer, so `pgl::int128` falls back to Boost.Multiprecision and the Boost headers must be on the include path (headers only, nothing to build).
+
+```bat
+cl /std:c++20 /EHsc /I include /I <boost-include-dir> example.cpp
+```
+
+### CMake
+
+A CMake package is also provided. It compiles nothing either; it just exposes the headers as the imported target `pgl::pgl`, which carries the include path, the C++20 requirement, and the Boost headers on compilers that need them. To have CMake download the library as part of your build, include this snippet in your `CMakeLists.txt`:
 
 ```cmake
 include(FetchContent)
@@ -201,7 +210,7 @@ include(FetchContent)
 FetchContent_Declare(
   pgl
   GIT_REPOSITORY https://github.com/gfonsecabr/pgl
-  GIT_TAG main
+  GIT_TAG main   # or a tag or commit, to pin the version
 )
 
 FetchContent_MakeAvailable(pgl)
@@ -212,17 +221,17 @@ target_link_libraries(your_target PRIVATE pgl::pgl)
 Alternatively, install the headers once and find them from any project:
 
 ```bash
-cmake -S . -B build
-cmake --install build --prefix /usr/local
+cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/usr/local
+cmake --install build   # needs sudo for a system-wide prefix
 ```
 
 ```cmake
-find_package(pgl REQUIRED)
+find_package(pgl REQUIRED)   # pass -DCMAKE_PREFIX_PATH=<prefix> for a custom prefix
 
 target_link_libraries(your_target PRIVATE pgl::pgl)
 ```
 
-Either way, the `pgl::pgl` target carries the include path and the C++20 requirement, so `#include "pgl.hpp"` needs no further flags. Configure with `-DPGL_BUILD_EXAMPLES=ON` to also build the programs in `examples/`. On a compiler with no native 128-bit integer (MSVC), where `pgl::int128` falls back to Boost.Multiprecision, the package requires the Boost headers and adds them to your target.
+Either way, `#include "pgl.hpp"` then needs no further flags. Installed headers live under `<prefix>/include/pgl`, so `-I<prefix>/include/pgl` also works for projects that do not use CMake. Two options are available when configuring this repository: `-DPGL_BUILD_EXAMPLES=ON` also builds the programs in `examples/` (`make -C examples` does the same without CMake), and `-DPGL_INSTALL=OFF` drops the install rules, which is already the default when pgl is added as a subproject.
 
 ## Acknowledgments
 
