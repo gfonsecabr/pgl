@@ -1834,12 +1834,13 @@ struct PolygonWithHoles {
     /**
      * @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅).
      *
-     * A point has empty interior, so this is always `false`, matching
-     * @ref Polygon.
+     * A point's interior is the point itself, so this matches
+     * @ref interiorContains, as it does in @ref Polygon and in every other area
+     * shape.
      */
     template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorsIntersect(const OtherPoint&) const {
-        return false;
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherPoint& other) const {
+        return interiorContains(other);
     }
 
     // -------------------------------------------------------------------------

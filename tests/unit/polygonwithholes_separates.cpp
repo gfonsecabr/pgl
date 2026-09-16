@@ -514,3 +514,40 @@ TEST_CASE("PolygonWithHoles separates: exact rational coordinates") {
     CHECK(disk.separates(region));
     CHECK(region.crosses(disk));
 }
+
+// A degenerate operand has no extent of its own, so removing anything from it
+// leaves at most one piece and `separates` must be false -- whatever the region
+// around it looks like, and whichever way the plane is turned. The cell engine
+// used to decide this from an arrangement built out of the *region's* edges
+// alone, whose cells describe the plane rather than the operand, so a point
+// sitting in a pinched hole came out as two pieces of itself at one quarter
+// turn and as one piece at another.
+TEST_CASE("PolygonWithHoles separates a degenerate operand from nothing") {
+    // A square with a diamond hole whose four corners touch the outer ring.
+    const Region pinched(PolygonShape({-2, -4, 6, -4, 6, 12, -2, 12}),
+                         std::vector{PolygonShape({-2, 4, 2, -4, 6, 4, 2, 12})});
+    REQUIRE(pinched.isValid());
+
+    // The witness lies in the hole, so the region does not even reach it.
+    const Point inside(1, 2);
+    REQUIRE_FALSE(pinched.contains(inside));
+
+    // All four quarter turns: the answer is a fact about the operand having no
+    // extent, so the orientation of the axes cannot enter into it. The third
+    // turn is the one that used to disagree with the other three.
+    for (int quarters = 0; quarters < 4; ++quarters) {
+        CAPTURE(quarters);
+        const Region region = pinched.rotated90(quarters);
+        const Point witness = inside.rotated90(quarters);
+        REQUIRE_FALSE(region.contains(witness));
+
+        const PolylineShape onePoint({witness});
+        const Chain oneVertex(std::vector{witness});
+        REQUIRE(onePoint.isPoint());
+        REQUIRE(oneVertex.isPoint());
+
+        CHECK_FALSE(region.separates(witness));
+        CHECK_FALSE(region.separates(onePoint));
+        CHECK_FALSE(region.separates(oneVertex));
+    }
+}

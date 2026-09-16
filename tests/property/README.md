@@ -92,7 +92,7 @@ why that is safe here). `--no-catch-crashes` turns it off.
 
 ## What is checked
 
-`--list` prints the current set: 60 properties in thirteen groups, drawn from 26
+`--list` prints the current set: 82 properties in sixteen groups, drawn from 26
 generators.
 
 | Group | What it asserts |
@@ -103,17 +103,35 @@ generators.
 | `invariance` | All seven predicates survive translation, quarter turns, integer scaling, negation and an integer shear; squared distance survives isometries and scales as `s²`. Any *one* correct answer becomes a test of a whole orbit, which is what finds axis-aligned shortcuts that do not generalize. |
 | `bounding` | A shape lies in its own bbox; intersecting shapes have intersecting bboxes; containment carries over to tight bboxes. |
 | `intersection` | `intersection` is non-empty exactly when `intersects` is true, and its result lies inside both operands. |
-| `minkowski` | The Minkowski sum of two convex shapes contains every vertex sum and does not depend on the operand order. |
-| `boolean` | Exact area identities over the regularized operations: `\|A∪B\| + \|A∩B\| = \|A\| + \|B\|`, `\|A∖B\| + \|A∩B\| = \|A\|`, `\|A△B\| = \|A∪B\| − \|A∩B\|`; `A△B = (A∖B) ∪ (B∖A)` as sets; commutativity; the lattice order; `A∖B` shares no interior with `B`; and the self-operations collapse. Computed in `Rational<BigInt>`, so these are equations, not tolerances. |
-| `hull`, `sweep`, `triangulation`, `arrangement`, `sorting` | Whole algorithms against their oracles: the hull contains its input, is convex, is idempotent and invents no vertices; Bentley–Ottmann matches brute force; a triangulated polygon's triangle areas sum to its own and number `n−2`; the arrangement's DCEL satisfies `twin∘twin = id`, head-to-tail `next`, and one face per cycle; `hilbertSort` permutes; `sortAround` traces a simple ring. |
+| `minkowski` | The Minkowski sum of two convex shapes contains every vertex sum and does not depend on the operand order; and eroding the sum by what dilated it gives back at least the original, `(A ⊕ B) ⊖ B ⊇ A`. |
+| `boolean` | Exact area identities over the regularized operations: `\|A∪B\| + \|A∩B\| = \|A\| + \|B\|`, `\|A∖B\| + \|A∩B\| = \|A\|`, `\|A△B\| = \|A∪B\| − \|A∩B\|`; `A△B = (A∖B) ∪ (B∖A)` as sets; commutativity; the lattice order; `A∖B` shares no interior with `B`; and the self-operations collapse. Computed in `Rational<BigInt>`, so these are equations, not tolerances. Plus a **pointwise** oracle: over the lattice of the two bounding boxes, a point interior to both operands is in `A∩B` and `A∪B`, a point interior to `A∩B` is in both, a point interior to `A` and outside `B` is in `A∖B` and `A△B`, and a point interior to `A∖B` is in `A` and not interior to `B`. The area identities are sums and forgive two cells swapped between results; membership does not, and names the cell. |
+| `measure` | Area, length and centroid: area is never negative, `twiceArea` is twice `area`, containment orders area, area survives an isometry and scales as `s²`, length scales as `s`, `L∞ ≤ L2 ≤ L1 ≤ 2L∞` on a curve, a convex shape's centroid lies in it, and the centroid commutes with a translation. The only group that asks the library for a *number* about one shape. |
+| `closest` | The `closestPoints` / `closestSegments` witnesses against the distance they witness: the pair exists exactly when the shapes are disjoint, each point lies on the shape it came from, the two points are exactly `squaredDistance` apart, and the named elements lie on the operands and carry the points. |
+| `curve` | `yAtX` and `xAtY` as an equivalence: what comes back lies on the curve, and nothing comes back only when the curve meets that vertical or horizontal line nowhere. A one-sided check would pass for an implementation that answered `nullopt` everywhere. |
+| `hull`, `sweep`, `triangulation`, `arrangement`, `sorting` | Whole algorithms against their oracles: the hull contains its input, is convex, is idempotent and invents no vertices; Bentley–Ottmann matches brute force; a triangulated polygon's triangle areas sum to its own and number `n−2`; the arrangement's DCEL satisfies `twin∘twin = id`, head-to-tail `next`, and one face per cycle; `hilbertSort` permutes; `sortAround` traces a simple ring. The `bounding` group also asks that a shape's convex hull encloses it and adds nothing for a shape that is already convex. |
 
-Two design notes worth knowing before adding to this:
+The `invariance` group additionally checks that two maps applied in turn equal
+their composite, and that the identity map moves nothing — the composite is one
+matrix multiplication while the stepwise form rebuilds the shape in between, and
+rebuilding is where each class re-establishes its normalization.
+
+Three design notes worth knowing before adding to this:
 
 - **Skips are tracked separately from passes.** Most of these relations are
   conditional, and a property that quietly answers "held" for inputs it cannot
   judge is indistinguishable from one that works. The runner reports any property
   that skipped *every* case under `VACUOUS`, which is the failure mode a property
   harness is most prone to. Keep that section empty.
+- **A starved tag steers the draw, it does not only filter it.** `requiredTags`
+  is a filter: both operands are drawn from the generator table and a property
+  runs on the draws that satisfy its mask. For a mask carried by one generator in
+  twenty-six that is 1/676 of the pairs, and the `minkowski` group was running
+  four cases in three thousand — counted as passing, testing nothing. So a mask
+  whose generators are under a quarter of the table gets a *pool*, and a quarter
+  of the cases draw both operands from one. Only starved masks, and only a
+  quarter of the cases, because every draw spent on a pool is one not spent
+  exploring the whole matrix, and the alternatives carrying the fewest tags
+  (`Disk`, `MonotoneChain`) are the ones a pool is least likely to contain.
 - **Domain and value are separate questions.** Several operations are partial over
   the pair matrix and say so by throwing `std::logic_error`. The value properties
   skip those pairs; the *domains* are checked by their own properties
@@ -134,8 +152,8 @@ to accept every pair of that property. The wildcard is for a root cause whose
 reach is an accident of the draw — one missing overload fails the same property
 across dozens of pairs, and a fresh seed finds pairs an earlier one missed. With
 exact pairs only, every new seed reported a handful of "new" signatures that were
-not new problems, and still 1–7 new per seed. Collapsing the thirteen properties
-whose failures were all traced to one cause brings the shipped list to 42 entries
+not new problems, and still 1–7 new per seed. Collapsing the twelve properties
+whose failures were all traced to one cause brings the shipped list to 41 entries
 over 193 observed signatures, and fresh seeds that contributed nothing to it come
 out clean at 20000 cases each. That is what makes the exit code mean something.
 The tail is long, though: roughly one seed in five still reaches a new *pair* of an
@@ -160,6 +178,51 @@ Eight of the original findings have been fixed in the library. The harness went
 from 590 signatures to 193, and the baseline from 81 entries to 42. The properties
 that caught them are still in place, so a regression comes back as a failure rather
 than as a memory.
+
+The three below were found on 2026-09-16 by the groups added that day
+(`measure`, `closest`, `curve`, the pointwise boolean oracle, the convex-hull and
+Minkowski-erosion properties, and transformation composition). Because this
+harness is out of CI, each one's regression is held by a unit test instead, and
+each of those was verified to fail against the unfixed library:
+
+- **`Convex::centroid` dropped a deferred translation for a one-vertex hull.**
+  `Convex` does not move its vertices when translated; it accumulates the offset
+  in `translation_` and every branch of `centroid` adds it back — except the
+  `points_.size() == 1` branch, which returned the stored vertex bare. So a
+  degenerate hull reported the centroid it had *before* the move:
+  `Convex[(-1,0)] += (3,-5)` printed as `Convex[(2,-5)]` and answered `(-1,0)`.
+  `pointInside`, the sibling directly below it in the same file, carries the
+  offset in its own one-vertex branch and was right all along. Caught by
+  `measure/centroid-follows-translation`; regression in `tests/unit/convex.cpp`.
+
+- **`PolygonWithHoles::interiorsIntersect(Point)` was a constant `false`.** Every
+  other shape in the library spells this `return interiorContains(other);` under
+  the comment "a point's interior is the point itself" — `Rectangle`, `Triangle`,
+  `Convex`, `Polygon`, `Disk`, `HalfplaneIntersection`, and `Point` itself.
+  `PolygonWithHoles` alone returned `false`, justified by a comment claiming it
+  matched `Polygon`, which it did not; `PolygonSet` inherited the wrong answer by
+  delegating to its components. `doc/raw/shape_methods.md` settles which reading
+  is meant: it defines `A°` as the *relative* interior, and a point is a manifold
+  with empty boundary, so `A° = A` for it. The bug also broke
+  `interiorContains ⟹ interiorsIntersect`, which the existing property checks
+  only for `kRegion` pairs — a `Point` operand was never asked. Caught by
+  `predicates/interior-witness-meets-interiors`; the two unit tests that asserted
+  the old answer (`polygonwithholes_point.cpp`, `polygonset_point.cpp`) now
+  assert the documented one.
+
+- **`separates` read a degenerate operand as two pieces of itself.**
+  `detail::cellSeparates` appended *both* operands' cut segments before asking
+  whether there was anything to cut, so its `cuts.empty()` shortcut — "a target
+  with no extent holds at most one component" — never fired when the target had
+  no extent but the remover did. The arrangement then got built out of the
+  region's edges alone, and its cells describe the plane rather than the target,
+  so a one-vertex `Polyline` or `MonotoneChain` sitting in a pinched hole was
+  read as two components of itself. `B ∖ A` for a single point is a point or
+  nothing, so `separates` must be false; the bare `Point` overload answered
+  correctly, and the answer flipped with the orientation of the axes. The
+  emptiness test now runs on the target's cuts alone. Caught by
+  `invariance/rotation-preserves-predicates` and `shear-preserves-predicates`;
+  regression in `tests/unit/polygonwithholes_separates.cpp`.
 
 The 2026-09-16 pair below is fixed too, and because this harness is out of CI the
 regression is held by `tests/unit/ray.cpp` and `tests/unit/line_ray.cpp` instead —
@@ -325,6 +388,16 @@ These may be deliberate, but the sibling operations disagree about their domain:
 
 Recorded because they are easy to re-introduce as false findings:
 
+- **The quarter turn in `distances-follow-the-map` was asking a `MonotoneChain`
+  to be something it is not.** The property bundled translation, a quarter turn
+  and scaling into one check registered at `kNoTag`, so the rotation ran on chain
+  operands — which, per the entry below, cannot represent their own rotation. All
+  33 pairs under the `invariance/distances-follow-the-map [*]` wildcard were that
+  one mistake. The rotation now lives in its own `distances-survive-a-quarter-turn`
+  at `kAxisFree`, both halves come out clean across seeds, and the wildcard is
+  gone from the baseline. A reminder that a `[*]` entry can hide a harness bug as
+  easily as a library one: bundling three maps into one property meant the two
+  correct ones could never be seen passing separately.
 - **`MonotoneChain` is not closed under rotation or shear.** Its value *is* the
   lexicographic order of its vertices, and the quarter turn of an x-monotone
   chain is generally not x-monotone, so the class cannot represent its own image:
@@ -347,6 +420,31 @@ Recorded because they are easy to re-introduce as false findings:
   — which a multi-component `PolygonSet` already is, correctly, before anything
   is removed. `emptyOperandIsDegenerateCase` now guards that one clause with the
   same `isConnected` helper the rest of the `separates` reasoning uses.
+- **A `Disk`'s area is not exact either.** `area` is `pi r^2`, computed in
+  floating point and converted, so an exact result type holds a rounded value and
+  the `measure` identities hold only to a tolerance there. The `measure`
+  properties skip a `Disk` for the exact comparisons, the same way the metric
+  ones do for a `Disk` pair's distances.
+- **A shape's convex hull must be held at the exact vertex type.** Wrapping a
+  `HalfplaneIntersection`'s hull in `Shape<Point<int>>` compiles — `Shape`'s
+  converting constructors are explicit but present — and rounds the rational
+  vertices, so the property then tests a different polygon and reports the
+  original as not contained in it. Use `ExactShape`, not `AnyShape`, for anything
+  a construction computed in `Exact`.
+- **An empty operand violates a precondition, which is undefined behaviour
+  whether or not anything checks it.** Passing an empty shape to a measure or a
+  distance is UB; `Rectangle::midpoint` and `Rectangle::squaredDistance` happen
+  to `assert(!empty())` because that check is far cheaper than what they compute,
+  and an abort there is the library working, not a crash to report. Whether a
+  precondition carries an assert is a cost decision, so the *absence* of one
+  elsewhere is not evidence that an empty operand is supported — and `Convex` and
+  `HalfplaneIntersection` answering the origin for an empty centroid is not a
+  disagreement to reconcile, since under UB any value will do. The `measure`,
+  `metric` and `closest` groups skip an empty operand for the same reason the
+  generators skip an `isUndefined()` shape: there is no contract to assert about.
+  Note this is a precondition of the *operation*, not a state of the shape — an
+  empty `Rectangle` is still `isUndefined() == false`, and the predicates answer
+  for it normally.
 - **A `Disk` pair's distances are not exact.** `squaredDistance` is documented to
   compute in `double` and convert for any pair involving a `Disk`, so an exact
   `ResultNumber` holds a rounded value there and the isometry identities hold
@@ -356,8 +454,9 @@ Recorded because they are easy to re-introduce as false findings:
 ### Keeping it in step with the library
 
 It is header-only against `include/`, out of CI, and therefore silently rots.
-It last built on 2026-09-11 and was found broken on 2026-09-16 by three API
-changes it had not followed — worth knowing as the shape of what breaks it:
+It last built and ran clean under both compilers on 2026-09-16. It had been found
+broken earlier that day by three API changes it had not followed — worth knowing
+as the shape of what breaks it:
 
 - `Shape`'s storage accessors were renamed when the two vocabularies were split
   (commit 2f97444): `isPolygon()` → `holdsPolygon()`, `getIfConvex()` →
@@ -394,8 +493,9 @@ inline Result myProperty(const AnyShape& a, const AnyShape& b) {
 Register it in the same file's `register…Properties`, choosing `unary`, `binary`
 or `pointSet`, and a tag mask the operands must carry (`kRegion` for the boolean
 operations, `kAffine` where `Transformation` applies, `kAxisFree` for maps that
-reorient, `kConvexAlternative` for convex-only). Tags *select* rather than skip,
-which keeps a narrow property from going vacuous.
+reorient, `kConvexAlternative` for convex-only). A tag filters the draw, and a
+*starved* tag also steers a quarter of the cases towards it, which is what keeps
+a narrow property from going vacuous — see the third design note above.
 
 Say what the property is a consequence of. Every one here is derivable from a
 documented definition, and the comment saying which is what lets the next reader

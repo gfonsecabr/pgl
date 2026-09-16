@@ -540,7 +540,7 @@ constexpr Point<ResultNumber> Convex<PointType, LabelType>::centroid() const {
         return Point<ResultNumber>();
     }
     if (points_.size() == 1) {
-        return Point<ResultNumber>(points_[0]);
+        return Point<ResultNumber>(points_[0]) + static_cast<Point<ResultNumber>>(translation_);
     }
     auto area_twice = twiceArea();
     if (points_.size() == 2 || area_twice == 0) {

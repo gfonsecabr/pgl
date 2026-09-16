@@ -357,10 +357,12 @@ inline Result shearPreservesPredicates(const AnyShape& a, const AnyShape& b) {
 }
 
 /**
- * @brief Distances behave as an isometry and a similarity require.
+ * @brief Distances behave as a translation and a similarity require.
  *
- * Translation and rotation leave the squared distance alone; scaling by `s`
- * multiplies it by `s^2`.
+ * Translation leaves the squared distance alone; scaling by `s` multiplies it by
+ * `s^2`. The quarter turn is the same statement and is asked separately, by
+ * @ref distancesSurviveAQuarterTurn, because it needs the @ref kAxisFree tag and
+ * these two do not.
  *
  * Run twice: once at the default exact result type, where these are equations,
  * and once at `double`, where they are the same equations within a tolerance.
@@ -384,12 +386,6 @@ inline Result distancesFollowTheMapAt(const AnyShape& a, const AnyShape& b,
                       detail::show(original) + " to " + detail::show(translated) +
                       " under translation");
 
-    const Number rotated = a.rotated90(1).template squaredDistance<Number>(b.rotated90(1));
-    PGLPROP_CHECK(nearlyEqual(original, rotated),
-                  pair(a, b) + " ; at " + what + " squaredDistance changes from " +
-                      detail::show(original) + " to " + detail::show(rotated) +
-                      " under a quarter turn");
-
     AnyShape scaledA = a;
     AnyShape scaledB = b;
     scaledA *= Coord(3);
@@ -403,20 +399,99 @@ inline Result distancesFollowTheMapAt(const AnyShape& a, const AnyShape& b,
     return held();
 }
 
-inline Result distancesFollowTheMap(const AnyShape& a, const AnyShape& b) {
+/** @brief A quarter turn leaves the squared distance alone. */
+template <class Number>
+inline Result distancesSurviveAQuarterTurnAt(const AnyShape& a, const AnyShape& b,
+                                             const std::string& what) {
+    const Number original = a.template squaredDistance<Number>(b);
+    const Number rotated = a.rotated90(1).template squaredDistance<Number>(b.rotated90(1));
+    PGLPROP_CHECK(nearlyEqual(original, rotated),
+                  pair(a, b) + " ; at " + what + " squaredDistance changes from " +
+                      detail::show(original) + " to " + detail::show(rotated) +
+                      " under a quarter turn");
+    return held();
+}
+
+/**
+ * @brief Runs one of the distance-map checks at both result types.
+ *
+ * A pair involving a `Disk` is documented to compute in `double` and convert, so
+ * an exact result type holds a rounded value there and the identities are only
+ * true to a tolerance. That pair is asked at `double` alone.
+ */
+template <class Check>
+inline Result atBothResultTypes(const AnyShape& a, const AnyShape& b, Check&& check) {
     if (a.empty() || b.empty()) {
         return skipped();
     }
-    // A pair involving a Disk is documented to compute in `double` and convert,
-    // so an exact result type holds a rounded value there and the identities are
-    // only true to a tolerance. Ask that pair at `double` alone.
     if (!a.holdsDisk() && !b.holdsDisk()) {
-        const Result exact = distancesFollowTheMapAt<Exact>(a, b, "the exact result type");
+        const Result exact = check.template operator()<Exact>(a, b, "the exact result type");
         if (exact.outcome != Outcome::kHeld) {
             return exact;
         }
     }
-    return distancesFollowTheMapAt<double>(a, b, "double");
+    return check.template operator()<double>(a, b, "double");
+}
+
+inline Result distancesFollowTheMap(const AnyShape& a, const AnyShape& b) {
+    return atBothResultTypes(a, b, []<class Number>(const AnyShape& first, const AnyShape& second,
+                                                    const std::string& what) {
+        return distancesFollowTheMapAt<Number>(first, second, what);
+    });
+}
+
+inline Result distancesSurviveAQuarterTurn(const AnyShape& a, const AnyShape& b) {
+    return atBothResultTypes(a, b, []<class Number>(const AnyShape& first, const AnyShape& second,
+                                                    const std::string& what) {
+        return distancesSurviveAQuarterTurnAt<Number>(first, second, what);
+    });
+}
+
+/**
+ * @brief Applying two maps in turn is applying their composite.
+ *
+ * @f$(T_1 T_2) S = T_1 (T_2 S)@f$. The composite is formed by multiplying two
+ * matrices and applied in one pass, while the right-hand side rebuilds the shape
+ * in between — and *that* is what makes the property worth having, because
+ * rebuilding is where each class re-establishes its normalization. A shape whose
+ * intermediate value normalizes to something it should not diverges here and
+ * nowhere else, since neither side is wrong about the geometry.
+ *
+ * Both maps keep the integer lattice, so the two sides are comparable exactly.
+ */
+inline Result transformationsCompose(const AnyShape& a) {
+    const auto shear = pgl::Transformation<Coord>::shearX(Coord(1));
+    const auto turn = pgl::Transformation<Coord>::rotation90(1);
+
+    const auto composed = attempt([&] { return AnyShape((shear * turn) * a); });
+    const auto stepwise = attempt([&] { return AnyShape(shear * (turn * a)); });
+    if (!composed || !stepwise) {
+        return skipped();  // No `Transformation` for this alternative.
+    }
+    PGLPROP_CHECK(*composed == *stepwise,
+                  "A = " + detail::show(a) + " ; the composite map gives " +
+                      detail::show(*composed) + " but applying the two in turn gives " +
+                      detail::show(*stepwise));
+    return held();
+}
+
+/**
+ * @brief The identity map is the identity.
+ *
+ * The degenerate case of @ref transformationsCompose, and not implied by it: a
+ * map that rebuilt every shape through a normalizing constructor would satisfy
+ * composition and still move a value that should not move.
+ */
+inline Result identityTransformationChangesNothing(const AnyShape& a) {
+    const auto mapped = attempt(
+        [&] { return AnyShape(pgl::Transformation<Coord>::identity() * a); });
+    if (!mapped) {
+        return skipped();
+    }
+    PGLPROP_CHECK(*mapped == a,
+                  "A = " + detail::show(a) + " ; the identity map turns it into " +
+                      detail::show(*mapped));
+    return held();
 }
 
 }  // namespace props
@@ -443,6 +518,12 @@ inline void registerInvarianceProperties(Registry& registry) {
                                props::shearPreservesPredicates});
     registry.binary.push_back({"invariance", "distances-follow-the-map", kNoTag,
                                props::distancesFollowTheMap});
+    registry.binary.push_back({"invariance", "distances-survive-a-quarter-turn", kAxisFree,
+                               props::distancesSurviveAQuarterTurn});
+    registry.unary.push_back({"invariance", "transformations-compose", kAffine | kAxisFree,
+                              props::transformationsCompose});
+    registry.unary.push_back({"invariance", "identity-transformation-changes-nothing",
+                              kAffine | kAxisFree, props::identityTransformationChangesNothing});
 }
 
 }  // namespace pglprop

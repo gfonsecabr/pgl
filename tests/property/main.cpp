@@ -13,8 +13,10 @@
 #include "properties_algorithms.hpp"
 #include "properties_constructions.hpp"
 #include "properties_invariance.hpp"
+#include "properties_measures.hpp"
 #include "properties_metric.hpp"
 #include "properties_predicates.hpp"
+#include "properties_witness.hpp"
 
 #include <cstdlib>
 #include <iostream>
@@ -30,6 +32,8 @@ pglprop::Registry buildRegistry() {
     pglprop::registerInvarianceProperties(registry);
     pglprop::registerConstructionProperties(registry);
     pglprop::registerAlgorithmProperties(registry);
+    pglprop::registerMeasureProperties(registry);
+    pglprop::registerWitnessProperties(registry);
     return registry;
 }
 

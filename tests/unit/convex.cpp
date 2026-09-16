@@ -2441,3 +2441,39 @@ TEST_CASE("Dividing an integer Convex collapses and straightens vertices canonic
     CHECK(reflected == pgl::Convex<Point>(std::vector<Point>{{0, 0}, {-4, 0}, {-4, -2}}));
     CHECK(reflected[0] == Point(-4, -2));
 }
+
+// `Convex` defers a translation into a stored offset rather than moving its
+// vertices, and every branch of `centroid` has to add it back. The one-vertex
+// branch did not, so a translated degenerate hull reported the centroid it had
+// before the move -- while `pointInside`, the branch right beside it, was right.
+TEST_CASE("Convex centroid follows a deferred translation") {
+    using Point = pgl::Point<int>;
+    using ConvexShape = pgl::Convex<Point>;
+    using Exact = pgl::Rational<pgl::BigInt>;
+    using ExactPoint = pgl::Point<Exact>;
+
+    const Point shift(3, -5);
+
+    SUBCASE("a one-vertex hull") {
+        ConvexShape hull({Point(-1, 0)});
+        REQUIRE(hull.size() == 1);
+        CHECK(hull.centroid<Exact>() == ExactPoint(Exact(-1), Exact(0)));
+
+        hull += shift;
+        REQUIRE(hull.size() == 1);
+        // The same value the hull built directly at the moved position reports.
+        CHECK(hull.centroid<Exact>() == ConvexShape({Point(2, -5)}).centroid<Exact>());
+        CHECK(hull.centroid<Exact>() == ExactPoint(Exact(2), Exact(-5)));
+        CHECK(hull.pointInside<Exact>() == ExactPoint(Exact(2), Exact(-5)));
+    }
+
+    SUBCASE("the two- and three-vertex branches already followed it") {
+        ConvexShape segment({Point(-1, 0), Point(1, 4)});
+        segment += shift;
+        CHECK(segment.centroid<Exact>() == ExactPoint(Exact(3), Exact(-3)));
+
+        ConvexShape triangle({Point(0, 0), Point(3, 0), Point(0, 3)});
+        triangle += shift;
+        CHECK(triangle.centroid<Exact>() == ExactPoint(Exact(4), Exact(-4)));
+    }
+}

@@ -426,6 +426,59 @@ inline RunReport run(const Registry& registry, const Options& options) {
         }
     }
 
+    // ------------------------------------------------- tag-focused draw pools
+    //
+    // A property's `requiredTags` only *filters* a draw: both operands are drawn
+    // uniformly from `enabled`, and a property that wants a narrow tag runs on
+    // whatever fraction of draws happens to satisfy it. For a tag carried by one
+    // generator out of twenty-six that fraction is 1/676 per operand pair, which
+    // left the Minkowski group running four cases in three thousand -- present in
+    // the counts, absent in practice.
+    //
+    // So a *starved* tag steers the draw as well: one whose generators are under
+    // a quarter of the table gets a pool, and a quarter of the cases draw both
+    // operands from one. The filtering above is untouched, so no property sees an
+    // operand it did not ask for.
+    //
+    // Only starved tags, and only a quarter of the cases, because every draw
+    // spent on a pool is a draw not spent exploring the whole matrix -- and the
+    // alternatives that carry the fewest tags are exactly the ones a pool is
+    // least likely to contain. `kRegion` and `kAxisFree` already cover half the
+    // table or more and arrive often enough on their own.
+    std::vector<std::vector<std::size_t>> focusPools;
+    {
+        std::set<unsigned> masks;
+        for (const UnaryProperty* property : unary) {
+            if (property->requiredTags != kNoTag) {
+                masks.insert(property->requiredTags);
+            }
+        }
+        for (const BinaryProperty* property : binary) {
+            if (property->requiredTags != kNoTag) {
+                masks.insert(property->requiredTags);
+            }
+        }
+        for (const unsigned mask : masks) {
+            std::vector<std::size_t> pool;
+            for (const std::size_t index : enabled) {
+                if ((generators()[index].tags & mask) == mask) {
+                    pool.push_back(index);
+                }
+            }
+            if (!pool.empty() && pool.size() * 4 < enabled.size()) {
+                focusPools.push_back(std::move(pool));
+            }
+        }
+    }
+
+    // Returns the generator pool this case draws its operands from.
+    const auto drawPool = [&rng, &enabled, &focusPools]() -> const std::vector<std::size_t>& {
+        if (focusPools.empty() || rng.index(4) != 0) {
+            return enabled;
+        }
+        return focusPools[rng.index(focusPools.size())];
+    };
+
     const auto tally = [&report](const char* group, const char* name, Outcome outcome) {
         PropertyStats& stats = report.stats[std::string(group) + "/" + name];
         switch (outcome) {
@@ -438,8 +491,9 @@ inline RunReport run(const Registry& registry, const Options& options) {
     // ---------------------------------------------------------------- shapes
     if (!unary.empty() || !binary.empty()) {
         for (unsigned long long iteration = 0; iteration < options.cases; ++iteration) {
-            const Operand operandA = drawOperand(rng, enabled[rng.index(enabled.size())], options.grid);
-            const Operand operandB = drawOperand(rng, enabled[rng.index(enabled.size())], options.grid);
+            const std::vector<std::size_t>& pool = drawPool();
+            const Operand operandA = drawOperand(rng, pool[rng.index(pool.size())], options.grid);
+            const Operand operandB = drawOperand(rng, pool[rng.index(pool.size())], options.grid);
 
             AnyShape shapeA;
             AnyShape shapeB;

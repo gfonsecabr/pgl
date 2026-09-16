@@ -412,6 +412,163 @@ inline Result selfBooleansCollapse(const AnyShape& a) {
     return checked ? held() : skipped();
 }
 
+// -------------------------------------------------- pointwise boolean oracle
+
+/**
+ * @brief Every lattice point of the generation grid, grown by one on each side.
+ *
+ * For the properties whose per-point work is an integer predicate rather than an
+ * exact `contains` against a construction, so the whole grid is affordable — and
+ * needed, since the unbounded alternatives have no bounding box to sample
+ * against.
+ */
+inline const std::vector<PointShape>& gridPoints() {
+    static const std::vector<PointShape> points = [] {
+        std::vector<PointShape> result;
+        for (Coord x = -7; x <= 7; ++x) {
+            for (Coord y = -7; y <= 7; ++y) {
+                result.emplace_back(x, y);
+            }
+        }
+        return result;
+    }();
+    return points;
+}
+
+/**
+ * @brief Lattice points to test membership at, for one pair of operands.
+ *
+ * The lattice of the two bounding boxes together, grown by one on each side so
+ * that a point just outside both shapes is always included and the "in neither
+ * operand" half of each implication is exercised rather than being vacuously
+ * true. Growing by one is enough: the shapes have lattice vertices, so one step
+ * out of the joint box is outside both.
+ *
+ * Bounded to the operands rather than to the whole generation grid because each
+ * point costs an exact `contains` against four `PolygonSet` results in
+ * `Rational<BigInt>`, and the far corners of the grid only ever repeat the same
+ * "outside everything" answer. An operand with no bounding box yields no points,
+ * and the caller skips.
+ */
+inline std::vector<PointShape> samplePoints(const AnyShape& a, const AnyShape& b) {
+    if (!hasBoundingBox(a) || !hasBoundingBox(b)) {
+        return {};
+    }
+    const AnyShape boxA = a.bbox();
+    const AnyShape boxB = b.bbox();
+    const Coord minX = std::min(boxA.bbox().min().x(), boxB.bbox().min().x()) - 1;
+    const Coord minY = std::min(boxA.bbox().min().y(), boxB.bbox().min().y()) - 1;
+    const Coord maxX = std::max(boxA.bbox().max().x(), boxB.bbox().max().x()) + 1;
+    const Coord maxY = std::max(boxA.bbox().max().y(), boxB.bbox().max().y()) + 1;
+
+    std::vector<PointShape> result;
+    for (Coord x = minX; x <= maxX; ++x) {
+        for (Coord y = minY; y <= maxY; ++y) {
+            result.emplace_back(x, y);
+        }
+    }
+    return result;
+}
+
+/**
+ * @brief The boolean results agree with their operands point by point.
+ *
+ * The area identities in this group are sums, and a sum forgives a
+ * classification error that another cell's error cancels: two cells swapped
+ * between @f$A \cap B@f$ and @f$A \setminus B@f$ leave
+ * @f$|A \cap B| + |A \setminus B| = |A|@f$ standing. Membership does not
+ * forgive it, and a lattice point is a witness that says which cell went wrong.
+ *
+ * Every implication below is stated so that regularization cannot break it —
+ * each one tests the *interior* on whichever side the closure might have added a
+ * lower-dimensional piece, so a point on a boundary or a slit is never the
+ * deciding case:
+ *
+ *  - interior to both operands @f$\Rightarrow@f$ in @f$A \cap B@f$ and in
+ *    @f$A \cup B@f$;
+ *  - interior to @f$A \cap B@f$ @f$\Rightarrow@f$ in both operands;
+ *  - interior to @f$A@f$ and outside @f$B@f$ @f$\Rightarrow@f$ in
+ *    @f$A \setminus B@f$ and in @f$A \triangle B@f$;
+ *  - interior to @f$A \setminus B@f$ @f$\Rightarrow@f$ in @f$A@f$ and not
+ *    interior to @f$B@f$.
+ */
+inline Result booleansAgreePointwise(const AnyShape& a, const AnyShape& b) {
+    const auto united = attempt([&] { return a.template regularizedUnion<Exact>(b); });
+    const auto met = attempt([&] { return a.template regularizedIntersection<Exact>(b); });
+    const auto carved = attempt([&] { return a.template difference<Exact>(b); });
+    const auto symmetric = attempt([&] { return a.template symmetricDifference<Exact>(b); });
+    if (!united || !met || !carved || !symmetric) {
+        return skipped();
+    }
+    const std::vector<PointShape> samples = samplePoints(a, b);
+    if (samples.empty()) {
+        return skipped();
+    }
+
+    for (const PointShape& p : samples) {
+        const ExactPoint exact(p);
+        const bool inA = a.contains(p);
+        const bool inB = b.contains(p);
+        const bool insideA = a.interiorContains(p);
+        const bool insideB = b.interiorContains(p);
+        const std::string where = pair(a, b) + " ; at the point " + detail::show(p) + ": ";
+
+        if (insideA && insideB) {
+            PGLPROP_CHECK(met->contains(exact),
+                          where + "interior to both operands, but outside A&B = " +
+                              detail::show(*met));
+            PGLPROP_CHECK(united->contains(exact),
+                          where + "interior to both operands, but outside A|B = " +
+                              detail::show(*united));
+        }
+        if (met->interiorContains(exact)) {
+            PGLPROP_CHECK(inA && inB,
+                          where + "interior to A&B = " + detail::show(*met) +
+                              ", but in A is " + detail::show(inA) + " and in B is " +
+                              detail::show(inB));
+        }
+        if (insideA && !inB) {
+            PGLPROP_CHECK(carved->contains(exact),
+                          where + "interior to A and outside B, but outside A-B = " +
+                              detail::show(*carved));
+            PGLPROP_CHECK(symmetric->contains(exact),
+                          where + "interior to A and outside B, but outside A^B = " +
+                              detail::show(*symmetric));
+        }
+        if (carved->interiorContains(exact)) {
+            PGLPROP_CHECK(inA, where + "interior to A-B = " + detail::show(*carved) +
+                                   ", but not in A");
+            PGLPROP_CHECK(!insideB, where + "interior to A-B = " + detail::show(*carved) +
+                                        ", but also interior to B");
+        }
+    }
+    return held();
+}
+
+/**
+ * @brief A point interior to both operands makes their interiors intersect.
+ *
+ * The predicate group derives `interiorsIntersect` from its siblings; this gives
+ * it an oracle instead. A lattice point interior to both is a witness that the
+ * intersection of the interiors is non-empty, which is the definition, so the
+ * predicate has no room to disagree — and unlike the derivations it needs no
+ * other predicate to be right.
+ */
+inline Result interiorWitnessMeetsInteriors(const AnyShape& a, const AnyShape& b) {
+    for (const PointShape& p : gridPoints()) {
+        if (a.interiorContains(p) && b.interiorContains(p)) {
+            PGLPROP_CHECK(a.interiorsIntersect(b),
+                          pair(a, b) + " ; both interiors hold " + detail::show(p) +
+                              " but interiorsIntersect is false");
+            PGLPROP_CHECK(a.intersects(b),
+                          pair(a, b) + " ; both interiors hold " + detail::show(p) +
+                              " but intersects is false");
+            return held();
+        }
+    }
+    return skipped();
+}
+
 // ------------------------------------------------------------- Minkowski sums
 
 /**
@@ -444,6 +601,76 @@ inline Result minkowskiSumCoversVertexSums(const AnyShape& a, const AnyShape& b)
     PGLPROP_CHECK(sum == reversed,
                   pair(a, b) + " ; A+B=" + detail::show(sum) + " but B+A=" +
                       detail::show(reversed));
+    return held();
+}
+
+// --------------------------------------------------------------- convex hull
+
+/**
+ * @brief The convex hull encloses its shape, and adds nothing for a convex one.
+ *
+ * Two statements, and the second is what gives the first its teeth. `contains`
+ * alone is satisfied by a hull that is far too large — the whole point of a hull
+ * is that it is the *smallest* convex superset — so a convex operand, whose hull
+ * must come back as the same point set, pins the other end. Together they say
+ * the hull of a convex shape is that shape and the hull of any shape covers it.
+ *
+ * `Shape::convexHull` is documented to throw for the alternatives that have
+ * none: the empty shape, the unbounded ones and a `Disk`, whose hull is not a
+ * polygon.
+ */
+inline Result convexHullEnclosesItsShape(const AnyShape& a) {
+    // The hull must be held at the exact vertex type: a `HalfplaneIntersection`
+    // has rational vertices, and wrapping it in an integral `Shape` would round
+    // them and test a different polygon.
+    const auto hull = attempt([&] { return ExactShape(a.template convexHull<Exact>()); });
+    if (!hull) {
+        return skipped();
+    }
+    const ExactShape exact = toExact(a);
+    PGLPROP_CHECK(hull->contains(exact),
+                  "A = " + detail::show(a) + " ; its convex hull " + detail::show(*hull) +
+                      " does not contain it");
+
+    const bool convex = a.holdsTriangle() || a.holdsRectangle() || a.holdsConvex();
+    if (convex) {
+        PGLPROP_CHECK(exact.contains(*hull),
+                      "A = " + detail::show(a) + " is convex, but its hull " +
+                          detail::show(*hull) + " is strictly larger");
+    }
+    return held();
+}
+
+/**
+ * @brief Eroding by what was used to dilate gives back at least the original.
+ *
+ * @f$(A \oplus B) \ominus B \supseteq A@f$ holds for any two sets, and with
+ * equality exactly when `A` is the opening of itself by `B` — so containment,
+ * not equality, is the statement. It is the only relation available that runs a
+ * Minkowski sum back through the erosion, which is otherwise checked by nothing:
+ * the sum's own property compares it against vertex sums, which the erosion
+ * never sees.
+ *
+ * Both operands are `Convex`, where the sum of two lattice polygons is again a
+ * lattice polygon and the whole round trip stays exact.
+ */
+inline Result erosionUndoesDilation(const AnyShape& a, const AnyShape& b) {
+    const auto* convexA = a.getIfHoldsConvex();
+    const auto* convexB = b.getIfHoldsConvex();
+    if (convexA == nullptr || convexB == nullptr || convexA->empty() || convexB->empty()) {
+        return skipped();
+    }
+    const auto dilated = attempt([&] { return convexA->minkowskiSum(*convexB); });
+    if (!dilated) {
+        return skipped();
+    }
+    const auto eroded = attempt([&] { return AnyShape(dilated->minkowskiErosion(*convexB)); });
+    if (!eroded) {
+        return skipped();
+    }
+    PGLPROP_CHECK(eroded->contains(a),
+                  pair(a, b) + " ; (A+B)-B = " + detail::show(*eroded) +
+                      " does not contain A, though eroding by what dilated it cannot lose a point");
     return held();
 }
 
@@ -481,6 +708,14 @@ inline void registerConstructionProperties(Registry& registry) {
                               props::selfBooleansCollapse});
     registry.unary.push_back({"boolean", "regularization-agrees-with-predicates", kRegion,
                               props::regularizationAgreesWithPredicates});
+    registry.binary.push_back({"boolean", "booleans-agree-pointwise", kRegion,
+                               props::booleansAgreePointwise});
+    registry.binary.push_back({"predicates", "interior-witness-meets-interiors", kNoTag,
+                               props::interiorWitnessMeetsInteriors});
+    registry.unary.push_back({"bounding", "convex-hull-encloses-its-shape", kNoTag,
+                              props::convexHullEnclosesItsShape});
+    registry.binary.push_back({"minkowski", "erosion-undoes-dilation", kConvexAlternative,
+                               props::erosionUndoesDilation});
     registry.binary.push_back({"minkowski", "minkowski-sum-covers-vertex-sums", kConvexAlternative,
                                props::minkowskiSumCoversVertexSums});
 }

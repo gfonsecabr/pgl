@@ -75,9 +75,14 @@ TEST_CASE("PolygonWithHoles point location, single hole") {
         CHECK(!region.intersects(p));
     }
 
-    SUBCASE("a point has no interior, so interiors never intersect") {
-        CHECK(!region.interiorsIntersect(Point(8, 8)));
-        CHECK(!region.interiorsIntersect(Point(4, 4)));
+    SUBCASE("a point's relative interior is the point itself") {
+        // A° is the relative interior, so a point -- a manifold with empty
+        // boundary -- is its own. interiorsIntersect therefore tracks
+        // interiorContains here, as it does for every other area shape.
+        CHECK(region.interiorsIntersect(Point(8, 8)));   // strictly inside
+        CHECK(!region.interiorsIntersect(Point(4, 4)));  // inside the hole
+        CHECK(!region.interiorsIntersect(Point(0, 5)));  // on the outer boundary
+        CHECK(!region.interiorsIntersect(Point(2, 2)));  // on a hole corner
     }
 }
 

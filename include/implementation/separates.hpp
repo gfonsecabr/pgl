@@ -4819,12 +4819,19 @@ bool cellSeparates(const Target& target, const Remover& remover) {
     std::vector<ExactSegment> cuts;
     std::vector<ExactPoint> cutPoints;
     appendCutSegments<ExactPoint>(target, cuts);
+    if (cuts.empty()) {
+        // The target has no extent of its own — a point, or a degenerate chain
+        // or polyline that is one — so each of its components is a single point
+        // and removing anything leaves at most one piece of each. This has to be
+        // decided before the remover's cuts are appended: those alone still build
+        // an arrangement, whose cells then describe the plane around the target
+        // rather than the target, and a target sitting in a hole of the remover
+        // could be read as two pieces of it.
+        return disconnectedOnItsOwn(target);
+    }
     appendCutSegments<ExactPoint>(remover, cuts);
     appendCutPoints<ExactPoint>(target, cutPoints);
     appendCutPoints<ExactPoint>(remover, cutPoints);
-    if (cuts.empty()) {
-        return false;  // a target with no extent holds at most one component
-    }
 
     // Layering: Arrangement lives in algorithm/arrangement.hpp, which pgl.hpp
     // includes after this header. Only the name is available here — see the

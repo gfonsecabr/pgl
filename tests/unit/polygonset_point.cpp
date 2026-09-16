@@ -61,14 +61,19 @@ TEST_CASE("PolygonSet and Point intersection predicates") {
         CHECK(!set.intersects(Point(3, 3)));
     }
 
-    SUBCASE("a point has no interior") {
-        CHECK(!set.interiorsIntersect(Point(1, 1)));
+    SUBCASE("a point's relative interior is the point itself") {
+        // Componentwise, and tracking interiorContains the way every other area
+        // shape does: A° is the relative interior, which for a point is itself.
+        CHECK(set.interiorsIntersect(Point(1, 1)));   // interior to a component
+        CHECK(!set.interiorsIntersect(Point(0, 1)));  // on a component boundary
+        CHECK(!set.interiorsIntersect(Point(3, 3)));  // between the components
     }
 
     SUBCASE("the pair answers the same either way round") {
         CHECK(Point(1, 1).intersects(set));
         CHECK(!Point(3, 3).intersects(set));
-        CHECK(!Point(1, 1).interiorsIntersect(set));
+        CHECK(Point(1, 1).interiorsIntersect(set));
+        CHECK(!Point(3, 3).interiorsIntersect(set));
     }
 }
 
