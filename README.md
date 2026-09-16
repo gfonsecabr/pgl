@@ -221,6 +221,8 @@ support testing, benchmarking, and PDF export. We are grateful to their authors:
 - [plf_nanotimer](https://github.com/mattreecebentley/plf_nanotimer) by Matt Bentley — timing in the benchmark suite (zlib-style license).
 - Many AI have been used to write the code, including Claude, ChatGPT, and GitHub Copilot.
 
+We are also indebted to the [CGAL](https://www.cgal.org/) project. Pangolin bundles no CGAL code, but many of its algorithm and data structure choices were inspired by the choices CGAL made, including where the two libraries end up differing.
+
 ## More Information
 
 - For a brief description, check the documents at the [doc folder](doc/).
