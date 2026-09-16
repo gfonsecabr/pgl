@@ -114,6 +114,7 @@ A `Canvas` class is provided for [visualization](https://github.com/gfonsecabr/p
 ```c++
 pgl::Canvas canvas;
 canvas << pgl::Point(0,0);
+canvas << pgl::fontSize("32") << pgl::Text("(0,0)", pgl::Point(0.0, -0.55));
 
 pgl::Triangle tri = {-1, -1, 0, 2, 1, -2};
 canvas << pgl::stroke("green") << tri;
@@ -129,9 +130,9 @@ All geometry types are comparable and hashable, so they can be stored in standar
 
 ```c++
 pgl::Segment s = {1, 0, 4, 7};
-std::set<decltype(s)> set;
+std::set<pgl::Segment<>> set;
 set.insert(s);
-std::unordered_set<decltype(s)> uset;
+std::unordered_set<pgl::Segment<>> uset;
 uset.insert(s);
 ```
 
@@ -185,7 +186,7 @@ There are several architectural differences between Pangolin and [CGAL](https://
 
 ## Build
 
-As a header-only library with no dependency, you can clone the repository and then compile code directly with `g++` or `clang++`:
+As a header-only library with no dependency, you can clone the repository and then compile code directly with `g++` or `clang++`. C++20 is the minimum standard, but C++23 and C++26 also work:
 
 ```bash
 g++ -std=c++23 -Iinclude/ -o example examples/example1.cpp
