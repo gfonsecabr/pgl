@@ -26,9 +26,9 @@
   CXX=clang++ sh tests/run_tests.sh
   CXXFLAGS="-std=c++23 -O2 -Wall" sh tests/run_tests.sh
   ```
-- Build a one-off graphical or sandbox program manually; these are not part of the test runner:
+- Build a one-off sandbox program manually; these are not part of the test runner:
   ```bash
-  clang++ -std=c++23 -Iinclude/ -o bo tests/graphical/bentleyottmann.cpp
+  clang++ -std=c++23 -Iinclude/ -o example1 examples/example1.cpp
   ```
 - Run benchmarks with the repo script:
   ```bash
@@ -56,7 +56,7 @@
 - Tests are split by purpose:
   - `tests/unit/` for per-shape and per-operation behavior
   - `tests/integration/` for public cross-shape interactions
-  - `tests/graphical/` and `sandbox/` for manual exploratory programs, not automated test coverage
+  - `sandbox/` for manual exploratory programs, not automated test coverage
 - The user-facing reference in `doc/` is comprehensive and is often the fastest way to confirm intended API shape or semantics before changing code.
 
 ## Key conventions

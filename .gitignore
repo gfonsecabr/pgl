@@ -21,8 +21,7 @@ __pycache__/
 # Ad-hoc exploratory programs and their output
 sandbox/
 
-# Generated SVG output from graphical tests / examples
-tests/graphical/*.svg
+# Generated SVG output from examples
 /*.svg
 
 # Compiled binaries / objects
