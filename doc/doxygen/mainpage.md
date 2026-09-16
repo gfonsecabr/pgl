@@ -193,7 +193,7 @@ g++ -std=c++23 -Iinclude/ -o example examples/example1.cpp
 clang++ -std=c++23 -Iinclude/ -o example examples/example1.cpp
 ```
 
-If you want cmake to automatically download the library, you can include this snippet in your `CMakeLists.txt`:
+A CMake package is also provided. If you want cmake to automatically download the library, you can include this snippet in your `CMakeLists.txt`:
 
 ```cmake
 include(FetchContent)
@@ -206,8 +206,23 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(pgl)
 
-target_include_directories(your_target PRIVATE ${pgl_SOURCE_DIR}/include)
+target_link_libraries(your_target PRIVATE pgl::pgl)
 ```
+
+Alternatively, install the headers once and find them from any project:
+
+```bash
+cmake -S . -B build
+cmake --install build --prefix /usr/local
+```
+
+```cmake
+find_package(pgl REQUIRED)
+
+target_link_libraries(your_target PRIVATE pgl::pgl)
+```
+
+Either way, the `pgl::pgl` target carries the include path and the C++20 requirement, so `#include "pgl.hpp"` needs no further flags. Configure with `-DPGL_BUILD_EXAMPLES=ON` to also build the programs in `examples/`. On a compiler with no native 128-bit integer (MSVC), where `pgl::int128` falls back to Boost.Multiprecision, the package requires the Boost headers and adds them to your target.
 
 ## Acknowledgments
 

@@ -24,6 +24,12 @@ sandbox/
 # Generated SVG output from examples
 /*.svg
 
+# In-source CMake configuration (out-of-source builds land in build/, above)
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+
 # Compiled binaries / objects
 *.o
 *.out

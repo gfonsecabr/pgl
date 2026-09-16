@@ -1,0 +1,49 @@
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/pgl-targets.cmake")
+
+# pgl is header-only and dependency-free wherever the compiler has a native
+# 128-bit integer. Where it does not (MSVC), core/numeric.hpp falls back to
+# Boost.Multiprecision for pgl::int128. That is a property of the compiler
+# consuming this package, not of the machine that installed it, so the check
+# runs here instead of being baked into pgl-targets.cmake. It mirrors the one in
+# the top-level CMakeLists.txt.
+if(NOT DEFINED PGL_HAVE_INT128)
+    get_property(_pgl_enabled_languages GLOBAL PROPERTY ENABLED_LANGUAGES)
+    if("CXX" IN_LIST _pgl_enabled_languages)
+        include(CheckCXXSourceCompiles)
+        check_cxx_source_compiles("
+#if !defined(__SIZEOF_INT128__)
+#error no native 128-bit integer
+#endif
+int main() { return 0; }
+" PGL_HAVE_INT128)
+    else()
+        # No C++ compiler to ask; nothing can be compiled against pgl either.
+        set(PGL_HAVE_INT128 YES)
+    endif()
+    unset(_pgl_enabled_languages)
+endif()
+
+if(NOT PGL_HAVE_INT128)
+    # CONFIG mode first, as in the top-level CMakeLists.txt: CMake 4 removed the
+    # FindBoost module (policy CMP0167), and every Boost since 1.70 ships a
+    # config of its own.
+    find_package(Boost QUIET CONFIG)
+    if(NOT Boost_FOUND AND CMAKE_VERSION VERSION_LESS 3.30)
+        find_package(Boost QUIET MODULE)
+    endif()
+    if(TARGET Boost::headers)
+        set_property(TARGET pgl::pgl APPEND PROPERTY INTERFACE_LINK_LIBRARIES Boost::headers)
+    elseif(TARGET Boost::boost)
+        set_property(TARGET pgl::pgl APPEND PROPERTY INTERFACE_LINK_LIBRARIES Boost::boost)
+    else()
+        set(pgl_FOUND FALSE)
+        set(pgl_NOT_FOUND_MESSAGE
+            "${CMAKE_CXX_COMPILER_ID} provides no native 128-bit integer, so pgl needs \
+the Boost.Multiprecision headers for pgl::int128, and no Boost header target was found.")
+        return()
+    endif()
+endif()
+
+check_required_components(pgl)
