@@ -42,8 +42,8 @@ namespace props {
  * Hausdorff properties select on this rather than catching.
  */
 inline bool supportsHausdorff(const AnyShape& shape) {
-    return shape.isPoint() || shape.isSegment() || shape.isOrientedSegment() ||
-           shape.isRectangle() || shape.isTriangle() || shape.isConvex();
+    return shape.holdsPoint() || shape.holdsSegment() || shape.holdsOrientedSegment() ||
+           shape.holdsRectangle() || shape.holdsTriangle() || shape.holdsConvex();
 }
 
 // -------------------------------------------------------------------- domain
@@ -138,17 +138,17 @@ inline Result zeroDistanceMeansIntersecting(const AnyShape& a, const AnyShape& b
     const bool meets = a.intersects(b);
 
     if (squared) {
-        PGLPROP_CHECK(meets == (*squared == 0.0),
+        PGLPROP_CHECK(meets == (*squared == Exact(0)),
                       pair(a, b) + " ; A.intersects(B)=" + detail::show(meets) +
                           " but squaredDistance=" + detail::show(*squared));
     }
     if (l1) {
-        PGLPROP_CHECK(meets == (*l1 == 0.0),
+        PGLPROP_CHECK(meets == (*l1 == Exact(0)),
                       pair(a, b) + " ; A.intersects(B)=" + detail::show(meets) +
                           " but distanceL1=" + detail::show(*l1));
     }
     if (lInf) {
-        PGLPROP_CHECK(meets == (*lInf == 0.0),
+        PGLPROP_CHECK(meets == (*lInf == Exact(0)),
                       pair(a, b) + " ; A.intersects(B)=" + detail::show(meets) +
                           " but distanceLInf=" + detail::show(*lInf));
     }
@@ -164,7 +164,7 @@ inline Result containmentMeansZeroDistance(const AnyShape& a, const AnyShape& b)
     if (!squared) {
         return skipped();
     }
-    PGLPROP_CHECK(*squared == 0.0,
+    PGLPROP_CHECK(*squared == Exact(0),
                   pair(a, b) + " ; A.contains(B) but A.squaredDistance(B)=" +
                       detail::show(*squared));
     return held();
@@ -177,6 +177,11 @@ inline Result containmentMeansZeroDistance(const AnyShape& a, const AnyShape& b)
  * and each shape distance is a minimum of its metric over the same set of point
  * pairs — so evaluating the chain at whichever pair minimizes the *larger* side
  * carries every inequality over to the minima.
+ *
+ * Stated on the squares of the first two, because only @f$L_2^2@f$ is available
+ * and its root is generally irrational: all three quantities are non-negative,
+ * so squaring is order-preserving and the comparison stays exact rather than
+ * passing through a `double` that would need a tolerance.
  */
 inline Result metricsAreOrdered(const AnyShape& a, const AnyShape& b) {
     if (a.empty() || b.empty()) {
@@ -188,13 +193,12 @@ inline Result metricsAreOrdered(const AnyShape& a, const AnyShape& b) {
     if (!squared || !l1 || !lInf) {
         return skipped();
     }
-    const double euclidean = std::sqrt(*squared);
 
-    const std::string values = " ; LInf=" + detail::show(*lInf) + " L2=" +
-                               detail::show(euclidean) + " L1=" + detail::show(*l1);
-    PGLPROP_CHECK(nearlyAtMost(*lInf, euclidean), pair(a, b) + values);
-    PGLPROP_CHECK(nearlyAtMost(euclidean, *l1), pair(a, b) + values);
-    PGLPROP_CHECK(nearlyAtMost(*l1, 2.0 * *lInf), pair(a, b) + values);
+    const std::string values = " ; LInf=" + detail::show(*lInf) + " L2^2=" +
+                               detail::show(*squared) + " L1=" + detail::show(*l1);
+    PGLPROP_CHECK(nearlyAtMost(*lInf * *lInf, *squared), pair(a, b) + values);
+    PGLPROP_CHECK(nearlyAtMost(*squared, *l1 * *l1), pair(a, b) + values);
+    PGLPROP_CHECK(nearlyAtMost(*l1, *lInf + *lInf), pair(a, b) + values);
     return held();
 }
 

@@ -100,7 +100,7 @@ inline Result boundingBoxesBoundIntersection(const AnyShape& a, const AnyShape& 
  * vertices and a box that touches them.
  */
 inline Result boundingBoxesBoundContainment(const AnyShape& a, const AnyShape& b) {
-    if (a.isDisk() || b.isDisk()) {
+    if (a.holdsDisk() || b.holdsDisk()) {
         return skipped();
     }
     if (!hasBoundingBox(a) || !hasBoundingBox(b) || !a.contains(b)) {
@@ -119,48 +119,52 @@ inline Result boundingBoxesBoundContainment(const AnyShape& a, const AnyShape& b
 /**
  * @brief `intersection` is non-empty exactly when `intersects` is true.
  *
- * Skipped for the pairs whose intersection has no single `Shape` to hold it —
- * documented to throw, and a documented throw is not a violation.
+ * `Shape::intersection` answers with the connected *pieces* of the meet, so a
+ * disjoint pair is the empty list and any other pair has at least one piece.
+ * Skipped for the pairs that have no `intersection` at all — documented to
+ * throw, and a documented throw is not a violation.
  */
 inline Result intersectionAgreesWithPredicate(const AnyShape& a, const AnyShape& b) {
-    ExactShape meet;
-    try {
-        meet = a.template intersection<Exact>(b);
-    } catch (const std::logic_error&) {
+    const auto meet = attempt([&] { return a.template intersection<Exact>(b); });
+    if (!meet) {
         return skipped();
     }
+    const bool nonEmpty =
+        std::any_of(meet->begin(), meet->end(), [](const ExactShape& p) { return !p.empty(); });
     const bool meets = a.intersects(b);
-    PGLPROP_CHECK(meets == !meet.empty(),
+    PGLPROP_CHECK(meets == nonEmpty,
                   pair(a, b) + " ; A.intersects(B)=" + detail::show(meets) +
-                      " but the intersection is " + detail::show(meet));
+                      " but the intersection is " + showPieces(*meet));
     return held();
 }
 
-/** @brief @f$A \cap B \subseteq A@f$ and @f$A \cap B \subseteq B@f$. */
+/** @brief @f$A \cap B \subseteq A@f$ and @f$A \cap B \subseteq B@f$, piece by piece. */
 inline Result intersectionSitsInsideBothOperands(const AnyShape& a, const AnyShape& b) {
-    ExactShape meet;
-    try {
-        meet = a.template intersection<Exact>(b);
-    } catch (const std::logic_error&) {
-        return skipped();
-    }
-    if (meet.empty()) {
+    const auto meet = attempt([&] { return a.template intersection<Exact>(b); });
+    if (!meet || meet->empty()) {
         return skipped();
     }
 
     const ExactShape exactA = toExact(a);
     const ExactShape exactB = toExact(b);
-    try {
-        PGLPROP_CHECK(exactA.contains(meet),
-                      pair(a, b) + " ; the intersection " + detail::show(meet) +
-                          " is not contained in A");
-        PGLPROP_CHECK(exactB.contains(meet),
-                      pair(a, b) + " ; the intersection " + detail::show(meet) +
-                          " is not contained in B");
-    } catch (const std::logic_error&) {
-        return skipped();  // No `contains` for the result against this operand.
+    bool judged = false;
+    for (const ExactShape& piece : *meet) {
+        if (piece.empty()) {
+            continue;
+        }
+        try {
+            PGLPROP_CHECK(exactA.contains(piece),
+                          pair(a, b) + " ; the intersection piece " + detail::show(piece) +
+                              " is not contained in A");
+            PGLPROP_CHECK(exactB.contains(piece),
+                          pair(a, b) + " ; the intersection piece " + detail::show(piece) +
+                              " is not contained in B");
+        } catch (const std::logic_error&) {
+            continue;  // No `contains` for this piece against this operand.
+        }
+        judged = true;
     }
-    return held();
+    return judged ? held() : skipped();
 }
 
 // -------------------------------------------------------- boolean area algebra
@@ -420,8 +424,8 @@ inline Result selfBooleansCollapse(const AnyShape& a) {
  * the strongest finite instance of that.
  */
 inline Result minkowskiSumCoversVertexSums(const AnyShape& a, const AnyShape& b) {
-    const auto* convexA = a.getIfConvex();
-    const auto* convexB = b.getIfConvex();
+    const auto* convexA = a.getIfHoldsConvex();
+    const auto* convexB = b.getIfHoldsConvex();
     if (convexA == nullptr || convexB == nullptr || convexA->empty() || convexB->empty()) {
         return skipped();
     }

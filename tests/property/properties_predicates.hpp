@@ -218,7 +218,12 @@ inline Result emptyOperandIsDegenerateCase(const AnyShape& a) {
     PGLPROP_CHECK(!a.intersects(nothing), prefix + "A.intersects(empty) is true");
     PGLPROP_CHECK(!a.interiorsIntersect(nothing), prefix + "A.interiorsIntersect(empty) is true");
     PGLPROP_CHECK(!a.separates(nothing), prefix + "A.separates(empty) is true");
-    PGLPROP_CHECK(!nothing.separates(a), prefix + "empty.separates(A) is true");
+    // `X.separates(Y)` asks whether `Y∖X` is disconnected, so `empty.separates(A)`
+    // asks whether A itself is — which a multi-component `PolygonSet` already is,
+    // correctly and before anything is removed. Only a connected A is judged.
+    if (isConnected(a)) {
+        PGLPROP_CHECK(!nothing.separates(a), prefix + "empty.separates(A) is true");
+    }
     PGLPROP_CHECK(!a.crosses(nothing), prefix + "A.crosses(empty) is true");
     PGLPROP_CHECK(nothing.contains(a) == a.empty(),
                   prefix + "empty.contains(A)=" + detail::show(nothing.contains(a)) +

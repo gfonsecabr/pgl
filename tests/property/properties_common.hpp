@@ -14,9 +14,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <concepts>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace pglprop {
 
@@ -29,6 +31,21 @@ inline std::string pair(const AnyShape& a, const AnyShape& b) {
 }
 
 /**
+ * @brief Renders a list of connected pieces, as `intersection` returns them.
+ */
+template <class Piece>
+std::string showPieces(const std::vector<Piece>& pieces) {
+    if (pieces.empty()) {
+        return "{} (no pieces)";
+    }
+    std::string text = "{";
+    for (std::size_t i = 0; i < pieces.size(); ++i) {
+        text += (i == 0 ? "" : ", ") + detail::show(pieces[i]);
+    }
+    return text + "}";
+}
+
+/**
  * @brief Whether a shape's point set is connected.
  *
  * `separates` asks whether @f$B \setminus A@f$ comes apart, and a `PolygonSet`
@@ -38,38 +55,52 @@ inline std::string pair(const AnyShape& a, const AnyShape& b) {
  * construction.
  */
 inline bool isConnected(const AnyShape& shape) {
-    if (const auto* set = shape.getIfPolygonSet()) {
+    if (const auto* set = shape.getIfHoldsPolygonSet()) {
         return set->componentCount() <= 1;
     }
     return true;
 }
 
 /**
- * @brief Compares two doubles with a relative tolerance.
+ * @brief Compares two numbers of the same type, exactly or within a tolerance.
  *
- * Used where two code paths compute the same real number by different formulas,
- * which can differ in the last bits. Never used for a vanishing test: those are
- * exact, because a true zero is computed as a true zero.
+ * Used where two code paths compute the same real number by different formulas.
+ * In a floating-point instantiation those can differ in the last bits, so the
+ * comparison is relative; an exact type — which is what the distance members
+ * now return by default for integral coordinates — is compared for equality,
+ * because there is nothing to forgive. Never used for a vanishing test: those
+ * are exact either way, because a true zero is computed as a true zero.
  */
-inline bool nearlyEqual(double left, double right) {
-    const double scale = std::max({1.0, std::fabs(left), std::fabs(right)});
-    return std::fabs(left - right) <= 1e-9 * scale;
+template <class Number>
+bool nearlyEqual(const Number& left, const Number& right) {
+    if constexpr (std::floating_point<Number>) {
+        const double scale = std::max({1.0, std::fabs(double(left)), std::fabs(double(right))});
+        return std::fabs(double(left) - double(right)) <= 1e-9 * scale;
+    } else {
+        return left == right;
+    }
 }
 
-/** @brief Tests `left <= right` with the same relative tolerance. */
-inline bool nearlyAtMost(double left, double right) {
-    const double scale = std::max({1.0, std::fabs(left), std::fabs(right)});
-    return left - right <= 1e-9 * scale;
+/** @brief Tests `left <= right`, with the same tolerance rule. */
+template <class Number>
+bool nearlyAtMost(const Number& left, const Number& right) {
+    if constexpr (std::floating_point<Number>) {
+        const double scale = std::max({1.0, std::fabs(double(left)), std::fabs(double(right))});
+        return double(left) - double(right) <= 1e-9 * scale;
+    } else {
+        return left <= right;
+    }
 }
 
 /**
  * @brief Evaluates an operation that may not be defined for the pair at hand.
  *
  * Several operations are partial over the 324 shape pairs and say so by throwing
- * `std::logic_error` — `intersection` has no single `Shape` to return for a
- * disconnected result, `squaredHausdorffDistance` is only defined among the
- * bounded convex shapes, and the regularized boolean operations each cover their
- * own set of pairs. A pair outside an operation's domain is a fact about the API,
+ * `pgl::unsupported_operation`, a `std::logic_error` — the dispatchers answer
+ * that way for a pair with no concrete member, `squaredHausdorffDistance` is
+ * only defined among the bounded convex shapes, and the regularized boolean
+ * operations each cover their own set of pairs. A pair outside an operation's
+ * domain is a fact about the API,
  * not a violated relation, so the *value* properties skip it.
  *
  * That would lose a real signal if it were the whole story, so it is not: the

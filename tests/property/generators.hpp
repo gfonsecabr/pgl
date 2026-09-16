@@ -546,23 +546,23 @@ inline std::string describeOperand(const Operand& operand) {
 
 /** @brief Returns the name of the alternative a shape currently holds. */
 inline const char* alternativeName(const AnyShape& shape) {
-    if (shape.isPoint()) return "Point";
-    if (shape.isSegment()) return "Segment";
-    if (shape.isOrientedSegment()) return "OrientedSegment";
-    if (shape.isLine()) return "Line";
-    if (shape.isOrientedLine()) return "OrientedLine";
-    if (shape.isRay()) return "Ray";
-    if (shape.isHalfplane()) return "Halfplane";
-    if (shape.isRectangle()) return "Rectangle";
-    if (shape.isTriangle()) return "Triangle";
-    if (shape.isDisk()) return "Disk";
-    if (shape.isConvex()) return "Convex";
-    if (shape.isMonotoneChain()) return "MonotoneChain";
-    if (shape.isPolyline()) return "Polyline";
-    if (shape.isPolygon()) return "Polygon";
-    if (shape.isHalfplaneIntersection()) return "HalfplaneIntersection";
-    if (shape.isPolygonWithHoles()) return "PolygonWithHoles";
-    if (shape.isPolygonSet()) return "PolygonSet";
+    if (shape.holdsPoint()) return "Point";
+    if (shape.holdsSegment()) return "Segment";
+    if (shape.holdsOrientedSegment()) return "OrientedSegment";
+    if (shape.holdsLine()) return "Line";
+    if (shape.holdsOrientedLine()) return "OrientedLine";
+    if (shape.holdsRay()) return "Ray";
+    if (shape.holdsHalfplane()) return "Halfplane";
+    if (shape.holdsRectangle()) return "Rectangle";
+    if (shape.holdsTriangle()) return "Triangle";
+    if (shape.holdsDisk()) return "Disk";
+    if (shape.holdsConvex()) return "Convex";
+    if (shape.holdsMonotoneChain()) return "MonotoneChain";
+    if (shape.holdsPolyline()) return "Polyline";
+    if (shape.holdsPolygon()) return "Polygon";
+    if (shape.holdsHalfplaneIntersection()) return "HalfplaneIntersection";
+    if (shape.holdsPolygonWithHoles()) return "PolygonWithHoles";
+    if (shape.holdsPolygonSet()) return "PolygonSet";
     return "EmptyShape";
 }
 

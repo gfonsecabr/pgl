@@ -160,7 +160,7 @@ inline Result orderingIsConsistent(const AnyShape& a, const AnyShape& b) {
 inline Result normalizationIsRouteIndependent(const AnyShape& a) {
     const std::string prefix = "A = " + detail::show(a) + " ; ";
 
-    if (const auto* segment = a.getIfSegment()) {
+    if (const auto* segment = a.getIfHoldsSegment()) {
         const detail::SegmentShape swapped(segment->max(), segment->min());
         PGLPROP_CHECK(swapped == *segment,
                       prefix + "rebuilding the segment with its endpoints swapped gives " +
@@ -168,7 +168,7 @@ inline Result normalizationIsRouteIndependent(const AnyShape& a) {
         return held();
     }
 
-    if (const auto* line = a.getIfLine()) {
+    if (const auto* line = a.getIfHoldsLine()) {
         const detail::LineShape swapped(line->max(), line->min());
         PGLPROP_CHECK(swapped == *line,
                       prefix + "rebuilding the line with its two points swapped gives " +
@@ -176,7 +176,7 @@ inline Result normalizationIsRouteIndependent(const AnyShape& a) {
         return held();
     }
 
-    if (const auto* rectangle = a.getIfRectangle()) {
+    if (const auto* rectangle = a.getIfHoldsRectangle()) {
         if (rectangle->empty()) {
             return skipped();  // No corners to reorder.
         }
@@ -187,7 +187,7 @@ inline Result normalizationIsRouteIndependent(const AnyShape& a) {
         return held();
     }
 
-    if (const auto* triangle = a.getIfTriangle()) {
+    if (const auto* triangle = a.getIfHoldsTriangle()) {
         const PointShape vertices[3] = {triangle->a(), triangle->b(), triangle->c()};
         static const int permutations[6][3] = {{0, 1, 2}, {0, 2, 1}, {1, 0, 2},
                                                {1, 2, 0}, {2, 0, 1}, {2, 1, 0}};
@@ -201,7 +201,7 @@ inline Result normalizationIsRouteIndependent(const AnyShape& a) {
         return held();
     }
 
-    if (const auto* disk = a.getIfDisk()) {
+    if (const auto* disk = a.getIfHoldsDisk()) {
         const PointShape boundary[3] = {disk->a(), disk->b(), disk->c()};
         static const int permutations[6][3] = {{0, 1, 2}, {0, 2, 1}, {1, 0, 2},
                                                {1, 2, 0}, {2, 0, 1}, {2, 1, 0}};
@@ -218,7 +218,7 @@ inline Result normalizationIsRouteIndependent(const AnyShape& a) {
         return held();
     }
 
-    if (const auto* convex = a.getIfConvex()) {
+    if (const auto* convex = a.getIfHoldsConvex()) {
         if (convex->empty()) {
             return skipped();
         }
@@ -231,7 +231,7 @@ inline Result normalizationIsRouteIndependent(const AnyShape& a) {
         return held();
     }
 
-    if (const auto* chain = a.getIfMonotoneChain()) {
+    if (const auto* chain = a.getIfHoldsMonotoneChain()) {
         if (chain->empty()) {
             return skipped();
         }
@@ -244,7 +244,7 @@ inline Result normalizationIsRouteIndependent(const AnyShape& a) {
         return held();
     }
 
-    if (const auto* polygon = a.getIfPolygon()) {
+    if (const auto* polygon = a.getIfHoldsPolygon()) {
         const std::size_t count = polygon->size();
         if (count < 3) {
             return skipped();
@@ -360,42 +360,63 @@ inline Result shearPreservesPredicates(const AnyShape& a, const AnyShape& b) {
  * @brief Distances behave as an isometry and a similarity require.
  *
  * Translation and rotation leave the squared distance alone; scaling by `s`
- * multiplies it by `s^2`. Exact in `double` for these operands, the values being
- * small rationals with power-of-two-free denominators that survive the scaling
- * unchanged in relative terms — so this compares with a tolerance rather than
- * for equality.
+ * multiplies it by `s^2`.
+ *
+ * Run twice: once at the default exact result type, where these are equations,
+ * and once at `double`, where they are the same equations within a tolerance.
+ * The `double` pass earns its keep — a pair whose exact answer is right can
+ * still be wrong in the floating-point instantiation, and that asymmetry is
+ * only visible by asking for both.
  */
-inline Result distancesFollowTheMap(const AnyShape& a, const AnyShape& b) {
-    if (a.empty() || b.empty()) {
-        return skipped();
-    }
-    const double original = a.squaredDistance(b);
+template <class Number>
+inline Result distancesFollowTheMapAt(const AnyShape& a, const AnyShape& b,
+                                      const std::string& what) {
+    const Number original = a.template squaredDistance<Number>(b);
 
     const PointShape shift(3, -5);
     AnyShape translatedA = a;
     AnyShape translatedB = b;
     translatedA += shift;
     translatedB += shift;
-    const double translated = translatedA.squaredDistance(translatedB);
+    const Number translated = translatedA.template squaredDistance<Number>(translatedB);
     PGLPROP_CHECK(nearlyEqual(original, translated),
-                  pair(a, b) + " ; squaredDistance changes from " + detail::show(original) +
-                      " to " + detail::show(translated) + " under translation");
+                  pair(a, b) + " ; at " + what + " squaredDistance changes from " +
+                      detail::show(original) + " to " + detail::show(translated) +
+                      " under translation");
 
-    const double rotated = a.rotated90(1).squaredDistance(b.rotated90(1));
+    const Number rotated = a.rotated90(1).template squaredDistance<Number>(b.rotated90(1));
     PGLPROP_CHECK(nearlyEqual(original, rotated),
-                  pair(a, b) + " ; squaredDistance changes from " + detail::show(original) +
-                      " to " + detail::show(rotated) + " under a quarter turn");
+                  pair(a, b) + " ; at " + what + " squaredDistance changes from " +
+                      detail::show(original) + " to " + detail::show(rotated) +
+                      " under a quarter turn");
 
     AnyShape scaledA = a;
     AnyShape scaledB = b;
     scaledA *= Coord(3);
     scaledB *= Coord(3);
-    const double scaled = scaledA.squaredDistance(scaledB);
-    PGLPROP_CHECK(nearlyEqual(9.0 * original, scaled),
-                  pair(a, b) + " ; squaredDistance is " + detail::show(original) +
-                      " but " + detail::show(scaled) + " after scaling by 3, not " +
-                      detail::show(9.0 * original));
+    const Number scaled = scaledA.template squaredDistance<Number>(scaledB);
+    const Number expected = Number(9) * original;
+    PGLPROP_CHECK(nearlyEqual(expected, scaled),
+                  pair(a, b) + " ; at " + what + " squaredDistance is " +
+                      detail::show(original) + " but " + detail::show(scaled) +
+                      " after scaling by 3, not " + detail::show(expected));
     return held();
+}
+
+inline Result distancesFollowTheMap(const AnyShape& a, const AnyShape& b) {
+    if (a.empty() || b.empty()) {
+        return skipped();
+    }
+    // A pair involving a Disk is documented to compute in `double` and convert,
+    // so an exact result type holds a rounded value there and the identities are
+    // only true to a tolerance. Ask that pair at `double` alone.
+    if (!a.holdsDisk() && !b.holdsDisk()) {
+        const Result exact = distancesFollowTheMapAt<Exact>(a, b, "the exact result type");
+        if (exact.outcome != Outcome::kHeld) {
+            return exact;
+        }
+    }
+    return distancesFollowTheMapAt<double>(a, b, "double");
 }
 
 }  // namespace props

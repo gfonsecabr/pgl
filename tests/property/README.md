@@ -92,7 +92,7 @@ why that is safe here). `--no-catch-crashes` turns it off.
 
 ## What is checked
 
-`--list` prints the current set: 58 properties in thirteen groups, drawn from 25
+`--list` prints the current set: 60 properties in thirteen groups, drawn from 26
 generators.
 
 | Group | What it asserts |
@@ -160,6 +160,34 @@ Eight of the original findings have been fixed in the library. The harness went
 from 590 signatures to 193, and the baseline from 81 entries to 42. The properties
 that caught them are still in place, so a regression comes back as a failure rather
 than as a memory.
+
+The 2026-09-16 pair below is fixed too, and because this harness is out of CI the
+regression is held by `tests/unit/ray.cpp` and `tests/unit/line_ray.cpp` instead —
+both verified to fail against the unfixed library.
+
+- **A `Ray` was read as the segment between its two defining points.** Three
+  overloads asked only where `source()` and `target()` fall, though a ray carries
+  on past its target forever. `Ray::contains(Ray)` was
+  `contains(other.source()) && contains(other.target())`, so two *opposite* rays
+  on one line each contained the other while sharing only the segment between
+  them; `Ray::interiorContains(Ray)` repeated it and was masked until `contains`
+  was right. `Line::separates(Ray)` compared the sides of the two defining points
+  and so missed every crossing that lies beyond the target — for
+  `Ray((0,0),(5,0))` the lines `x=1..5` separated and `x=6,7` did not, though all
+  of them cut the ray in two. `Ray::separates(Ray)` made the same comparison in
+  both halves of its symmetric test, so one fixed pair of crossing rays answered
+  differently depending on how far out each through-point had been placed: of
+  twenty spellings of a single crossing, ten said `separates=crosses=false`.
+  `Line::separates(Ray)` now reads `intersects(other) && !contains(other.source())`
+  like every other `separates(Ray)` overload in the file — `Segment`, `Triangle`
+  and `Rectangle` were already written that way, and `Ray::separates(Segment)`
+  even carries the comment "anywhere from the source onward, not just up to the
+  target". `contains` now asks for a shared supporting line and a shared
+  direction, spelled as the same lexicographic order `containsCollinear` walks.
+  This was also the root of the unbounded-`HalfplaneIntersection` witness that
+  `invariance/negation-preserves-predicates` reported: two opposite half-planes
+  pin such a region to a line and a third cuts it to a ray, and `crosses` then
+  came out false as drawn and true after negating the same geometry.
 
 - **`distanceL1` / `distanceLInf` aborted on a one-vertex `MonotoneChain` or
   `Polyline`.** `edgeMinDistanceL1` asserted `size() >= 2`, but a one-vertex chain
@@ -314,6 +342,39 @@ Recorded because they are easy to re-introduce as false findings:
   by one build did not reproduce under the other. Both draw sites now use named
   locals, and the fix is verified by comparing the full signature set of a seed
   across both compilers.
+- **`empty.separates(A)` is not false for every `A`.** `X.separates(Y)` asks
+  whether `Y∖X` is disconnected, so with `X` empty it asks whether `A` itself is
+  — which a multi-component `PolygonSet` already is, correctly, before anything
+  is removed. `emptyOperandIsDegenerateCase` now guards that one clause with the
+  same `isConnected` helper the rest of the `separates` reasoning uses.
+- **A `Disk` pair's distances are not exact.** `squaredDistance` is documented to
+  compute in `double` and convert for any pair involving a `Disk`, so an exact
+  `ResultNumber` holds a rounded value there and the isometry identities hold
+  only to a tolerance. `distancesFollowTheMap` runs its exact pass on the other
+  pairs and asks a `Disk` pair at `double` alone.
+
+### Keeping it in step with the library
+
+It is header-only against `include/`, out of CI, and therefore silently rots.
+It last built on 2026-09-11 and was found broken on 2026-09-16 by three API
+changes it had not followed — worth knowing as the shape of what breaks it:
+
+- `Shape`'s storage accessors were renamed when the two vocabularies were split
+  (commit 2f97444): `isPolygon()` → `holdsPolygon()`, `getIfConvex()` →
+  `getIfHoldsConvex()`, and so on. The plain `isPoint()` / `isSegment()` /
+  `getIfPoint()` survive but now mean the *geometric* question, so a use of one
+  that wants the stored alternative compiles and answers the wrong thing.
+- `Shape::intersection` returns `std::vector<Shape>` — the connected pieces —
+  rather than one `Shape`. The two `intersection` properties judge each piece.
+- The distance members default to `division_result_t<NumberType>`, which is
+  `ERational` for the harness's `int` coordinates, where they used to default to
+  `double`. The metric properties now compare exactly, `metricsAreOrdered` states
+  `L∞ ≤ L2 ≤ L1 ≤ 2L∞` on the squares to avoid a root, and `nearlyEqual` /
+  `nearlyAtMost` take the tolerance branch only for a floating-point
+  instantiation.
+
+Run it under both compilers after any change to the `Shape` interface: the build
+is the test that it still describes the library.
 
 ## Adding to it
 
