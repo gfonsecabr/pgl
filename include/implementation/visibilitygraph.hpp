@@ -1,8 +1,8 @@
 #pragma once
 
-// Included from pgl.hpp after algorithm/triangulation.hpp, whose Triangulation,
-// Polygon and PolygonWithHoles members this defines out of line.
-#include "algorithm/graph.hpp"
+// Defines Triangulation, Polygon and PolygonWithHoles members out of line, so it
+// includes the header declaring them — which is also its predecessor in pgl.hpp.
+#include "algorithm/triangulation.hpp"
 
 #include <compare>
 #include <cstddef>

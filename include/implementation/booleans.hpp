@@ -1,6 +1,6 @@
 #pragma once
 
-#include "algorithm/arrangement.hpp"
+#include "algorithm/voronoi.hpp"
 
 /**
  * @file booleans.hpp

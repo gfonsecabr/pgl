@@ -51,6 +51,15 @@ jobs:
       - name: Show compiler version
         run: ${{ matrix.compiler }} --version
 
+      # Enforces the promise at the top of include/pgl.hpp that any single
+      # header can be included on its own. Runs before the unit tests: it is
+      # quick, and the tests all go through pgl.hpp, so they never notice a
+      # header that only works as part of the umbrella.
+      - name: Check header self-containment
+        env:
+          CXX: ${{ matrix.compiler }}
+        run: sh tests/run_headers.sh
+
       - name: Run unit tests
         env:
           CXX: ${{ matrix.compiler }}

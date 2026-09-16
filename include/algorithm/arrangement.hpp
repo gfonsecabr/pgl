@@ -1,6 +1,6 @@
 #pragma once
 
-#include "algorithm/triangulation.hpp"
+#include "implementation/visibilitygraph.hpp"
 
 /**
  * @file arrangement.hpp
