@@ -163,3 +163,30 @@ TEST_CASE("Rational crossing of a ray far past the line's defining points") {
     REQUIRE(std::holds_alternative<RationalPoint>(*isec));
     CHECK(std::get<RationalPoint>(*isec) == RationalPoint(Rational(100), Rational(50)));
 }
+
+TEST_CASE("Line separates a ray that reaches it beyond the ray's through-point") {
+    using Point = pgl::Point<int>;
+    using Ray = pgl::Ray<Point>;
+    using Line = pgl::Line<Point>;
+
+    // The ray covers {(t,0) : t >= 0}; its through-point only fixes the
+    // direction and says nothing about how far it runs. Every vertical line at
+    // x > 0 therefore cuts it in two, whether that x falls short of the
+    // through-point, lands on it, or lies well past it.
+    const Ray rightward({0, 0}, {5, 0});
+
+    for (const int x : {1, 4, 5, 6, 40}) {
+        CAPTURE(x);
+        const Line cut({x, 0}, {x, 1});
+        CHECK(cut.intersects(rightward));
+        CHECK(cut.separates(rightward));
+        CHECK(cut.crosses(rightward));
+    }
+
+    // The source on the line leaves a single piece running to infinity, and a
+    // line the ray never reaches leaves it whole.
+    CHECK_FALSE(Line({0, 0}, {0, 1}).separates(rightward));
+    CHECK_FALSE(Line({-1, 0}, {-1, 1}).separates(rightward));
+    // A line carrying the whole ray removes it entirely rather than splitting it.
+    CHECK_FALSE(Line({0, 0}, {1, 0}).separates(rightward));
+}

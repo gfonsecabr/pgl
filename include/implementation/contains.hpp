@@ -606,7 +606,20 @@ constexpr bool Ray<PointType, LabelType>::contains(const OtherOrientedSegment& o
 template <class PointType, class LabelType>
 template<RayConcept OtherRay>
 constexpr bool Ray<PointType, LabelType>::contains(const OtherRay& other) const {
-    return contains(other.source()) && contains(other.target());
+    if (other.isDegenerate()) {
+        return contains(other.source());
+    }
+    if (isDegenerate() || !collinear(other)) {
+        return false;
+    }
+    // Holding the other ray's two defining points decides nothing, since it runs
+    // past its target forever: two opposite rays on one line each hold the
+    // other's pair and share only the segment between them. On a common
+    // supporting line the other stays inside this one exactly when it starts
+    // inside and runs the same way, and the direction is the lexicographic order
+    // of source against target -- the same order containsCollinear walks.
+    return containsCollinear(other.source()) &&
+           (source() < target()) == (other.source() < other.target());
 }
 
 template <class PointType, class LabelType>

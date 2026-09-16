@@ -403,3 +403,64 @@ TEST_CASE("Ray interiorContains another ray") {
     // Not collinear: the target leaves the ray.
     CHECK_FALSE(ray.interiorContains(Ray({2, 0}, {2, 5})));
 }
+
+TEST_CASE("Ray containment reads the half-line, not the two defining points") {
+    using Point = pgl::Point<int>;
+    using Ray = pgl::Ray<Point>;
+
+    // Two opposite rays on one line. Each holds the other's source and
+    // through-point, yet they share only the segment between them.
+    const Ray leftward({1, -2}, {0, -2});   // {(t,-2) : t <= 1}
+    const Ray rightward({0, -2}, {1, -2});  // {(t,-2) : t >= 0}
+
+    CHECK_FALSE(leftward.contains(rightward));
+    CHECK_FALSE(rightward.contains(leftward));
+    CHECK_FALSE(leftward.interiorContains(rightward));
+    CHECK_FALSE(rightward.interiorContains(leftward));
+    // The witnesses that rule each direction out.
+    CHECK(rightward.contains(Point(5, -2)));
+    CHECK_FALSE(leftward.contains(Point(5, -2)));
+    CHECK(leftward.contains(Point(-5, -2)));
+    CHECK_FALSE(rightward.contains(Point(-5, -2)));
+    CHECK_FALSE(leftward.samePointSet(rightward));
+
+    // A sub-ray running the same way is contained however far out its own
+    // through-point sits; the reverse never is.
+    const Ray sub({3, -2}, {4, -2});
+    CHECK(rightward.contains(sub));
+    CHECK(rightward.interiorContains(sub));
+    CHECK_FALSE(sub.contains(rightward));
+    // Sharing a source keeps the ray out of the interior but not out of the ray.
+    CHECK(rightward.contains(Ray({0, -2}, {9, -2})));
+    CHECK_FALSE(rightward.interiorContains(Ray({0, -2}, {9, -2})));
+    // Parallel but on another line.
+    CHECK_FALSE(rightward.contains(Ray({3, 5}, {4, 5})));
+}
+
+TEST_CASE("Ray separation survives a crossing past either through-point") {
+    using Point = pgl::Point<int>;
+    using Ray = pgl::Ray<Point>;
+
+    // A covers {(t,0) : t >= 0} and B covers {(6,t) : t >= -3}; they meet at
+    // (6,0), interior to both, so each cuts the other in two. The through-points
+    // only name directions, so every spelling below must answer the same way.
+    for (const int ax : {1, 5, 6, 7, 9}) {
+        for (const int by : {-2, 0, 1, 4}) {
+            CAPTURE(ax);
+            CAPTURE(by);
+            const Ray a({0, 0}, {ax, 0});
+            const Ray b({6, -3}, {6, by});
+            CHECK(a.intersects(b));
+            CHECK(a.separates(b));
+            CHECK(b.separates(a));
+            CHECK(a.crosses(b));
+        }
+    }
+
+    // Meeting at a source leaves the remainder in one piece, and two rays on one
+    // line never come apart however they overlap.
+    const Ray upward({0, 0}, {0, 1});
+    CHECK_FALSE(upward.separates(Ray({0, 0}, {1, 0})));
+    CHECK_FALSE(Ray({0, 0}, {1, 0}).separates(Ray({-4, 0}, {4, 0})));
+    CHECK_FALSE(Ray({0, 0}, {1, 0}).separates(Ray({4, 0}, {-4, 0})));
+}

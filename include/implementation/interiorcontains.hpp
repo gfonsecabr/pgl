@@ -482,7 +482,11 @@ constexpr bool Ray<PointType, LabelType>::interiorContains(const OtherOrientedSe
 template <class PointType, class LabelType>
 template<RayConcept OtherRay>
 constexpr bool Ray<PointType, LabelType>::interiorContains(const OtherRay& other) const {
-    return interiorContains(other.source()) && contains(other.target());
+    // This ray's interior is itself without its source, so it holds the other
+    // ray exactly when the ray does and the other does not start at that source.
+    // Asking about the other's target instead would stop where the other ray is
+    // only getting started.
+    return contains(other) && interiorContains(other.source());
 }
 
 template <class PointType, class LabelType>

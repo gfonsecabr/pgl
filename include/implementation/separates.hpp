@@ -801,15 +801,16 @@ constexpr bool Line<PointType, LabelType>::separates(const OtherOrientedLine& ot
 template <class PointType, class LabelType>
 template<RayConcept OtherRay>
 constexpr bool Line<PointType, LabelType>::separates(const OtherRay& other) const {
-    if (isDegenerate() || other.isDegenerate()) {
-        return false;
-    }
-    const auto source_side = orientationSign(min(), max(), other.source());
-    const auto target_side = orientationSign(min(), max(), other.target());
-    if (source_side == 0) {
-        return false;
-    }
-    return target_side == 0 || target_side != source_side;
+    // The line splits the ray only when it meets the ray ahead of the source: a
+    // piece then survives between the source and the line, and another runs to
+    // infinity. If the source lies on the line, the near piece is empty and the
+    // ray stays connected -- and a ray along the line loses everything.
+    //
+    // The sides of the ray's two defining points cannot answer this: the ray
+    // carries on past its target, so it still reaches the line when both points
+    // sit on the same side and the target is merely the nearer of the two.
+    return !isDegenerate() && !other.isDegenerate() &&
+           intersects(other) && !contains(other.source());
 }
 
 template <class PointType, class LabelType>
@@ -994,24 +995,16 @@ constexpr bool Ray<PointType, LabelType>::separates(const OtherRay& other) const
         return false;
     }
     if (collinear(other)) {
+        // Two half-lines on one line: whatever they share runs off one end of
+        // the other ray, so removing it leaves a single piece or nothing.
         return false;
     }
-    if (other.interiorContains(source())) {
-        return true;
-    }
-
-    const auto other_source_side = orientationSign(source(), target(), other.source());
-    const auto other_target_side = orientationSign(source(), target(), other.target());
-    if (other_source_side == 0) {
-        return false;
-    }
-    if (other_target_side != 0 && other_target_side == other_source_side) {
-        return false;
-    }
-
-    const auto source_side = orientationSign(other.source(), other.target(), source());
-    const auto target_side = orientationSign(other.source(), other.target(), target());
-    return source_side != 0 && (target_side == 0 || target_side != source_side);
+    // Off a common line the two meet in at most one point, so this is the same
+    // test every other separates(Ray) overload makes -- the ray comes apart when
+    // the meeting point is ahead of its source rather than at it. Comparing the
+    // sides of the two defining points instead would stop at the target, and
+    // either ray reaches the other well past its own target.
+    return intersects(other) && !contains(other.source());
 }
 
 template <class PointType, class LabelType>
