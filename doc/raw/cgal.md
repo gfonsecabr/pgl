@@ -88,32 +88,32 @@ The numbers come from the [asymptotic benchmarks](https://gfonsecabr.github.io/p
 - Each ratio is pgl time divided by CGAL time, taking the best algorithm CGAL offers on average over the size range. **Below 1 means pgl is faster.** The table gives the median over the 32 sizes of the input range and, in parentheses, the full range. A row covering more than one dataset averages the per-dataset medians, and its range spans them all.
 - The two ratio columns are independent measurements, not one scaled by the other: each races a pgl number type against a comparable CGAL kernel.
 - Rows are ordered by the like-for-like `ERational` column, the one every row has, from CGAL's widest lead to pgl's.
-- One run, one machine, `g++ -std=c++23 -O2 -DNDEBUG`, CGAL 6.1.2.
+- Two machines, one run each, `g++ -std=c++23 -O2 -DNDEBUG`, CGAL 6.1.2. Each machine's pgl times are divided by its own CGAL times; the ratios are averaged over the machines, and the range spans both.
 
 #### Results
 
-The results below are sorted by `ERational` / EPECK ratio, from the cases where CGAL is faster to the ones where CGAL is slower. On `ERational` / EPECK ratio the range goes from CGAL being 2.5× faster to pgl being 4.4× faster. On `int` / EPICK, the ratio goes from CGAL being 1.7× faster to pgl being 5.2× faster.
+The results below are sorted by `ERational` / EPECK ratio, from the cases where CGAL is faster to the ones where CGAL is slower. On `ERational` / EPECK ratio the range goes from CGAL being 2.7× faster to pgl being 4.3× faster. On `int` / EPICK, the ratio goes from CGAL being 1.9× faster to pgl being 4.6× faster.
 
 | Problem | `ERational` / EPECK | `int` / EPICK | pgl | CGAL |
 | --- | --- | --- | --- | --- |
-| Delaunay triangulation | ${\color{#8b0000}\textsf{2.5×}}\textsf{ (2.2–2.8)}$ | ${\color{#8b0000}\textsf{1.6×}}\textsf{ (1.5–1.7)}$ | `Triangulation` | `Delaunay_triangulation_2` |
-| Point search, count in Triangle | ${\color{#8b0000}\textsf{2.2×}}\textsf{ (1.5–2.4)}$ | ${\color{#006400}\textsf{0.22×}}\textsf{ (0.15–0.23)}$ | `ShapeTree` | `Kd_tree::search` |
-| Triangulation point location | ${\color{#8b0000}\textsf{1.8×}}\textsf{ (1.6–2.2)}$ | $\textsf{0.91×}\textsf{ (0.76–1.2)}$ | `t.locate(p)`{Triangulation} | <code>Triangulation_hierarchy_2<wbr>::locate</code> |
-| Convex hull | ${\color{#8b0000}\textsf{1.7×}}\textsf{ (1.5–1.8)}$ | ${\color{#006400}\textsf{0.48×}}\textsf{ (0.40–0.55)}$ | `convexHull(v)` | `convex_hull_2` |
-| Segment search, count in Triangle | $\textsf{1.1×}\textsf{ (1.0–1.3)}$ | ${\color{#006400}\textsf{0.19×}}\textsf{ (0.17–0.21)}$ | `ShapeTree` | `AABB_tree` |
-| Triangulation point-location build | $\textsf{1.1×}\textsf{ (1.0–1.2)}$ | ${\color{#8b0000}\textsf{1.3×}}\textsf{ (1.2–1.4)}$ | `t.buildPointLocation()`{Triangulation} | <code>Triangulation_<wbr>hierarchy_2</code> |
-| Arrangement build | $\textsf{1.0×}\textsf{ (0.46–1.9)}$ | — | `Arrangement` | `Arrangement_2` |
-| Regularized union, large + large | $\textsf{0.94×}\textsf{ (0.88–1.0)}$ | — | `a.regularizedUnion(b)`{Polygon} | `CGAL::join` |
-| Visibility, visible vertices | $\textsf{0.82×}\textsf{ (0.54–0.99)}$ | ${\color{#006400}\textsf{0.78×}}\textsf{ (0.65–0.97)}$ | `t.visibleVertices(p)`{Triangulation} | <code>Triangular_expansion_<wbr>visibility_2</code> |
-| Segment search build | ${\color{#006400}\textsf{0.78×}}\textsf{ (0.75–0.91)}$ | ${\color{#8b0000}\textsf{1.7×}}\textsf{ (1.4–2.3)}$ | `ShapeTree` | `AABB_tree` |
-| Segment search, count in Rectangle | ${\color{#006400}\textsf{0.73×}}\textsf{ (0.54–0.83)}$ | ${\color{#006400}\textsf{0.44×}}\textsf{ (0.36–0.49)}$ | `ShapeTree` | `AABB_tree` |
-| kd-tree build | ${\color{#006400}\textsf{0.68×}}\textsf{ (0.60–0.86)}$ | ${\color{#8b0000}\textsf{1.7×}}\textsf{ (1.6–2.1)}$ | `ShapeTree` | `Kd_tree` |
-| Nearest neighbor query | ${\color{#006400}\textsf{0.64×}}\textsf{ (0.60–0.66)}$ | ${\color{#8b0000}\textsf{1.5×}}\textsf{ (1.2–1.6)}$ | `t.nearestNeighbor(p)`{ShapeTree} | <code>Orthogonal_k_<wbr>neighbor_search</code> |
-| Arrangement point-location build | ${\color{#006400}\textsf{0.57×}}\textsf{ (0.44–0.77)}$ | — | `a.buildPointLocation()`{Arrangement} | <code>Arr_trapezoid_ric_<wbr>point_location</code> |
-| Segment intersection | ${\color{#006400}\textsf{0.54×}}\textsf{ (0.23–1.4)}$ | ${\color{#006400}\textsf{0.38×}}\textsf{ (0.13–0.66)}$\* | `findIntersections(v)` | <code>compute_<wbr>intersection_points</code> |
-| Minkowski sum | ${\color{#006400}\textsf{0.49×}}\textsf{ (0.26–0.74)}$† | — | `a.minkowskiSum(b)`{Polygon} | `minkowski_sum_2` |
-| Arrangement point location query | ${\color{#006400}\textsf{0.45×}}\textsf{ (0.30–0.82)}$ | — | `a.locateFace(p)`{Arrangement} | <code>Arr_trapezoid_ric_<wbr>point_location<wbr>::locate</code> |
-| Regularized union, triangles | ${\color{#006400}\textsf{0.23×}}\textsf{ (0.21–0.54)}$ | — | `regularizedUnionOf(v)` | <code>General_polygon_set_2<wbr>::join</code> |
+| Delaunay triangulation | ${\color{#8b0000}\textsf{2.7×}}\textsf{ (2.2–3.2)}$ | ${\color{#8b0000}\textsf{1.7×}}\textsf{ (1.5–2.4)}$ | `Triangulation` | `Delaunay_triangulation_2` |
+| Point search, count in Triangle | ${\color{#8b0000}\textsf{2.4×}}\textsf{ (1.5–3.0)}$ | ${\color{#006400}\textsf{0.23×}}\textsf{ (0.15–0.29)}$ | `ShapeTree` | `Kd_tree::search` |
+| Convex hull | ${\color{#8b0000}\textsf{1.8×}}\textsf{ (1.5–2.2)}$ | ${\color{#006400}\textsf{0.51×}}\textsf{ (0.40–0.69)}$ | `convexHull(v)` | `convex_hull_2` |
+| Triangulation point location | ${\color{#8b0000}\textsf{1.7×}}\textsf{ (1.5–2.7)}$ | $\textsf{0.95×}\textsf{ (0.76–1.2)}$ | `t.locate(p)`{Triangulation} | <code>Triangulation_hierarchy_2<wbr>::locate</code> |
+| Segment search build | $\textsf{1.2×}\textsf{ (0.75–2.2)}$ | ${\color{#8b0000}\textsf{1.8×}}\textsf{ (1.4–2.9)}$ | `ShapeTree` | `AABB_tree` |
+| Triangulation point-location build | $\textsf{1.2×}\textsf{ (1.0–1.3)}$ | ${\color{#8b0000}\textsf{1.5×}}\textsf{ (1.2–1.7)}$ | `t.buildPointLocation()`{Triangulation} | <code>Triangulation_<wbr>hierarchy_2</code> |
+| Arrangement build | $\textsf{1.1×}\textsf{ (0.46–2.0)}$ | — | `Arrangement` | `Arrangement_2` |
+| Segment search, count in Triangle | $\textsf{1.1×}\textsf{ (1.0–1.5)}$ | ${\color{#006400}\textsf{0.22×}}\textsf{ (0.14–0.26)}$ | `ShapeTree` | `AABB_tree` |
+| Regularized union, large + large | $\textsf{0.95×}\textsf{ (0.88–1.1)}$ | — | `a.regularizedUnion(b)`{Polygon} | `CGAL::join` |
+| kd-tree build | $\textsf{0.89×}\textsf{ (0.60–1.4)}$ | ${\color{#8b0000}\textsf{1.7×}}\textsf{ (1.4–2.4)}$ | `ShapeTree` | `Kd_tree` |
+| Visibility, visible vertices | $\textsf{0.86×}\textsf{ (0.54–1.3)}$ | ${\color{#006400}\textsf{0.72×}}\textsf{ (0.52–0.97)}$ | `t.visibleVertices(p)`{Triangulation} | <code>Triangular_expansion_<wbr>visibility_2</code> |
+| Nearest neighbor query | $\textsf{0.82×}\textsf{ (0.60–1.1)}$ | ${\color{#8b0000}\textsf{1.9×}}\textsf{ (1.2–2.5)}$ | `t.nearestNeighbor(p)`{ShapeTree} | <code>Orthogonal_k_<wbr>neighbor_search</code> |
+| Segment search, count in Rectangle | ${\color{#006400}\textsf{0.68×}}\textsf{ (0.54–0.84)}$ | ${\color{#006400}\textsf{0.52×}}\textsf{ (0.36–0.70)}$ | `ShapeTree` | `AABB_tree` |
+| Arrangement point-location build | ${\color{#006400}\textsf{0.61×}}\textsf{ (0.44–0.92)}$ | — | `a.buildPointLocation()`{Arrangement} | <code>Arr_trapezoid_ric_<wbr>point_location</code> |
+| Segment intersection | ${\color{#006400}\textsf{0.58×}}\textsf{ (0.23–1.8)}$ | ${\color{#006400}\textsf{0.36×}}\textsf{ (0.12–0.66)}$\* | `findIntersections(v)` | <code>compute_<wbr>intersection_points</code> |
+| Minkowski sum | ${\color{#006400}\textsf{0.52×}}\textsf{ (0.25–0.80)}$† | — | `a.minkowskiSum(b)`{Polygon} | `minkowski_sum_2` |
+| Arrangement point location query | ${\color{#006400}\textsf{0.46×}}\textsf{ (0.30–0.82)}$ | — | `a.locateFace(p)`{Arrangement} | <code>Arr_trapezoid_ric_<wbr>point_location<wbr>::locate</code> |
+| Regularized union, triangles | ${\color{#006400}\textsf{0.23×}}\textsf{ (0.21–0.61)}$ | — | `regularizedUnionOf(v)` | <code>General_polygon_set_2<wbr>::join</code> |
 
 \* CGAL's sweep line runs under EPICK here, which is not exact. pgl's `int` `findIntersections` is exact and 0.21× (0.06–0.44) against EPECK.
 
