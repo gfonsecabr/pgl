@@ -67,3 +67,49 @@ TEST_CASE("Distance to a triangle") {
     CHECK(k.squaredDistance<ERational>(t) == ERational(9));
     CHECK(k.squaredDistance<double>(Triangle(Point(2, 2), Point(4, 2), Point(2, 4))) == doctest::Approx(0.0));
 }
+
+TEST_CASE("Region meets a triangle in a convex region") {
+    using PolygonShape = pgl::Polygon<Point>;
+    using Piece = pgl::PolygonWithHoles<Point>;
+
+    SUBCASE("a bounded region clips the triangle to their overlap") {
+        // x >= 3 is the only one of the triangle's constraints that bites.
+        const Triangle wedge(Point(3, -3), Point(9, 3), Point(3, 9));
+        const auto met = box6().regularizedIntersection<int>(wedge);
+        static_assert(std::is_same_v<decltype(met), const pgl::PolygonSet<Point>>);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.twiceArea() == 2 * 18);
+        CHECK(met.component(0) == Piece(PolygonShape({3, 0, 6, 0, 6, 6, 3, 6})));
+        CHECK(met == wedge.regularizedIntersection<int>(box6()));
+    }
+
+    SUBCASE("an unbounded region is bounded by the triangle") {
+        const Triangle straddling(Point(0, -2), Point(4, -2), Point(2, 2));
+        const auto met = upperHalf().regularizedIntersection<int>(straddling);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.twiceArea() == 4);
+        CHECK(met.component(0) == Piece(PolygonShape({1, 0, 3, 0, 2, 2})));
+        CHECK(met == straddling.regularizedIntersection<int>(upperHalf()));
+    }
+
+    SUBCASE("touching, missing and area-free operands give the empty set") {
+        CHECK(upperHalf()
+                  .regularizedIntersection<int>(Triangle(Point(0, -2), Point(4, -2), Point(2, 0)))
+                  .empty());
+        CHECK(upperHalf()
+                  .regularizedIntersection<int>(Triangle(Point(0, -4), Point(4, -4), Point(2, -1)))
+                  .empty());
+        const Triangle flat(Point(1, 1), Point(2, 2), Point(3, 3));
+        CHECK(box6().regularizedIntersection<int>(flat).empty());
+        CHECK(flat.regularizedIntersection<int>(box6()).empty());
+        // The empty region -- two contradictory constraints -- meets nothing,
+        // while the whole plane, which is what a constraint-free region is,
+        // answers the other operand.
+        Region none(Halfplane(0, 0, 1, 0));
+        none.insert(Halfplane(1, -1, 0, -1));
+        REQUIRE(none.empty());
+        const Triangle small(Point(0, 0), Point(2, 0), Point(0, 2));
+        CHECK(none.regularizedIntersection<int>(small).empty());
+        CHECK(Region().regularizedIntersection<int>(small).componentCount() == 1);
+    }
+}

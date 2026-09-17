@@ -1321,6 +1321,71 @@ struct Polygon {
     difference(const OtherHalfplane& other) const;
 
     /**
+     * @brief Returns the regularized intersection of the two shapes (A ∩ B).
+     *
+     * The result is `closure(A° ∩ B°)`, as a set of regions with pairwise
+     * disjoint interiors: the part both operands cover, with lower-dimensional
+     * leftovers dropped. Two filled polygons cannot enclose a hole between
+     * them, so every component here is hole-free — but the operation is the
+     * region-valued one all the same, so that the result can be fed straight
+     * back into any of them. Where
+     * @ref intersection(const OtherPolygon&) const answers the point set
+     * itself, keeping the shared boundary stretches and the isolated contact
+     * points, this drops everything of lower dimension.
+     *
+     * Complexity: O((n + m + k) log(n + m)) for n and m vertices and k pairs
+     * of boundary edges that meet.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The shape to intersect with.
+     * @return The pieces of the intersection, in canonical order.
+     * @note The arrangement is built over exact rationals whatever
+     *       @p ResultNumber is, and converted only at the end. This is what
+     *       @ref intersection(const OtherPolygon&) const does not do: it
+     *       computes in the result type, so an integral one truncates every
+     *       crossing.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, PolygonConcept OtherPolygon>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    regularizedIntersection(const OtherPolygon& other) const;
+
+    /**
+     * @brief Returns the regularized intersection of the two shapes (A ∩ B).
+     *
+     * The convex operand goes into the same engine as any other bounded
+     * polygonal one: a polygon that is not convex can meet a convex shape in
+     * any number of pieces, so its convexity buys nothing here. See
+     * @ref regularizedIntersection(const OtherPolygon&) const.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, ConvexConcept OtherConvex>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    regularizedIntersection(const OtherConvex& other) const;
+
+    /** @brief Returns the regularized intersection of the two shapes (A ∩ B). */
+    template <class ResultNumber = division_result_t<NumberType>, TriangleConcept OtherTriangle>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    regularizedIntersection(const OtherTriangle& other) const;
+
+    /** @brief Returns the regularized intersection of the two shapes (A ∩ B). */
+    template <class ResultNumber = division_result_t<NumberType>, RectangleConcept OtherRectangle>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    regularizedIntersection(const OtherRectangle& other) const;
+
+    /**
+     * @brief Returns the regularized intersection of the two shapes (A ∩ B).
+     *
+     * A half-plane is unbounded, which stops it being a @ref regularizedUnion
+     * operand but not an intersection one: `A ∩ B` is bounded whenever `A` is.
+     * A half-plane is the one-constraint half-plane intersection, and is
+     * handled as one: see
+     * @ref PolygonWithHoles::regularizedIntersection(const OtherIntersection&) const
+     * for the clip that bounds it.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    regularizedIntersection(const OtherHalfplane& other) const;
+
+    /**
      * @brief Returns the regularized union of the two shapes (A ∪ B).
      *
      * The result is `closure(A° ∪ B°)`, as a set of regions with pairwise

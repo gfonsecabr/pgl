@@ -1136,6 +1136,103 @@ PolygonSet<ResultPoint> regularizedIntersection(const ShapeA& a, const ShapeB& b
 }
 
 /**
+ * @brief The set holding one convex region, given as a convex polygon.
+ *
+ * A convex polygon's vertices are already a polygon's canonical ring --
+ * counterclockwise from the lexicographically smallest one -- so the ring, the
+ * region and the set are each adopted as they stand, the way
+ * @ref regularizedCellsFromKeep adopts the cells it extracts and for the same
+ * reason: every normalization on the way would otherwise measure an area that
+ * is already known, which over rationals costs more than everything else here.
+ * A result type that is not the exact one may round the ring into something
+ * else, and then each step normalizes as usual.
+ *
+ * @pre @p convex is a hull, so three or more vertices mean positive area. Both
+ *      callers get theirs from a clip that reports a lower-dimensional answer as
+ *      a point or a segment instead, which is what makes the vertex count the
+ *      whole area test.
+ */
+template <class ResultPoint, class ExactConvex>
+PolygonSet<ResultPoint> convexAsSet(const ExactConvex& convex) {
+    using ExactPoint = typename ExactConvex::PointType;
+    constexpr bool exact = std::is_same_v<ResultPoint, ExactPoint>;
+    if (convex.size() < 3) {
+        return {};  // a convex polygon of fewer vertices bounds no area
+    }
+    std::vector<ResultPoint> ring;
+    ring.reserve(convex.size());
+    for (std::size_t i = 0; i < convex.size(); ++i) {
+        ring.emplace_back(convex[i]);
+    }
+    PolygonWithHoles<ResultPoint> region{Polygon<ResultPoint>(std::move(ring), pgl::Trust(exact))};
+    if constexpr (exact) {
+        std::array<PolygonWithHoles<ResultPoint>, 1> only{std::move(region)};
+        return PolygonSet<ResultPoint>(std::move(only), pgl::trusted);
+    } else {
+        return PolygonSet<ResultPoint>(std::move(region));
+    }
+}
+
+/**
+ * @brief The regularized intersection of two bounded convex operands, as a set
+ *        of regions.
+ *
+ * Convexity replaces the engine. `A ∩ B` is convex, so `closure(A° ∩ B°)` is
+ * `A ∩ B` itself when that has an interior and empty otherwise -- there is no
+ * cell to classify, no hole to file and never more than one piece -- and the
+ * intersection of two convex shapes is a clip of one against the other rather
+ * than an arrangement of both boundaries. An operand without area clips to a
+ * segment or a point, which @ref Convex::intersection already reports as such,
+ * so the area case is the one alternative worth reading.
+ *
+ * The clip is taken over exact rationals and converted once, as the engine's
+ * results are, so a result type that cannot hold a crossing exactly rounds it
+ * at the end rather than computing with it.
+ */
+template <class ResultPoint, class ShapeA, class ShapeB>
+PolygonSet<ResultPoint> convexRegularizedIntersection(const ShapeA& a, const ShapeB& b) {
+    using ExactNumber = Exact1DNumber<typename ShapeA::NumberType, typename ShapeB::NumberType>;
+    // The clip carries the receiver's point label, as every construction does.
+    using ExactConvex = Convex<Point<ExactNumber, typename ShapeA::PointType::LabelType>>;
+    const auto clip = a.template intersection<ExactNumber>(b);
+    if (!clip) {
+        return {};
+    }
+    if (const auto* area = std::get_if<ExactConvex>(&*clip)) {
+        return convexAsSet<ResultPoint>(*area);
+    }
+    return {};
+}
+
+/**
+ * @brief The regularized intersection of a bounded convex operand with a
+ *        half-plane intersection, as a set of regions.
+ *
+ * Adding the bounded operand's own half-planes to the region is what intersects
+ * them, and it bounds the result, so the answer is read off the vertices of one
+ * half-plane intersection rather than out of an arrangement. No division
+ * happens until those vertices are derived, which is why the whole clip is
+ * carried out over the exact type.
+ */
+template <class ResultPoint, class Region, class ConvexShape>
+PolygonSet<ResultPoint> regionRegularizedIntersection(const Region& region,
+                                                      const ConvexShape& convex) {
+    using ExactNumber = Exact1DNumber<typename Region::NumberType, typename ConvexShape::NumberType>;
+    // Neither a region without interior nor a convex shape without area can
+    // contribute to closure(A° ∩ B°).
+    if (region.isDegenerate() || convex.isDegenerate()) {
+        return {};
+    }
+    // The convex operand is bounded and has area, so its own constraints bound
+    // the result and asConvex is defined on it.
+    const auto clipped = region.template intersection<ExactNumber>(convex);
+    if (clipped.isDegenerate()) {
+        return {};
+    }
+    return convexAsSet<ResultPoint>(clipped.template asConvex<ExactNumber>());
+}
+
+/**
  * @brief The literal (unregularized) intersection `A ∩ B` of two bounded
  *        polygonal operands, as its connected pieces.
  *
@@ -1947,6 +2044,167 @@ PolygonWithHoles<PointType_, TLabel>::regularizedIntersection(const OtherHalfpla
     return this->template regularizedIntersection<ResultNumber>(other.asHalfplaneIntersection());
 }
 
+
+// The regularized intersections of the pairs drawn from the four bounded
+// regions below a PolygonWithHoles, and of each of them with a half-plane
+// operand. None of these goes near the cell engine when it does not have to:
+// three of the four operands are convex, and two convex shapes meet in a convex
+// shape, which is one clip rather than an arrangement of both boundaries. Only
+// a pair with a polygon that is not convex — the one shape here that can meet
+// another in several pieces, or in a piece with a hole — reaches the engine.
+//
+// Each pair is stated once, on the higher-ranked of its two operands; a
+// half-plane is the lowest-ranked shape of all of them, so it never states one.
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Rectangle<PointType_, TLabel>::regularizedIntersection(const OtherRectangle& other) const {
+    // Both coordinate ranges are intersected by comparison alone, so nothing is
+    // divided and no exact intermediate type is needed: the overlap is exact in
+    // any ResultNumber that holds the operands. A rectangle without area gives
+    // the empty set, which is what asPolygonSet answers for it.
+    const auto overlap = this->template intersection<ResultNumber>(other);
+    if (!overlap) {
+        return {};
+    }
+    return overlap->asPolygonSet();
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Rectangle<PointType_, TLabel>::regularizedIntersection(const OtherHalfplane& other) const {
+    return detail::convexRegularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Triangle<PointType_, TLabel>::regularizedIntersection(const OtherTriangle& other) const {
+    return detail::convexRegularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Triangle<PointType_, TLabel>::regularizedIntersection(const OtherRectangle& other) const {
+    return detail::convexRegularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Triangle<PointType_, TLabel>::regularizedIntersection(const OtherHalfplane& other) const {
+    return detail::convexRegularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, ConvexConcept OtherConvex>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Convex<PointType_, TLabel>::regularizedIntersection(const OtherConvex& other) const {
+    return detail::convexRegularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Convex<PointType_, TLabel>::regularizedIntersection(const OtherTriangle& other) const {
+    return detail::convexRegularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Convex<PointType_, TLabel>::regularizedIntersection(const OtherRectangle& other) const {
+    return detail::convexRegularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Convex<PointType_, TLabel>::regularizedIntersection(const OtherHalfplane& other) const {
+    return detail::convexRegularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+// A polygon that is not convex reaches the engine, which takes a rectangle, a
+// triangle and a convex polygon as they are: their edges are what it cuts with
+// and their own contains is what classifies its cells — the convex one in
+// O(log n) per cell rather than O(n). So the operand is handed over whole, with
+// no conversion of any kind in front of it.
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolygonConcept OtherPolygon>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Polygon<PointType_, TLabel>::regularizedIntersection(const OtherPolygon& other) const {
+    return detail::regularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, ConvexConcept OtherConvex>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Polygon<PointType_, TLabel>::regularizedIntersection(const OtherConvex& other) const {
+    return detail::regularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Polygon<PointType_, TLabel>::regularizedIntersection(const OtherTriangle& other) const {
+    return detail::regularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Polygon<PointType_, TLabel>::regularizedIntersection(const OtherRectangle& other) const {
+    return detail::regularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Polygon<PointType_, TLabel>::regularizedIntersection(const OtherHalfplane& other) const {
+    return other.asHalfplaneIntersection().template regularizedIntersection<ResultNumber>(*this);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, ConvexConcept OtherConvex>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+HalfplaneIntersection<PointType_, TLabel>::regularizedIntersection(const OtherConvex& other) const {
+    return detail::regionRegularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+HalfplaneIntersection<PointType_, TLabel>::regularizedIntersection(const OtherTriangle& other) const {
+    return detail::regionRegularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+HalfplaneIntersection<PointType_, TLabel>::regularizedIntersection(const OtherRectangle& other) const {
+    return detail::regionRegularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolygonConcept OtherPolygon>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+HalfplaneIntersection<PointType_, TLabel>::regularizedIntersection(const OtherPolygon& other) const {
+    using ExactNumber = detail::Exact1DNumber<NumberType, typename OtherPolygon::NumberType>;
+    if (isDegenerate() || other.isDegenerate()) {
+        return {};
+    }
+    // The clip only has to preserve A ∩ B, and the polygon lies strictly inside
+    // the box.
+    const auto clipped = detail::regionClippedToBox(*this, other.bbox());
+    if (clipped.isDegenerate()) {
+        return {};
+    }
+    return other.template regularizedIntersection<ResultNumber>(clipped.template asConvex<ExactNumber>());
+}
 
 // The literal intersection: the one operation here that keeps what
 // regularization drops. It takes the same operand grid as

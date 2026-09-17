@@ -64,3 +64,32 @@ TEST_CASE("Distance to a polyline") {
     const PolylineShape touching(std::vector<Point>{{3, 3}, {5, 7}, {9, 3}});
     CHECK(k.squaredDistance<double>(touching) == doctest::Approx(0.0));
 }
+
+TEST_CASE("An unbounded region answers the cut predicates instead of throwing") {
+    // One half-plane: a region with no bounding box at all. Every predicate is
+    // documented to answer, so none of them may ask for one.
+    const Region halfplane({Halfplane(0, 0, 0, 1)});
+    REQUIRE_FALSE(halfplane.isBounded());
+    REQUIRE_FALSE(halfplane.empty());
+
+    const PolylineShape point(std::vector<Point>{{0, 0}, {0, 0}});
+    CHECK_FALSE(point.separates(halfplane));
+    CHECK_FALSE(halfplane.separates(point));
+    CHECK_FALSE(point.crosses(halfplane));
+    CHECK_FALSE(halfplane.crosses(point));
+
+    // A bounded polyline cannot cut an unbounded region in two: the complement
+    // stays connected around its ends, however the polyline sits.
+    const Region wedge({Halfplane(0, 1, 1, 0)});
+    const PolylineShape open(std::vector<Point>{{0, 0}, {0, 1}, {-1, 0}});
+    CHECK_FALSE(open.separates(wedge));
+    CHECK_FALSE(open.crosses(wedge));
+    // The region does cut that polyline, which is what crosses needs both ways.
+    CHECK(wedge.separates(open));
+    CHECK_FALSE(wedge.crosses(open));
+
+    // A polyline whose box misses the region entirely still answers.
+    const PolylineShape away(std::vector<Point>{{5, 5}, {7, 9}});
+    CHECK_FALSE(away.separates(halfplane));
+    CHECK_FALSE(halfplane.separates(away));
+}

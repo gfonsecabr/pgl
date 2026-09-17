@@ -205,3 +205,39 @@ TEST_CASE("Rectangle intersection with Halfplane: clips to Convex, Segment or Po
                       "clip keeps the left side of the slanted boundary");
     }
 }
+
+TEST_CASE("Halfplane meets Rectangle in a convex region") {
+    using Point = pgl::Point<int>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using RectangleShape = pgl::Rectangle<Point>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+
+    const RectangleShape rect(Point(0, 0), Point(4, 4));
+    // The half above the main diagonal, y >= x.
+    const Halfplane above({0, 0}, {4, 4});
+
+    SUBCASE("the boundary line cuts the rectangle in two, and one half comes back") {
+        const auto met = rect.regularizedIntersection<int>(above);
+        static_assert(std::is_same_v<decltype(met), const pgl::PolygonSet<Point>>);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.twiceArea() == 2 * 8);
+        CHECK(met.component(0) == Region(PolygonShape({0, 0, 4, 4, 0, 4})));
+        CHECK(met == above.regularizedIntersection<int>(rect));
+    }
+
+    SUBCASE("a half-plane covering the rectangle answers the rectangle") {
+        const Halfplane upper({0, -1}, {4, -1});
+        const auto met = rect.regularizedIntersection<int>(upper);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.component(0) == Region(rect.asPolygon()));
+    }
+
+    SUBCASE("touching along an edge, missing, and area-free give the empty set") {
+        CHECK(rect.regularizedIntersection<int>(Halfplane({4, 4}, {4, 0})).empty());
+        CHECK(rect.regularizedIntersection<int>(Halfplane({9, 4}, {9, 0})).empty());
+        const RectangleShape flat(Point(1, 2), Point(3, 2));
+        CHECK(flat.regularizedIntersection<int>(above).empty());
+        CHECK(above.regularizedIntersection<int>(flat).empty());
+    }
+}

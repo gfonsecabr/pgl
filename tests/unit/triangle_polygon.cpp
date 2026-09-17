@@ -198,3 +198,43 @@ TEST_CASE("Polygon::intersection(Triangle) forwards via the convex representatio
         CHECK(square.intersection<pgl::ERational>(away).empty());
     }
 }
+
+TEST_CASE("Triangle meets Polygon in a set of regions") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+
+    // A U: the band y in [0,2] across, plus the walls x in [0,2] and [4,6].
+    const PolygonShape cup({0, 0, 6, 0, 6, 6, 4, 6, 4, 2, 2, 2, 2, 6, 0, 6});
+    // x >= 0, y >= 0, x + y <= 6.
+    const Triangle corner(Point(0, 0), Point(6, 0), Point(0, 6));
+
+    SUBCASE("the far wall is reached at one point only, so one piece comes back") {
+        const auto met = corner.regularizedIntersection<int>(cup);
+        static_assert(std::is_same_v<decltype(met), const pgl::PolygonSet<Point>>);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.twiceArea() == 2 * 16);
+        CHECK(met.component(0) == Region(PolygonShape({0, 0, 6, 0, 4, 2, 2, 2, 2, 4, 0, 6})));
+        CHECK(met == cup.regularizedIntersection<int>(corner));
+    }
+
+    SUBCASE("a triangle spanning the notch comes back as two regions") {
+        const Triangle spanning(Point(-4, 3), Point(10, 3), Point(3, 10));
+        const auto met = spanning.regularizedIntersection<int>(cup);
+        REQUIRE(met.componentCount() == 2);
+        CHECK(met == cup.regularizedIntersection<int>(spanning));
+    }
+
+    SUBCASE("touching, disjoint and area-free operands give the empty set") {
+        CHECK(Triangle(Point(6, 0), Point(9, 0), Point(9, 3))
+                  .regularizedIntersection<int>(cup)
+                  .empty());
+        CHECK(Triangle(Point(9, 9), Point(11, 9), Point(9, 11))
+                  .regularizedIntersection<int>(cup)
+                  .empty());
+        const Triangle flat(Point(1, 1), Point(2, 2), Point(3, 3));
+        CHECK(flat.regularizedIntersection<int>(cup).empty());
+        CHECK(cup.regularizedIntersection<int>(flat).empty());
+    }
+}

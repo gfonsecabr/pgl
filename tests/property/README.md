@@ -152,12 +152,13 @@ to accept every pair of that property. The wildcard is for a root cause whose
 reach is an accident of the draw — one missing overload fails the same property
 across dozens of pairs, and a fresh seed finds pairs an earlier one missed. With
 exact pairs only, every new seed reported a handful of "new" signatures that were
-not new problems, and still 1–7 new per seed. Collapsing the twelve properties
-whose failures were all traced to one cause brings the shipped list to 41 entries
-over 193 observed signatures, and fresh seeds that contributed nothing to it come
-out clean at 20000 cases each. That is what makes the exit code mean something.
-The tail is long, though: roughly one seed in five still reaches a new *pair* of an
-already-known cause, so triage means comparing the witness against the list above
+not new problems, and still 1–7 new per seed. Only one property is collapsed that
+way now, an API coverage asymmetry whose reach is a rule and not an accident:
+every pair involving a `Disk`. With that one wildcard the shipped list is 7
+entries over 37 observed signatures, and every seed from 1 to 24 comes out clean
+at 20000 cases. That is what makes the exit code mean something — and with the
+other eleven wildcards retired, a new pair almost anywhere is now reported rather
+than swallowed, so triage means comparing the witness against the list above
 before assuming it is new.
 
 ```bash
@@ -174,10 +175,120 @@ standalone program, so each is a real reachable case and not a harness artefact.
 
 ### Fixed
 
-Eight of the original findings have been fixed in the library. The harness went
-from 590 signatures to 193, and the baseline from 81 entries to 42. The properties
+Fifteen of the original findings have been fixed in the library. The harness
+went from 590 signatures to 37 over seeds 1-24, and the baseline from 81 entries
+to 7. The properties
 that caught them are still in place, so a regression comes back as a failure rather
 than as a memory.
+
+The seven below were fixed on 2026-09-17. Between them they took the harness from
+141 signatures over seeds 1-24 to 37, and the baseline from 42 entries to 7. Each
+of the first six is a wrong answer whose regression is held by a unit test that
+was verified to fail against the unfixed library:
+
+- **Predicates threw on an unbounded `HalfplaneIntersection`.**
+  `detail::polylineSeparatesConvexRegion` opened with the usual
+  bounding-box rejection under `if constexpr (requires { other.bbox(); })`,
+  reasoning that a half-plane operand has no `bbox()` to call. A
+  `HalfplaneIntersection` *has* one — it just throws when the region is
+  unbounded, which the compile-time probe cannot see. So
+  `Polyline::separates(region)` and every `crosses` that consults it threw
+  `HalfplaneIntersection::bbox is only defined for a nonempty bounded region`
+  rather than answering. The probe is now
+  `detail::boundingBoxesMiss`, which answers "not known to miss" whenever a box
+  is unavailable — no box at all, an unbounded region, an empty one — so the
+  scan below it, which needs no box, simply runs. Caught by
+  `predicates/crosses-is-mutual-separation` and all five
+  `invariance/*-preserves-predicates`; regression in
+  `tests/unit/halfplaneintersection_polyline.cpp`.
+
+- **`intersection` invented a point for a zero-length operand.** Every
+  orientation test in `Segment::intersection(Segment)` vanishes against a
+  zero-length operand, which reads as *collinear* — and the collinear branch
+  then answers with an endpoint of the 1D overlap, which need not lie on either
+  operand. `OrientedSegment (0,1)->(0,1)` against `Segment (0,0)--(1,1)`
+  returned the point `(0,1)`, on neither of them, while `intersects` correctly
+  answered false. A zero-length operand is now asked as the point it is, before
+  the orientations are taken. That one site also carried the two-equal-vertex
+  `Polyline`, the point-sized `Rectangle` and the degenerate `Triangle` listed
+  with it, which all reach it through their own edges. Caught by
+  `intersection/intersection-agrees-with-predicate` and
+  `intersection-sits-inside-both-operands`; regression in
+  `tests/unit/segment.cpp`.
+
+- **`Convex::intersection` answered empty for a zero-length segment it
+  contains.** The mirror of the entry above, and the other half of both
+  `intersection` properties: the overload clips the hull against
+  `Line(other)`, which for a zero-length operand is a line through two equal
+  points — undefined. `Convex[(-2,2),(0,0)]` answered empty for
+  `(-1,1)--(-1,1)`, a point it contains and that `intersects` accepts. It now
+  answers for the point directly. Regression in `tests/unit/segment_convex.cpp`.
+
+- **`squaredDistance` returned 0 for a disjoint pair at `double`.**
+  `detail::regionEdgesSquaredDistance` built each of the region's boundary
+  edges with the caller's `ResultNumber` as its coordinate type, against a
+  comment two lines above promising the opposite. A region's implicit vertices
+  are fractions of its boundary coordinates, so at `double` they round — and a
+  rounded *unbounded* edge no longer runs parallel to whatever it was parallel
+  to, so far enough out it crosses a line it never meets and the scan reports
+  zero. The edges are now built exactly and `ResultNumber` governs only the
+  scan, as the sibling `Disk` overload already did. Caught by
+  `invariance/distances-follow-the-map` and `distances-survive-a-quarter-turn`;
+  regression in `tests/unit/halfplaneintersection_line.cpp`.
+
+The two below are each the sibling of a fix listed further down that stopped one
+line short:
+
+- **`Convex::intersects` probed a stored vertex without its deferred
+  translation.** The `Rectangle` and `Triangle` overloads asked
+  `other.contains(points_[0])` where every one of the twenty sibling sites in
+  `implementation/intersects.hpp` asks `other.contains((*this)[0])` — so a hull
+  carrying an offset was probed at the location it had *before* the move, and
+  the bounding-box tests above it, which do add the offset, let the case through
+  whenever the boxes overlapped. `Convex({(3,3),(7,3),(3,7)}) += (-3,-3)` prints
+  as `Convex[(0,0),(4,0),(0,4)]` and compares equal to the hull built there
+  directly, yet answered `intersects(Rectangle[(3,3),(6,6)])` true while its own
+  `squaredDistance` to that rectangle was 2. Neither operand is degenerate. This
+  is the same one-line omission as the `Convex::centroid` entry below. Caught by
+  `invariance/translation-preserves-predicates`; regression in
+  `tests/unit/convex.cpp`.
+
+- **`Ray::interiorsIntersect(Ray)` read both rays as the segment between their
+  defining points.** Two straddle tests asked which side of each ray's
+  `source`–`target` line the other's two defining points fall on and returned
+  false when they shared a side — but a ray runs on past its target, so every
+  crossing beyond a through-point lies on one side of both and was dropped.
+  `Ray((1,-1)->(0,-1))` and `Ray((-2,0)->(1,-3))` both hold `(-1,-1)` in their
+  interiors and answered false, and respelling the first as
+  `Ray((1,-1)->(-5,-1))` — the same half-line — flipped it to true. The
+  non-collinear case now asks each ray's interior against the other's supporting
+  line, which is where the crossing point is, and splits collinear from crossing
+  the way `Ray::intersects(Ray)` already did. Same root as the `Ray` entry
+  below, which fixed `contains`, `interiorContains` and `separates` but not this
+  one. Caught by `predicates/interior-witness-meets-interiors`; regression in
+  `tests/unit/ray.cpp`.
+
+The seventh is not a wrong answer but a missing one, and is what this list used
+to call a decision rather than a defect:
+
+- **`regularizedIntersection` threw for every pair drawn from `Rectangle`,
+  `Triangle`, `Convex` and `Polygon`**, while `regularizedUnion`, `difference`
+  and `symmetricDifference` all answered for exactly those pairs — the one
+  operation of the four that a caller could not reach without converting an
+  operand first. The concrete overload was constrained on
+  `shapeRank<Other> > shapeRank<Self>` with no same-rank or lower-rank case, so
+  `Rectangle ∩ Rectangle` did not even compile.
+  The operation is now defined for every pair among the six bounded region types
+  and for each of them with a `Halfplane` or a `HalfplaneIntersection` on either
+  side; two unbounded operands still throw, because `A ∩ B` need not be bounded
+  then and no `PolygonSet` can hold it. Caught by
+  `boolean/operations-share-a-domain`, whose 16 pairs were exactly these and
+  which now holds on every seed. Held by 18 new TEST_CASEs, one per pair, each
+  in the file that owns that pair under the one-shape-once naming
+  (`tests/unit/rectangle.cpp`, `tests/unit/rectangle_triangle.cpp`, …,
+  `tests/unit/halfplaneintersection_polygon.cpp`). These are new-coverage tests
+  rather than regressions: the calls they make did not compile against the
+  unfixed library.
 
 The three below were found on 2026-09-16 by the groups added that day
 (`measure`, `closest`, `curve`, the pointwise boolean oracle, the convex-hull and
@@ -315,78 +426,77 @@ both verified to fail against the unfixed library.
 
 ### Still open
 
-These are triaged but unfixed. The first four are all about shapes that are
-degenerate but defined, which is where most of what this harness finds lives.
+One remains, and it is a decision rather than a defect to go and fix.
 
-1. **A degenerate `Segment` contains an unbounded region.**
-   `Segment((3,3),(3,3)).contains(HalfplaneIntersection[...])` is true; a point
-   cannot contain a quarter-plane. `intersects` correctly answers false.
+1. **`distanceL1` and `distanceLInf` are undefined for every pair involving a
+   `Disk`**, while `squaredDistance` is defined for all of them. Caught by
+   `metric/distance-families-share-a-domain`, whose 31 pairs are exactly these;
+   `metric/metrics-are-ordered [Disk,Point]` is the same gap seen from the
+   ordering side.
 
-2. **`intersection` invents a point for a zero-length operand.**
-   `OrientedSegment (0,1)->(0,1)` against `Segment (0,0)--(1,1)` returns the point
-   `(0,1)`, which lies on neither operand — `intersects` correctly answers false.
-   Same for a two-equal-vertex `Polyline`, and a degenerate `Triangle` returns a
-   whole segment that is not inside the other operand.
+The remaining baseline entries are not in this list because they are the harness
+meeting a documented limit rather than a finding:
+`invariance/negation-preserves-predicates` and `shear-preserves-predicates` on
+`MonotoneChain`/`Polygon` pairs are the reflection entry under *Where the
+harness was wrong* below, and `metric/squared-distance-is-symmetric [Disk,Disk]`
+is a two-ULP disagreement in the `double` instantiation of a distance that is
+documented to be computed in floating point.
 
-3. **`crosses` is true where both `separates` are false, for degenerate area
-   shapes.** `Convex[(-1,0),(1,0)].crosses(Rectangle[(0,-1),(0,1)])` is true while
-   `separates` is false both ways — violating the documented
-   `crosses == A.separates(B) && B.separates(A)`. The identical geometry as two
-   `Segment`s answers `crosses=1, separates=1, separates=1`. This is the far side
-   of the "a degenerate area shape never separates" entry already in
-   `sandbox/todo.md`: the guards make `separates` too strict, and `crosses` does
-   not go through `separates` for these pairs, so the two disagree.
+### Recorded because they did not reproduce
 
-4. **Bentley–Ottmann double-reports with a zero-length segment.** For
-   `{(0,0)--(0,0), (0,-1)--(0,0)}`, `findIntersections` returns 2 pairs and
-   `detail::bruteForceIntersections` returns 1. A zero-length segment is defined
-   (`isUndefined()` is false), so it is legitimate input.
+Three entries stood in this list describing failures that no longer happen, and
+were removed on 2026-09-17 rather than fixed. Each was re-checked against its own
+recorded witness and against the property that had caught it, at 200 000 cases
+over seeds 1-24; each was also checked against `fe9047a`, `030e200` and
+`252f775`, and answered correctly at all of them, so they were already stale when
+they were written rather than fixed recently.
 
-### Unbounded regions
-
-5. **Predicates throw on an unbounded `HalfplaneIntersection`.** `separates` and
-    `crosses` against a `Polyline` throw
-    `HalfplaneIntersection::bbox is only defined for a nonempty bounded region`.
-    A predicate is documented to answer, not to throw.
-
-6. **`squaredDistance` returns 0 for a non-intersecting pair when instantiated at
-    `double`.** For `HalfplaneIntersection[^-(0,-2)--(-2,-3)-^,^-(0,0)--(1,-1)-^]`
-    against `Line -(-1,-1)--(1,0)-`, the `double` instantiation answers 0 while
-    the default exact one answers 9/5, and `intersects` answers false. Translating
-    the pair by `(3,-5)` makes the `double` answer 1.8 — which is how the
-    invariance property caught it.
-
-### API coverage asymmetries
-
-These may be deliberate, but the sibling operations disagree about their domain:
-
-7. **`regularizedIntersection` throws for all 16 ordered pairs among
-    `Rectangle`, `Triangle`, `Convex` and `Polygon`**, while `regularizedUnion`,
-    `difference` and `symmetricDifference` all work for exactly those pairs. It
-    succeeds only when an operand is a `PolygonWithHoles` or a `PolygonSet`. The
-    concrete overload is constrained on `shapeRank<Other> > shapeRank<Self>` with
-    no same-rank or lower-rank case, so `Rectangle ∩ Rectangle` does not even
-    compile. This contradicts `Shape::intersection`'s own documentation, which
-    sends the caller to `regularizedIntersection` on the grounds that it "answers
-    with a `PolygonSet` and so never has to throw".
-
-8. **`distanceL1` and `distanceLInf` are undefined for every pair involving a
-    `Disk`**, while `squaredDistance` is defined for all of them.
-
-### A documented guarantee that does not hold
-
-9. **`sortAround` does not always trace a simple polygon.** Its documentation
-    promises that "connecting the sorted points in order traces a simple,
-    star-shaped polygon whose kernel contains `p`". With centre `(0,1)` and points
-    `(-1,0), (0,-1), (0,0), (1,0)` it returns the ring
-    `(-1,0), (0,-1), (0,0), (1,0)`, whose closing edge `(1,0)–(-1,0)` passes
-    through the vertex `(0,0)` — not simple by pgl's own `isSimple`. Three of the
-    points being collinear is what does it. Either the guarantee needs a
-    non-collinearity precondition or it should say *weakly* simple.
+- **A degenerate `Segment` contains an unbounded region.** The recorded claim was
+  that `Segment((3,3),(3,3)).contains(HalfplaneIntersection[...])` is true.
+  `predicates/contains-implies-intersects` holds 7000 times with no violation,
+  and `bounding/bbox-bounds-containment` reports nothing for those pairs.
+- **`crosses` is true where both `separates` are false, for degenerate area
+  shapes.** The recorded witness,
+  `Convex[(-1,0),(1,0)].crosses(Rectangle[(0,-1),(0,1)])`, now answers
+  `crosses=1, separates=1, separates=1` — consistent. Across seeds 1-24 every
+  `crosses` failure came from the throw fixed above, not from this.
+- **Bentley–Ottmann double-reports with a zero-length segment.** For
+  `{(0,0)--(0,0), (0,-1)--(0,0)}` both `findIntersections` and
+  `detail::bruteForceIntersections` return 1. `sweep/sweep-matches-brute-force`
+  holds 199 996 times with no violation.
 
 ### Where the harness was wrong
 
 Recorded because they are easy to re-introduce as false findings:
+
+- **`sort-around-traces-a-simple-ring` asserted a conclusion that cannot
+  exist.** It took `points[0]` as the center and demanded a simple, star-shaped
+  ring of the rest, with no condition on where that center sat. A polygon lies
+  inside the convex hull of its own vertices, so a center outside that hull
+  cannot be in any kernel — for those draws no order of the points answers, and
+  the property was asking the library for one. Measured over 400000 random
+  cases: with the center strictly inside the hull the guarantee held in 87380 of
+  87380, kernel included, and the ring came out counterclockwise every time;
+  strictly outside, the kernel held in 0 of 277122 while two thirds of the rings
+  were simple anyway, by luck. The property now skips a draw whose center is not
+  strictly inside the hull, which leaves it 4756 cases in 20000 — and
+  `sortAround` documents that hypothesis as of the same day, in
+  `doc/raw/algorithms.md` and its own Doxygen, which is the part of this finding
+  that was a real defect. The witness once recorded here, center `(0,1)` with
+  points `(-1,0), (0,-1), (0,0), (1,0)`, is an outside-the-hull draw; the
+  collinearity that entry blamed is incidental, and the 270-degree gap between
+  the last direction and the first is what turns the closing edge back across
+  the fan.
+
+  The boundary is the interesting case, and why the precondition says
+  *strictly*. A center on the hull boundary lies inside some edge, so the
+  largest gap is a half turn exactly and the ring closes along that edge's line:
+  simple unless a third point sits on the line between the two the closing edge
+  joins, which happens for one of the two collinear blocks and not the other,
+  depending on which side the remaining points fall. With one point in each
+  direction along that line it held in 23048 of 23048; with more, it failed in
+  4328 of 17028. Stating the condition a caller could actually check was worth
+  more than the sliver of boundary cases it gives up.
 
 - **The quarter turn in `distances-follow-the-map` was asking a `MonotoneChain`
   to be something it is not.** The property bundled translation, a quarter turn
@@ -394,8 +504,10 @@ Recorded because they are easy to re-introduce as false findings:
   operands — which, per the entry below, cannot represent their own rotation. All
   33 pairs under the `invariance/distances-follow-the-map [*]` wildcard were that
   one mistake. The rotation now lives in its own `distances-survive-a-quarter-turn`
-  at `kAxisFree`, both halves come out clean across seeds, and the wildcard is
-  gone from the baseline. A reminder that a `[*]` entry can hide a harness bug as
+  at `kAxisFree` and the wildcard is gone from the baseline. What the two halves
+  reported once split was a real library finding — the `double`-valued region
+  edges fixed above — that the bundled property had been hiding behind a harness
+  one. A reminder that a `[*]` entry can hide a harness bug as
   easily as a library one: bundling three maps into one property meant the two
   correct ones could never be seen passing separately.
 - **`MonotoneChain` is not closed under rotation or shear.** Its value *is* the

@@ -464,3 +464,58 @@ TEST_CASE("Ray separation survives a crossing past either through-point") {
     CHECK_FALSE(Ray({0, 0}, {1, 0}).separates(Ray({-4, 0}, {4, 0})));
     CHECK_FALSE(Ray({0, 0}, {1, 0}).separates(Ray({4, 0}, {-4, 0})));
 }
+
+TEST_CASE("Ray interiors meet past either through-point") {
+    using Point = pgl::Point<int>;
+    using Ray = pgl::Ray<Point>;
+
+    // A covers {(t,0) : t >= 0} and B covers {(6,t) : t >= -3}; they meet at
+    // (6,0), which is interior to both. The through-points only name directions,
+    // so a crossing beyond one of them counts and every spelling answers alike.
+    for (const int ax : {1, 5, 6, 7, 9}) {
+        for (const int by : {-2, 0, 1, 4}) {
+            CAPTURE(ax);
+            CAPTURE(by);
+            const Ray a({0, 0}, {ax, 0});
+            const Ray b({6, -3}, {6, by});
+            REQUIRE(a.interiorContains(Point(6, 0)));
+            REQUIRE(b.interiorContains(Point(6, 0)));
+            CHECK(a.interiorsIntersect(b));
+            CHECK(b.interiorsIntersect(a));
+        }
+    }
+
+    // The witness the property harness reduced to: the crossing at (-1,-1) lies
+    // past the through-point of each ray.
+    const Ray leftward({1, -1}, {0, -1});
+    const Ray downward({-2, 0}, {1, -3});
+    REQUIRE(leftward.interiorContains(Point(-1, -1)));
+    REQUIRE(downward.interiorContains(Point(-1, -1)));
+    CHECK(leftward.interiorsIntersect(downward));
+    CHECK(downward.interiorsIntersect(leftward));
+
+    // Meeting at a source is a boundary touch, not an interior one.
+    const Ray upward({0, 0}, {0, 1});
+    const Ray rightward({0, 0}, {1, 0});
+    CHECK(upward.intersects(rightward));
+    CHECK_FALSE(upward.interiorsIntersect(rightward));
+    CHECK_FALSE(rightward.interiorsIntersect(upward));
+    // A source landing on the other ray is still that ray's own boundary, so
+    // the interiors miss although the rays meet.
+    REQUIRE(rightward.interiorContains(Point(3, 0)));
+    CHECK(Ray({3, 0}, {3, 5}).intersects(rightward));
+    CHECK_FALSE(Ray({3, 0}, {3, 5}).interiorsIntersect(rightward));
+    CHECK_FALSE(rightward.interiorsIntersect(Ray({3, 0}, {3, 5})));
+    // Starting before that crossing puts it inside both.
+    CHECK(Ray({3, -2}, {3, 5}).interiorsIntersect(rightward));
+    CHECK(rightward.interiorsIntersect(Ray({3, -2}, {3, 5})));
+
+    // Parallel on another line, and a crossing the rays face away from.
+    CHECK_FALSE(rightward.interiorsIntersect(Ray({0, 2}, {1, 2})));
+    CHECK_FALSE(rightward.interiorsIntersect(Ray({6, -3}, {6, -9})));
+
+    // Collinear: overlapping in a segment, in a sub-ray, and in a single source.
+    CHECK(Ray({0, 0}, {1, 0}).interiorsIntersect(Ray({4, 0}, {-4, 0})));
+    CHECK(rightward.interiorsIntersect(Ray({3, 0}, {4, 0})));
+    CHECK_FALSE(Ray({0, 0}, {1, 0}).interiorsIntersect(Ray({0, 0}, {-1, 0})));
+}

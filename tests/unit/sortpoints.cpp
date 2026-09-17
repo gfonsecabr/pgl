@@ -167,6 +167,78 @@ TEST_CASE("sortAround stays exact when the points outrun the center's type") {
     CHECK(points == std::vector<PointR>{{R(-3), R(1)}, {R(5, 3), R(1)}, {R(4, 3), R(1)}});
 }
 
+TEST_CASE("sortAround traces a simple star-shaped ring around an interior center") {
+    using ConvexShape = pgl::Convex<Point>;
+    using PolygonShape = pgl::Polygon<Point>;
+
+    // The guarantee holds when the center is strictly inside the hull of the
+    // points, which is what keeps every gap between consecutive directions
+    // under half a turn. The coarse grid puts points on rays through the center
+    // and three to a line often enough that both show up here.
+    const auto kernelHolds = [](const std::vector<Point>& ring, const Point& c) {
+        for (std::size_t i = 0; i < ring.size(); ++i) {
+            if (pgl::orientationSign(ring[i], ring[(i + 1) % ring.size()], c) < 0) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    int tested = 0;
+    for (int n : {5, 9, 30}) {
+        for (std::uint64_t seed = 1; seed <= 12; ++seed) {
+            std::vector<Point> points = makePoints(n, seed, -4, 4);
+            std::sort(points.begin(), points.end());
+            points.erase(std::unique(points.begin(), points.end()), points.end());
+            for (const Point& center : {Point(0, 0), Point(1, -1), Point(-2, 2)}) {
+                std::vector<Point> ring = points;
+                ring.erase(std::remove(ring.begin(), ring.end(), center), ring.end());
+                if (ring.size() < 3 || !ConvexShape(ring).interiorContains(center)) {
+                    continue;  // outside the hull no order can answer; see the docs
+                }
+                pgl::sortAround(ring, center);
+                CAPTURE(n);
+                CAPTURE(seed);
+                CAPTURE(center);
+                CHECK(PolygonShape(ring, pgl::trusted).isSimple());
+                CHECK(kernelHolds(ring, center));
+                ++tested;
+            }
+        }
+    }
+    REQUIRE(tested > 20);  // the filter must not empty the test out
+}
+
+TEST_CASE("sortAround closes along the supporting line for a center on the hull") {
+    using ConvexShape = pgl::Convex<Point>;
+    using PolygonShape = pgl::Polygon<Point>;
+
+    // On the hull boundary the largest gap is a half turn exactly and the ring
+    // closes along that edge's line, so a third point on the line between the
+    // two the closing edge joins breaks simplicity. Which of the two collinear
+    // blocks that is depends on the side the remaining points fall on, so the
+    // same stack answers both ways -- which is why the documented precondition
+    // says strictly inside.
+    const Point center(2, 0);
+    const std::vector<Point> stackedAbove{{1, 2}, {2, -1}, {2, 1}, {2, 2}};
+    const std::vector<Point> stackedBelow{{1, 2}, {2, -1}, {2, -2}, {2, 1}};
+    for (const auto& points : {stackedAbove, stackedBelow}) {
+        const ConvexShape hull(points);
+        REQUIRE(hull.contains(center));
+        REQUIRE_FALSE(hull.interiorContains(center));
+    }
+
+    std::vector<Point> ring = stackedAbove;
+    pgl::sortAround(ring, center);
+    CHECK(ring == std::vector<Point>{{1, 2}, {2, -1}, {2, 2}, {2, 1}});
+    CHECK_FALSE(PolygonShape(ring, pgl::trusted).isSimple());
+
+    ring = stackedBelow;
+    pgl::sortAround(ring, center);
+    CHECK(ring == std::vector<Point>{{1, 2}, {2, -2}, {2, -1}, {2, 1}});
+    CHECK(PolygonShape(ring, pgl::trusted).isSimple());
+}
+
 TEST_CASE("hilbertSort permutes its input") {
     for (int n : {0, 1, 2, 5, 64, 300}) {
         const std::vector<Point> input = makePoints(n, 3, -50, 50);

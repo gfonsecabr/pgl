@@ -166,3 +166,33 @@ TEST_CASE("Triangle intersection with Halfplane returns Convex, Segment, or Poin
         CHECK_FALSE(tri.intersection<int>(Halfplane({0, 7}, {1, 7})));
     }
 }
+
+TEST_CASE("Halfplane meets Triangle in a convex region") {
+    using Point = pgl::Point<int>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+
+    // x >= 0, y >= 0, x + y <= 6.
+    const Triangle corner(Point(0, 0), Point(6, 0), Point(0, 6));
+    // x <= 3.
+    const Halfplane left({3, -1}, {3, 1});
+
+    SUBCASE("the cut turns the triangle into a quadrilateral") {
+        const auto met = corner.regularizedIntersection<int>(left);
+        static_assert(std::is_same_v<decltype(met), const pgl::PolygonSet<Point>>);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.twiceArea() == 27);
+        CHECK(met.component(0) == Region(PolygonShape({0, 0, 3, 0, 3, 3, 0, 6})));
+        CHECK(met == left.regularizedIntersection<int>(corner));
+    }
+
+    SUBCASE("touching at a vertex, missing, and area-free give the empty set") {
+        CHECK(corner.regularizedIntersection<int>(Halfplane({6, 1}, {6, -1})).empty());
+        CHECK(corner.regularizedIntersection<int>(Halfplane({9, 1}, {9, -1})).empty());
+        const Triangle flat(Point(1, 1), Point(2, 2), Point(3, 3));
+        CHECK(flat.regularizedIntersection<int>(left).empty());
+        CHECK(left.regularizedIntersection<int>(flat).empty());
+    }
+}

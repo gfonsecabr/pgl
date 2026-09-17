@@ -211,3 +211,43 @@ TEST_CASE("Polygon::intersection(Rectangle) forwards via the convex representati
         CHECK(square.intersection<pgl::ERational>(away).empty());
     }
 }
+
+TEST_CASE("Rectangle meets Polygon in a set of regions") {
+    using Point = pgl::Point<int>;
+    using RectangleShape = pgl::Rectangle<Point>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+
+    // A square with a V notch cut into its top edge, down to (3,3).
+    const PolygonShape notched({0, 0, 6, 0, 6, 6, 3, 3, 0, 6});
+
+    SUBCASE("the notch reaches into the rectangle") {
+        const RectangleShape rect(Point(0, 0), Point(4, 4));
+        const auto met = rect.regularizedIntersection<int>(notched);
+        static_assert(std::is_same_v<decltype(met), const pgl::PolygonSet<Point>>);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.twiceArea() == 2 * 15);
+        CHECK(met.component(0) == Region(PolygonShape({0, 0, 4, 0, 4, 4, 3, 3, 2, 4, 0, 4})));
+        CHECK(met == notched.regularizedIntersection<int>(rect));
+    }
+
+    SUBCASE("a band across a U comes back as two regions") {
+        // A U: the band y in [0,2] across, plus the walls x in [0,2] and [4,6].
+        const PolygonShape cup({0, 0, 6, 0, 6, 6, 4, 6, 4, 2, 2, 2, 2, 6, 0, 6});
+        const RectangleShape band(Point(0, 3), Point(6, 5));
+        const auto met = band.regularizedIntersection<int>(cup);
+        REQUIRE(met.componentCount() == 2);
+        CHECK(met.twiceArea() == 2 * 8);
+        CHECK(met.component(0) == Region(PolygonShape({0, 3, 2, 3, 2, 5, 0, 5})));
+        CHECK(met.component(1) == Region(PolygonShape({4, 3, 6, 3, 6, 5, 4, 5})));
+        CHECK(met == cup.regularizedIntersection<int>(band));
+    }
+
+    SUBCASE("touching, disjoint and area-free operands give the empty set") {
+        CHECK(RectangleShape(Point(6, 0), Point(9, 6)).regularizedIntersection<int>(notched).empty());
+        CHECK(RectangleShape(Point(9, 9), Point(11, 11)).regularizedIntersection<int>(notched).empty());
+        const RectangleShape flat(Point(1, 2), Point(3, 2));
+        CHECK(flat.regularizedIntersection<int>(notched).empty());
+        CHECK(notched.regularizedIntersection<int>(flat).empty());
+    }
+}

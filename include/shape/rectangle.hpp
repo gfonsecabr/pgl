@@ -2214,6 +2214,41 @@ struct Rectangle {
     }
 
     /**
+     * @brief Returns the regularized intersection of the two shapes (A ∩ B).
+     *
+     * Two rectangles meet in a rectangle, so this is the cheapest instance of
+     * the operation in the library: two coordinate comparisons per axis settle
+     * the overlap, and the result is that one rectangle or nothing. See
+     * @ref PolygonWithHoles::regularizedIntersection(const OtherPolygon&) const
+     * for the contract.
+     *
+     * Complexity: O(1).
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The rectangle to intersect with.
+     * @return The overlap, empty when it has no area.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, RectangleConcept OtherRectangle>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    regularizedIntersection(const OtherRectangle& other) const;
+
+    /**
+     * @brief Returns the regularized intersection of the two shapes (A ∩ B).
+     *
+     * A half-plane is unbounded, which stops it being a @ref regularizedUnion
+     * operand but not an intersection one: `A ∩ B` is bounded whenever `A` is.
+     * A rectangle clipped to a half-plane is convex, so the answer is one piece
+     * or none and no arrangement is built. See
+     * @ref PolygonWithHoles::regularizedIntersection(const OtherPolygon&) const
+     * for the contract.
+     *
+     * Complexity: O(1).
+     */
+    template <class ResultNumber = division_result_t<NumberType>, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    regularizedIntersection(const OtherHalfplane& other) const;
+
+    /**
      * @brief Returns the regularized union of the two shapes (A ∪ B).
      *
      * Two rectangles are the one pair of @ref PolygonalRegionConcept operands a

@@ -1129,3 +1129,44 @@ TEST_CASE("Segment latticePoints reads floating-point coordinates as the exact v
           == Result{{2, -1}, {2, 0}, {2, 1}, {2, 2}});
     CHECK(Segment(Point(2.5, -1.0), Point(2.5, 2.0)).latticePoints().empty());
 }
+
+TEST_CASE("Segment intersection reads a zero-length operand as the point it is") {
+    using Point = pgl::Point<int>;
+    using SegmentShape = pgl::Segment<Point>;
+
+    // Every orientation test against a zero-length operand vanishes, which
+    // reads as collinear -- and the collinear branch then answers with an
+    // endpoint of the 1D overlap, which need not lie on either operand.
+    const SegmentShape diagonal(Point(0, 0), Point(1, 1));
+    const SegmentShape offLine(Point(0, 1), Point(0, 1));
+    REQUIRE(offLine.isDegenerate());
+    REQUIRE_FALSE(diagonal.contains(Point(0, 1)));
+
+    CHECK_FALSE(diagonal.intersects(offLine));
+    CHECK_FALSE(offLine.intersects(diagonal));
+    CHECK_FALSE(diagonal.intersection(offLine).has_value());
+    CHECK_FALSE(offLine.intersection(diagonal).has_value());
+
+    // A zero-length operand that does lie on the segment answers with itself,
+    // whether it sits at an end or in the middle.
+    for (const Point p : {Point(0, 0), Point(1, 1), Point(2, 2)}) {
+        CAPTURE(p);
+        const SegmentShape onLine(p, p);
+        const SegmentShape longer(Point(0, 0), Point(3, 3));
+        REQUIRE(longer.contains(p));
+        CHECK(longer.intersects(onLine));
+        const auto forward = longer.intersection(onLine);
+        const auto backward = onLine.intersection(longer);
+        REQUIRE(forward.has_value());
+        REQUIRE(backward.has_value());
+        CHECK(std::get<pgl::Point<pgl::Rational<pgl::BigInt>>>(*forward) ==
+              pgl::Point<pgl::Rational<pgl::BigInt>>(p));
+        CHECK(std::get<pgl::Point<pgl::Rational<pgl::BigInt>>>(*backward) ==
+              pgl::Point<pgl::Rational<pgl::BigInt>>(p));
+    }
+
+    // Two zero-length operands: equal ones meet, different ones do not.
+    const SegmentShape here(Point(2, 2), Point(2, 2));
+    CHECK(here.intersection(SegmentShape(Point(2, 2), Point(2, 2))).has_value());
+    CHECK_FALSE(here.intersection(SegmentShape(Point(2, 3), Point(2, 3))).has_value());
+}

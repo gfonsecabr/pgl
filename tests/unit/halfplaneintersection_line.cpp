@@ -286,3 +286,26 @@ TEST_CASE("Halfplane intersection construction chains exactly") {
     const auto vanished = twice.intersection<int>(Halfplane(1, -1, 0, -1));  // y <= -1
     CHECK(vanished.empty());
 }
+
+TEST_CASE("An unbounded region's distance is measured on exact edges") {
+    // The region's vertex is (-11/7,-46/7) and both its edges run off to
+    // infinity; the first is exactly parallel to the line. Rounding that edge
+    // into the result type tilts it, so far enough out it crosses the line it
+    // never meets and the scan reports zero for a disjoint pair.
+    const Region region({Halfplane(2, -3, 5, 0), Halfplane(-3, -3, -5, 2)});
+    const Line line(Point(6, -3), Point(4, -5));
+    REQUIRE_FALSE(region.isBounded());
+    REQUIRE_FALSE(region.intersects(line));
+
+    CHECK(region.squaredDistance<double>(line) == doctest::Approx(8.0));
+    CHECK(line.squaredDistance<double>(region) == doctest::Approx(8.0));
+    CHECK(region.squaredDistance<pgl::Rational<pgl::BigInt>>(line) ==
+          pgl::Rational<pgl::BigInt>(8));
+
+    // The same geometry moved: the answer is a distance, so it may not depend
+    // on where the pair sits.
+    const Point shift(3, -5);
+    CHECK((region + shift).squaredDistance<double>(line + shift) == doctest::Approx(8.0));
+    CHECK((region + shift).squaredDistance<pgl::Rational<pgl::BigInt>>(line + shift) ==
+          pgl::Rational<pgl::BigInt>(8));
+}

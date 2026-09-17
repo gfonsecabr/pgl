@@ -1891,6 +1891,43 @@ struct Triangle {
     }
 
     /**
+     * @brief Returns the regularized intersection of the two shapes (A ∩ B).
+     *
+     * Two triangles are convex, so their intersection is convex: it is the clip
+     * of one against the other, one piece or none, and no arrangement is built.
+     * A triangle owns this pair and the one with a @ref Rectangle, being the
+     * higher-ranked of the two. See
+     * @ref PolygonWithHoles::regularizedIntersection(const OtherPolygon&) const
+     * for the contract.
+     *
+     * Complexity: O(1).
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The shape to intersect with.
+     * @return The overlap, empty when it has no area.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, TriangleConcept OtherTriangle>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    regularizedIntersection(const OtherTriangle& other) const;
+
+    /** @brief Returns the regularized intersection of the two shapes (A ∩ B). */
+    template <class ResultNumber = division_result_t<NumberType>, RectangleConcept OtherRectangle>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    regularizedIntersection(const OtherRectangle& other) const;
+
+    /**
+     * @brief Returns the regularized intersection of the two shapes (A ∩ B).
+     *
+     * A half-plane is unbounded, which stops it being a @ref regularizedUnion
+     * operand but not an intersection one: `A ∩ B` is bounded whenever `A` is,
+     * and a triangle clipped to a half-plane is convex. See
+     * @ref regularizedIntersection(const OtherTriangle&) const.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    regularizedIntersection(const OtherHalfplane& other) const;
+
+    /**
      * @brief Returns the regularized union of the two shapes (A ∪ B).
      *
      * The union of two bounded convex shapes is convex only by coincidence — two

@@ -406,3 +406,38 @@ TEST_CASE("Segment and Convex squared Hausdorff distance") {
     CHECK(square.squaredHausdorffDistance<int>(s) == 37);
     CHECK(s.squaredHausdorffDistance<int>(square) == 37);
 }
+
+TEST_CASE("Convex intersection reads a zero-length segment as the point it is") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Convex = pgl::Convex<Point>;
+    using ExactPoint = pgl::Point<pgl::Rational<pgl::BigInt>>;
+
+    // A zero-length segment has no supporting line, and clipping the hull
+    // against an undefined line answered empty for a point the hull holds.
+    const Convex slab({{-2, 2}, {0, 0}});
+    const Segment inside({-1, 1}, {-1, 1});
+    REQUIRE(inside.isDegenerate());
+    REQUIRE(slab.contains(inside.min()));
+
+    CHECK(slab.intersects(inside));
+    CHECK(inside.intersects(slab));
+    const auto forward = slab.intersection(inside);
+    const auto backward = inside.intersection(slab);
+    REQUIRE(forward.has_value());
+    REQUIRE(backward.has_value());
+    CHECK(std::get<ExactPoint>(*forward) == ExactPoint(-1, 1));
+    CHECK(std::get<ExactPoint>(*backward) == ExactPoint(-1, 1));
+
+    // A one-vertex hull is the same question with nothing left over.
+    const Convex vertex({{0, 0}});
+    const Segment same({0, 0}, {0, 0});
+    CHECK(vertex.intersects(same));
+    CHECK(vertex.intersection(same).has_value());
+
+    // Outside the hull it stays empty, and intersects agrees.
+    const Segment outside({5, 5}, {5, 5});
+    CHECK_FALSE(slab.intersects(outside));
+    CHECK_FALSE(slab.intersection(outside).has_value());
+    CHECK_FALSE(outside.intersection(slab).has_value());
+}

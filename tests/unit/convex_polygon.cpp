@@ -448,3 +448,41 @@ TEST_CASE("Polygon interiorContains Convex agrees with the polygon operand") {
     checkPolygonInteriorContainsConvexAgainstPolygon<int>();
     checkPolygonInteriorContainsConvexAgainstPolygon<pgl::ERational>();
 }
+
+TEST_CASE("Convex meets Polygon in a set of regions") {
+    using Point = pgl::Point<int>;
+    using ConvexShape = pgl::Convex<Point>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+
+    // A U: the band y in [0,2] across, plus the walls x in [0,2] and [4,6].
+    const PolygonShape cup({0, 0, 6, 0, 6, 6, 4, 6, 4, 2, 2, 2, 2, 6, 0, 6});
+
+    SUBCASE("a convex band across the U comes back as two regions") {
+        const ConvexShape band(std::vector<Point>{{-1, 3}, {7, 3}, {7, 5}, {-1, 5}});
+        const auto met = band.regularizedIntersection<int>(cup);
+        static_assert(std::is_same_v<decltype(met), const pgl::PolygonSet<Point>>);
+        REQUIRE(met.componentCount() == 2);
+        CHECK(met.twiceArea() == 2 * 8);
+        CHECK(met.component(0) == Region(PolygonShape({0, 3, 2, 3, 2, 5, 0, 5})));
+        CHECK(met.component(1) == Region(PolygonShape({4, 3, 6, 3, 6, 5, 4, 5})));
+        CHECK(met == cup.regularizedIntersection<int>(band));
+    }
+
+    SUBCASE("a convex shape inside the U is the whole answer") {
+        const ConvexShape inside(std::vector<Point>{{0, 0}, {2, 0}, {2, 2}, {0, 2}});
+        const auto met = inside.regularizedIntersection<int>(cup);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.component(0) == Region(inside.asPolygon()));
+    }
+
+    SUBCASE("touching, disjoint and area-free operands give the empty set") {
+        const ConvexShape notch(std::vector<Point>{{2, 2}, {4, 2}, {4, 6}, {2, 6}});
+        CHECK(notch.regularizedIntersection<int>(cup).empty());
+        const ConvexShape away(std::vector<Point>{{9, 9}, {11, 9}, {11, 11}, {9, 11}});
+        CHECK(away.regularizedIntersection<int>(cup).empty());
+        const ConvexShape collapsed(std::vector<Point>{{1, 1}, {3, 1}});
+        CHECK(collapsed.regularizedIntersection<int>(cup).empty());
+        CHECK(cup.regularizedIntersection<int>(collapsed).empty());
+    }
+}

@@ -458,11 +458,8 @@ constexpr bool Ray<PointType, LabelType>::interiorsIntersect(const OtherRay& oth
         return false;
     }
 
-    const auto other_source_side = orientationSign(source(), target(), other.source());
-    const auto other_target_side = orientationSign(source(), target(), other.target());
-
-    if (other_source_side == std::partial_ordering::equivalent &&
-        other_target_side == std::partial_ordering::equivalent) {
+    if (orientationSign(source(), target(), other.source()) == 0 &&
+        orientationSign(source(), target(), other.target()) == 0) {
         // Collinear, as in the segment case: one source lies strictly inside the
         // other ray, or the two rays coincide — same source, same direction —
         // which is the overlapping configuration neither test catches.
@@ -470,20 +467,12 @@ constexpr bool Ray<PointType, LabelType>::interiorsIntersect(const OtherRay& oth
                (source() == other.source() && contains(other.target()));
     }
 
-    if (other_source_side == other_target_side &&
-        other_source_side != std::partial_ordering::equivalent) {
-        return false;
-    }
-
-    const auto this_source_side = orientationSign(other.source(), other.target(), source());
-    const auto this_target_side = orientationSign(other.source(), other.target(), target());
-
-    if (this_source_side == this_target_side &&
-        this_source_side != std::partial_ordering::equivalent) {
-        return false;
-    }
-
-    return !boundaryContains(other.source()) && !other.boundaryContains(source());
+    // Otherwise the supporting lines meet in at most one point, and each ray
+    // reaches it past its own source exactly when that ray's interior meets the
+    // other's supporting line. Straddle tests on the two defining points decide
+    // nothing here: a ray runs on past its target, so a crossing beyond it lies
+    // on one side of both. Ray::intersects(Ray) splits the same way.
+    return interiorsIntersect(other.asLine()) && other.interiorsIntersect(asLine());
 }
 
 /**

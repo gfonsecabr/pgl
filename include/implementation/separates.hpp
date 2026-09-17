@@ -3664,11 +3664,10 @@ bool polylineSeparatesConvexRegion(const PolylineType& polyline, const Region& o
     }
     // Both operands are connected, so shapes that miss each other neither cut
     // nor are cut — as in @ref cellSeparates. A half-plane operand has no
-    // bounding box to test, and no `bbox()` to call.
-    if constexpr (requires { other.bbox(); }) {
-        if (!polyline.bbox().intersects(other.bbox())) {
-            return false;
-        }
+    // bounding box to test, and an unbounded region has none either, so the
+    // test is skipped rather than asked for; the scan below needs no box.
+    if (boundingBoxesMiss(polyline, other)) {
+        return false;
     }
     using ExactNumber = Exact1DNumber<typename PolylineType::NumberType,
                                       typename Region::NumberType>;

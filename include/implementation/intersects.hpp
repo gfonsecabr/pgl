@@ -708,7 +708,7 @@ constexpr bool Convex<PointType, LabelType>::intersects(const OtherRectangle& ot
         return true;
     }
 
-    if (other.contains(points_[0])) {
+    if (other.contains((*this)[0])) {
         return true;
     }
 
@@ -730,7 +730,7 @@ constexpr bool Convex<PointType, LabelType>::intersects(const OtherTriangle& oth
     if (bbox().separates(other.bbox()) || other.bbox().separates(bbox())) {
         return true;
     }
-    if (other.contains(points_[0])) {
+    if (other.contains((*this)[0])) {
         return true;
     }
 

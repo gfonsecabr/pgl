@@ -83,3 +83,44 @@ TEST_CASE("Distance to a convex polygon") {
     CHECK(k.squaredDistance<ERational>(right) == ERational(9));
     CHECK(k.squaredDistance<double>(square(2, 4)) == doctest::Approx(0.0));
 }
+
+TEST_CASE("Region meets a convex polygon in a convex region") {
+    using PolygonShape = pgl::Polygon<Point>;
+    using Piece = pgl::PolygonWithHoles<Point>;
+
+    // |x - 2| + |y - 2| <= 3.
+    const Convex diamond(std::vector<Point>{{2, -1}, {5, 2}, {2, 5}, {-1, 2}});
+
+    SUBCASE("a bounded region clips the convex polygon to their overlap") {
+        const auto met = box6().regularizedIntersection<int>(square(2, 9));
+        static_assert(std::is_same_v<decltype(met), const pgl::PolygonSet<Point>>);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.twiceArea() == 2 * 16);
+        CHECK(met.component(0) == Piece(PolygonShape({2, 2, 6, 2, 6, 6, 2, 6})));
+        CHECK(met == square(2, 9).regularizedIntersection<int>(box6()));
+    }
+
+    SUBCASE("an unbounded slab takes both tips off the diamond") {
+        const auto met = vslab().regularizedIntersection<int>(diamond);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.twiceArea() == 26);
+        CHECK(met.component(0) == Piece(PolygonShape({0, 1, 2, -1, 3, 0, 3, 4, 2, 5, 0, 3})));
+        CHECK(met == diamond.regularizedIntersection<int>(vslab()));
+    }
+
+    SUBCASE("touching, missing and area-free operands give the empty set") {
+        CHECK(box6().regularizedIntersection<int>(square(6, 9)).empty());
+        CHECK(box6().regularizedIntersection<int>(square(9, 11)).empty());
+        const Convex collapsed(std::vector<Point>{{1, 1}, {3, 3}});
+        CHECK(box6().regularizedIntersection<int>(collapsed).empty());
+        CHECK(collapsed.regularizedIntersection<int>(box6()).empty());
+        // The empty region -- two contradictory constraints -- meets nothing,
+        // while the whole plane, which is what a constraint-free region is,
+        // answers the other operand.
+        Region none(Halfplane(0, 0, 1, 0));
+        none.insert(Halfplane(1, -1, 0, -1));
+        REQUIRE(none.empty());
+        CHECK(none.regularizedIntersection<int>(square(0, 2)).empty());
+        CHECK(Region().regularizedIntersection<int>(square(0, 2)).componentCount() == 1);
+    }
+}

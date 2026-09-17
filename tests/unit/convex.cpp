@@ -2477,3 +2477,84 @@ TEST_CASE("Convex centroid follows a deferred translation") {
         CHECK(triangle.centroid<Exact>() == ExactPoint(Exact(4), Exact(-4)));
     }
 }
+
+TEST_CASE("Convex intersects follows a deferred translation") {
+    using Point = pgl::Point<int>;
+    using ConvexShape = pgl::Convex<Point>;
+    using RectangleShape = pgl::Rectangle<Point>;
+    using TriangleShape = pgl::Triangle<Point>;
+
+    // A hull built up and to the right, then moved back down to the origin. The
+    // stored vertices still sit where they were built, so an overload that probes
+    // one of them without adding the offset asks about the wrong location -- and
+    // here that location is inside both operands while the hull itself misses
+    // them by a whole cell.
+    ConvexShape moved({Point(3, 3), Point(7, 3), Point(3, 7)});
+    moved += Point(-3, -3);
+    const ConvexShape fresh({Point(0, 0), Point(4, 0), Point(0, 4)});
+    REQUIRE(moved == fresh);
+
+    const RectangleShape rectangle(Point(3, 3), Point(6, 6));
+    const TriangleShape triangle(Point(3, 3), Point(6, 3), Point(3, 6));
+
+    // Disjoint: the hull is cut off by x + y <= 4 and both operands start at
+    // x + y == 6. The bounding boxes do overlap, so no early test decides it.
+    REQUIRE(moved.bbox().intersects(rectangle.bbox()));
+    CHECK(moved.squaredDistance(rectangle) > 0);
+
+    CHECK_FALSE(moved.intersects(rectangle));
+    CHECK_FALSE(rectangle.intersects(moved));
+    CHECK_FALSE(moved.intersects(triangle));
+    CHECK_FALSE(triangle.intersects(moved));
+
+    // Equal values answer alike, whichever way the hull got where it is.
+    CHECK(moved.intersects(rectangle) == fresh.intersects(rectangle));
+    CHECK(moved.intersects(triangle) == fresh.intersects(triangle));
+
+    // The other side of the same test: a hull moved onto the operands meets
+    // them, though its stored vertices sit far away.
+    ConvexShape onto({Point(30, 30), Point(31, 30), Point(30, 31)});
+    onto += Point(-26, -26);
+    REQUIRE(onto == ConvexShape({Point(4, 4), Point(5, 4), Point(4, 5)}));
+    CHECK(onto.intersects(rectangle));
+    CHECK(rectangle.intersects(onto));
+    CHECK(onto.intersects(triangle));
+    CHECK(triangle.intersects(onto));
+}
+
+TEST_CASE("Convex meets Convex in a convex region") {
+    using Point = pgl::Point<int>;
+    using ConvexShape = pgl::Convex<Point>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+
+    const ConvexShape square(std::vector<Point>{{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+    // |x - 2| + |y - 2| <= 3, whose four corners all stick out of the square.
+    const ConvexShape diamond(std::vector<Point>{{2, -1}, {5, 2}, {2, 5}, {-1, 2}});
+
+    SUBCASE("the overlap is the clip of one against the other") {
+        const auto met = square.regularizedIntersection<int>(diamond);
+        static_assert(std::is_same_v<decltype(met), const pgl::PolygonSet<Point>>);
+        REQUIRE(met.componentCount() == 1);
+        // The square loses a corner triangle of legs one at each of its corners.
+        CHECK(met.twiceArea() == 2 * 16 - 4);
+        CHECK(met.component(0) ==
+              Region(PolygonShape({1, 0, 3, 0, 4, 1, 4, 3, 3, 4, 1, 4, 0, 3, 0, 1})));
+        CHECK(met == diamond.regularizedIntersection<int>(square));
+    }
+
+    SUBCASE("one operand inside the other is that operand") {
+        const ConvexShape inner(std::vector<Point>{{1, 1}, {3, 1}, {3, 3}, {1, 3}});
+        const auto met = square.regularizedIntersection<int>(inner);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.component(0) == Region(inner.asPolygon()));
+    }
+
+    SUBCASE("touching operands and operands without area give the empty set") {
+        const ConvexShape beside(std::vector<Point>{{4, 0}, {7, 0}, {7, 4}, {4, 4}});
+        CHECK(square.regularizedIntersection<int>(beside).empty());
+        const ConvexShape collapsed(std::vector<Point>{{1, 1}, {3, 3}});
+        CHECK(square.regularizedIntersection<int>(collapsed).empty());
+        CHECK(collapsed.regularizedIntersection<int>(square).empty());
+    }
+}

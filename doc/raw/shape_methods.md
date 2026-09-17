@@ -205,17 +205,19 @@ std::vector<pgl::Triangle<>> triangles = /* ... */;
 auto covered = pgl::regularizedUnionOf<pgl::EPoint>(triangles);
 ```
 
-The six bounded region types are `Rectangle`, `Triangle`, `Convex`, `Polygon`, `PolygonWithHoles`, and `PolygonSet`. `regularizedUnion` and `symmetricDifference` are defined for every pair among them. `difference` requires one of those six as its receiver and accepts any of the six, a `Halfplane`, or a `HalfplaneIntersection` as its argument. `regularizedIntersection` is available when a `PolygonWithHoles` or `PolygonSet` participates; the other operand may be any of the six bounded region types, a `Halfplane`, or a `HalfplaneIntersection`. These last two operations can involve an unbounded operand because both $A \setminus B$ and $A \cap B$ are bounded when $A$ is bounded; for the nonsymmetric difference, the unbounded operand must be the argument.
+The six bounded region types are `Rectangle`, `Triangle`, `Convex`, `Polygon`, `PolygonWithHoles`, and `PolygonSet`. `regularizedUnion` and `symmetricDifference` are defined for every pair among them. `difference` requires one of those six as its receiver and accepts any of the six, a `Halfplane`, or a `HalfplaneIntersection` as its argument. `regularizedIntersection` is defined for every pair among the six, and for each of them with a `Halfplane` or a `HalfplaneIntersection` on either side. These last two operations can involve an unbounded operand because both $A \setminus B$ and $A \cap B$ are bounded when $A$ is bounded; for the nonsymmetric difference, the unbounded operand must be the argument.
 
-Every pair outside those grids throws `pgl::unsupported_operation`, and the one gap worth knowing is that the four operations are **not** interchangeable: `regularizedIntersection` is the only one undefined for a pair drawn just from `Rectangle`, `Triangle`, `Convex` and `Polygon`, so `rectangle.regularizedIntersection(triangle)` throws where `regularizedUnion`, `difference` and `symmetricDifference` all answer. Calling [`asPolygonWithHoles`](shapes.md#polygon-with-holes) on either operand first reaches it:
+Every pair outside those grids throws `pgl::unsupported_operation`. Two unbounded operands are the case to know: $A \cap B$ need not be bounded then, so no `PolygonSet` can hold it, and `halfplane.regularizedIntersection(halfplane)` throws. Use `intersection` there, which answers a `HalfplaneIntersection`.
+
+A pair of convex operands never builds an arrangement: two convex shapes meet in a convex shape, so the answer is one clip and one piece. Two rectangles cost a coordinate comparison per side.
 
 ```c++
 pgl::Rectangle<> rect(0,0, 4,4);
 pgl::Triangle<> tri(0,0, 6,0, 0,6);
-auto area = rect.asPolygonWithHoles().regularizedIntersection(tri);  // rect.regularizedIntersection(tri) throws
+auto area = rect.regularizedIntersection(tri);  // one piece, no arrangement
 ```
 
-For the literal point set, including its lower-dimensional pieces, `intersection` is defined for that pair as it stands.
+For the literal point set, including its lower-dimensional pieces, `intersection` is defined for the same pairs.
 
 ### Minkowski Sum
 

@@ -3169,6 +3169,50 @@ struct Convex {
     }
 
     /**
+     * @brief Returns the regularized intersection of the two shapes (A ∩ B).
+     *
+     * Two convex shapes meet in a convex shape, so the answer is the clip of
+     * one against the other — one piece or none — and none of the cell
+     * machinery the general operation needs is built. A convex polygon is the
+     * highest-ranked of the three bounded convex regions, so it owns its pairs
+     * with all three; the pairs with an operand above it are defined there and
+     * reached through the forwarding overload above. See
+     * @ref PolygonWithHoles::regularizedIntersection(const OtherPolygon&) const
+     * for the contract.
+     *
+     * Complexity: O((n + m) log(n + m)) for n and m vertices.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The shape to intersect with.
+     * @return The overlap, empty when it has no area.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, ConvexConcept OtherConvex>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    regularizedIntersection(const OtherConvex& other) const;
+
+    /** @brief Returns the regularized intersection of the two shapes (A ∩ B). */
+    template <class ResultNumber = division_result_t<NumberType>, TriangleConcept OtherTriangle>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    regularizedIntersection(const OtherTriangle& other) const;
+
+    /** @brief Returns the regularized intersection of the two shapes (A ∩ B). */
+    template <class ResultNumber = division_result_t<NumberType>, RectangleConcept OtherRectangle>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    regularizedIntersection(const OtherRectangle& other) const;
+
+    /**
+     * @brief Returns the regularized intersection of the two shapes (A ∩ B).
+     *
+     * A half-plane is unbounded, which stops it being a @ref regularizedUnion
+     * operand but not an intersection one: `A ∩ B` is bounded whenever `A` is,
+     * and a convex polygon clipped to a half-plane is convex. See
+     * @ref regularizedIntersection(const OtherConvex&) const.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    regularizedIntersection(const OtherHalfplane& other) const;
+
+    /**
      * @brief Returns the regularized union of the two shapes (A ∪ B).
      *
      * The union of two bounded convex shapes is convex only by coincidence — two

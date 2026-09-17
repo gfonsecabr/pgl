@@ -1384,14 +1384,14 @@ struct PolygonWithHoles {
      * disjoint interiors: the part both operands cover, with lower-dimensional
      * leftovers dropped.
      *
-     * This is the one boolean operation @ref Polygon does not offer in this
-     * form. @ref Polygon::intersection(const OtherPolygon&) const can return
-     * plain polygons for its two-dimensional components because the filled
-     * operands have connected complements, so their intersection cannot gain a
-     * hole. A `PolygonWithHoles` can preserve a hole already present in an
-     * operand, and a @ref PolygonSet can preserve holes and disconnected
-     * components. The simplest witness is a region intersected with a rectangle
-     * covering it, which is the region itself.
+     * This is where the result type earns its generality.
+     * @ref Polygon::intersection(const OtherPolygon&) const can return plain
+     * polygons for its two-dimensional components because the filled operands
+     * have connected complements, so their intersection cannot gain a hole. A
+     * `PolygonWithHoles` can preserve a hole already present in an operand, and
+     * a @ref PolygonSet can preserve holes and disconnected components. The
+     * simplest witness is a region intersected with a rectangle covering it,
+     * which is the region itself.
      *
      * @tparam ResultNumber The number type for the result.
      * @param other The shape to intersect with.

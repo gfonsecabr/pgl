@@ -1482,9 +1482,11 @@ struct Shape {
      *        region-valued shapes.
      *
      * @throws unsupported_operation when the pair has no
-     *   `regularizedIntersection`: one operand must be a `PolygonWithHoles` or
-     *   a `PolygonSet`, the other a region, a `Halfplane` or a
-     *   `HalfplaneIntersection`.
+     *   `regularizedIntersection`: one operand must be a bounded region —
+     *   `Rectangle`, `Triangle`, `Convex`, `Polygon`, `PolygonWithHoles` or
+     *   `PolygonSet` — and the other any of those, a `Halfplane` or a
+     *   `HalfplaneIntersection`. Two unbounded operands throw, `A ∩ B` not
+     *   being bounded then; @ref intersection answers those.
      */
     template <class ResultNumber = division_result_t<NumberType>, AnyShapeConcept Other>
     [[nodiscard]] PolygonSet<Point<ResultNumber, LabelType>> regularizedIntersection(const Other& other) const {

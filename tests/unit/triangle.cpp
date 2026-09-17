@@ -797,3 +797,39 @@ TEST_CASE("Triangle latticePoints reports its interior and its boundary") {
     CHECK(Triangle(Point(0, 0), Point(2, 2), Point(4, 4)).latticePoints()
           == std::vector<Point>{{0, 0}, {1, 1}, {2, 2}, {3, 3}, {4, 4}});
 }
+
+TEST_CASE("Triangle meets Triangle in a convex region") {
+    using Point = pgl::Point<int>;
+    using TriangleShape = pgl::Triangle<Point>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+
+    // x >= 0, y >= 0, x + y <= 6.
+    const TriangleShape corner(Point(0, 0), Point(6, 0), Point(0, 6));
+
+    SUBCASE("two overlapping triangles meet in one convex piece") {
+        // x >= 2, y >= 2, x + y <= 10.
+        const TriangleShape shifted(Point(2, 2), Point(8, 2), Point(2, 8));
+        const auto met = corner.regularizedIntersection<int>(shifted);
+        static_assert(std::is_same_v<decltype(met), const pgl::PolygonSet<Point>>);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.twiceArea() == 4);
+        CHECK(met.component(0) == Region(PolygonShape({2, 2, 4, 2, 2, 4})));
+        CHECK(met == shifted.regularizedIntersection<int>(corner));
+    }
+
+    SUBCASE("meeting only along an edge or at a vertex covers no area") {
+        CHECK(corner.regularizedIntersection<int>(TriangleShape(Point(0, 0), Point(0, 6), Point(-4, 3)))
+                  .empty());
+        CHECK(corner.regularizedIntersection<int>(TriangleShape(Point(6, 0), Point(9, 0), Point(9, 3)))
+                  .empty());
+        CHECK(corner.regularizedIntersection<int>(TriangleShape(Point(9, 9), Point(11, 9), Point(9, 11)))
+                  .empty());
+    }
+
+    SUBCASE("a collinear triangle has no area to share") {
+        const TriangleShape flat(Point(1, 1), Point(2, 2), Point(3, 3));
+        CHECK(corner.regularizedIntersection<int>(flat).empty());
+        CHECK(flat.regularizedIntersection<int>(corner).empty());
+    }
+}

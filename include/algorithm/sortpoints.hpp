@@ -84,9 +84,16 @@ void sortDistinctPoints(std::vector<Point<Number, Label>>& points) {
  * @p points (its direction from @p p defines angle zero) and proceeds
  * counterclockwise around @p p. Points that share an angular direction are
  * tied; the tie is broken by putting the points that are farther from @p p
- * first. With this convention, connecting the sorted points in order traces a
- * simple, star-shaped polygon whose kernel contains @p p. Points equal to @p p
- * have no direction to sort by and end up last.
+ * first. When @p p lies strictly inside the convex hull of @p points,
+ * connecting them in that order traces a simple, star-shaped polygon whose
+ * kernel contains @p p. That hypothesis is exactly what keeps every gap
+ * between consecutive directions under half a turn, so each edge stays within
+ * its own wedge and each ray from @p p meets the ring once; with @p p outside
+ * the hull no order at all can satisfy the conclusion, since a polygon lies
+ * inside the convex hull of its own vertices. On the hull boundary the largest
+ * gap is a half turn exactly, and the ring closes along the supporting line —
+ * simple unless a third point sits on that line between the two it joins.
+ * Points equal to @p p have no direction to sort by and end up last.
  *
  * The comparison relies only on the exact @ref orientationSign predicate and
  * squared distances, so it stays exact for integer coordinates.

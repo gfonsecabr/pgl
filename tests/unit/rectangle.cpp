@@ -1053,3 +1053,42 @@ TEST_CASE("Rectangle latticePoints reaches the edge of the coordinate range and 
     // rather than counted modulo the coordinate type.
     CHECK_THROWS_AS((void)Box(Point(bottom, bottom), Point(top, top)).latticePoints(), std::length_error);
 }
+
+TEST_CASE("Rectangle meets Rectangle in a rectangle") {
+    using Point = pgl::Point<int>;
+    using RectangleShape = pgl::Rectangle<Point>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+
+    const RectangleShape box(Point(0, 0), Point(4, 4));
+
+    SUBCASE("the overlap is the box of the overlapping coordinate ranges") {
+        const RectangleShape other(Point(2, 1), Point(6, 3));
+        const auto met = box.regularizedIntersection<int>(other);
+        static_assert(std::is_same_v<decltype(met), const pgl::PolygonSet<Point>>);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.twiceArea() == 2 * 4);
+        CHECK(met.component(0) == Region(PolygonShape({2, 1, 4, 1, 4, 3, 2, 3})));
+        CHECK(met == other.regularizedIntersection<int>(box));
+    }
+
+    SUBCASE("one rectangle inside the other is that rectangle") {
+        const RectangleShape inner(Point(1, 1), Point(2, 2));
+        const auto met = box.regularizedIntersection<int>(inner);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.component(0) == Region(inner.asPolygon()));
+    }
+
+    SUBCASE("meeting along an edge or at a corner covers no area") {
+        CHECK(box.regularizedIntersection<int>(RectangleShape(Point(4, 0), Point(7, 4))).empty());
+        CHECK(box.regularizedIntersection<int>(RectangleShape(Point(4, 4), Point(7, 7))).empty());
+        CHECK(box.regularizedIntersection<int>(RectangleShape(Point(9, 9), Point(11, 11))).empty());
+    }
+
+    SUBCASE("an operand without area contributes nothing") {
+        const RectangleShape flat(Point(1, 2), Point(3, 2));
+        CHECK(box.regularizedIntersection<int>(flat).empty());
+        CHECK(flat.regularizedIntersection<int>(box).empty());
+        CHECK(flat.regularizedIntersection<int>(flat).empty());
+    }
+}

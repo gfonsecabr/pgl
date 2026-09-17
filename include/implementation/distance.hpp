@@ -1774,6 +1774,13 @@ namespace detail {
 
 template <class ResultNumber, class Region, class Other>
 constexpr ResultNumber regionEdgesSquaredDistance(const Region& region, const Other& other) {
+    // The region's implicit vertices are fractions of the boundary
+    // coordinates, so an edge built in ResultNumber rounds them -- and a
+    // rounded unbounded edge no longer runs parallel to what it was parallel
+    // to, so it eventually crosses a line it never meets and the scan reports
+    // zero for a disjoint pair. The edges stay exact, hence the separate E, as
+    // in the Disk overload below; ResultNumber governs only the scan.
+    using E = region_exact_number_t<typename Region::NumberType>;
     ResultNumber best{};
     bool has = false;
     for (std::size_t i = 0; i < region.size(); ++i) {
@@ -1781,7 +1788,7 @@ constexpr ResultNumber regionEdgesSquaredDistance(const Region& region, const Ot
             [&other](const auto& piece) {
                 return static_cast<ResultNumber>(piece.template squaredDistance<ResultNumber>(other));
             },
-            region.template edge<ResultNumber>(i));
+            region.template edge<E>(i));
         if (!has || current < best) {
             best = current;
             has = true;

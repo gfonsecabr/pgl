@@ -115,6 +115,23 @@ Segment<PointType, LabelType>::intersection(const OtherSegment& other) const {
         return {};
     }
 
+    // A zero-length operand is a point, and every orientation test below
+    // vanishes against it — which reads as collinear and lets the 1D overlap
+    // answer with an endpoint that need not lie on the other segment at all.
+    // Ask the point directly instead.
+    if (isDegenerate()) {
+        if (other.contains(min())) {
+            return ResultPoint(min());
+        }
+        return {};
+    }
+    if (other.isDegenerate()) {
+        if (contains(other.min())) {
+            return ResultPoint(other.min());
+        }
+        return {};
+    }
+
     const auto d1 = orientationSign(min(), max(), other.min());
     const auto d2 = orientationSign(min(), max(), other.max());
 
@@ -1251,6 +1268,14 @@ Convex<PointType, LabelType>::intersection(const OtherPoint& other) const {
 template <class PointType, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType, LabelType>::intersection(const OtherSegment& other) const {
+    // A zero-length operand has no supporting line to clip against — the Line
+    // built from it below would be undefined — so answer for the point it is.
+    if (other.isDegenerate()) {
+        if (contains(other.min())) {
+            return Point<ResultNumber, typename PointType::LabelType>(other.min());
+        }
+        return {};
+    }
     auto isec = this->template intersection<ResultNumber>(Line<typename OtherSegment::PointType>(other));
     if (!isec) {
         return {};

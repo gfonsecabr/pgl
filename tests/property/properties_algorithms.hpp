@@ -295,6 +295,16 @@ inline Result hilbertSortIsAPermutation(const std::vector<PointShape>& points) {
  * itself are removed first — the guarantee is about a set of distinct points —
  * and a ring that comes out with zero area is skipped, a fully collapsed ring
  * having no simplicity to speak of.
+ *
+ * The center has to lie strictly inside the hull of the others, which is the
+ * precondition `sortAround` documents and not a convenience: a polygon lies
+ * inside the convex hull of its own vertices, so a center outside that hull
+ * cannot be in any kernel, and no order of the points could answer for it.
+ * Asserting simplicity there asks for a conclusion that does not exist, which
+ * is what this property did until 2026-09-17 — see the harness-was-wrong
+ * section of README.md, where the same mistake is recorded for the quarter turn
+ * in `distances-follow-the-map`. On the hull boundary the guarantee is
+ * conditional in a way the caller cannot check, so those draws are skipped too.
  */
 inline Result sortAroundTracesASimpleRing(const std::vector<PointShape>& points) {
     if (points.size() < 4) {
@@ -307,6 +317,9 @@ inline Result sortAroundTracesASimpleRing(const std::vector<PointShape>& points)
     rest.erase(std::unique(rest.begin(), rest.end()), rest.end());
     rest.erase(std::remove(rest.begin(), rest.end(), center), rest.end());
     if (rest.size() < 3) {
+        return skipped();
+    }
+    if (!detail::ConvexShape(rest).interiorContains(center)) {
         return skipped();
     }
 

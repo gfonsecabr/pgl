@@ -238,3 +238,34 @@ TEST_CASE_TEMPLATE("A rectangle clip equals the clip by the rectangle as a Conve
         }
     }
 }
+
+TEST_CASE("Rectangle meets Convex in a convex region") {
+    using Point = pgl::Point<int>;
+    using RectangleShape = pgl::Rectangle<Point>;
+    using ConvexShape = pgl::Convex<Point>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+
+    const RectangleShape rect(Point(0, 0), Point(4, 4));
+    // |x - 2| + |y - 4| <= 4: a diamond whose lower tip touches the bottom edge.
+    const ConvexShape diamond(std::vector<Point>{{2, 0}, {6, 4}, {2, 8}, {-2, 4}});
+
+    SUBCASE("the diamond cuts both bottom corners off the rectangle") {
+        const auto met = rect.regularizedIntersection<int>(diamond);
+        static_assert(std::is_same_v<decltype(met), const pgl::PolygonSet<Point>>);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.twiceArea() == 2 * 12);
+        CHECK(met.component(0) == Region(PolygonShape({0, 2, 2, 0, 4, 2, 4, 4, 0, 4})));
+        CHECK(met == diamond.regularizedIntersection<int>(rect));
+    }
+
+    SUBCASE("touching, disjoint and area-free operands give the empty set") {
+        const ConvexShape beside(std::vector<Point>{{4, 0}, {8, 0}, {8, 4}, {4, 4}});
+        CHECK(rect.regularizedIntersection<int>(beside).empty());
+        const ConvexShape away(std::vector<Point>{{9, 9}, {11, 9}, {11, 11}, {9, 11}});
+        CHECK(rect.regularizedIntersection<int>(away).empty());
+        const ConvexShape collapsed(std::vector<Point>{{1, 1}, {3, 3}});
+        CHECK(rect.regularizedIntersection<int>(collapsed).empty());
+        CHECK(collapsed.regularizedIntersection<int>(rect).empty());
+    }
+}

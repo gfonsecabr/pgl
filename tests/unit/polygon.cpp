@@ -1345,3 +1345,39 @@ TEST_CASE("Polygon vertex access keeps the vertex labels") {
     REQUIRE(collapsed.getIfPoint());
     CHECK(collapsed.getIfPoint()->label() == "p");
 }
+
+TEST_CASE("Polygon meets Polygon in a set of regions") {
+    using Point = pgl::Point<int>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+
+    // A U: the band y in [0,2] across, plus the walls x in [0,2] and [4,6].
+    const PolygonShape cup({0, 0, 6, 0, 6, 6, 4, 6, 4, 2, 2, 2, 2, 6, 0, 6});
+    // The same shape upside down: the band y in [4,6], plus the same two legs.
+    const PolygonShape arch({0, 0, 2, 0, 2, 4, 4, 4, 4, 0, 6, 0, 6, 6, 0, 6});
+
+    SUBCASE("an intersection that comes apart returns both pieces") {
+        const auto met = cup.regularizedIntersection<int>(arch);
+        static_assert(std::is_same_v<decltype(met), const pgl::PolygonSet<Point>>);
+        REQUIRE(met.componentCount() == 2);
+        // The two legs, each 2 by 6, are what both shapes cover.
+        CHECK(met.twiceArea() == 2 * 24);
+        CHECK(met.component(0) == Region(PolygonShape({0, 0, 2, 0, 2, 6, 0, 6})));
+        CHECK(met.component(1) == Region(PolygonShape({4, 0, 6, 0, 6, 6, 4, 6})));
+        CHECK(met == arch.regularizedIntersection<int>(cup));
+    }
+
+    SUBCASE("a polygon meets itself in itself") {
+        const auto met = cup.regularizedIntersection<int>(cup);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.component(0) == Region(cup));
+    }
+
+    SUBCASE("disjoint operands and operands without area give the empty set") {
+        const PolygonShape away({10, 10, 12, 10, 12, 12});
+        CHECK(cup.regularizedIntersection<int>(away).empty());
+        const PolygonShape flat({0, 0, 3, 3, 6, 6});
+        CHECK(cup.regularizedIntersection<int>(flat).empty());
+        CHECK(flat.regularizedIntersection<int>(cup).empty());
+    }
+}

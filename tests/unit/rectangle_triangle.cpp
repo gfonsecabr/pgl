@@ -197,3 +197,39 @@ TEST_CASE("Rectangle unites with Triangle into a set of regions") {
         CHECK(rect.regularizedUnion<int>(away) == away.regularizedUnion<int>(rect));
     }
 }
+
+TEST_CASE("Rectangle meets Triangle in a convex region") {
+    using Point = pgl::Point<int>;
+    using RectangleShape = pgl::Rectangle<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+
+    const RectangleShape rect(Point(0, 0), Point(4, 4));
+    // x >= 0, y >= 0, x + y <= 6: its hypotenuse cuts the rectangle's corner.
+    const Triangle corner(Point(0, 0), Point(6, 0), Point(0, 6));
+
+    SUBCASE("the hypotenuse takes a corner off the rectangle") {
+        const auto met = rect.regularizedIntersection<int>(corner);
+        static_assert(std::is_same_v<decltype(met), const pgl::PolygonSet<Point>>);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.twiceArea() == 2 * 14);
+        CHECK(met.component(0) == Region(PolygonShape({0, 0, 4, 0, 4, 2, 2, 4, 0, 4})));
+        CHECK(met == corner.regularizedIntersection<int>(rect));
+    }
+
+    SUBCASE("a triangle inside the rectangle is the whole answer") {
+        const Triangle inner(Point(1, 1), Point(3, 1), Point(1, 3));
+        CHECK(rect.regularizedIntersection<int>(inner).component(0) == Region(inner.asPolygon()));
+    }
+
+    SUBCASE("touching, disjoint and area-free operands give the empty set") {
+        CHECK(rect.regularizedIntersection<int>(Triangle(Point(4, 0), Point(7, 0), Point(7, 3)))
+                  .empty());
+        CHECK(rect.regularizedIntersection<int>(Triangle(Point(9, 9), Point(11, 9), Point(9, 11)))
+                  .empty());
+        const Triangle flat(Point(1, 1), Point(2, 2), Point(3, 3));
+        CHECK(rect.regularizedIntersection<int>(flat).empty());
+        CHECK(flat.regularizedIntersection<int>(rect).empty());
+    }
+}

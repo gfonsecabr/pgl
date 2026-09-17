@@ -97,3 +97,43 @@ TEST_CASE("Distance to a rectangle") {
     // Exact rational distance.
     CHECK(k.squaredDistance<ERational>(r) == ERational(9));
 }
+
+TEST_CASE("Region meets a rectangle in a convex region") {
+    using PolygonShape = pgl::Polygon<Point>;
+    using Piece = pgl::PolygonWithHoles<Point>;
+
+    SUBCASE("a bounded region clips the rectangle to their overlap") {
+        const auto met = box6().regularizedIntersection<int>(RectangleShape(Point(2, 2), Point(9, 4)));
+        static_assert(std::is_same_v<decltype(met), const pgl::PolygonSet<Point>>);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.twiceArea() == 2 * 8);
+        CHECK(met.component(0) == Piece(PolygonShape({2, 2, 6, 2, 6, 4, 2, 4})));
+        CHECK(met == RectangleShape(Point(2, 2), Point(9, 4)).regularizedIntersection<int>(box6()));
+    }
+
+    SUBCASE("an unbounded region is bounded by the rectangle") {
+        const RectangleShape rect(Point(-2, 1), Point(5, 3));
+        const auto met = vslab().regularizedIntersection<int>(rect);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.twiceArea() == 2 * 6);
+        CHECK(met.component(0) == Piece(PolygonShape({0, 1, 3, 1, 3, 3, 0, 3})));
+        CHECK(met == rect.regularizedIntersection<int>(vslab()));
+    }
+
+    SUBCASE("touching, missing and area-free operands give the empty set") {
+        CHECK(box6().regularizedIntersection<int>(RectangleShape(Point(6, 0), Point(9, 6))).empty());
+        CHECK(box6().regularizedIntersection<int>(RectangleShape(Point(9, 9), Point(11, 11))).empty());
+        const RectangleShape flat(Point(1, 2), Point(3, 2));
+        CHECK(box6().regularizedIntersection<int>(flat).empty());
+        CHECK(flat.regularizedIntersection<int>(box6()).empty());
+        // The empty region -- two contradictory constraints -- meets nothing,
+        // while the whole plane, which is what a constraint-free region is,
+        // answers the other operand.
+        Region none(Halfplane(0, 0, 1, 0));
+        none.insert(Halfplane(1, -1, 0, -1));
+        REQUIRE(none.empty());
+        CHECK(none.regularizedIntersection<int>(RectangleShape(Point(0, 0), Point(1, 1))).empty());
+        CHECK(Region().regularizedIntersection<int>(RectangleShape(Point(0, 0), Point(1, 1))) ==
+              RectangleShape(Point(0, 0), Point(1, 1)).asPolygonSet());
+    }
+}

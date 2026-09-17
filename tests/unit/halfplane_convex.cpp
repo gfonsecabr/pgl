@@ -259,3 +259,33 @@ TEST_CASE_TEMPLATE("A half-plane clip is the hull the sorting constructor would 
         checkHalfplaneClip<pgl::ERational>(convex, halfplane);
     }
 }
+
+TEST_CASE("Halfplane meets Convex in a convex region") {
+    using Point = pgl::Point<int>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using ConvexShape = pgl::Convex<Point>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+
+    // |x - 2| + |y - 2| <= 3.
+    const ConvexShape diamond(std::vector<Point>{{2, -1}, {5, 2}, {2, 5}, {-1, 2}});
+    // x <= 2, through the diamond's two vertical tips.
+    const Halfplane left({2, -5}, {2, 5});
+
+    SUBCASE("the cut runs through two vertices and halves the diamond") {
+        const auto met = diamond.regularizedIntersection<int>(left);
+        static_assert(std::is_same_v<decltype(met), const pgl::PolygonSet<Point>>);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.twiceArea() == 2 * 9);
+        CHECK(met.component(0) == Region(PolygonShape({-1, 2, 2, -1, 2, 5})));
+        CHECK(met == left.regularizedIntersection<int>(diamond));
+    }
+
+    SUBCASE("touching at a vertex, missing, and area-free give the empty set") {
+        CHECK(diamond.regularizedIntersection<int>(Halfplane({5, 5}, {5, -5})).empty());
+        CHECK(diamond.regularizedIntersection<int>(Halfplane({9, 5}, {9, -5})).empty());
+        const ConvexShape collapsed(std::vector<Point>{{1, 1}, {2, 2}});
+        CHECK(collapsed.regularizedIntersection<int>(left).empty());
+        CHECK(left.regularizedIntersection<int>(collapsed).empty());
+    }
+}

@@ -224,3 +224,53 @@ TEST_CASE("Region intersection with a polygon: the polygon answers the same") {
     const PolygonShape overlapping(std::vector<Point>{{3, 3}, {9, 3}, {9, 9}, {3, 9}});
     CHECK(k.intersection<ERational>(overlapping) == overlapping.intersection<ERational>(k));
 }
+
+TEST_CASE("Region meets a polygon in a set of regions") {
+    using Piece = pgl::PolygonWithHoles<Point>;
+
+    // A U: the band y in [0,2] across, plus the walls x in [0,2] and [4,6].
+    const PolygonShape cup({0, 0, 6, 0, 6, 6, 4, 6, 4, 2, 2, 2, 2, 6, 0, 6});
+
+    SUBCASE("an unbounded vertical slab keeps one wall and part of the base") {
+        const auto met = vslab().regularizedIntersection<int>(cup);
+        static_assert(std::is_same_v<decltype(met), const pgl::PolygonSet<Point>>);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.twiceArea() == 2 * 14);
+        CHECK(met.component(0) == Piece(PolygonShape({0, 0, 3, 0, 3, 2, 2, 2, 2, 6, 0, 6})));
+        CHECK(met == cup.regularizedIntersection<int>(vslab()));
+    }
+
+    SUBCASE("an unbounded horizontal slab above the base leaves two regions") {
+        const Region band({Halfplane(0, 3, 1, 3), Halfplane(1, 5, 0, 5)});
+        const auto met = band.regularizedIntersection<int>(cup);
+        REQUIRE(met.componentCount() == 2);
+        CHECK(met.twiceArea() == 2 * 8);
+        CHECK(met.component(0) == Piece(PolygonShape({0, 3, 2, 3, 2, 5, 0, 5})));
+        CHECK(met.component(1) == Piece(PolygonShape({4, 3, 6, 3, 6, 5, 4, 5})));
+        CHECK(met == cup.regularizedIntersection<int>(band));
+    }
+
+    SUBCASE("a bounded region inside the polygon is the whole answer") {
+        const Region corner({Halfplane(0, 0, 1, 0), Halfplane(2, 0, 2, 1), Halfplane(2, 2, 1, 2),
+                             Halfplane(0, 2, 0, 1)});
+        const auto met = corner.regularizedIntersection<int>(cup);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.component(0) == Piece(PolygonShape({0, 0, 2, 0, 2, 2, 0, 2})));
+    }
+
+    SUBCASE("touching, missing and area-free operands give the empty set") {
+        CHECK(Region({Halfplane(0, 6, 1, 6)}).regularizedIntersection<int>(cup).empty());
+        CHECK(Region({Halfplane(0, 9, 1, 9)}).regularizedIntersection<int>(cup).empty());
+        const PolygonShape flat({0, 0, 3, 3, 6, 6});
+        CHECK(vslab().regularizedIntersection<int>(flat).empty());
+        CHECK(flat.regularizedIntersection<int>(vslab()).empty());
+        // The empty region -- two contradictory constraints -- meets nothing,
+        // while the whole plane, which is what a constraint-free region is,
+        // answers the other operand.
+        Region none(Halfplane(0, 0, 1, 0));
+        none.insert(Halfplane(1, -1, 0, -1));
+        REQUIRE(none.empty());
+        CHECK(none.regularizedIntersection<int>(cup).empty());
+        CHECK(Region().regularizedIntersection<int>(cup).component(0) == Piece(cup));
+    }
+}

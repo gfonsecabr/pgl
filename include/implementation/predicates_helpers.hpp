@@ -530,6 +530,45 @@ constexpr bool regionStrictlyOnBothSides(const Region& region, const FirstPoint&
 }
 
 /**
+ * @brief Tests whether a shape's bounding box can be asked for at all.
+ *
+ * False for a shape with no `bbox()`, and for a region whose `bbox()` is
+ * defined only while it stays bounded and nonempty -- an unbounded
+ * @ref HalfplaneIntersection throws rather than answering.
+ */
+template <class Shape>
+constexpr bool hasBoundingBox(const Shape& shape) {
+    if constexpr (!requires { shape.bbox(); }) {
+        return false;
+    } else if constexpr (requires { shape.isBounded(); }) {
+        return shape.isBounded() && !shape.empty();
+    } else {
+        return true;
+    }
+}
+
+/**
+ * @brief Tests whether two shapes' bounding boxes are known to miss.
+ *
+ * The cheap rejection every predicate over two connected operands opens with:
+ * shapes whose boxes do not meet cannot meet. Answers false -- "not known to
+ * miss" -- whenever either box is unavailable, so a caller never has to ask
+ * @ref hasBoundingBox first, and an unbounded region falls through to the real
+ * test instead of throwing.
+ */
+template <class First, class Second>
+constexpr bool boundingBoxesMiss(const First& first, const Second& second) {
+    if constexpr (requires { first.bbox(); second.bbox(); }) {
+        if (!hasBoundingBox(first) || !hasBoundingBox(second)) {
+            return false;
+        }
+        return !first.bbox().intersects(second.bbox());
+    } else {
+        return false;
+    }
+}
+
+/**
  * @brief The point set of a degenerate (empty-interior, nonempty) region as a
  * typed shape with exact coordinates: a point, a segment, a ray, or a line.
  *

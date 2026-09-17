@@ -322,3 +322,35 @@ TEST_CASE_TEMPLATE("A triangle clip equals the clip by the triangle as a Convex"
         }
     }
 }
+
+TEST_CASE("Triangle meets Convex in a convex region") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+    using ConvexShape = pgl::Convex<Point>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+
+    // x >= 0, y >= 0, x + y <= 6.
+    const Triangle corner(Point(0, 0), Point(6, 0), Point(0, 6));
+    const ConvexShape square(std::vector<Point>{{2, 2}, {6, 2}, {6, 6}, {2, 6}});
+
+    SUBCASE("the overlap is the corner the hypotenuse leaves") {
+        const auto met = corner.regularizedIntersection<int>(square);
+        static_assert(std::is_same_v<decltype(met), const pgl::PolygonSet<Point>>);
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.twiceArea() == 4);
+        CHECK(met.component(0) == Region(PolygonShape({2, 2, 4, 2, 2, 4})));
+        CHECK(met == square.regularizedIntersection<int>(corner));
+    }
+
+    SUBCASE("touching, disjoint and area-free operands give the empty set") {
+        // Meets the hypotenuse at the single point (3,3).
+        const ConvexShape tip(std::vector<Point>{{3, 3}, {7, 3}, {7, 7}, {3, 7}});
+        CHECK(corner.regularizedIntersection<int>(tip).empty());
+        const ConvexShape away(std::vector<Point>{{9, 9}, {11, 9}, {11, 11}, {9, 11}});
+        CHECK(corner.regularizedIntersection<int>(away).empty());
+        const ConvexShape collapsed(std::vector<Point>{{1, 1}, {2, 2}});
+        CHECK(corner.regularizedIntersection<int>(collapsed).empty());
+        CHECK(collapsed.regularizedIntersection<int>(corner).empty());
+    }
+}

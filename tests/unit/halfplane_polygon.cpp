@@ -358,3 +358,39 @@ TEST_CASE("Polygon intersects Halfplane through degree>2 boundary nodes") {
         CHECK(twiceArea(ps) == 32);                         // area 16
     }
 }
+
+TEST_CASE("Halfplane meets Polygon in a set of regions") {
+    using Point = pgl::Point<int>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+
+    // A U: the band y in [0,2] across, plus the walls x in [0,2] and [4,6].
+    const PolygonShape cup({0, 0, 6, 0, 6, 6, 4, 6, 4, 2, 2, 2, 2, 6, 0, 6});
+    // y >= 3, which cuts the U above its base.
+    const Halfplane high({0, 3}, {1, 3});
+
+    SUBCASE("cutting above the base leaves the two walls") {
+        const auto met = cup.regularizedIntersection<int>(high);
+        static_assert(std::is_same_v<decltype(met), const pgl::PolygonSet<Point>>);
+        REQUIRE(met.componentCount() == 2);
+        CHECK(met.twiceArea() == 2 * 12);
+        CHECK(met.component(0) == Region(PolygonShape({0, 3, 2, 3, 2, 6, 0, 6})));
+        CHECK(met.component(1) == Region(PolygonShape({4, 3, 6, 3, 6, 6, 4, 6})));
+        CHECK(met == high.regularizedIntersection<int>(cup));
+    }
+
+    SUBCASE("a half-plane covering the polygon answers the polygon") {
+        const auto met = cup.regularizedIntersection<int>(Halfplane({0, -1}, {1, -1}));
+        REQUIRE(met.componentCount() == 1);
+        CHECK(met.component(0) == Region(cup));
+    }
+
+    SUBCASE("touching along an edge, missing, and area-free give the empty set") {
+        CHECK(cup.regularizedIntersection<int>(Halfplane({0, 6}, {1, 6})).empty());
+        CHECK(cup.regularizedIntersection<int>(Halfplane({0, 9}, {1, 9})).empty());
+        const PolygonShape flat({0, 0, 3, 3, 6, 6});
+        CHECK(flat.regularizedIntersection<int>(high).empty());
+        CHECK(high.regularizedIntersection<int>(flat).empty());
+    }
+}
