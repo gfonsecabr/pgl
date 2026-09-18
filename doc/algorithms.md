@@ -78,6 +78,18 @@ These functions use the same predicate conventions documented in
 
 - [`hilbertSort(points)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a57def78cd131e9c518e478cafe93e137 "Sorts points along a Hilbert space-filling curve.") reorders `points` in place along a Hilbert space-filling curve, so points close in the plane stay close in the sequence — a useful preprocessing step for incremental algorithms. Uses only coordinate comparisons (exact for integer coordinates).
 
+### Empty polygons
+
+A triangle is empty with respect to a container of points `V` when its vertices are points of `V` and no other point of `V` lies in the closed triangle. Degenerate triangles never count, and coincident points of `V` count once. Each visit function calls `f(t)` on every such [`Triangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html "Closed triangle stored by three vertices."), once each, stopping as soon as `f` returns `true`, and returns whether it stopped.
+
+- [`visitEmptyTriangles(V, p, f)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a12eea64fda1f44fc6267d09510e0b857 "Visits every empty triangle of points with p as a vertex.") visits the empty triangles with vertex `p`, which is treated as a point of `V`. Complexity $O(n \log n + k)$ for $n$ points and $k$ empty triangles with vertex `p`.
+
+- [`visitEmptyTriangles(V, e, f)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a12eea64fda1f44fc6267d09510e0b857 "Visits every empty triangle of points with p as a vertex.") visits the empty triangles with the edge `e`, a [`Segment`](https://gfonsecabr.github.io/pgl/structpgl_1_1Segment.html "Unoriented closed segment between two endpoints plus optional segment label.") or [`OrientedSegment`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedSegment.html "Directed segment preserving source-to-target order plus optional segment label.") whose endpoints are treated as points of `V`. Complexity $O(n \log n)$.
+
+- [`visitEmptyTriangles(V, f)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a12eea64fda1f44fc6267d09510e0b857 "Visits every empty triangle of points with p as a vertex.") visits every empty triangle. Complexity $O(n^2 \log n + k)$ for $k$ empty triangles.
+
+- [`findEmptyTriangles(V, p)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a4eb3ec100b2467c31098a7c5765db54d "Returns every empty triangle of points with p as a vertex."), [`findEmptyTriangles(V, e)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a4eb3ec100b2467c31098a7c5765db54d "Returns every empty triangle of points with p as a vertex.") and [`findEmptyTriangles(V)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a4eb3ec100b2467c31098a7c5765db54d "Returns every empty triangle of points with p as a vertex.") return the same triangles in a `std::vector`.
+
 ### Polyominoes
 
 - `polyominoes<T>(size)` returns one `Polygon<Point<T>>` per free polyomino of `size` cells (counted up to translation, rotation, and reflection). Each polygon traces the polyomino boundary with small non-negative integer coordinates and is normalized like any other [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices."). Polyominoes that enclose a hole (possible from seven cells onward) are omitted, since their boundary is not a simple polygon; [`polyominoRegions`](https://gfonsecabr.github.io/pgl/namespacepgl.html#ac6b73b7ed31a9544846662b7726f1fb3 "Enumerates the free polyominoes of a given size as regions.") below keeps them. `T` defaults to `int`.
