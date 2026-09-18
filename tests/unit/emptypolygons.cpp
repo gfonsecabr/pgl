@@ -125,6 +125,151 @@ void checkAgainstBruteForce(const std::vector<PointType>& points,
         }
 }
 
+
+template <class PointType>
+using QuadKey = std::array<PointType, 4>;
+
+template <class Shape>
+auto quadKeyOf(const Shape& s) {
+    REQUIRE(s.size() == 4);
+    return QuadKey<typename Shape::PointType>{s[0], s[1], s[2], s[3]};
+}
+
+// Every quadrilateral as a key, failing the test if one repeats.
+template <class Shape>
+auto quadKeysOf(const std::vector<Shape>& quadrilaterals) {
+    std::set<QuadKey<typename Shape::PointType>> keys;
+    for (const auto& q : quadrilaterals) {
+        const bool fresh = keys.insert(quadKeyOf(q)).second;
+        CHECK(fresh);
+    }
+    return keys;
+}
+
+template <class PointType>
+struct BruteQuadrilaterals {
+    std::set<QuadKey<PointType>> all;
+    std::set<QuadKey<PointType>> convex;
+};
+
+// The definition spelled out: each of the three ways to join four points into
+// a closed ring, kept when it is simple, has no straight angle, and no other
+// point of the set is in the closed polygon.
+template <class PointType>
+BruteQuadrilaterals<PointType> bruteEmptyQuadrilaterals(std::vector<PointType> points) {
+    std::sort(points.begin(), points.end());
+    points.erase(std::unique(points.begin(), points.end()), points.end());
+    BruteQuadrilaterals<PointType> out;
+    const std::size_t n = points.size();
+    constexpr std::array<std::array<int, 4>, 3> orders{{{0, 1, 2, 3}, {0, 1, 3, 2}, {0, 2, 1, 3}}};
+    for (std::size_t i = 0; i < n; ++i)
+        for (std::size_t j = i + 1; j < n; ++j)
+            for (std::size_t k = j + 1; k < n; ++k)
+                for (std::size_t l = k + 1; l < n; ++l) {
+                    const std::array<std::size_t, 4> chosen{i, j, k, l};
+                    for (const auto& order : orders) {
+                        std::array<PointType, 4> ring;
+                        for (int t = 0; t < 4; ++t)
+                            ring[static_cast<std::size_t>(t)] =
+                                points[chosen[static_cast<std::size_t>(order[static_cast<std::size_t>(t)])]];
+                        int positive = 0;
+                        int negative = 0;
+                        for (std::size_t t = 0; t < 4; ++t) {
+                            const auto turn =
+                                pgl::orientationSign(ring[t], ring[(t + 1) % 4], ring[(t + 2) % 4]);
+                            positive += turn > 0;
+                            negative += turn < 0;
+                        }
+                        if (positive + negative < 4)
+                            continue;
+                        if (pgl::Segment(ring[0], ring[1]).intersects(pgl::Segment(ring[2], ring[3])) ||
+                            pgl::Segment(ring[1], ring[2]).intersects(pgl::Segment(ring[3], ring[0])))
+                            continue;
+                        const pgl::Polygon<PointType> polygon(ring);
+                        bool empty = true;
+                        for (std::size_t s = 0; s < n && empty; ++s)
+                            if (s != i && s != j && s != k && s != l && polygon.contains(points[s]))
+                                empty = false;
+                        if (!empty)
+                            continue;
+                        out.all.insert(quadKeyOf(polygon));
+                        if (positive == 4 || negative == 4)
+                            out.convex.insert(quadKeyOf(polygon));
+                    }
+                }
+    return out;
+}
+
+template <class PointType>
+bool quadHasVertex(const QuadKey<PointType>& key, const PointType& p) {
+    return std::find(key.begin(), key.end(), p) != key.end();
+}
+
+template <class PointType>
+std::set<QuadKey<PointType>> quadsAtVertex(const std::set<QuadKey<PointType>>& keys,
+                                           const PointType& p) {
+    std::set<QuadKey<PointType>> out;
+    for (const auto& key : keys)
+        if (quadHasVertex(key, p))
+            out.insert(key);
+    return out;
+}
+
+// The quadrilaterals with a and b as opposite vertices and the diagonal a b
+// inside, which is when the other two lie strictly on opposite sides of it.
+template <class PointType>
+std::set<QuadKey<PointType>> quadsAtDiagonal(const std::set<QuadKey<PointType>>& keys,
+                                             const PointType& a, const PointType& b) {
+    std::set<QuadKey<PointType>> out;
+    for (const auto& key : keys)
+        for (std::size_t t = 0; t < 4; ++t)
+            if (key[t] == a && key[(t + 2) % 4] == b) {
+                const auto one = pgl::orientationSign(a, b, key[(t + 1) % 4]);
+                const auto other = pgl::orientationSign(a, b, key[(t + 3) % 4]);
+                if ((one > 0 && other < 0) || (one < 0 && other > 0))
+                    out.insert(key);
+            }
+    return out;
+}
+
+template <class PointType>
+void checkQuadrilateralsAgainstBruteForce(const std::vector<PointType>& points,
+                                          const std::vector<PointType>& queries) {
+    const auto brute = bruteEmptyQuadrilaterals(points);
+    CHECK(quadKeysOf(pgl::findEmptyQuadrilaterals(points)) == brute.all);
+    CHECK(quadKeysOf(pgl::findEmptyConvexQuadrilaterals(points)) == brute.convex);
+
+    for (const auto& p : queries) {
+        auto with = points;
+        with.push_back(p);
+        const auto around = bruteEmptyQuadrilaterals(with);
+        CHECK(quadKeysOf(pgl::findEmptyQuadrilaterals(points, p)) == quadsAtVertex(around.all, p));
+        CHECK(quadKeysOf(pgl::findEmptyConvexQuadrilaterals(points, p)) ==
+              quadsAtVertex(around.convex, p));
+    }
+
+    for (std::size_t i = 0; i < queries.size(); ++i)
+        for (std::size_t j = i + 1; j < queries.size(); ++j) {
+            const auto& a = queries[i];
+            const auto& b = queries[j];
+            if (a == b)
+                continue;
+            auto with = points;
+            with.push_back(a);
+            with.push_back(b);
+            const auto around = bruteEmptyQuadrilaterals(with);
+            const auto all = quadsAtDiagonal(around.all, a, b);
+            const auto convex = quadsAtDiagonal(around.convex, a, b);
+            CHECK(quadKeysOf(pgl::findEmptyQuadrilaterals(points, pgl::Segment(a, b))) == all);
+            CHECK(quadKeysOf(pgl::findEmptyQuadrilaterals(points, pgl::OrientedSegment(b, a))) ==
+                  all);
+            CHECK(quadKeysOf(pgl::findEmptyConvexQuadrilaterals(points, pgl::Segment(a, b))) ==
+                  convex);
+            CHECK(quadKeysOf(pgl::findEmptyConvexQuadrilaterals(points, pgl::OrientedSegment(b, a))) ==
+                  convex);
+        }
+}
+
 }  // namespace
 
 TEST_CASE_TEMPLATE("empty triangles agree with brute force on random points", Number, int,
@@ -254,4 +399,104 @@ TEST_CASE("empty triangles keep the point labels") {
     for (int i = 0; i < 3; ++i)
         sum += triangles[0][static_cast<std::size_t>(i)].label();
     CHECK(sum == 6);
+}
+
+TEST_CASE_TEMPLATE("empty quadrilaterals agree with brute force on random points", Number, int,
+                   pgl::ERational) {
+    using PointType = pgl::Point<Number>;
+    for (std::uint64_t seed = 1; seed <= 12; ++seed) {
+        CAPTURE(seed);
+        const auto points = makePoints<PointType>(11, seed, -1000, 1000);
+        auto queries = points;
+        queries.resize(4);
+        queries.push_back(PointType(3, -7));  // Not a point of the set.
+        checkQuadrilateralsAgainstBruteForce(points, queries);
+    }
+}
+
+TEST_CASE("empty quadrilaterals agree with brute force on grids full of collinear points") {
+    using PointType = pgl::Point<int>;
+    for (std::uint64_t seed = 1; seed <= 60; ++seed) {
+        CAPTURE(seed);
+        const auto points = makePoints<PointType>(9 + static_cast<int>(seed % 5), seed, 0, 4);
+        auto queries = points;
+        queries.resize(3);
+        queries.push_back(PointType(2, 2));
+        queries.push_back(PointType(-1, 2));
+        checkQuadrilateralsAgainstBruteForce(points, queries);
+    }
+}
+
+TEST_CASE("empty quadrilaterals of a small grid") {
+    using PointType = pgl::Point<int>;
+    std::vector<PointType> points;
+    for (int x = 0; x < 3; ++x)
+        for (int y = 0; y < 4; ++y)
+            points.emplace_back(x, y);
+    checkQuadrilateralsAgainstBruteForce(points, {PointType(0, 0), PointType(1, 1), PointType(2, 3),
+                                                  PointType(1, -1)});
+}
+
+TEST_CASE("empty quadrilaterals of points in convex position are every quadruple") {
+    using PointType = pgl::Point<int>;
+    const std::vector<PointType> points{{0, 0}, {4, 0}, {6, 3}, {4, 6}, {0, 6}, {-2, 3}};
+    CHECK(pgl::findEmptyQuadrilaterals(points).size() == 15);
+    CHECK(pgl::findEmptyConvexQuadrilaterals(points).size() == 15);
+    CHECK(pgl::findEmptyQuadrilaterals(points, points[0]).size() == 10);
+    CHECK(pgl::findEmptyConvexQuadrilaterals(points, points[0]).size() == 10);
+    CHECK(pgl::findEmptyConvexQuadrilaterals(points, pgl::Segment(points[0], points[3])).size() ==
+          4);
+    // A side of the hexagon is a diagonal of no quadrilateral.
+    CHECK(pgl::findEmptyQuadrilaterals(points, pgl::Segment(points[0], points[1])).empty());
+}
+
+TEST_CASE("empty quadrilaterals of a point inside a triangle") {
+    using PointType = pgl::Point<int>;
+    // Three ways to join them, none convex.
+    const std::vector<PointType> points{{0, 0}, {10, 0}, {0, 10}, {3, 3}};
+    CHECK(pgl::findEmptyQuadrilaterals(points).size() == 3);
+    CHECK(pgl::findEmptyConvexQuadrilaterals(points).empty());
+    CHECK(pgl::findEmptyQuadrilaterals(points, PointType(0, 0)).size() == 3);
+    CHECK(pgl::findEmptyQuadrilaterals(points, PointType(3, 3)).size() == 3);
+    // Each has one diagonal inside, from (3, 3) to the vertex opposite it.
+    CHECK(pgl::findEmptyQuadrilaterals(points, pgl::Segment(PointType(0, 0), PointType(3, 3)))
+              .size() == 1);
+    CHECK(pgl::findEmptyQuadrilaterals(points, pgl::Segment(PointType(10, 0), PointType(3, 3)))
+              .size() == 1);
+    CHECK(pgl::findEmptyQuadrilaterals(points, pgl::Segment(PointType(0, 0), PointType(10, 0)))
+              .empty());
+    for (const auto& q : pgl::findEmptyQuadrilaterals(points))
+        CHECK_FALSE(q.isConvex());
+
+    // A straight angle is not a corner.
+    const std::vector<PointType> straight{{0, 0}, {2, 0}, {4, 0}, {2, 3}};
+    CHECK(pgl::findEmptyQuadrilaterals(straight).empty());
+}
+
+TEST_CASE("visiting empty quadrilaterals stops on true") {
+    using PointType = pgl::Point<int>;
+    const auto points = makePoints<PointType>(30, 7, -100, 100);
+    const auto stopAfter = [](int& visits, int limit) {
+        return [&visits, limit](const auto&) { return ++visits == limit; };
+    };
+
+    int visits = 0;
+    CHECK(pgl::visitEmptyQuadrilaterals(points, stopAfter(visits, 3)));
+    CHECK(visits == 3);
+    visits = 0;
+    CHECK(pgl::visitEmptyConvexQuadrilaterals(points, stopAfter(visits, 3)));
+    CHECK(visits == 3);
+    visits = 0;
+    CHECK(pgl::visitEmptyQuadrilaterals(points, points[0], stopAfter(visits, 2)));
+    CHECK(visits == 2);
+    visits = 0;
+    CHECK(pgl::visitEmptyConvexQuadrilaterals(points, points[0], stopAfter(visits, 2)));
+    CHECK(visits == 2);
+
+    std::size_t count = 0;
+    CHECK_FALSE(pgl::visitEmptyQuadrilaterals(points, [&count](const auto&) { ++count; }));
+    CHECK(count == pgl::findEmptyQuadrilaterals(points).size());
+    count = 0;
+    CHECK_FALSE(pgl::visitEmptyConvexQuadrilaterals(points, [&count](const auto&) { ++count; }));
+    CHECK(count == pgl::findEmptyConvexQuadrilaterals(points).size());
 }

@@ -78,15 +78,23 @@ These functions use the same predicate conventions documented in
 
 ### Empty polygons
 
-A triangle is empty with respect to a container of points `V` when its vertices are points of `V` and no other point of `V` lies in the closed triangle. Degenerate triangles never count, and coincident points of `V` count once. Each visit function calls `f(t)` on every such `Triangle`, once each, stopping as soon as `f` returns `true`, and returns whether it stopped.
+A polygon is empty with respect to a container of points `V` when its vertices are points of `V` and no other point of `V` lies in the closed polygon. Degenerate polygons never count: no three vertices of a triangle are collinear, and no angle of a quadrilateral is straight. Quadrilaterals are simple but need not be convex. Coincident points of `V` count once, and a query point or segment endpoint is treated as a point of `V`. Each visit function calls `f` on every such polygon, once each, stopping as soon as `f` returns `true`, and returns whether it stopped. Below, $n$ is the number of points, $k$ the number of polygons visited, and $t$ the number of empty triangles.
 
-- `visitEmptyTriangles(V, p, f)` visits the empty triangles with vertex `p`, which is treated as a point of `V`. Complexity $O(n \log n + k)$ for $n$ points and $k$ empty triangles with vertex `p`.
+- `visitEmptyTriangles(V, p, f)` visits the empty triangles with vertex `p`, as `Triangle`. Complexity $O(n \log n + k)$.
 
-- `visitEmptyTriangles(V, e, f)` visits the empty triangles with the edge `e`, a `Segment` or `OrientedSegment` whose endpoints are treated as points of `V`. Complexity $O(n \log n)$.
+- `visitEmptyTriangles(V, e, f)` visits the empty triangles with the edge `e`, a `Segment` or `OrientedSegment`. Complexity $O(n \log n)$.
 
-- `visitEmptyTriangles(V, f)` visits every empty triangle. Complexity $O(n^2 \log n + k)$ for $k$ empty triangles.
+- `visitEmptyTriangles(V, f)` visits every empty triangle. Complexity $O(n^2 \log n + k)$.
 
-- `findEmptyTriangles(V, p)`, `findEmptyTriangles(V, e)` and `findEmptyTriangles(V)` return the same triangles in a `std::vector`.
+- `visitEmptyQuadrilaterals(V, p, f)` visits the empty quadrilaterals with vertex `p`, as `Polygon`. Complexity $O(n^2 \log n + t + k)$, with $t$ counting the empty triangles of `V` and `p`.
+
+- `visitEmptyQuadrilaterals(V, e, f)` visits the empty quadrilaterals for which the segment `e` is a diagonal lying inside them. Complexity $O(n \log n + k)$.
+
+- `visitEmptyQuadrilaterals(V, f)` visits every empty quadrilateral. Complexity $O(n^2 \log n + t + k)$.
+
+- `visitEmptyConvexQuadrilaterals(V, p, f)`, `visitEmptyConvexQuadrilaterals(V, e, f)` and `visitEmptyConvexQuadrilaterals(V, f)` visit the convex ones among them, as `Convex`. Complexity $O(n \log n + t + k)$ with $t$ counting the empty triangles with vertex `p`, $O(n \log n + k)$, and $O(n^2 \log n + t + k)$.
+
+- `findEmptyTriangles`, `findEmptyQuadrilaterals` and `findEmptyConvexQuadrilaterals` take the same arguments without `f` and return the same polygons in a `std::vector`.
 
 ### Polyominoes
 
