@@ -142,6 +142,13 @@ TEST_CASE("Convex intersection with Rectangle") {
         const Rectangle r({10, 10}, {12, 12});
         CHECK_FALSE_MESSAGE(sq.intersection<int>(r), "sq ∩ disjoint rect should be empty");
     }
+
+    SUBCASE("bounding boxes touching at a corner: the corner point") {
+        const auto result = sq.intersection<int>(Rectangle({4, 4}, {6, 6}));
+        REQUIRE(result);
+        REQUIRE(std::holds_alternative<Point>(*result));
+        CHECK(std::get<Point>(*result) == Point(4, 4));
+    }
 }
 
 TEST_CASE("Rectangle and Convex squared Hausdorff distance") {

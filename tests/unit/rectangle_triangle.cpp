@@ -142,6 +142,17 @@ TEST_CASE("Triangle intersection with Rectangle returns Convex or empty") {
     SUBCASE("disjoint rectangle yields empty") {
         CHECK_FALSE(tri.intersection<int>(Rectangle({10, 10}, {12, 12})));
     }
+
+    SUBCASE("bounding boxes touching at a corner: the corner point") {
+        const auto r = tri.intersection<int>(Rectangle({6, -2}, {8, 0}));
+        REQUIRE(r);
+        REQUIRE(std::holds_alternative<Point>(*r));
+        CHECK(std::get<Point>(*r) == Point(6, 0));
+    }
+
+    SUBCASE("overlapping bounding boxes, disjoint shapes") {
+        CHECK_FALSE(tri.intersection<int>(Rectangle({4, 4}, {8, 8})));
+    }
 }
 
 TEST_CASE("Rectangle and Triangle squared Hausdorff distance") {

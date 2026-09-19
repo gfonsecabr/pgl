@@ -1176,6 +1176,33 @@ Float diskExteriorSquaredDistance(const DiskType& disk, const OtherShape& other)
     return gap * gap;
 }
 
+/**
+ * @brief The polygon size up to which Convex::squaredDistance(Disk) tests the
+ *        disk against every edge rather than by the exact circumcircle test.
+ *
+ * The edge scan costs a few in-circle determinants per edge in the coordinate
+ * type's own arithmetic, the circumcircle test a fixed amount of ERational
+ * arithmetic, so the crossover follows the price of the coordinate type:
+ * late for machine integers and floating point, early for BigInt, at once
+ * for ERational. The values are measured crossovers, except for Rational over
+ * a machine integer, whose edge scan stayed the cheaper at every size measured
+ * (about 500 vertices); it takes the limit of int.
+ */
+template <class Number>
+constexpr std::size_t diskEdgeScanLimit() {
+    if constexpr (std::is_floating_point_v<Number>) {
+        return 96;
+    } else if constexpr (extended_integral<Number>) {
+        return sizeof(Number) <= 4 ? 256 : (sizeof(Number) <= 8 ? 48 : 40);
+    } else if constexpr (std::same_as<Number, BigInt>) {
+        return 40;
+    } else if constexpr (is_Rational_v<Number> && !std::same_as<Number, ERational>) {
+        return 256;
+    } else {
+        return 8;
+    }
+}
+
 }  // namespace detail
 
 template <class PointType_, class LabelType>
@@ -1189,11 +1216,16 @@ detail::floating_result_t<ResultNumber> Convex<PointType_, LabelType>::squaredDi
     // search. Both sides are computed in ERational from the boundary points
     // themselves, which is the circle the per-edge in-circle test reads.
     bool meets = false;
-    if (size() <= 32) {
+    if (size() <= detail::diskEdgeScanLimit<NumberType>()) {
         meets = intersects(other);
+    } else if (contains(other.a())) {
+        // A boundary point inside settles most meeting pairs in O(log n),
+        // before any ERational arithmetic.
+        meets = true;
     } else if (other.isDegenerate()) {
-        // A collapsed disk is its point; the collinear ones are undefined.
-        meets = contains(other.a());
+        // A collapsed disk is its point, just found outside; the collinear
+        // ones are undefined.
+        meets = false;
     } else {
         using E = ERational;
         const auto exact = [](const auto& value) { return static_cast<E>(value); };
@@ -1781,18 +1813,37 @@ constexpr ResultNumber regionEdgesSquaredDistance(const Region& region, const Ot
     // zero for a disjoint pair. The edges stay exact, hence the separate E, as
     // in the Disk overload below; ResultNumber governs only the scan.
     using E = region_exact_number_t<typename Region::NumberType>;
+    const std::size_t n = region.size();
     ResultNumber best{};
     bool has = false;
-    for (std::size_t i = 0; i < region.size(); ++i) {
-        const ResultNumber current = std::visit(
-            [&other](const auto& piece) {
-                return static_cast<ResultNumber>(piece.template squaredDistance<ResultNumber>(other));
-            },
-            region.template edge<E>(i));
+    const auto consider = [&](const auto& piece) {
+        const auto current = static_cast<ResultNumber>(piece.template squaredDistance<ResultNumber>(other));
         if (!has || current < best) {
             best = current;
             has = true;
         }
+    };
+    // Where every consecutive pair meets in a vertex, as in any bounded region,
+    // edge i is the segment from vertex i - 1 to vertex i; each exact vertex is
+    // then built once rather than once for each of the two edges it ends.
+    bool closed = n >= 2;
+    for (std::size_t i = 0; closed && i < n; ++i) {
+        closed = region.vertexExists(i);
+    }
+    if (closed) {
+        using ExactPoint = decltype(region.template vertex<E>(0));
+        std::vector<ExactPoint> vertices;
+        vertices.reserve(n);
+        for (std::size_t i = 0; i < n; ++i) {
+            vertices.push_back(region.template vertex<E>(i));
+        }
+        for (std::size_t i = 0; i < n; ++i) {
+            consider(Segment<ExactPoint>(vertices[(i + n - 1) % n], vertices[i]));
+        }
+        return best;
+    }
+    for (std::size_t i = 0; i < n; ++i) {
+        std::visit(consider, region.template edge<E>(i));
     }
     return best;
 }

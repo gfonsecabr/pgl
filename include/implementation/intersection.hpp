@@ -1238,6 +1238,11 @@ constexpr auto Triangle<PointType, LabelType>::intersection(const OtherHalfplane
 template <class PointType, class LabelType>
 template <class ResultNumber, RectangleConcept OtherRectangle>
 constexpr auto Triangle<PointType, LabelType>::intersection(const OtherRectangle& other) const {
+    // Reject a pair whose boxes miss before building the Convex.
+    using Result = decltype(asConvex().template intersection<ResultNumber>(other));
+    if (!bbox().intersects(other)) {
+        return Result{};
+    }
     return asConvex().template intersection<ResultNumber>(other);
 }
 
@@ -1777,6 +1782,11 @@ AreaClip<ResultNumber, ResultLabel> clipConvexToConvex(const ConvexType& convex,
     const std::size_t n = convex.size();
     const std::size_t m = corners.size();
     if (n == 0 || m == 0) {
+        return {};
+    }
+    // Most pairs of small shapes lie apart; the cached bounding box rejects
+    // them before any search or allocation.
+    if (!convex.bbox().intersects(Rectangle<ClipPoint>(corners))) {
         return {};
     }
     const Convex<ClipPoint> clip(corners, pgl::trusted);
