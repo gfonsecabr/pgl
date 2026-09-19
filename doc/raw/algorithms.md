@@ -16,6 +16,16 @@
 
 ## Algorithms
 
+- [Intersection of Line Segments](#intersection-of-line-segments) reports the intersecting, crossing or overlapping pairs of segments.
+- [Convex hull](#convex-hull) of a point set.
+- [Smallest enclosing disk](#smallest-enclosing-disk) of a point set or a convex polygon.
+- [Closest pair of points](#closest-pair-of-points) of a point set.
+- [Voronoi and power diagrams](#voronoi-and-power-diagrams) of points or disks, including farthest-point and higher-order diagrams.
+- [Sorting points](#sorting-points) lexicographically, around a center, or along a Hilbert curve.
+- [Empty polygons](#empty-polygons) enumerates the empty triangles and quadrilaterals of a point set.
+- [Polyominoes](#polyominoes) enumerates the free polyominoes of given sizes.
+- [Visibility](#visibility) builds visibility graphs inside polygons and triangulations.
+- [Boolean Operations, Minkowski Sum and Erosion](#boolean-operations-minkowski-sum-and-erosion) points to their documentation among the shape methods.
 
 ### Intersection of Line Segments
 

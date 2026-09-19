@@ -16,6 +16,12 @@
 
 ## Data Structures
 
+- [Shape Tree](#shape-tree) answers range queries over a set of bounded shapes.
+- [Interval Tree](#interval-tree) is a mutable index of shapes by the projection of their bounding boxes onto one axis.
+- [Triangulation](#triangulation) stores a mutable triangulation of a polygon or a point set.
+- [Arrangement](#arrangement) is the subdivision of the plane induced by segments, rays and lines.
+- [Graph](#graph) is an undirected simple graph stored as adjacency sets.
+- [Bit Matrix](#bit-matrix) represents a set of unit cells of the integer grid.
 
 ### Shape Tree
 

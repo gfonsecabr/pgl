@@ -41,6 +41,20 @@ e.empty();                          // false
 
 `Shape` does what the shape it holds does, and throws `pgl::unsupported_operation` (a `std::logic_error`) when that shape cannot: a bounding box of a `Line`, the vertices of a `Disk`, the `intersection` of a `Disk` and a `Segment`. The message names the operation and the alternatives, e.g. `pgl::Shape: bbox(Line) is not supported` or `pgl::Shape: intersection(Segment, Disk) is not supported`. Nothing answers in place of a missing implementation, and no pair is listed anywhere: a pair gains `Shape` support as soon as the concrete member for it exists.
 
+The interface is described in the following sections:
+
+- [Storage against geometry](#storage-against-geometry) separates asking which alternative is stored from asking what point set it covers.
+- [Construction and conversion](#construction-and-conversion) wraps and unwraps alternatives, variants and optionals.
+- [Queries about the point set](#queries-about-the-point-set) test emptiness, degeneracy and dimension.
+- [Queries about the defining data](#queries-about-the-defining-data) read the defining points of the linear alternatives and rectangles.
+- [Sequences](#sequences) list vertices, edges, lattice points and indexed defining points.
+- [Measures and distances](#measures-and-distances) cover areas, lengths, centroids and distances between shapes.
+- [Predicates](#predicates) test geometric relationships against any operand.
+- [Constructions](#constructions) build intersections, boolean operations, Minkowski sums and convex hulls.
+- [Mixing wrapped and concrete operands](#mixing-wrapped-and-concrete-operands) combines `Shape` and concrete shapes in one call.
+- [Transformations](#transformations) translate, scale, rotate and apply affine maps.
+- [Comparison, hashing and output](#comparison-hashing-and-output) order, hash, stream and draw a `Shape`.
+
 ### Storage against geometry
 
 Two vocabularies never share a word. `is…`, `getIf…` and `as…` are geometric and answer as the stored shape does; `holds…`, `getIfHolds…` and `asHeld…` ask which alternative is stored.
