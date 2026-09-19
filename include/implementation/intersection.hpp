@@ -1932,7 +1932,8 @@ constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::Lab
 // a ring system exactly as it reads a single ring, and a point inside a hole is
 // inside two rings and hence outside the area. The three shape-specific
 // wrappers add only the parameter window their shape occupies on its supporting
-// line, which leaves Polygon and PolygonWithHoles a one-line overload each.
+// line, which leaves Polygon, PolygonWithHoles and PolygonSet a one-line
+// overload each.
 
 namespace detail {
 
@@ -3249,7 +3250,8 @@ Polyline<PointType, LabelType>::intersection(const OtherPolyline& other) const {
 
 template <class PointType, class LabelType>
 template <class ResultNumber, class OtherArea>
-    requires(PolygonConcept<OtherArea> || PolygonWithHolesConcept<OtherArea>)
+    requires(PolygonConcept<OtherArea> || PolygonWithHolesConcept<OtherArea> ||
+             PolygonSetConcept<OtherArea> || HalfplaneIntersectionConcept<OtherArea>)
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
                                    Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Polyline<PointType, LabelType>::polygonIntersection(const OtherArea& other) const {
@@ -3267,23 +3269,33 @@ Polyline<PointType, LabelType>::polygonIntersection(const OtherArea& other) cons
         }
         return pieces;
     }
-    // Unlike the convex edgeFoldIntersection, a non-convex area can split a
-    // single edge into several disjoint pieces, so each edge yields a vector.
+    // Re-wrap in this polyline's result types: the delegated intersection
+    // labels its points with the area's label type.
+    const auto rewrap = [](const auto& piece) -> Piece {
+        return std::visit(
+            [](const auto& value) -> Piece {
+                if constexpr (detail::is_point_v<std::remove_cvref_t<decltype(value)>>) {
+                    return Piece(ResultPoint(value));
+                } else {
+                    return Piece(ResultSegment(value));
+                }
+            },
+            piece);
+    };
     for (std::size_t i = 0; i + 1 < size(); ++i) {
         const auto edgePieces =
             this->template boundaryAt<false>(i).template intersection<ResultNumber>(other);
-        for (const auto& piece : edgePieces) {
-            // Re-wrap in this polyline's result types: the delegated
-            // intersection labels its points with the area's label type.
-            pieces.push_back(std::visit(
-                [](const auto& value) -> Piece {
-                    if constexpr (detail::is_point_v<std::remove_cvref_t<decltype(value)>>) {
-                        return Piece(ResultPoint(value));
-                    } else {
-                        return Piece(ResultSegment(value));
-                    }
-                },
-                piece));
+        if constexpr (HalfplaneIntersectionConcept<OtherArea>) {
+            // A convex area meets an edge in at most one piece.
+            if (edgePieces) {
+                pieces.push_back(rewrap(*edgePieces));
+            }
+        } else {
+            // A non-convex area can split a single edge into several disjoint
+            // pieces, so each edge yields a vector.
+            for (const auto& piece : edgePieces) {
+                pieces.push_back(rewrap(piece));
+            }
         }
     }
     return coalescePieces<ResultNumber>(std::move(pieces));
@@ -3381,6 +3393,80 @@ constexpr auto PolygonWithHoles<PointType_, TLabel>::intersection(const OtherPol
 template <class PointType_, class TLabel>
 template <class ResultNumber, MonotoneChainConcept OtherChain>
 constexpr auto PolygonWithHoles<PointType_, TLabel>::intersection(const OtherChain& other) const {
+    return other.asPolyline().template polygonIntersection<ResultNumber>(*this);
+}
+
+
+// ---------------------------------------------------------------------------
+// PolygonSet
+//
+// The one-dimensional operands, exactly as for PolygonWithHoles: the clip runs
+// over the rings of every component at once. Components share no stretch of
+// edge, so the even-odd rule still reads the ring system as the set.
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr std::optional<Point<ResultNumber, typename PointType_::LabelType>>
+PolygonSet<PointType_, TLabel>::intersection(const OtherPoint& other) const {
+    if (contains(other)) {
+        return Point<ResultNumber, typename PointType::LabelType>(other);
+    }
+    return {};
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, SegmentConcept OtherSegment>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType_::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType_::LabelType>>>>
+PolygonSet<PointType_, TLabel>::intersection(const OtherSegment& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    return detail::areaSegmentIntersection<ResultPoint>(*this, orientedEdges(), other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType_::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType_::LabelType>>>>
+PolygonSet<PointType_, TLabel>::intersection(const OtherOrientedSegment& other) const {
+    return intersection<ResultNumber>(
+        Segment<typename OtherOrientedSegment::PointType>(other[0], other[1]));
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, LineConcept OtherLine>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType_::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType_::LabelType>>>>
+PolygonSet<PointType_, TLabel>::intersection(const OtherLine& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    return detail::areaLineIntersection<ResultPoint>(*this, orientedEdges(), other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType_::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType_::LabelType>>>>
+PolygonSet<PointType_, TLabel>::intersection(const OtherOrientedLine& other) const {
+    return intersection<ResultNumber>(other.asLine());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, RayConcept OtherRay>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType_::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType_::LabelType>>>>
+PolygonSet<PointType_, TLabel>::intersection(const OtherRay& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    return detail::areaRayIntersection<ResultPoint>(*this, orientedEdges(), other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolylineConcept OtherPolyline>
+constexpr auto PolygonSet<PointType_, TLabel>::intersection(const OtherPolyline& other) const {
+    return other.template polygonIntersection<ResultNumber>(*this);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, MonotoneChainConcept OtherChain>
+constexpr auto PolygonSet<PointType_, TLabel>::intersection(const OtherChain& other) const {
     return other.asPolyline().template polygonIntersection<ResultNumber>(*this);
 }
 
@@ -3768,6 +3854,21 @@ HalfplaneIntersection<PointType, LabelType>::intersection(const OtherPolygon& ot
         return result;
     }
     return exact.template intersection<ResultNumber>(clipped.template asConvex<ExactNumber>());
+}
+
+// A region outranks Polyline and MonotoneChain, so it owns these pairs; as with
+// Polygon, the clip itself lives on Polyline (reusing its coalescing) and a
+// monotone chain first views itself as a polyline.
+template <class PointType, class LabelType>
+template <class ResultNumber, PolylineConcept OtherPolyline>
+constexpr auto HalfplaneIntersection<PointType, LabelType>::intersection(const OtherPolyline& other) const {
+    return other.template polygonIntersection<ResultNumber>(*this);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, MonotoneChainConcept OtherChain>
+constexpr auto HalfplaneIntersection<PointType, LabelType>::intersection(const OtherChain& other) const {
+    return other.asPolyline().template polygonIntersection<ResultNumber>(*this);
 }
 
 }  // namespace pgl

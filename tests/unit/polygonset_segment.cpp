@@ -3,6 +3,7 @@
 
 #include "pgl.hpp"
 
+#include <variant>
 #include <vector>
 
 using Point = pgl::Point<int>;
@@ -175,4 +176,119 @@ TEST_CASE("PolygonSet and chain containment") {
         CHECK(set.contains(chain));
         CHECK(set.intersects(chain));
     }
+}
+
+// A 10x10 square with a 6x6 hole, and a 2x2 island stored beside it in the
+// middle of that hole: a point of the island is enclosed by three rings.
+static RegionSet islandInHole() {
+    return RegionSet(std::vector{
+        Region(PolygonShape({0, 0, 10, 0, 10, 10, 0, 10}),
+               std::vector{PolygonShape({2, 2, 8, 2, 8, 8, 2, 8})}),
+        Region(PolygonShape({4, 4, 6, 4, 6, 6, 4, 6}))});
+}
+
+TEST_CASE("PolygonSet intersection with a Segment") {
+    using Piece = std::variant<Point, SegmentShape>;
+
+    SUBCASE("the island inside a hole is part of the set") {
+        const RegionSet set = islandInHole();
+        const auto pieces = set.intersection<int>(SegmentShape(Point(-1, 5), Point(5, 5)));
+
+        REQUIRE(pieces.size() == 2);
+        CHECK(pieces[0] == Piece(SegmentShape({0, 5}, {2, 5})));
+        CHECK(pieces[1] == Piece(SegmentShape({4, 5}, {5, 5})));
+    }
+
+    SUBCASE("a segment through a pinch comes back as one piece") {
+        const RegionSet set = cornerToCorner();
+        const auto pieces = set.intersection<int>(SegmentShape(Point(-2, -2), Point(2, 2)));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(SegmentShape({-1, -1}, {1, 1})));
+    }
+
+    SUBCASE("a segment meeting both components only at the pinch is a point") {
+        const RegionSet set = cornerToCorner();
+        const auto pieces = set.intersection<int>(SegmentShape(Point(-1, 1), Point(1, -1)));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Point(0, 0)));
+    }
+
+    SUBCASE("a segment in the hole around the island meets nothing") {
+        CHECK(islandInHole().intersection<int>(SegmentShape(Point(3, 3), Point(3, 7))).empty());
+        CHECK(RegionSet().intersection<int>(SegmentShape(Point(0, 0), Point(1, 1))).empty());
+    }
+
+    SUBCASE("a degenerate segment is its point") {
+        const auto pieces = islandInHole().intersection<int>(SegmentShape(Point(5, 5), Point(5, 5)));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Point(5, 5)));
+    }
+
+    SUBCASE("the segment answers the pair the same way round") {
+        const RegionSet set = islandInHole();
+        const SegmentShape s(Point(-1, 5), Point(5, 5));
+        CHECK(s.intersection<int>(set) == set.intersection<int>(s));
+    }
+
+    SUBCASE("an oriented segment answers as its segment, either way round") {
+        const RegionSet set = islandInHole();
+        const SegmentShape s(Point(-1, 5), Point(5, 5));
+        for (const auto& o : {pgl::OrientedSegment<Point>(Point(-1, 5), Point(5, 5)),
+                              pgl::OrientedSegment<Point>(Point(5, 5), Point(-1, 5))}) {
+            CHECK(set.intersection<int>(o) == set.intersection<int>(s));
+            CHECK(o.intersection<int>(set) == set.intersection<int>(s));
+        }
+    }
+}
+
+TEST_CASE("PolygonSet intersection with a chain") {
+    using Piece = std::variant<Point, SegmentShape>;
+    const RegionSet set = islandInHole();
+
+    SUBCASE("a polyline keeps its runs through the frame and the island") {
+        const pgl::Polyline<Point> line({-1, 5, 5, 5, 5, 11});
+        const auto pieces = set.intersection<int>(line);
+
+        REQUIRE(pieces.size() == 4);
+        CHECK(pieces[0] == Piece(SegmentShape({0, 5}, {2, 5})));
+        CHECK(pieces[1] == Piece(SegmentShape({4, 5}, {5, 5})));
+        CHECK(pieces[2] == Piece(SegmentShape({5, 5}, {5, 6})));
+        CHECK(pieces[3] == Piece(SegmentShape({5, 8}, {5, 10})));
+        CHECK(line.intersection<int>(set) == pieces);
+    }
+
+    SUBCASE("a polyline crossing a pinch coalesces its collinear runs") {
+        const pgl::Polyline<Point> line({-2, -2, 0, 0, 2, 2});
+        const auto pieces = cornerToCorner().intersection<int>(line);
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(SegmentShape({-1, -1}, {1, 1})));
+    }
+
+    SUBCASE("a monotone chain agrees with the polyline it views itself as") {
+        const pgl::MonotoneChain<Point> chain({-1, 5, 5, 5, 11, 11});
+        CHECK(set.intersection<int>(chain) == set.intersection<int>(chain.asPolyline()));
+        CHECK(chain.intersection<int>(set) == set.intersection<int>(chain));
+    }
+
+    SUBCASE("an empty or single-vertex chain") {
+        CHECK(set.intersection<int>(pgl::Polyline<Point>()).empty());
+        const auto pieces = set.intersection<int>(pgl::Polyline<Point>({5, 5}));
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Point(5, 5)));
+    }
+}
+
+TEST_CASE("PolygonSet intersection through the runtime Shape") {
+    using ShapeType = pgl::Shape<Point>;
+    const ShapeType set(islandInHole());
+
+    CHECK(pgl::pieces(set.intersection<int>(ShapeType(SegmentShape(Point(-1, 5), Point(5, 5))))).size() == 2);
+    CHECK(pgl::pieces(ShapeType(SegmentShape(Point(-1, 5), Point(5, 5))).intersection<int>(set)).size() == 2);
+    CHECK(pgl::pieces(set.intersection<int>(ShapeType(pgl::Polyline<Point>({-1, 5, 5, 5, 5, 11})))).size() == 4);
+    CHECK(pgl::pieces(ShapeType(Point(5, 5)).intersection<int>(set)).size() == 1);
+    CHECK(pgl::pieces(ShapeType(pgl::Line<Point>(Point(0, 5), Point(1, 5))).intersection<int>(set)).size() == 3);
 }

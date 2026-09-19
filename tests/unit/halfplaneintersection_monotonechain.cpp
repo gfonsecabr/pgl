@@ -3,6 +3,7 @@
 
 #include "pgl.hpp"
 
+#include <variant>
 #include <vector>
 
 using Point = pgl::Point<int>;
@@ -59,4 +60,29 @@ TEST_CASE("Distance to a monotone chain") {
     CHECK(k.squaredDistance<double>(away) == doctest::Approx(9.0));
     const MonotoneChain touching(std::vector<Point>{{3, 3}, {5, 4}, {9, 3}});
     CHECK(k.squaredDistance<double>(touching) == doctest::Approx(0.0));
+}
+
+TEST_CASE("Region intersection with a monotone chain") {
+    using Segment = pgl::Segment<Point>;
+    using Piece = std::variant<Point, Segment>;
+    const Region k = box6();
+
+    SUBCASE("each edge is clipped to the box") {
+        const MonotoneChain chain(std::vector<Point>{{-2, 3}, {3, 3}, {9, 9}});
+        const auto pieces = k.intersection<int>(chain);
+
+        REQUIRE(pieces.size() == 2);
+        CHECK(pieces[0] == Piece(Segment({0, 3}, {3, 3})));
+        CHECK(pieces[1] == Piece(Segment({3, 3}, {6, 6})));
+    }
+
+    SUBCASE("a chain agrees with the polyline it views itself as") {
+        const MonotoneChain chain(std::vector<Point>{{-2, 3}, {3, 3}, {9, 9}});
+        CHECK(k.intersection<int>(chain) == k.intersection<int>(chain.asPolyline()));
+        CHECK(chain.intersection<int>(k) == k.intersection<int>(chain));
+    }
+
+    SUBCASE("a chain outside the box meets nothing") {
+        CHECK(k.intersection<int>(MonotoneChain(std::vector<Point>{{7, 7}, {8, 9}, {9, 7}})).empty());
+    }
 }

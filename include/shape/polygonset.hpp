@@ -1158,6 +1158,137 @@ struct PolygonSet {
                                            PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherHalfplane& other) const;
 
+    /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they
+     *        are disjoint.
+     *
+     * The set is closed, so a point on any ring of any component intersects it.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
+    intersection(const OtherPoint& other) const;
+
+    /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they
+     *        are disjoint.
+     *
+     * The segment can meet the set in several disjoint pieces, each of them a
+     * point (a boundary touch) or a segment. The pieces are maximal and come in
+     * order along the segment; an empty vector means the two are disjoint.
+     *
+     * This is the clip of @ref PolygonWithHoles::intersection(const OtherSegment&) const
+     * run over the rings of every component at once. Components meet only at
+     * finitely many points, so a point is in the set exactly when an odd number
+     * of rings enclose it, and a segment passing from one component to another
+     * through a shared vertex comes back as one piece.
+     *
+     * Complexity: O(n log n) for n vertices over all components.
+     *
+     * @tparam ResultNumber Number type of the returned coordinates.
+     * @param other The segment to clip.
+     * @return The disjoint intersection pieces in order along the segment.
+     * @warning Divides coordinates after casting to ResultNumber.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                                     Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherSegment& other) const;
+
+    /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they
+     *        are disjoint.
+     *
+     * An orientation is not part of a point set, so this is the intersection with
+     * the underlying segment; see @ref intersection(const OtherSegment&) const.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                                     Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherOrientedSegment& other) const;
+
+    /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they
+     *        are disjoint.
+     *
+     * A set is bounded, so every piece is bounded even though the line is not:
+     * @ref intersection(const OtherSegment&) const without the clip to a finite
+     * parameter window. The pieces come in order along the line.
+     *
+     * Complexity: O(n log n) for n vertices over all components.
+     *
+     * @tparam ResultNumber Number type of the returned coordinates.
+     * @param other The line to clip.
+     * @return The disjoint intersection pieces in order along the line.
+     * @warning Divides coordinates after casting to ResultNumber.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, LineConcept OtherLine>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                                     Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherLine& other) const;
+
+    /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they
+     *        are disjoint.
+     *
+     * An orientation is not part of a point set, so this is the intersection with
+     * the underlying line; see @ref intersection(const OtherLine&) const.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                                     Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherOrientedLine& other) const;
+
+    /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they
+     *        are disjoint.
+     *
+     * @ref intersection(const OtherLine&) const clipped to the ray's half-line;
+     * the pieces come in order from the source outward.
+     *
+     * Complexity: O(n log n) for n vertices over all components.
+     *
+     * @tparam ResultNumber Number type of the returned coordinates.
+     * @param other The ray to clip.
+     * @return The disjoint intersection pieces in order from the source outward.
+     * @warning Divides coordinates after casting to ResultNumber.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, RayConcept OtherRay>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                                     Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherRay& other) const;
+
+    /**
+     * @brief Returns the intersection with an open polyline (A ∩ B), a sequence
+     *        of points and segments sorted by lexicographic order.
+     *
+     * Each polyline edge is clipped against the set and the pieces are
+     * coalesced; they carry the polyline's label, matching
+     * `polyline.intersection(set)`, which forwards here.
+     *
+     * @tparam ResultNumber Number type of the returned coordinates.
+     * @param other The polyline to clip.
+     * @return Vector of points and segments forming the intersection.
+     * @warning Divides coordinates after casting to ResultNumber.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr auto intersection(const OtherPolyline& other) const;
+
+    /**
+     * @brief Returns the intersection with a monotone chain (A ∩ B), a sequence
+     *        of points and segments sorted by lexicographic order.
+     *
+     * Same contract as @ref intersection(const OtherPolyline&) const: the set
+     * outranks a chain, so it owns the pair, and the chain first views itself as
+     * a polyline.
+     *
+     * @tparam ResultNumber Number type of the returned coordinates.
+     * @param other The chain to clip.
+     * @return Vector of points and segments forming the intersection.
+     * @warning Divides coordinates after casting to ResultNumber.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr auto intersection(const OtherChain& other) const;
+
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, class EmptyPoint>
     [[nodiscard]] constexpr EmptyShape<EmptyPoint> intersection(const EmptyShape<EmptyPoint>&) const {

@@ -2120,6 +2120,38 @@ struct HalfplaneIntersection {
     intersection(const OtherPolygon& other) const;
 
     /**
+     * @brief Returns the intersection with an open polyline (A ∩ B), a sequence
+     *        of points and segments sorted by lexicographic order.
+     *
+     * Each polyline edge is clipped against the region, which may be unbounded,
+     * and the pieces are coalesced; they carry the polyline's label, matching
+     * `polyline.intersection(region)`, which forwards here.
+     *
+     * @tparam ResultNumber Number type of the returned coordinates.
+     * @param other The polyline to clip.
+     * @return Vector of points and segments forming the intersection.
+     * @warning Divides coordinates after casting to ResultNumber.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr auto intersection(const OtherPolyline& other) const;
+
+    /**
+     * @brief Returns the intersection with a monotone chain (A ∩ B), a sequence
+     *        of points and segments sorted by lexicographic order.
+     *
+     * Same contract as @ref intersection(const OtherPolyline&) const: the region
+     * outranks a chain, so it owns the pair, and the chain first views itself as
+     * a polyline.
+     *
+     * @tparam ResultNumber Number type of the returned coordinates.
+     * @param other The chain to clip.
+     * @return Vector of points and segments forming the intersection.
+     * @warning Divides coordinates after casting to ResultNumber.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr auto intersection(const OtherChain& other) const;
+
+    /**
      * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
      * Forwards to the other shape's implementation so that each unordered pair

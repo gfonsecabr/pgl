@@ -128,3 +128,18 @@ TEST_CASE("PolygonSet and Point distances") {
         CHECK(Point(3, 3).distanceLInf<double>(set) == doctest::Approx(1.0));
     }
 }
+
+TEST_CASE("PolygonSet and Point intersection") {
+    const RegionSet set = holed();
+
+    CHECK(set.intersection(Point(1, 1)) == Point(1, 1));
+    CHECK(set.intersection(Point(2, 3)) == Point(2, 3));  // on a hole edge
+    CHECK(set.intersection(Point(10, 10)) == Point(10, 10));
+    CHECK(!set.intersection(Point(3, 3)).has_value());    // inside the hole
+    CHECK(!set.intersection(Point(11, 5)).has_value());
+    CHECK(!RegionSet().intersection(Point(0, 0)).has_value());
+
+    // The point answers the pair the same way round.
+    CHECK(Point(1, 1).intersection(set) == set.intersection(Point(1, 1)));
+    CHECK(!Point(3, 3).intersection(set).has_value());
+}

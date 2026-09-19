@@ -1683,28 +1683,29 @@ struct Polyline {
      * @brief Returns the intersection with a polygon or a region (A ∩ B), a
      * sequence of points and segments sorted by lexicographic order.
      *
-     * The area may be non-convex — and, for a @ref PolygonWithHoles, not simply
-     * connected — so its intersection with a single edge can already split into
-     * several disjoint pieces; each edge is clipped against the area and the
-     * pieces are coalesced like @ref intersection(const OtherPolyline&) const.
+     * The area is a @ref Polygon, a @ref PolygonWithHoles, a @ref PolygonSet or
+     * a @ref HalfplaneIntersection. All but the last may be non-convex — and the
+     * holed ones not simply connected — so their intersection with a single edge
+     * can already split into several disjoint pieces; each edge is clipped
+     * against the area and the pieces are coalesced like
+     * @ref intersection(const OtherPolyline&) const.
      *
      * @note This is the shared implementation of the area–polyline clip, not an
-     * `intersection` overload: @ref Polygon and @ref PolygonWithHoles both
-     * outrank @ref Polyline, so
-     * @ref Polygon::intersection(const OtherPolyline&) const and
-     * @ref PolygonWithHoles::intersection(const OtherPolyline&) const own the
-     * pairs and call this helper (and `polyline.intersection(area)` reaches it by
-     * forwarding up). Keeping it here reuses the polyline's coalescing and labels
-     * the pieces with the polyline's label.
+     * `intersection` overload: every one of those areas outranks @ref Polyline,
+     * so its own `intersection(const OtherPolyline&)` owns the pair and calls
+     * this helper (and `polyline.intersection(area)` reaches it by forwarding
+     * up). Keeping it here reuses the polyline's coalescing and labels the
+     * pieces with the polyline's label.
      *
      * @tparam ResultNumber Number type of the returned coordinates.
-     * @tparam OtherArea Type of the polygon or region.
-     * @param other Polygon or region to intersect with.
+     * @tparam OtherArea Type of the area.
+     * @param other Area to intersect with.
      * @return Vector of points and segments forming the intersection.
      * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = division_result_t<NumberType>, class OtherArea>
-        requires(PolygonConcept<OtherArea> || PolygonWithHolesConcept<OtherArea>)
+        requires(PolygonConcept<OtherArea> || PolygonWithHolesConcept<OtherArea> ||
+                 PolygonSetConcept<OtherArea> || HalfplaneIntersectionConcept<OtherArea>)
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
                                                      Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     polygonIntersection(const OtherArea& other) const;

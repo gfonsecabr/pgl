@@ -3,6 +3,7 @@
 
 #include "pgl.hpp"
 
+#include <variant>
 #include <vector>
 
 using Point = pgl::Point<int>;
@@ -92,4 +93,77 @@ TEST_CASE("An unbounded region answers the cut predicates instead of throwing") 
     const PolylineShape away(std::vector<Point>{{5, 5}, {7, 9}});
     CHECK_FALSE(away.separates(halfplane));
     CHECK_FALSE(halfplane.separates(away));
+}
+
+TEST_CASE("Region intersection with a polyline") {
+    using Segment = pgl::Segment<Point>;
+    using Piece = std::variant<Point, Segment>;
+
+    SUBCASE("each edge is clipped to the box") {
+        const Region k = box6();
+        const PolylineShape line(std::vector<Point>{{-2, 3}, {3, 3}, {3, 9}});
+        const auto pieces = k.intersection<int>(line);
+
+        REQUIRE(pieces.size() == 2);
+        CHECK(pieces[0] == Piece(Segment({0, 3}, {3, 3})));
+        CHECK(pieces[1] == Piece(Segment({3, 3}, {3, 6})));
+        CHECK(line.intersection<int>(k) == pieces);
+    }
+
+    SUBCASE("a touch point covered by a run beside it is dropped") {
+        // The first edge meets the box only at (0,3), where the second edge's
+        // run begins.
+        const Region k = box6();
+        const PolylineShape line(std::vector<Point>{{-2, 1}, {0, 3}, {3, 6}});
+        const auto pieces = k.intersection<int>(line);
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Segment({0, 3}, {3, 6})));
+    }
+
+    SUBCASE("an unbounded region") {
+        const Region halfplane({Halfplane(0, 0, 0, 1)});  // x <= 0
+        const PolylineShape line(std::vector<Point>{{-2, -1}, {2, 1}, {2, 5}});
+        const auto pieces = halfplane.intersection<int>(line);
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Segment({-2, -1}, {0, 0})));
+    }
+
+    SUBCASE("a region collapsed to a line keeps the touch points") {
+        const Region axis({Halfplane(0, 0, 1, 0), Halfplane(1, 0, 0, 0)});  // y = 0
+        const PolylineShape zigzag(std::vector<Point>{{-1, -1}, {1, 1}, {3, -1}});
+        const auto pieces = axis.intersection<int>(zigzag);
+
+        REQUIRE(pieces.size() == 2);
+        CHECK(pieces[0] == Piece(Point(0, 0)));
+        CHECK(pieces[1] == Piece(Point(2, 0)));
+    }
+
+    SUBCASE("an empty region meets nothing") {
+        const Region none({Halfplane(0, 0, 1, 0), Halfplane(1, -1, 0, -1)});  // y >= 0, y <= -1
+        REQUIRE(none.empty());
+        CHECK(none.intersection<int>(PolylineShape(std::vector<Point>{{0, 0}, {1, 1}})).empty());
+    }
+
+    SUBCASE("fractional crossings") {
+        using Rat = pgl::Rational<int64_t>;
+        using RatPoint = pgl::Point<Rat>;
+        using RatSegment = pgl::Segment<RatPoint>;
+        using RatPiece = std::variant<RatPoint, RatSegment>;
+
+        // The edge has slope 7/3: it enters at (0,10/3) and leaves at (8/7,6).
+        const auto pieces =
+            box6().intersection<Rat>(PolylineShape(std::vector<Point>{{-1, 1}, {2, 8}}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == RatPiece(RatSegment({Rat(0), Rat(10, 3)}, {Rat(8, 7), Rat(6)})));
+    }
+
+    SUBCASE("through the runtime Shape") {
+        using ShapeType = pgl::Shape<Point>;
+        const PolylineShape line(std::vector<Point>{{-2, 3}, {3, 3}, {3, 9}});
+        CHECK(pgl::pieces(ShapeType(box6()).intersection<int>(ShapeType(line))).size() == 2);
+        CHECK(pgl::pieces(ShapeType(line).intersection<int>(ShapeType(box6()))).size() == 2);
+    }
 }
