@@ -1499,9 +1499,12 @@ struct Line {
      * is unbounded, so its every other sum is unbounded too and comes back as a
      * @ref HalfplaneIntersection: the operand may be any other unbounded convex
      * shape (@ref UnboundedConvexConcept) or any bounded **convex** one, and the
-     * sum of two convex polyhedra is a convex polyhedron. A non-convex operand
-     * is refused, its concavity being swept into the answer rather than
-     * absorbed. See @ref MinkowskiSummableConcept.
+     * sum of two convex polyhedra is a convex polyhedron. A line also sums with
+     * a `Polyline`, a `MonotoneChain`, a `Polygon` or a `PolygonWithHoles`: each
+     * is connected, so the sum is the strip the line sweeps across the
+     * operand's convex hull, in `O(m)` for `m` vertices. A `PolygonSet` is
+     * refused, since its components can leave gaps between strips. See
+     * @ref MinkowskiSummableConcept.
      *
      * @tparam OtherShape Type of the other shape.
      * @param other Shape to sum with.

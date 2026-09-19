@@ -568,7 +568,7 @@ constexpr auto minkowskiErosionOf(const A& a, const B& b) {
     } else {
         // Everything left is a convex receiver clamped constraint by
         // constraint -- and the pairs whose receiver is *not* convex, which the
-        // concept admits only against a half-plane operand: an unbounded
+        // concept admits only against a half-plane or a line operand: an unbounded
         // operand fits in no bounded receiver, so the answer is the empty
         // region, and the hull the clamp reads instead of the receiver cannot
         // change it. See the file comment.

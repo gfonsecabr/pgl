@@ -626,6 +626,22 @@ concept ClosestPointsPairConcept =
      (UnboundedConvexConcept<Self> && BoundedPolygonalConcept<Other>)) &&
     requires(const Self& self, const Other& other) { self.squaredDistance(other); };
 
+/**
+ * @brief Non-convex bounded polygonal shapes a `Line` or an `OrientedLine`
+ *        sums with.
+ *
+ * A line sweeps its operand into the strip between the parallels through the
+ * operand's two extreme vertices across it, and that is the whole sum exactly
+ * when the operand leaves no gap across the line in between. Each of these has
+ * a connected boundary spanning its whole extent — a chain, a ring, or a
+ * region's outer ring — so none can. A @ref PolygonSet is left out because its
+ * components can be apart across the line, and the sum is then several strips.
+ */
+template <class T>
+concept MinkowskiStripOperandConcept =
+    PolylineConcept<T> || MonotoneChainConcept<T> || PolygonConcept<T> ||
+    PolygonWithHolesConcept<T>;
+
 }  // namespace detail
 
 /**
@@ -642,16 +658,22 @@ concept ClosestPointsPairConcept =
  *   support point, or
  * - one is unbounded convex (@ref UnboundedConvexConcept) and the other is
  *   unbounded convex or bounded **convex**: two convex polyhedra sum to a convex
- *   polyhedron, returned as a `HalfplaneIntersection`.
+ *   polyhedron, returned as a `HalfplaneIntersection`, or
+ * - one is a `Line` or an `OrientedLine` and the other is a `Polyline`, a
+ *   `MonotoneChain`, a `Polygon` or a `PolygonWithHoles`: the sum is the strip
+ *   the line sweeps, the same as its sum with the operand's convex hull, and is
+ *   returned as a `HalfplaneIntersection` too.
  *
  * A runtime-polymorphic @ref Shape on either side is always accepted; the pair
  * of stored alternatives is only checked when the sum is evaluated.
  *
  * A non-convex operand is excluded from the unbounded case, and only from it: a
- * half-plane is the one unbounded shape whose sum forgets its operand's
- * concavity, because only its support point survives. Drag a `Polygon` along a
- * ray instead and every notch of it is swept into the answer, which is then no
- * more convex than the polygon was. Curved operands (`Disk`) are excluded beyond
+ * half-plane and a line are the two unbounded shapes whose sum forgets its
+ * operand's concavity, because only its support points survive. A line keeps
+ * two of them, one on each side, so it also needs the operand connected
+ * (@ref detail::MinkowskiStripOperandConcept). Drag a `Polygon` along a ray
+ * instead and every notch of it is swept into the answer, which is then no more
+ * convex than the polygon was. Curved operands (`Disk`) are excluded beyond
  * translation for the other reason: their support point is not on the lattice,
  * so their sums are inexact rather than unrepresentable, and the two pairs that
  * do have an answer carry a `ResultNumber` of their own instead of appearing
@@ -676,7 +698,9 @@ concept MinkowskiSummableConcept =
      (BoundedPolygonalConcept<A> && HalfplaneConcept<B>) ||
      (UnboundedConvexConcept<A> && UnboundedConvexConcept<B>) ||
      (UnboundedConvexConcept<A> && BoundedConvexConcept<B>) ||
-     (BoundedConvexConcept<A> && UnboundedConvexConcept<B>));
+     (BoundedConvexConcept<A> && UnboundedConvexConcept<B>) ||
+     ((LineConcept<A> || OrientedLineConcept<A>) && detail::MinkowskiStripOperandConcept<B>) ||
+     (detail::MinkowskiStripOperandConcept<A> && (LineConcept<B> || OrientedLineConcept<B>)));
 
 namespace detail {
 

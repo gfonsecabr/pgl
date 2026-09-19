@@ -2213,9 +2213,11 @@ struct Polyline {
      * sum is the empty region.
      *
      * Distinguish this from @ref minkowskiSum(const OtherShape&) const, which
-     * sums a `Point` — a translation, giving back a `Polyline` — and nothing
-     * else: a polyline is not convex, so @ref MinkowskiSummableConcept rejects
-     * every other pair. A second `Polyline` is not an operand.
+     * sums a `Point` — a translation, giving back a `Polyline` — a `Halfplane`,
+     * which absorbs the polyline, and a `Line` or an `OrientedLine`, which
+     * sweeps it into a strip: a polyline is not convex, so
+     * @ref MinkowskiSummableConcept rejects every other pair. A second
+     * `Polyline` is not an operand.
      *
      * Complexity: one sum per edge or monotone run of the polyline, then the
      * regularized union of all of them.

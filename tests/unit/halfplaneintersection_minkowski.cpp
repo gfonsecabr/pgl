@@ -11,7 +11,8 @@
 // The Minkowski sums whose result is unbounded, and so is a
 // `HalfplaneIntersection`: an unbounded convex operand (`Halfplane`, `Line`,
 // `OrientedLine`, `Ray`, `HalfplaneIntersection`) against another one or
-// against a bounded convex shape. The bounded-shape-valued sums live in
+// against a bounded convex shape, and a line against a connected non-convex
+// one, which it sweeps into the same strip. The bounded-shape-valued sums live in
 // minkowski.cpp, and the region-valued non-convex ones in the three
 // `*_minkowski.cpp` files named for their receivers.
 
@@ -74,6 +75,76 @@ TEST_CASE("A line and a bounded convex shape sum to the slab that sweeps it") {
 
     agreesWithDefinition(xAxis, triangle);
     agreesWithDefinition(pgl::Line<Point>(Point(1, 1), Point(3, 2)), Convex({0, 0, 2, 1, 1, 3}));
+}
+
+TEST_CASE("A line sweeps a connected non-convex operand into the slab across its hull") {
+    using PolylineShape = pgl::Polyline<Point>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using RegionWithHoles = pgl::PolygonWithHoles<Point>;
+    using Chain = pgl::MonotoneChain<Point>;
+
+    const pgl::Line<Point> xAxis(Point(0, 0), Point(1, 0));
+    const pgl::OrientedLine<Point> slanted(Point(1, 1), Point(3, 2));
+
+    // The notch of a U is swept over: only the extent across the line survives.
+    const PolygonShape u({Point(0, 0), Point(6, 0), Point(6, 6), Point(4, 6), Point(4, 2),
+                          Point(2, 2), Point(2, 6), Point(0, 6)});
+    const auto slab = xAxis.minkowskiSum(u);
+    static_assert(std::is_same_v<std::remove_cvref_t<decltype(slab)>, Region>);
+    CHECK(slab == Region(std::vector<Halfplane>{Halfplane(Point(0, 0), Point(1, 0)),
+                                                Halfplane(Point(0, 6), Point(-1, 6))}));
+    CHECK(slab == u.minkowskiSum(xAxis));  // the sum commutes
+    CHECK((xAxis + u) == slab);
+    CHECK(slab == xAxis.minkowskiSum(u.convexHull()));
+
+    // Each operand sums as its convex hull does, whichever line and side.
+    const PolylineShape zigzag({Point(-2, 1), Point(0, -3), Point(1, 2), Point(4, -1)});
+    const Chain chain({Point(-3, 0), Point(-1, 3), Point(1, -2), Point(3, 1), Point(5, 0)});
+    const RegionWithHoles holed(
+        PolygonShape({Point(-4, -4), Point(4, -4), Point(4, 4), Point(-4, 4)}),
+        std::vector<PolygonShape>{
+            PolygonShape({Point(-1, -1), Point(1, -1), Point(1, 1), Point(-1, 1)})});
+    CHECK(slanted.minkowskiSum(u) == slanted.minkowskiSum(u.convexHull()));
+    CHECK(slanted.minkowskiSum(zigzag) == slanted.minkowskiSum(zigzag.convexHull()));
+    CHECK(xAxis.minkowskiSum(chain) == xAxis.minkowskiSum(chain.convexHull()));
+    CHECK(slanted.minkowskiSum(holed) == slanted.minkowskiSum(holed.convexHull()));
+    CHECK(holed.minkowskiSum(xAxis) == xAxis.minkowskiSum(holed.convexHull()));
+
+    // An operand flat along the line leaves it a line; an empty one, nothing.
+    const auto stillALine = xAxis.minkowskiSum(PolylineShape({Point(0, 3), Point(5, 3), Point(2, 3)}));
+    CHECK(stillALine.isLine());
+    CHECK(*stillALine.getIfLine() == pgl::Line<Point>(0, 3, 1, 3));
+    CHECK(xAxis.minkowskiSum(PolygonShape()).empty());
+    CHECK(PolygonShape().minkowskiSum(slanted).empty());
+
+    // Through the wrapper, from either side.
+    const pgl::Shape<Point> wrappedLine = xAxis;
+    const pgl::Shape<Point> wrappedU = u;
+    REQUIRE(wrappedLine.minkowskiSum(wrappedU).holdsHalfplaneIntersection());
+    CHECK(*wrappedLine.minkowskiSum(wrappedU).getIfHoldsHalfplaneIntersection() == slab);
+    CHECK(*wrappedU.minkowskiSum(xAxis).getIfHoldsHalfplaneIntersection() == slab);
+
+    agreesWithDefinition(xAxis, u);
+    agreesWithDefinition(slanted, u);
+    agreesWithDefinition(slanted, zigzag);
+    agreesWithDefinition(pgl::Line<Point>(Point(0, 0), Point(1, 1)), chain);
+    agreesWithDefinition(slanted, holed);
+}
+
+TEST_CASE("A line and a connected non-convex operand erode as their pair of convex sets would") {
+    using PolylineShape = pgl::Polyline<Point>;
+    using PolygonShape = pgl::Polygon<Point>;
+
+    const pgl::Line<Point> xAxis(Point(0, 0), Point(1, 0));
+    const PolygonShape u({Point(0, 0), Point(6, 0), Point(6, 6), Point(4, 6), Point(4, 2),
+                          Point(2, 2), Point(2, 6), Point(0, 6)});
+
+    // A line fits in nothing bounded, and holds only what is flat along it.
+    CHECK(u.minkowskiErosion(xAxis).empty());
+    CHECK(xAxis.minkowskiErosion(u).empty());
+    const auto moved = xAxis.minkowskiErosion(PolylineShape({Point(0, 3), Point(5, 3), Point(2, 3)}));
+    CHECK(moved.isLine());
+    CHECK(*moved.getIfLine() == pgl::Line<Point>(0, -3, 1, -3));
 }
 
 TEST_CASE("A ray sweeps its operand along itself, and keeps its cap") {
@@ -334,6 +405,7 @@ TEST_CASE("Random unbounded sums agree with the definition") {
 
         agreesWithDefinition(ray, triangle, 9);
         agreesWithDefinition(line, convex, 9);
+        agreesWithDefinition(line, pgl::Polyline<Point>(vertices), 9);
         agreesWithDefinition(halfplane, ray, 9);
         agreesWithDefinition(region, triangle, 9);
         agreesWithDefinition(region, line, 9);

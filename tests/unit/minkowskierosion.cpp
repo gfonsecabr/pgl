@@ -131,7 +131,8 @@ static_assert(erodable<PolygonShape, Triangle>);      // through the region over
 static_assert(erodable<Halfplane, RegionSet>);
 static_assert(erodable<Point, Disk>);
 static_assert(!erodable<RectangleShape, Disk>);       // the sum has no answer either
-static_assert(!erodable<Line, PolygonShape>);
+static_assert(erodable<Line, PolygonShape>);         // the sum is the strip across its hull
+static_assert(!erodable<Line, RegionSet>);
 static_assert(!erodable<Disk, RectangleShape>);
 
 // -----------------------------------------------------------------------------

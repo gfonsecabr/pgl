@@ -414,14 +414,17 @@ TEST_CASE("minkowskiSum: the pairs a chain accepts") {
                                      std::declval<const PolylineShape&>())),
                                  RegionSet>);
 
-    // A half-plane absorbs the chain and stays a half-plane; the other unbounded
-    // operands and the curved one are still refused.
+    // A half-plane absorbs the chain and stays a half-plane, and a line sweeps
+    // it into a strip; a ray and the curved operand are still refused.
     static_assert(summable<Chain, pgl::Halfplane<Point>>);
     static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum(
                                      std::declval<const pgl::Halfplane<Point>&>())),
                                  pgl::Halfplane<Point>>);
+    static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum(
+                                     std::declval<const pgl::Line<Point>&>())),
+                                 pgl::HalfplaneIntersection<Point>>);
     static_assert(!summable<Chain, pgl::Disk<Point>>);
-    static_assert(!summable<Chain, pgl::Line<Point>>);
+    static_assert(!summable<Chain, pgl::Ray<Point>>);
 }
 
 TEST_CASE("minkowskiSum: two chains are not a convex pair") {

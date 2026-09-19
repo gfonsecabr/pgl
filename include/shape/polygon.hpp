@@ -1526,9 +1526,10 @@ struct Polygon {
      * regularized sum is the empty region.
      *
      * Distinguish this from
-     * @ref minkowskiSum(const OtherShape&) const, which sums a *bounded convex*
-     * operand and returns a single `Convex` (or a `Rectangle`, or a translation
-     * of this polygon by a `Point`). The two never overlap: the pairs that fit
+     * @ref minkowskiSum(const OtherShape&) const, which sums a `Point` (a
+     * translation of this polygon), a `Halfplane` (that half-plane, moved), or a
+     * `Line` or an `OrientedLine` (the strip it sweeps, as a
+     * @ref HalfplaneIntersection). The two never overlap: the pairs that fit
      * in one shape are exactly the pairs @ref MinkowskiSummableConcept accepts,
      * and this overload set takes the rest.
      *

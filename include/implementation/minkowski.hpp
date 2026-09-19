@@ -29,6 +29,10 @@
  *   `Line`, `OrientedLine`, `Ray`, `HalfplaneIntersection`, and on the other
  *   side those or any bounded convex shape) sum to a convex polyhedron, returned
  *   as a `HalfplaneIntersection`. See @ref pgl::detail::minkowskiPolyhedralSum.
+ * - A `Line` or an `OrientedLine` and a connected non-convex shape (`Polyline`,
+ *   `MonotoneChain`, `Polygon`, `PolygonWithHoles`) sum to the strip the line
+ *   sweeps, which is the sum with the operand's convex hull, again a
+ *   `HalfplaneIntersection`. See @ref pgl::detail::minkowskiStripSum.
  *
  * Every vertex of the result is a sum of two input vertices, so the whole
  * construction is exact in the operands' coordinate type: integers in,
@@ -43,8 +47,8 @@
  * the dispatcher. Nothing else here, and no shape header, encodes which pairs
  * are allowed.
  *
- * The **non-convex** sums are not here, and are not a widening of that concept:
- * a sum that can enclose a hole needs a `PolygonWithHoles` region result, so it
+ * The other **non-convex** sums are not here, and are not a widening of that
+ * concept: a sum that can enclose a hole needs a `PolygonWithHoles` region result, so it
  * needs a triangulation and the boolean engine and lives in
  * `implementation/minkowskisum.hpp`, as an overload set on @ref pgl::Polygon,
  * @ref pgl::PolygonWithHoles and @ref pgl::Polyline over exactly the pairs this
@@ -581,6 +585,80 @@ constexpr auto minkowskiPolyhedralSum(const A& a, const B& b) {
 }
 
 /**
+ * @brief Returns the Minkowski sum of a line and a connected, bounded polygonal
+ *        shape, as a @ref HalfplaneIntersection: the strip the line sweeps.
+ *
+ * With `d` the line's direction, the translate of the line through `q` is
+ * `{p : cross(d, p) = cross(d, q)}`, so the sum is every `p` whose
+ * `cross(d, p)` is a value `cross(d, ·)` takes on the operand. A connected
+ * operand takes on the whole interval between its extremes, and both are
+ * attained at vertices, so the sum is the strip between the parallels through
+ * those two vertices — the sum with the operand's convex hull, read off without
+ * building the hull (@ref detail::MinkowskiStripOperandConcept). A region's
+ * holes are inside its outer ring, so only that ring is scanned.
+ *
+ * An operand flat along the line gives a strip of width zero, which the
+ * insertions recognize as the line it is; an operand covering no point gives
+ * the empty region.
+ *
+ * Complexity: `O(m)` for an operand of `m` vertices.
+ */
+template <class ResultPoint, class LineT, class ShapeT>
+constexpr auto minkowskiStripSum(const LineT& line, const ShapeT& shape) {
+    using ResultNumber = typename ResultPoint::NumberType;
+    using Region = HalfplaneIntersection<ResultPoint>;
+
+    const auto cast = [](const auto& point) {
+        return ResultPoint(detail::asNumber<ResultNumber>(point.x()),
+                           detail::asNumber<ResultNumber>(point.y()));
+    };
+    const ResultPoint source = cast(line[0]);
+    const ResultPoint target = cast(line[1]);
+    const ResultPoint forward(target.x() - source.x(), target.y() - source.y());
+
+    bool found = false;
+    ResultPoint low = source;
+    ResultPoint high = source;
+    ResultNumber least{};
+    ResultNumber most{};
+    const auto scan = [&](const auto& vertices) {
+        for (const auto& vertex : vertices) {
+            const ResultPoint point = cast(vertex);
+            const ResultNumber side = minkowskiCross(forward, point);
+            if (!found || side < least) {
+                least = side;
+                low = point;
+            }
+            if (!found || most < side) {
+                most = side;
+                high = point;
+            }
+            found = true;
+        }
+    };
+    if constexpr (is_polygon_with_holes_v<ShapeT>) {
+        scan(shape.outer().verticesView());
+    } else {
+        scan(shape.verticesView());
+    }
+    if (!found) {
+        return Region(Convex<ResultPoint>());
+    }
+
+    // The line moved to the lowest vertex bounds the strip on one side, with
+    // the operand on its left, and moved to the highest one, reversed, on the
+    // other.
+    const ResultPoint lowBase(source.x() + low.x(), source.y() + low.y());
+    const ResultPoint highBase(source.x() + high.x(), source.y() + high.y());
+    Region region;
+    region.insert(Halfplane<ResultPoint>(
+        lowBase, ResultPoint(lowBase.x() + forward.x(), lowBase.y() + forward.y())));
+    region.insert(Halfplane<ResultPoint>(
+        highBase, ResultPoint(highBase.x() - forward.x(), highBase.y() - forward.y())));
+    return region;
+}
+
+/**
  * @brief Orders two nonzero direction vectors by angle.
  *
  * The angle is measured counterclockwise from the positive x axis over
@@ -766,6 +844,12 @@ constexpr auto minkowskiSumOf(const A& a, const B& b) {
         return minkowskiHalfplaneSum(a, b);
     } else if constexpr (is_halfplane_v<B> && !UnboundedConvexConcept<A>) {
         return minkowskiHalfplaneSum(b, a);
+    } else if constexpr (MinkowskiStripOperandConcept<B>) {
+        // A is a line, and a non-convex operand is one only a line accepts
+        // besides a half-plane.
+        return minkowskiStripSum<minkowskiRegionPoint_t<A, B>>(a, b);
+    } else if constexpr (MinkowskiStripOperandConcept<A>) {
+        return minkowskiStripSum<minkowskiRegionPoint_t<A, B>>(b, a);
     } else if constexpr (UnboundedConvexConcept<A> || UnboundedConvexConcept<B>) {
         // One operand at least is stored as constraints rather than as
         // vertices, and so is their sum.

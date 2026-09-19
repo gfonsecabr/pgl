@@ -382,14 +382,17 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     // An unbounded convex operand is admitted against another one and against
     // anything bounded and **convex**; the answer is a HalfplaneIntersection
     // (see halfplaneintersection_minkowski.cpp). It is not admitted against a
-    // non-convex operand: a half-plane is the one unbounded shape that forgets
-    // its operand's concavity.
+    // non-convex operand, with two exceptions: a half-plane forgets its
+    // operand's concavity (below), and so does a line against a connected one,
+    // which it sweeps into the strip across the operand's hull.
     static_assert(summable<pgl::Line<>, pgl::Triangle<>>);
     static_assert(summable<pgl::Ray<>, pgl::Ray<>>);
     static_assert(summable<pgl::HalfplaneIntersection<>, pgl::Convex<>>);
     static_assert(summable<pgl::Halfplane<>, pgl::Line<>>);
     static_assert(summable<pgl::Halfplane<>, pgl::Halfplane<>>);
-    static_assert(!pgl::MinkowskiSummableConcept<pgl::Line<>, pgl::Polygon<>>);
+    static_assert(pgl::MinkowskiSummableConcept<pgl::Line<>, pgl::Polygon<>>);
+    static_assert(pgl::MinkowskiSummableConcept<pgl::PolygonWithHoles<>, pgl::OrientedLine<>>);
+    static_assert(!pgl::MinkowskiSummableConcept<pgl::Line<>, pgl::PolygonSet<>>);
     static_assert(!pgl::MinkowskiSummableConcept<pgl::Ray<>, pgl::Polyline<>>);
     static_assert(!pgl::MinkowskiSummableConcept<pgl::HalfplaneIntersection<>, pgl::PolygonSet<>>);
     static_assert(!pgl::MinkowskiSummableConcept<pgl::Line<>, pgl::Disk<>>);
