@@ -716,17 +716,17 @@ struct Shape {
      * floating-point center and radius and the stored shapes round their exact
      * coordinates outward.
      *
-     * @tparam ResultNumber Floating-point coordinate type of the box.
+     * @tparam ApproximateNumber Floating-point coordinate type of the box.
      * @throws unsupported_operation for an alternative with no `fbox()`: the
      *   `EmptyShape`, `Line`, `OrientedLine`, `Ray` and `Halfplane`
      *   alternatives.
      */
-    template <class ResultNumber = double>
-    [[nodiscard]] constexpr Rectangle<Point<ResultNumber>> fbox() const {
-        using Result = Rectangle<Point<ResultNumber>>;
+    template <class ApproximateNumber = double>
+    [[nodiscard]] constexpr Rectangle<Point<ApproximateNumber>> fbox() const {
+        using Result = Rectangle<Point<ApproximateNumber>>;
         return visit([](const auto& value) -> Result {
-            if constexpr (requires { value.template fbox<ResultNumber>(); }) {
-                return value.template fbox<ResultNumber>();
+            if constexpr (requires { value.template fbox<ApproximateNumber>(); }) {
+                return value.template fbox<ApproximateNumber>();
             } else {
                 throw unsupported_operation("fbox", detail::shapeName<std::remove_cvref_t<decltype(value)>>);
             }
@@ -1063,11 +1063,11 @@ struct Shape {
      *
      * @throws unsupported_operation for an alternative with no `length()`.
      */
-    template <class ResultNumber = double>
-    [[nodiscard]] ResultNumber length() const {
-        return visit([](const auto& value) -> ResultNumber {
-            if constexpr (requires { value.template length<ResultNumber>(); }) {
-                return value.template length<ResultNumber>();
+    template <class ApproximateNumber = double>
+    [[nodiscard]] ApproximateNumber length() const {
+        return visit([](const auto& value) -> ApproximateNumber {
+            if constexpr (requires { value.template length<ApproximateNumber>(); }) {
+                return value.template length<ApproximateNumber>();
             } else {
                 throw unsupported_operation("length", detail::shapeName<std::remove_cvref_t<decltype(value)>>);
             }

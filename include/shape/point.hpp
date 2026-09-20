@@ -569,11 +569,11 @@ struct Point {
     /**
      * @brief Returns a floating-point bounding box containing the point.
      *
-     * @tparam ResultNumber Floating-point coordinate type.
+     * @tparam ApproximateNumber Floating-point coordinate type.
      * @return A rectangle whose bounds contain this point.
      */
-    template <std::floating_point ResultNumber = double>
-    [[nodiscard]] constexpr Rectangle<Point<ResultNumber>> fbox() const;
+    template <std::floating_point ApproximateNumber = double>
+    [[nodiscard]] constexpr Rectangle<Point<ApproximateNumber>> fbox() const;
 
     /**
      * @brief Returns the unique vertex of the point-shaped object.
@@ -1099,13 +1099,13 @@ struct Point {
     /**
      * @brief Returns the squared Euclidean distance to a disk.
      *
-     * Forwards to @ref Disk::squaredDistance. Reports in `detail::floating_result_t<ResultNumber>`: a distance realized on a
-     * circle is generally irrational, so a floating-point `ResultNumber` is
+     * Forwards to @ref Disk::squaredDistance. Reports in `detail::floating_result_t<ApproximateNumber>`: a distance realized on a
+     * circle is generally irrational, so a floating-point `ApproximateNumber` is
      * honoured as asked and any other request falls back to `double`.
      */
-    template <class ResultNumber = double, class DiskPointType, class DiskLabel>
-    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const {
-        return disk.template squaredDistance<ResultNumber>(*this);
+    template <class ApproximateNumber = double, class DiskPointType, class DiskLabel>
+    [[nodiscard]] detail::floating_result_t<ApproximateNumber> squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const {
+        return disk.template squaredDistance<ApproximateNumber>(*this);
     }
 
     /**
@@ -1305,19 +1305,19 @@ struct Point {
     /**
      * @brief Returns the Manhattan (L1) distance to a disk.
      *
-     * Forwards to @ref Disk::distanceL1. Reports in `detail::floating_result_t<ResultNumber>`: a distance realized on a
-     * circle is generally irrational, so a floating-point `ResultNumber` is
+     * Forwards to @ref Disk::distanceL1. Reports in `detail::floating_result_t<ApproximateNumber>`: a distance realized on a
+     * circle is generally irrational, so a floating-point `ApproximateNumber` is
      * honoured as asked and any other request falls back to `double`.
      */
-    template <class ResultNumber = double, class DiskPointType, class DiskLabel>
-    [[nodiscard]] detail::floating_result_t<ResultNumber> distanceL1(const Disk<DiskPointType, DiskLabel>& disk) const {
-        return disk.template distanceL1<ResultNumber>(*this);
+    template <class ApproximateNumber = double, class DiskPointType, class DiskLabel>
+    [[nodiscard]] detail::floating_result_t<ApproximateNumber> distanceL1(const Disk<DiskPointType, DiskLabel>& disk) const {
+        return disk.template distanceL1<ApproximateNumber>(*this);
     }
 
     /** @brief Returns the Chebyshev (LInf) distance to a disk. */
-    template <class ResultNumber = double, class DiskPointType, class DiskLabel>
-    [[nodiscard]] detail::floating_result_t<ResultNumber> distanceLInf(const Disk<DiskPointType, DiskLabel>& disk) const {
-        return disk.template distanceLInf<ResultNumber>(*this);
+    template <class ApproximateNumber = double, class DiskPointType, class DiskLabel>
+    [[nodiscard]] detail::floating_result_t<ApproximateNumber> distanceLInf(const Disk<DiskPointType, DiskLabel>& disk) const {
+        return disk.template distanceLInf<ApproximateNumber>(*this);
     }
 
     /**

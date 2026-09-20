@@ -797,11 +797,11 @@ struct Rectangle {
     /**
      * @brief Returns a bounding box of the rectangle with floating point coordinates.
      *
-     * @tparam ResultNumber Floating point type.
+     * @tparam ApproximateNumber Floating point type.
      * @return A rectangle that contains the rectangle, empty when @ref empty.
      */
-    template <std::floating_point ResultNumber = double>
-    [[nodiscard]] constexpr Rectangle<Point<ResultNumber>> fbox() const;
+    template <std::floating_point ApproximateNumber = double>
+    [[nodiscard]] constexpr Rectangle<Point<ApproximateNumber>> fbox() const;
 
     /**
      * @brief Returns the four vertices in counterclockwise order.
@@ -1650,13 +1650,13 @@ struct Rectangle {
     /**
      * @brief Returns the squared Euclidean distance to a disk.
      *
-     * Forwards to @ref Disk::squaredDistance. Reports in `detail::floating_result_t<ResultNumber>`: a distance realized on a
-     * circle is generally irrational, so a floating-point `ResultNumber` is
+     * Forwards to @ref Disk::squaredDistance. Reports in `detail::floating_result_t<ApproximateNumber>`: a distance realized on a
+     * circle is generally irrational, so a floating-point `ApproximateNumber` is
      * honoured as asked and any other request falls back to `double`.
      */
-    template <class ResultNumber = double, class DiskPointType, class DiskLabel>
-    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const {
-        return disk.template squaredDistance<ResultNumber>(*this);
+    template <class ApproximateNumber = double, class DiskPointType, class DiskLabel>
+    [[nodiscard]] detail::floating_result_t<ApproximateNumber> squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const {
+        return disk.template squaredDistance<ApproximateNumber>(*this);
     }
 
     /**

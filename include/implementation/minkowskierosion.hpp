@@ -846,63 +846,63 @@ MonotoneChain<PointType_, TLabel, Storage>::minkowskiErosion(const OtherShape& o
 // erosion stays on it.
 
 template <class PointType_, class TLabel>
-template <class ResultNumber, DiskConcept OtherDisk>
-std::optional<Disk<Point<ResultNumber, typename Disk<PointType_, TLabel>::PointLabelType>>>
+template <class ApproximateNumber, DiskConcept OtherDisk>
+std::optional<Disk<Point<ApproximateNumber, typename Disk<PointType_, TLabel>::PointLabelType>>>
 Disk<PointType_, TLabel>::minkowskiErosion(const OtherDisk& other) const {
-    using ResultPoint = Point<ResultNumber, PointLabelType>;
+    using ResultPoint = Point<ApproximateNumber, PointLabelType>;
 
-    const ResultNumber radii = radius<ResultNumber>() - other.template radius<ResultNumber>();
-    if (radii < ResultNumber{}) {
+    const ApproximateNumber radii = radius<ApproximateNumber>() - other.template radius<ApproximateNumber>();
+    if (radii < ApproximateNumber{}) {
         return std::nullopt;  // the operand is wider than the receiver
     }
-    const auto leftCenter = center<ResultNumber>();
-    const auto rightCenter = other.template center<ResultNumber>();
+    const auto leftCenter = center<ApproximateNumber>();
+    const auto rightCenter = other.template center<ApproximateNumber>();
     return Disk<ResultPoint>(ResultPoint(leftCenter.x() - rightCenter.x(),
                                          leftCenter.y() - rightCenter.y()),
                              radii);
 }
 
 template <class PointType_, class TLabel>
-template <class ResultNumber, DiskConcept OtherDisk>
-Halfplane<Point<ResultNumber, typename PointType_::LabelType>>
+template <class ApproximateNumber, DiskConcept OtherDisk>
+Halfplane<Point<ApproximateNumber, typename PointType_::LabelType>>
 Halfplane<PointType_, TLabel>::minkowskiErosion(const OtherDisk& other) const {
-    using ResultPoint = Point<ResultNumber, typename PointType_::LabelType>;
+    using ResultPoint = Point<ApproximateNumber, typename PointType_::LabelType>;
 
-    const ResultNumber dx = detail::asNumber<ResultNumber>(target().x()) -
-                            detail::asNumber<ResultNumber>(source().x());
-    const ResultNumber dy = detail::asNumber<ResultNumber>(target().y()) -
-                            detail::asNumber<ResultNumber>(source().y());
+    const ApproximateNumber dx = detail::asNumber<ApproximateNumber>(target().x()) -
+                            detail::asNumber<ApproximateNumber>(source().x());
+    const ApproximateNumber dy = detail::asNumber<ApproximateNumber>(target().y()) -
+                            detail::asNumber<ApproximateNumber>(source().y());
     // Reported the way Disk::radius reports it: an exact result type has no
     // square root to offer, and says so rather than rounding silently.
-    if constexpr (!requires(ResultNumber v) { std::sqrt(v); }) {
-        throw std::runtime_error("std::sqrt is not available for the requested ResultNumber type");
+    if constexpr (!requires(ApproximateNumber v) { std::sqrt(v); }) {
+        throw std::runtime_error("std::sqrt is not available for the requested ApproximateNumber type");
     } else {
-        const ResultNumber length = std::sqrt(dx * dx + dy * dy);
+        const ApproximateNumber length = std::sqrt(dx * dx + dy * dy);
 
         // The sum slides the boundary out by the disk's support point in the
         // outward normal `(dy, -dx)/|d|`; the erosion slides it in by the same
         // point, which is the whole difference between the two.
-        const auto center = other.template center<ResultNumber>();
-        const ResultNumber radius = other.template radius<ResultNumber>();
-        const ResultNumber offsetX = center.x() + radius * dy / length;
-        const ResultNumber offsetY = center.y() - radius * dx / length;
+        const auto center = other.template center<ApproximateNumber>();
+        const ApproximateNumber radius = other.template radius<ApproximateNumber>();
+        const ApproximateNumber offsetX = center.x() + radius * dy / length;
+        const ApproximateNumber offsetY = center.y() - radius * dx / length;
 
         const auto moved = [&offsetX, &offsetY](const auto& point) {
-            return ResultPoint(detail::asNumber<ResultNumber>(point.x()) - offsetX,
-                               detail::asNumber<ResultNumber>(point.y()) - offsetY);
+            return ResultPoint(detail::asNumber<ApproximateNumber>(point.x()) - offsetX,
+                               detail::asNumber<ApproximateNumber>(point.y()) - offsetY);
         };
         return Halfplane<ResultPoint>(moved(source()), moved(target()));
     }
 }
 
 template <class PointType_, class TLabel>
-template <class ResultNumber, HalfplaneConcept OtherHalfplane>
-EmptyShape<Point<ResultNumber, typename Disk<PointType_, TLabel>::PointLabelType>>
+template <class ApproximateNumber, HalfplaneConcept OtherHalfplane>
+EmptyShape<Point<ApproximateNumber, typename Disk<PointType_, TLabel>::PointLabelType>>
 Disk<PointType_, TLabel>::minkowskiErosion(const OtherHalfplane& other) const {
     // A half-plane is unbounded and a disk is not, so no translate of one fits:
     // the one pair whose erosion is the empty set by its types alone.
     (void)other;
-    return EmptyShape<Point<ResultNumber, PointLabelType>>{};
+    return EmptyShape<Point<ApproximateNumber, PointLabelType>>{};
 }
 
 }  // namespace pgl

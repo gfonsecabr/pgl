@@ -146,17 +146,17 @@ struct Transformation {
      * @brief Returns a rotation around the origin by an arbitrary angle.
      *
      * Unlike @ref rotation90, an arbitrary angle is generally irrational, so
-     * this requires an explicit floating-point @p ResultNumber: there is no
+     * this requires an explicit floating-point @p ApproximateNumber: there is no
      * exact-by-default overload to silently fall back from.
      *
-     * @tparam ResultNumber Floating-point matrix entry type of the result.
+     * @tparam ApproximateNumber Floating-point matrix entry type of the result.
      * @param radians Rotation angle in radians.
      */
-    template <std::floating_point ResultNumber = double>
-    static Transformation<ResultNumber> rotation(ResultNumber radians) {
-        const ResultNumber cosine = std::cos(radians);
-        const ResultNumber sine = std::sin(radians);
-        return Transformation<ResultNumber>(cosine, -sine, sine, cosine);
+    template <std::floating_point ApproximateNumber = double>
+    static Transformation<ApproximateNumber> rotation(ApproximateNumber radians) {
+        const ApproximateNumber cosine = std::cos(radians);
+        const ApproximateNumber sine = std::sin(radians);
+        return Transformation<ApproximateNumber>(cosine, -sine, sine, cosine);
     }
 
     /** @brief Returns the row-0, column-0 matrix entry. */

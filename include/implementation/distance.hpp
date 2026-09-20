@@ -1207,10 +1207,10 @@ constexpr std::size_t diskEdgeScanLimit() {
 }  // namespace detail
 
 template <class PointType_, class LabelType>
-template <class ResultNumber, DiskConcept OtherDisk>
-detail::floating_result_t<ResultNumber> Convex<PointType_, LabelType>::squaredDistance(
+template <class ApproximateNumber, DiskConcept OtherDisk>
+detail::floating_result_t<ApproximateNumber> Convex<PointType_, LabelType>::squaredDistance(
     const OtherDisk& other) const {
-    using Float = detail::floating_result_t<ResultNumber>;
+    using Float = detail::floating_result_t<ApproximateNumber>;
     // Beyond a few edges the per-edge test is replaced by one exact comparison:
     // the disk meets the polygon exactly when the circumcenter of its boundary
     // points is within the circumradius of it, and that distance is an O(log n)
@@ -1249,10 +1249,10 @@ detail::floating_result_t<ResultNumber> Convex<PointType_, LabelType>::squaredDi
 }
 
 template <class PointType_, class TLabel>
-template <class ResultNumber, PointConcept OtherPoint>
-detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistance(
+template <class ApproximateNumber, PointConcept OtherPoint>
+detail::floating_result_t<ApproximateNumber> Disk<PointType_, TLabel>::squaredDistance(
     const OtherPoint& point) const {
-    using Float = detail::floating_result_t<ResultNumber>;
+    using Float = detail::floating_result_t<ApproximateNumber>;
     if (contains(point)) {
         return Float{0};
     }
@@ -1267,10 +1267,10 @@ detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistanc
 }
 
 template <class PointType_, class TLabel>
-template <class ResultNumber, SegmentConcept OtherSegment>
-detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistance(
+template <class ApproximateNumber, SegmentConcept OtherSegment>
+detail::floating_result_t<ApproximateNumber> Disk<PointType_, TLabel>::squaredDistance(
     const OtherSegment& other) const {
-    using Float = detail::floating_result_t<ResultNumber>;
+    using Float = detail::floating_result_t<ApproximateNumber>;
     if (intersects(other)) {
         return Float{0};
     }
@@ -1278,10 +1278,10 @@ detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistanc
 }
 
 template <class PointType_, class TLabel>
-template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
-detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistance(
+template <class ApproximateNumber, OrientedSegmentConcept OtherOrientedSegment>
+detail::floating_result_t<ApproximateNumber> Disk<PointType_, TLabel>::squaredDistance(
     const OtherOrientedSegment& other) const {
-    using Float = detail::floating_result_t<ResultNumber>;
+    using Float = detail::floating_result_t<ApproximateNumber>;
     if (intersects(other)) {
         return Float{0};
     }
@@ -1289,10 +1289,10 @@ detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistanc
 }
 
 template <class PointType_, class TLabel>
-template <class ResultNumber, LineConcept OtherLine>
-detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistance(
+template <class ApproximateNumber, LineConcept OtherLine>
+detail::floating_result_t<ApproximateNumber> Disk<PointType_, TLabel>::squaredDistance(
     const OtherLine& other) const {
-    using Float = detail::floating_result_t<ResultNumber>;
+    using Float = detail::floating_result_t<ApproximateNumber>;
     if (intersects(other)) {
         return Float{0};
     }
@@ -1300,10 +1300,10 @@ detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistanc
 }
 
 template <class PointType_, class TLabel>
-template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
-detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistance(
+template <class ApproximateNumber, OrientedLineConcept OtherOrientedLine>
+detail::floating_result_t<ApproximateNumber> Disk<PointType_, TLabel>::squaredDistance(
     const OtherOrientedLine& other) const {
-    using Float = detail::floating_result_t<ResultNumber>;
+    using Float = detail::floating_result_t<ApproximateNumber>;
     if (intersects(other)) {
         return Float{0};
     }
@@ -1311,10 +1311,10 @@ detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistanc
 }
 
 template <class PointType_, class TLabel>
-template <class ResultNumber, RayConcept OtherRay>
-detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistance(
+template <class ApproximateNumber, RayConcept OtherRay>
+detail::floating_result_t<ApproximateNumber> Disk<PointType_, TLabel>::squaredDistance(
     const OtherRay& other) const {
-    using Float = detail::floating_result_t<ResultNumber>;
+    using Float = detail::floating_result_t<ApproximateNumber>;
     if (intersects(other)) {
         return Float{0};
     }
@@ -1322,10 +1322,10 @@ detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistanc
 }
 
 template <class PointType_, class TLabel>
-template <class ResultNumber, HalfplaneConcept OtherHalfplane>
-detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistance(
+template <class ApproximateNumber, HalfplaneConcept OtherHalfplane>
+detail::floating_result_t<ApproximateNumber> Disk<PointType_, TLabel>::squaredDistance(
     const OtherHalfplane& other) const {
-    using Float = detail::floating_result_t<ResultNumber>;
+    using Float = detail::floating_result_t<ApproximateNumber>;
     if (intersects(other)) {
         return Float{0};
     }
@@ -1333,10 +1333,10 @@ detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistanc
 }
 
 template <class PointType_, class TLabel>
-template <class ResultNumber, RectangleConcept OtherRectangle>
-detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistance(
+template <class ApproximateNumber, RectangleConcept OtherRectangle>
+detail::floating_result_t<ApproximateNumber> Disk<PointType_, TLabel>::squaredDistance(
     const OtherRectangle& other) const {
-    using Float = detail::floating_result_t<ResultNumber>;
+    using Float = detail::floating_result_t<ApproximateNumber>;
     if (intersects(other)) {
         return Float{0};
     }
@@ -1344,10 +1344,10 @@ detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistanc
 }
 
 template <class PointType_, class TLabel>
-template <class ResultNumber, TriangleConcept OtherTriangle>
-detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistance(
+template <class ApproximateNumber, TriangleConcept OtherTriangle>
+detail::floating_result_t<ApproximateNumber> Disk<PointType_, TLabel>::squaredDistance(
     const OtherTriangle& other) const {
-    using Float = detail::floating_result_t<ResultNumber>;
+    using Float = detail::floating_result_t<ApproximateNumber>;
     if (intersects(other)) {
         return Float{0};
     }
@@ -1355,10 +1355,10 @@ detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistanc
 }
 
 template <class PointType_, class TLabel>
-template <class ResultNumber, DiskConcept OtherDisk>
-detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistance(
+template <class ApproximateNumber, DiskConcept OtherDisk>
+detail::floating_result_t<ApproximateNumber> Disk<PointType_, TLabel>::squaredDistance(
     const OtherDisk& other) const {
-    using Float = detail::floating_result_t<ResultNumber>;
+    using Float = detail::floating_result_t<ApproximateNumber>;
     if (intersects(other)) {
         return Float{0};
     }
@@ -1489,10 +1489,10 @@ constexpr auto Polygon<PointType_, TLabel>::squaredDistance(const OtherPolygon& 
 }
 
 template <class PointType_, class TLabel>
-template <class ResultNumber, class DiskPointType, class DiskLabel>
-detail::floating_result_t<ResultNumber> Polygon<PointType_, TLabel>::squaredDistance(
+template <class ApproximateNumber, class DiskPointType, class DiskLabel>
+detail::floating_result_t<ApproximateNumber> Polygon<PointType_, TLabel>::squaredDistance(
     const Disk<DiskPointType, DiskLabel>& disk) const {
-    using Float = detail::floating_result_t<ResultNumber>;
+    using Float = detail::floating_result_t<ApproximateNumber>;
     if (intersects(disk)) {
         return Float{0};
     }
@@ -1631,10 +1631,10 @@ constexpr auto MonotoneChain<PointType, LabelType, Storage>::squaredDistance(con
 }
 
 template <class PointType, class LabelType, class Storage>
-template <class ResultNumber, class DiskPointType, class DiskLabel>
-detail::floating_result_t<ResultNumber> MonotoneChain<PointType, LabelType, Storage>::squaredDistance(
+template <class ApproximateNumber, class DiskPointType, class DiskLabel>
+detail::floating_result_t<ApproximateNumber> MonotoneChain<PointType, LabelType, Storage>::squaredDistance(
     const Disk<DiskPointType, DiskLabel>& disk) const {
-    using Float = detail::floating_result_t<ResultNumber>;
+    using Float = detail::floating_result_t<ApproximateNumber>;
     if (intersects(disk)) {
         return Float{0};
     }
@@ -1773,10 +1773,10 @@ constexpr auto Polyline<PointType, LabelType>::squaredDistance(const OtherChain&
 }
 
 template <class PointType, class LabelType>
-template <class ResultNumber, class DiskPointType, class DiskLabel>
-detail::floating_result_t<ResultNumber> Polyline<PointType, LabelType>::squaredDistance(
+template <class ApproximateNumber, class DiskPointType, class DiskLabel>
+detail::floating_result_t<ApproximateNumber> Polyline<PointType, LabelType>::squaredDistance(
     const Disk<DiskPointType, DiskLabel>& disk) const {
-    using Float = detail::floating_result_t<ResultNumber>;
+    using Float = detail::floating_result_t<ApproximateNumber>;
     if (intersects(disk)) {
         return Float{0};
     }
@@ -1903,10 +1903,10 @@ PGL_HPI_SQUARED_DISTANCE(PolygonConcept, OtherPolygon)
 #undef PGL_HPI_SQUARED_DISTANCE
 
 template <class PointType, class LabelType>
-template <class ResultNumber, DiskConcept OtherDisk>
-detail::floating_result_t<ResultNumber>
+template <class ApproximateNumber, DiskConcept OtherDisk>
+detail::floating_result_t<ApproximateNumber>
 HalfplaneIntersection<PointType, LabelType>::squaredDistance(const OtherDisk& other) const {
-    using Float = detail::floating_result_t<ResultNumber>;
+    using Float = detail::floating_result_t<ApproximateNumber>;
     if (intersects(other)) {
         return Float{0};
     }
@@ -2145,10 +2145,10 @@ constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const Oth
 // distance to its center less its radius — generally irrational, hence the
 // floating result every other distance to a Disk returns.
 template <class PointType, class LabelType>
-template <class ResultNumber, DiskConcept OtherDisk>
-detail::floating_result_t<ResultNumber>
+template <class ApproximateNumber, DiskConcept OtherDisk>
+detail::floating_result_t<ApproximateNumber>
 PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherDisk& other) const {
-    using Float = detail::floating_result_t<ResultNumber>;
+    using Float = detail::floating_result_t<ApproximateNumber>;
     if (other.isDegenerate()) {
         // A degenerate disk has no centre or radius to measure from: it is the
         // point a() when its radius is zero, and undefined otherwise.

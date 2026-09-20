@@ -20,13 +20,13 @@ constexpr Rectangle<Point<Number, Label>> Point<Number, Label>::bbox() const {
 }
 
 template <class Number, class Label>
-template <std::floating_point ResultNumber>
-constexpr Rectangle<Point<ResultNumber>> Point<Number, Label>::fbox() const {
-    return Rectangle<Point<ResultNumber>>(
-        detail::lowerFloatingBound<ResultNumber>(x()),
-        detail::lowerFloatingBound<ResultNumber>(y()),
-        detail::upperFloatingBound<ResultNumber>(x()),
-        detail::upperFloatingBound<ResultNumber>(y()),
+template <std::floating_point ApproximateNumber>
+constexpr Rectangle<Point<ApproximateNumber>> Point<Number, Label>::fbox() const {
+    return Rectangle<Point<ApproximateNumber>>(
+        detail::lowerFloatingBound<ApproximateNumber>(x()),
+        detail::lowerFloatingBound<ApproximateNumber>(y()),
+        detail::upperFloatingBound<ApproximateNumber>(x()),
+        detail::upperFloatingBound<ApproximateNumber>(y()),
         pgl::trusted);
 }
 
@@ -77,16 +77,16 @@ constexpr Rectangle<PointType> Segment<PointType, LabelType>::bbox() const {
 }
 
 template <class PointType, class LabelType>
-template <std::floating_point ResultNumber>
-constexpr Rectangle<Point<ResultNumber>> Segment<PointType, LabelType>::fbox() const {
-    ResultNumber xmin = lowerCoordinateBound<ResultNumber>(min().x());
-    ResultNumber ymin = lowerCoordinateBound<ResultNumber>(min().y());
-    ResultNumber xmax = upperCoordinateBound<ResultNumber>(max().x());
-    ResultNumber ymax = upperCoordinateBound<ResultNumber>(max().y());
+template <std::floating_point ApproximateNumber>
+constexpr Rectangle<Point<ApproximateNumber>> Segment<PointType, LabelType>::fbox() const {
+    ApproximateNumber xmin = lowerCoordinateBound<ApproximateNumber>(min().x());
+    ApproximateNumber ymin = lowerCoordinateBound<ApproximateNumber>(min().y());
+    ApproximateNumber xmax = upperCoordinateBound<ApproximateNumber>(max().x());
+    ApproximateNumber ymax = upperCoordinateBound<ApproximateNumber>(max().y());
     if (ymin > ymax) {
         std::swap(ymin, ymax);
     }
-    return Rectangle<Point<ResultNumber>>(xmin, ymin, xmax, ymax, pgl::trusted);
+    return Rectangle<Point<ApproximateNumber>>(xmin, ymin, xmax, ymax, pgl::trusted);
 }
 
 template <class PointType, class LabelType>
@@ -113,9 +113,9 @@ constexpr Rectangle<PointType> OrientedSegment<PointType, LabelType>::bbox() con
 }
 
 template <class PointType, class LabelType>
-template <std::floating_point ResultNumber>
-constexpr Rectangle<Point<ResultNumber>> OrientedSegment<PointType, LabelType>::fbox() const {
-    return static_cast<Segment<PointType>>(*this).template fbox<ResultNumber>();
+template <std::floating_point ApproximateNumber>
+constexpr Rectangle<Point<ApproximateNumber>> OrientedSegment<PointType, LabelType>::fbox() const {
+    return static_cast<Segment<PointType>>(*this).template fbox<ApproximateNumber>();
 }
 
 template <class PointType, class LabelType>
@@ -142,13 +142,13 @@ constexpr Rectangle<PointType, LabelType> Rectangle<PointType, LabelType>::bbox(
 }
 
 template <class PointType, class LabelType>
-template <std::floating_point ResultNumber>
-constexpr Rectangle<Point<ResultNumber>> Rectangle<PointType, LabelType>::fbox() const {
-    return Rectangle<Point<ResultNumber>>(
-        detail::lowerFloatingBound<ResultNumber>(min().x()),
-        detail::lowerFloatingBound<ResultNumber>(min().y()),
-        detail::upperFloatingBound<ResultNumber>(max().x()),
-        detail::upperFloatingBound<ResultNumber>(max().y()),
+template <std::floating_point ApproximateNumber>
+constexpr Rectangle<Point<ApproximateNumber>> Rectangle<PointType, LabelType>::fbox() const {
+    return Rectangle<Point<ApproximateNumber>>(
+        detail::lowerFloatingBound<ApproximateNumber>(min().x()),
+        detail::lowerFloatingBound<ApproximateNumber>(min().y()),
+        detail::upperFloatingBound<ApproximateNumber>(max().x()),
+        detail::upperFloatingBound<ApproximateNumber>(max().y()),
         pgl::trusted);
 }
 
@@ -226,9 +226,9 @@ constexpr Rectangle<PointType> Triangle<PointType, LabelType>::bbox() const {
 }
 
 template <class PointType, class LabelType>
-template <std::floating_point ResultNumber>
-constexpr Rectangle<Point<ResultNumber>> Triangle<PointType, LabelType>::fbox() const {
-    return bbox().template fbox<ResultNumber>();
+template <std::floating_point ApproximateNumber>
+constexpr Rectangle<Point<ApproximateNumber>> Triangle<PointType, LabelType>::fbox() const {
+    return bbox().template fbox<ApproximateNumber>();
 }
 
 template <class PointType, class LabelType>
@@ -416,9 +416,9 @@ constexpr const Rectangle<PointType>& Convex<PointType, LabelType>::bbox() const
 }
 
 template <class PointType, class LabelType>
-template <std::floating_point ResultNumber>
-constexpr Rectangle<Point<ResultNumber>> Convex<PointType, LabelType>::fbox() const {
-    return bbox().template fbox<ResultNumber>();
+template <std::floating_point ApproximateNumber>
+constexpr Rectangle<Point<ApproximateNumber>> Convex<PointType, LabelType>::fbox() const {
+    return bbox().template fbox<ApproximateNumber>();
 }
 
 template <class PointType, class LabelType>
@@ -457,9 +457,9 @@ constexpr const Rectangle<PointType>& Polygon<PointType, LabelType>::bbox() cons
 }
 
 template <class PointType, class LabelType>
-template <std::floating_point ResultNumber>
-constexpr Rectangle<Point<ResultNumber>> Polygon<PointType, LabelType>::fbox() const {
-    return bbox().template fbox<ResultNumber>();
+template <std::floating_point ApproximateNumber>
+constexpr Rectangle<Point<ApproximateNumber>> Polygon<PointType, LabelType>::fbox() const {
+    return bbox().template fbox<ApproximateNumber>();
 }
 
 // ---------------------------------------------------------------------------
@@ -483,9 +483,9 @@ constexpr const Rectangle<PointType>& PolygonSet<PointType, LabelType>::bbox() c
 }
 
 template <class PointType, class LabelType>
-template <std::floating_point ResultNumber>
-constexpr Rectangle<Point<ResultNumber>> PolygonSet<PointType, LabelType>::fbox() const {
-    return bbox().template fbox<ResultNumber>();
+template <std::floating_point ApproximateNumber>
+constexpr Rectangle<Point<ApproximateNumber>> PolygonSet<PointType, LabelType>::fbox() const {
+    return bbox().template fbox<ApproximateNumber>();
 }
 
 // ---------------------------------------------------------------------------
@@ -503,9 +503,9 @@ constexpr const Rectangle<PointType>& MonotoneChain<PointType, LabelType, Storag
 }
 
 template <class PointType, class LabelType, class Storage>
-template <std::floating_point ResultNumber>
-constexpr Rectangle<Point<ResultNumber>> MonotoneChain<PointType, LabelType, Storage>::fbox() const {
-    return bbox().template fbox<ResultNumber>();
+template <std::floating_point ApproximateNumber>
+constexpr Rectangle<Point<ApproximateNumber>> MonotoneChain<PointType, LabelType, Storage>::fbox() const {
+    return bbox().template fbox<ApproximateNumber>();
 }
 
 // ---------------------------------------------------------------------------
@@ -523,9 +523,9 @@ constexpr const Rectangle<PointType>& Polyline<PointType, LabelType>::bbox() con
 }
 
 template <class PointType, class LabelType>
-template <std::floating_point ResultNumber>
-constexpr Rectangle<Point<ResultNumber>> Polyline<PointType, LabelType>::fbox() const {
-    return bbox().template fbox<ResultNumber>();
+template <std::floating_point ApproximateNumber>
+constexpr Rectangle<Point<ApproximateNumber>> Polyline<PointType, LabelType>::fbox() const {
+    return bbox().template fbox<ApproximateNumber>();
 }
 
 
@@ -620,11 +620,11 @@ HalfplaneIntersection<PointType, LabelType>::bbox() const {
 }
 
 template <class PointType, class LabelType>
-template <std::floating_point ResultNumber>
-constexpr Rectangle<Point<ResultNumber>> HalfplaneIntersection<PointType, LabelType>::fbox() const {
-    const auto box = bbox<ResultNumber>();
-    return Rectangle<Point<ResultNumber>>(Point<ResultNumber>(box.min().x(), box.min().y()),
-                                          Point<ResultNumber>(box.max().x(), box.max().y()));
+template <std::floating_point ApproximateNumber>
+constexpr Rectangle<Point<ApproximateNumber>> HalfplaneIntersection<PointType, LabelType>::fbox() const {
+    const auto box = bbox<ApproximateNumber>();
+    return Rectangle<Point<ApproximateNumber>>(Point<ApproximateNumber>(box.min().x(), box.min().y()),
+                                          Point<ApproximateNumber>(box.max().x(), box.max().y()));
 }
 
 }  // namespace pgl

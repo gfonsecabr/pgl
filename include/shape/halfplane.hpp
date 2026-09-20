@@ -1227,13 +1227,13 @@ struct Halfplane {
     /**
      * @brief Returns the squared Euclidean distance to a disk.
      *
-     * Forwards to @ref Disk::squaredDistance. Reports in `detail::floating_result_t<ResultNumber>`: a distance realized on a
-     * circle is generally irrational, so a floating-point `ResultNumber` is
+     * Forwards to @ref Disk::squaredDistance. Reports in `detail::floating_result_t<ApproximateNumber>`: a distance realized on a
+     * circle is generally irrational, so a floating-point `ApproximateNumber` is
      * honoured as asked and any other request falls back to `double`.
      */
-    template <class ResultNumber = double, class DiskPointType, class DiskLabel>
-    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const {
-        return disk.template squaredDistance<ResultNumber>(*this);
+    template <class ApproximateNumber = double, class DiskPointType, class DiskLabel>
+    [[nodiscard]] detail::floating_result_t<ApproximateNumber> squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const {
+        return disk.template squaredDistance<ApproximateNumber>(*this);
     }
 
     /**
@@ -1411,16 +1411,16 @@ struct Halfplane {
      * The mirror of @ref minkowskiSum(const OtherDisk&) const, and the same
      * support point: the boundary keeps its direction and slides *in* by the
      * disk's radius along the outward unit normal, where the sum slides it out.
-     * Both are square roots, so @p ResultNumber defaults to `double` here as it
+     * Both are square roots, so @p ApproximateNumber defaults to `double` here as it
      * does there.
      *
-     * @tparam ResultNumber Coordinate type of the result.
+     * @tparam ApproximateNumber Coordinate type of the result.
      * @param other The disk to erode by.
      * @return The erosion, as a half-plane.
      * @warning Takes a square root of the boundary direction's length.
      */
-    template <class ResultNumber = double, DiskConcept OtherDisk>
-    [[nodiscard]] Halfplane<Point<ResultNumber, typename PointType_::LabelType>>
+    template <class ApproximateNumber = double, DiskConcept OtherDisk>
+    [[nodiscard]] Halfplane<Point<ApproximateNumber, typename PointType_::LabelType>>
     minkowskiErosion(const OtherDisk& other) const;
 
     /**
@@ -1436,21 +1436,21 @@ struct Halfplane {
      * point is a **vertex**, found by comparing cross products with no division
      * anywhere; a disk's is a point of its circle, and reaching it needs both the
      * radius (a square root of what a disk stores) and the boundary direction's
-     * length. So this overload carries a @p ResultNumber of its own and defaults
+     * length. So this overload carries a @p ApproximateNumber of its own and defaults
      * it to `double`, exactly as @ref Disk::minkowskiSum(const OtherDisk&) const
      * does and for the same reason — and unlike that one, this sum is irrational
      * even for a disk that carries an exact centre and radius, unless the
      * boundary direction happens to be a unit vector.
      *
-     * @tparam ResultNumber Coordinate type of the result.
+     * @tparam ApproximateNumber Coordinate type of the result.
      * @param other The disk to sum with.
      * @return The sum, as a half-plane.
      * @pre The half-plane is defined (a degenerate one bounds no side).
      * @warning Takes a square root, and is exact for no integer input worth
      *          relying on.
      */
-    template <class ResultNumber = double, DiskConcept OtherDisk>
-    [[nodiscard]] Halfplane<Point<ResultNumber, typename PointType_::LabelType>>
+    template <class ApproximateNumber = double, DiskConcept OtherDisk>
+    [[nodiscard]] Halfplane<Point<ApproximateNumber, typename PointType_::LabelType>>
     minkowskiSum(const OtherDisk& other) const;
 
     /** @brief Translates the half-plane by the given point in place. */

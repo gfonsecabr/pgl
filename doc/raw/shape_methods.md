@@ -69,7 +69,7 @@ auto rotated = t * s;
 std::cout << rotated; // Prints (-5,7)--(0,2)
 ```
 
-Factories cover the common exact cases: `identity()`, `translation(dx,dy)`, `scaling(sx,sy=sx)`, `rotation90(k=1)` (exact multiples of 90 degrees), `shearX(k)`, `shearY(k)`, `reflectionX()`, and `reflectionY()`. An arbitrary-angle `rotation<ResultNumber=double>(radians)` is also available but, unlike `rotation90`, returns a floating-point transformation since a general angle is generally irrational.
+Factories cover the common exact cases: `identity()`, `translation(dx,dy)`, `scaling(sx,sy=sx)`, `rotation90(k=1)` (exact multiples of 90 degrees), `shearX(k)`, `shearY(k)`, `reflectionX()`, and `reflectionY()`. An arbitrary-angle `rotation<ApproximateNumber>(radians)` is also available but, unlike `rotation90`, returns a floating-point transformation since a general angle is generally irrational.
 
 `determinant()` is negative exactly when the transformation reverses orientation, as a reflection does. Shapes with a winding or normalization invariant (`Triangle`, `Convex`, `MonotoneChain`, and `Polygon`) renormalize automatically through their own constructors, and `Halfplane` swaps its source and target to keep the transformed interior on the correct side.
 
@@ -305,7 +305,7 @@ eroded.component(0).outer();     // [(0,0),(5,0),(5,5),(4,5),(4,1),(1,1),(1,5),(
 u.minkowskiErosion<int>(pgl::Rectangle(0,0, 1,1));                     // integer coordinates
 ```
 
-Two `Disk`s erode to a `Disk` — the centers subtract and so do the radii — reported as a `std::optional` that is empty when the operand is the wider disk, since a disk has no empty state of its own. A `Halfplane` eroded by a `Disk` slides in by the radius along its own normal, where the sum slides it out. Both take a square root unless the disks were built from a center and a radius, so `ResultNumber` defaults to `double` as it does for the disk sum.
+Two `Disk`s erode to a `Disk` — the centers subtract and so do the radii — reported as a `std::optional` that is empty when the operand is the wider disk, since a disk has no empty state of its own. A `Halfplane` eroded by a `Disk` slides in by the radius along its own normal, where the sum slides it out. Both take a square root unless the disks were built from a center and a radius, so the parameter is an `ApproximateNumber`, defaulting to `double` as it does for the disk sum.
 
 ```c++
 pgl::Disk a(pgl::Point(0,0), 5), b(pgl::Point(4,1), 2);
@@ -316,11 +316,14 @@ b.minkowskiErosion(a);                 // std::nullopt
 
 ### Other Methods for Shapes
 
-Methods that construct coordinates or return numeric measurements use one of three result-number defaults:
+Methods that construct coordinates or return numeric measurements take the result type as their first template argument, and its **name states whether the default answer is exact**:
 
-- `ResultNumber = NumberType` when the operation needs no division, such as rectangle area or Point–Point squared, L1, and LInf distances;
-- `ResultNumber = division_result_t<NumberType>` when the operation may divide. Integral and `BigInt` receivers widen to `ERational`, while floating-point and already-rational receivers retain their coordinate type; and
-- `ResultNumber = double` when a supported result may be irrational, such as a disk radius or a distance involving a disk.
+- `ApproximateNumber = double` when the result may be irrational, such as a disk radius, a Euclidean length, or a distance involving a disk. The default is floating point, so the default answer is an approximation.
+- `ResultNumber` otherwise, with one of two exact defaults:
+  - `division_result_t<NumberType>` when the operation may divide. Integral and `BigInt` receivers widen to `ERational`, while floating-point and already-rational receivers retain their coordinate type.
+  - `NumberType`, or the integer a `Rational` is built on, when the operation needs no division at all — rectangle area, Point–Point squared, L1, and LInf distances, `latticePoints`, `asBitMatrix`.
+
+An overload set may use both names, one per overload: `squaredDistance`, `distanceL1` and `distanceLInf` take a `ResultNumber` against every shape but `Disk`, and an `ApproximateNumber` against a `Disk`.
 
 The policy is receiver-only: mixed-coordinate calls use the receiver's default. An explicit result template argument overrides it. Explicit integral results can truncate an operation that divides. Disk distance operations fall back to `double` for non-floating requests, while other disk operations may reject an exact type when they require a square root.
 
@@ -344,7 +347,7 @@ The policy is receiver-only: mixed-coordinate calls use the receiver's default. 
 
 - `scaleDownY(Number)`: Divides the y-coordinate by a number.
 
-- `squaredDistance<ResultNumber>(Shape)`: Returns the squared distance using the result policy selected by `ResultNumber`. Point–Point and the axis-aligned rectangle cases default to `NumberType`; pairs that may project onto an edge default to `division_result_t<NumberType>`; pairs involving `Disk` default to `double`. An explicitly integral result truncates any projection division, while a disk pair falls back to `double` for a non-floating request.
+- `squaredDistance<ResultNumber>(Shape)`: Returns the squared distance using the result policy selected by the result type. Point–Point and the axis-aligned rectangle cases default to `NumberType`; pairs that may project onto an edge default to `division_result_t<NumberType>`; a pair involving `Disk` takes an `ApproximateNumber` and defaults to `double`. An explicitly integral result truncates any projection division, while a disk pair falls back to `double` for a non-floating request.
 
 - `closestSegments<ResultNumber>(Shape)`: Returns an `optional<array<Segment,2>>` naming the two elements that realize `squaredDistance` — the receiver's first, the argument's second — each an edge of its shape, degenerate to a vertex where the shape has no edge. Empty exactly when the distance is zero, which includes one shape nested inside the other. Defaults to `NumberType`, since the endpoints are the shapes' own vertices; the argument's coordinates and labels are re-expressed in the receiver's, so a narrower `ResultNumber` loses them. Defined for every pair among `Point`, `Segment`, `OrientedSegment`, `Rectangle`, `Triangle`, `Convex`, `MonotoneChain`, `Polyline`, `Polygon`, `PolygonWithHoles`, and `PolygonSet` — the bounded polygonal shapes, the only ones whose distance is realized on an edge or at a vertex. Not defined for `Line`, `OrientedLine`, `Ray`, `Halfplane`, `HalfplaneIntersection`, or `Disk`; the unbounded ones among those still have `closestPoints`.
 
@@ -352,17 +355,17 @@ The policy is receiver-only: mixed-coordinate calls use the receiver's default. 
 
 - `squaredHausdorffDistance<ResultNumber>(Shape)`: Returns the squared Hausdorff distance. Pair-specific defaults are native when the extrema only reuse stored vertices and `division_result_t<NumberType>` when an edge projection may be needed; a pair with a `HalfplaneIntersection` always defaults to `division_result_t<NumberType>`, its vertices being crossings of the stored boundary lines. Defined for every pair among `Point`, `Segment`, `OrientedSegment`, `Rectangle`, `Triangle`, `Convex`, and `HalfplaneIntersection` — all bounded, convex shapes, so the directed distance in either direction is always attained at a vertex. A `HalfplaneIntersection` operand must be bounded and nonempty: an unbounded one throws `std::logic_error`, and the empty one is a precondition violation. Not defined for `Line`, `OrientedLine`, `Ray`, or `Halfplane` (unbounded, so the Hausdorff distance to or from them is infinite), nor yet for `Disk`, `MonotoneChain`, `Polyline`, `Polygon`, `PolygonWithHoles`, or `PolygonSet`.
 
-- `distanceL1<ResultNumber>(Shape)` / `distanceLInf<ResultNumber>(Shape)`: Return the Manhattan (L1) or Chebyshev (LInf) distance to the given shape. Point–Point and the axis-aligned rectangle cases default to `NumberType`; pairs that may project onto an edge default to `division_result_t<NumberType>`. Point–Point is templated too, so mixed-coordinate callers can explicitly choose the arithmetic type. Defined for every pair among `Point`, `Segment`, `OrientedSegment`, `Line`, `OrientedLine`, `Ray`, `Halfplane`, `Rectangle`, `Triangle`, `Convex`, `MonotoneChain`, `Polygon`, and `HalfplaneIntersection`, plus Disk–Point. Disk distances default to `double` because the implementation uses a numeric search; an explicitly requested floating-point type is preserved. The remaining `Disk` pairs (`Disk` against any shape other than `Point`, and Disk–Disk) are not implemented.
+- `distanceL1<ResultNumber>(Shape)` / `distanceLInf<ResultNumber>(Shape)`: Return the Manhattan (L1) or Chebyshev (LInf) distance to the given shape. Point–Point and the axis-aligned rectangle cases default to `NumberType`; pairs that may project onto an edge default to `division_result_t<NumberType>`; the `Disk` pair takes an `ApproximateNumber`. Point–Point is templated too, so mixed-coordinate callers can explicitly choose the arithmetic type. Defined for every pair among `Point`, `Segment`, `OrientedSegment`, `Line`, `OrientedLine`, `Ray`, `Halfplane`, `Rectangle`, `Triangle`, `Convex`, `MonotoneChain`, `Polygon`, and `HalfplaneIntersection`, plus Disk–Point. Disk distances default to `double` because the implementation uses a numeric search; an explicitly requested floating-point type is preserved. The remaining `Disk` pairs (`Disk` against any shape other than `Point`, and Disk–Disk) are not implemented.
 
 - `hausdorffDistanceL1<ResultNumber>(Shape)` / `hausdorffDistanceLInf<ResultNumber>(Shape)`: Return the L1 or LInf Hausdorff distance. A pair with a `Point` defaults to `NumberType`; the other pairs default to `division_result_t<NumberType>`, and an explicitly integral result receives the exact distance truncated. Defined for every pair among `Point`, `Segment`, `OrientedSegment`, `Rectangle`, `Triangle`, `Convex`, `MonotoneChain`, `Polyline`, `Polygon`, `PolygonWithHoles`, and `PolygonSet`, and for a `HalfplaneIntersection` against itself, `Point`, `Segment`, `OrientedSegment`, `Rectangle`, `Triangle` or `Convex` under the same boundedness requirement as `squaredHausdorffDistance`. Runs in $O(N^3 \alpha(N))$ time for $N$ vertices over both shapes, where $\alpha$ is the inverse Ackermann function; $O(n \cdot m)$ for a `HalfplaneIntersection` of $n$ half-planes against a convex shape of $m$ vertices.
 
 - `bbox()`: Returns an axis-aligned bounding box in the stored point type that contains the bounded shape. It is tight for the polygonal shapes; a disk built from three boundary points may return a larger exact-coordinate box. A bounded, nonempty `HalfplaneIntersection` instead exposes `bbox<ResultNumber = division_result_t<NumberType>>()` because its implicit vertices may be fractional.
 
-- `fbox<T>()`: Returns a floating-point bounding box with coordinates of type `T`. For shapes whose box comes from stored exact coordinates, conversions are rounded outward when the coordinate type supplies directed bounds. A disk's box is computed from its floating-point center and radius and is tight only up to floating-point rounding.
+- `fbox<ApproximateNumber>()`: Returns a floating-point bounding box with coordinates of type `ApproximateNumber`. For shapes whose box comes from stored exact coordinates, conversions are rounded outward when the coordinate type supplies directed bounds. A disk's box is computed from its floating-point center and radius and is tight only up to floating-point rounding.
 
 - `convexHull()`{Polygon}: Returns the smallest convex polygon that contains the shape.
 
-- `area<ResultNumber>()`: Returns the area. Rectangle and zero- or one-dimensional shapes default to `NumberType`; polygonal shapes and `HalfplaneIntersection` default to `division_result_t<NumberType>` because they may divide by two or construct fractional vertices; `Disk` defaults to `double` because its area contains π.
+- `area<ResultNumber>()`: Returns the area. Rectangle and zero- or one-dimensional shapes default to `NumberType`; polygonal shapes and `HalfplaneIntersection` default to `division_result_t<NumberType>` because they may divide by two or construct fractional vertices. `Disk` instead takes an `area<ApproximateNumber>()`, because its area contains π.
 
 - `twiceArea()`: Returns two times the area in native arithmetic for stored shapes. `HalfplaneIntersection` uses `twiceArea<ResultNumber = division_result_t<NumberType>>()`, because even its implicit vertices may require division.
 

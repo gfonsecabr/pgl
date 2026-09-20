@@ -68,11 +68,15 @@ BANNER = ("<!-- AUTO-GENERATED from {src} by doc/raw/doxylink.py — do not edit
           "edit the raw version and regenerate. -->")
 
 # A code span is an API mention if it is, optionally, a `pgl::` qualifier and/or
-# a `receiver.`, then a method name, then optional parentheses. Groups:
+# a `receiver.`, then a method name, then an optional explicit template argument
+# list, then optional parentheses. Groups:
 #   1 = "pgl::" qualifier (explicit free-function reference), 2 = receiver,
 #   3 = method name, 4 = parentheses.
+# The template argument list is only accepted in front of parentheses, so a call
+# written with its result type -- `s.midpoint<ResultNumber>()` -- still resolves
+# to the member, while a bare `Point<int>` stays a type spelling, not a mention.
 MENTION_RE = re.compile(
-    r"^(pgl::)?(?:([A-Za-z_]\w*)\.)?([A-Za-z_]\w*)(\(.*\))?$")
+    r"^(pgl::)?(?:([A-Za-z_]\w*)\.)?([A-Za-z_]\w*)(?:(?:<[^()]*>)?(\(.*\)))?$")
 
 # Inline code spans not already wrapped in a markdown link. The lookbehind
 # excludes the opening backtick in [`label`](url); the lookahead excludes that

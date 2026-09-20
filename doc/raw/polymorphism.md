@@ -93,7 +93,7 @@ auto p = pgl::pieces(a.intersection(b));  // the same, as pieces
 - `s.dimension()`: `-1` for an empty point set, `0` for a point, `1` for a curve, `2` for a region — of the point set, so a triangle with collinear vertices is `1` and a collapsed one `0`.
 - `s.isBounded()`: False for `Line`, `OrientedLine`, `Ray`, `Halfplane` and an unbounded `HalfplaneIntersection`; true otherwise, the empty shape included.
 - `s.bbox()`: The bounding box, in the stored point type. Throws for the unbounded alternatives, for `EmptyShape`, and for an empty or unbounded `HalfplaneIntersection`.
-- `s.fbox<ResultNumber>()`: The floating-point box, over the same alternatives `bbox()` covers. A `Disk` computes it from its center and radius, where `bbox()` rounds that out to the stored point type.
+- `s.fbox<ApproximateNumber>()`: The floating-point box, over the same alternatives `bbox()` covers. A `Disk` computes it from its center and radius, where `bbox()` rounds that out to the stored point type.
 
 ### Queries about the defining data
 
@@ -113,7 +113,7 @@ These ask how the shape is written down rather than what it covers, so only the 
 
 ### Measures and distances
 
-- `s.area<ResultNumber>()`, `s.length<ResultNumber>()`, `s.centroid<ResultNumber>()`: Forwarded to the stored shape, and throwing for an alternative that has none. A `Disk` computes its area in floating point and converts.
+- `s.area<ResultNumber>()`, `s.centroid<ResultNumber>()`, `s.length<ApproximateNumber>()`: Forwarded to the stored shape, and throwing for an alternative that has none. A `Disk` computes its area in floating point and converts.
 - `squaredDistance`, `distanceL1`, `distanceLInf`, `squaredHausdorffDistance`, `hausdorffDistanceL1`, `hausdorffDistanceLInf`: The [distances](shape_methods.md#other-methods-for-shapes) of the concrete pair, throwing for a pair with none. They default to `division_result_t<NumberType>` rather than to the pair-specific default, and a `Disk` pair's floating answer is converted into it.
 - `s.closestPoints<ResultNumber>(t)`, `s.closestSegments<ResultNumber>(t)`: The pair of points, or of elements, realizing the distance, and nothing when the shapes meet. A `Shape` accepts every pair and throws for one the concrete shapes do not define.
 - `s.twiceArea<ResultNumber>()`, `s.diameter<ResultNumber>()`: Both default to `division_result_t<NumberType>` where the concrete shapes default to the native type, because a `HalfplaneIntersection` and a three-point `Disk` divide; ask for `twiceArea<NumberType>()` to get the concrete shapes' own type. `twiceArea` throws for `EmptyShape`, `Point`, `Halfplane`, `Disk`, `MonotoneChain` and `Polyline`; `diameter` throws for `EmptyShape`, `Point`, the unbounded alternatives and every `HalfplaneIntersection`.

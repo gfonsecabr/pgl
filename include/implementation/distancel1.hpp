@@ -199,10 +199,10 @@ constexpr auto Point<Number, Label>::hausdorffDistanceL1(const OtherPoint& other
 // Disk
 
 template <class PointType_, class TLabel>
-template <class ResultNumber, PointConcept OtherPoint>
-detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::distanceL1(
+template <class ApproximateNumber, PointConcept OtherPoint>
+detail::floating_result_t<ApproximateNumber> Disk<PointType_, TLabel>::distanceL1(
     const OtherPoint& point) const {
-    using Float = detail::floating_result_t<ResultNumber>;
+    using Float = detail::floating_result_t<ApproximateNumber>;
     if (contains(point)) {
         return Float{0};
     }

@@ -673,11 +673,11 @@ struct Convex {
 
     /**
      * @brief Computes the floating-point bounding box of the convex polygon.
-     * @tparam ResultNumber The floating-point type for the result.
+     * @tparam ApproximateNumber The floating-point type for the result.
      * @return A rectangle with floating-point coordinates representing the bounding box.
      */
-    template <std::floating_point ResultNumber = double>
-    constexpr Rectangle<Point<ResultNumber>> fbox() const;
+    template <std::floating_point ApproximateNumber = double>
+    constexpr Rectangle<Point<ApproximateNumber>> fbox() const;
 
     /**
      * @brief Returns the vertices of the convex polygon.
@@ -2508,8 +2508,8 @@ struct Convex {
      * `distance(center, polygon) - radius`, the gap between the polygon and the
      * nearest point of the circle.
      *
-     * Reports in `detail::floating_result_t<ResultNumber>`: the gap to a
-     * circle is generally irrational, so a floating-point `ResultNumber` is
+     * Reports in `detail::floating_result_t<ApproximateNumber>`: the gap to a
+     * circle is generally irrational, so a floating-point `ApproximateNumber` is
      * honoured as asked and any other request falls back to `double`.
      *
      * Complexity: O(log n) for n vertices.
@@ -2517,8 +2517,8 @@ struct Convex {
      * @tparam OtherDisk The disk type.
      * @param other The disk to measure to.
      */
-    template <class ResultNumber = double, DiskConcept OtherDisk>
-    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherDisk& other) const;
+    template <class ApproximateNumber = double, DiskConcept OtherDisk>
+    [[nodiscard]] detail::floating_result_t<ApproximateNumber> squaredDistance(const OtherDisk& other) const;
 
     /**
      * @brief Returns the squared Euclidean distance to the given shape.

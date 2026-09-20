@@ -894,11 +894,11 @@ public:
     /**
      * @brief A floating-point bounding box of the covered region.
      *
-     * @tparam ResultNumber Coordinate type of the result.
+     * @tparam ApproximateNumber Coordinate type of the result.
      */
-    template <class ResultNumber = double>
-    [[nodiscard]] Rectangle<Point<ResultNumber>> fbox() const {
-        return bbox().template fbox<ResultNumber>();
+    template <class ApproximateNumber = double>
+    [[nodiscard]] Rectangle<Point<ApproximateNumber>> fbox() const {
+        return bbox().template fbox<ApproximateNumber>();
     }
 
     /**

@@ -1777,9 +1777,9 @@ struct PolygonWithHoles {
     latticePoints() const;
 
     /** @brief Computes the floating-point bounding box of the region. */
-    template <std::floating_point ResultNumber = double>
-    [[nodiscard]] constexpr Rectangle<Point<ResultNumber>> fbox() const {
-        return outer_.template fbox<ResultNumber>();
+    template <std::floating_point ApproximateNumber = double>
+    [[nodiscard]] constexpr Rectangle<Point<ApproximateNumber>> fbox() const {
+        return outer_.template fbox<ApproximateNumber>();
     }
 
     // -------------------------------------------------------------------------
@@ -2626,12 +2626,12 @@ struct PolygonWithHoles {
     /**
      * @brief Computes the squared Euclidean distance to a disk.
      *
-     * Reports in `detail::floating_result_t<ResultNumber>`: the gap to a
-     * circle is generally irrational, so a floating-point `ResultNumber` is
+     * Reports in `detail::floating_result_t<ApproximateNumber>`: the gap to a
+     * circle is generally irrational, so a floating-point `ApproximateNumber` is
      * honoured as asked and any other request falls back to `double`.
      */
-    template <class ResultNumber = double, DiskConcept OtherDisk>
-    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherDisk& other) const;
+    template <class ApproximateNumber = double, DiskConcept OtherDisk>
+    [[nodiscard]] detail::floating_result_t<ApproximateNumber> squaredDistance(const OtherDisk& other) const;
 
     /**
      * @brief Returns the pair of elements realizing the distance, nothing when the shapes meet.

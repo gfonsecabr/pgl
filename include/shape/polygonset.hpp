@@ -921,8 +921,8 @@ struct PolygonSet {
     latticePoints() const;
 
     /** @brief Computes the floating-point bounding box of the set. */
-    template <std::floating_point ResultNumber = double>
-    [[nodiscard]] constexpr Rectangle<Point<ResultNumber>> fbox() const;
+    template <std::floating_point ApproximateNumber = double>
+    [[nodiscard]] constexpr Rectangle<Point<ApproximateNumber>> fbox() const;
 
     // -------------------------------------------------------------------------
     // Decompositions

@@ -367,19 +367,19 @@ struct Disk {
 
     /**
      * @brief Returns the radius.
-     * @tparam ResultNumber Result type.
+     * @tparam ApproximateNumber Result type.
      * @warning If the disk has not been defined by center and radius, it takes a square root of @ref squaredRadius, which uses division.
      */
-    template <class ResultNumber = double>
-    [[nodiscard]] constexpr ResultNumber radius() const {
+    template <class ApproximateNumber = double>
+    [[nodiscard]] constexpr ApproximateNumber radius() const {
         if (auto cr = centerAndRadius()) {
-            return static_cast<ResultNumber>(cr->second);
+            return static_cast<ApproximateNumber>(cr->second);
         }
 
-        if constexpr (!requires(ResultNumber v) { std::sqrt(v); }) {
-            throw std::runtime_error("std::sqrt is not available for the requested ResultNumber type");
+        if constexpr (!requires(ApproximateNumber v) { std::sqrt(v); }) {
+            throw std::runtime_error("std::sqrt is not available for the requested ApproximateNumber type");
         } else {
-            return std::sqrt(squaredRadius<ResultNumber>());
+            return std::sqrt(squaredRadius<ApproximateNumber>());
         }
     }
 
@@ -478,12 +478,12 @@ struct Disk {
 
     /**
      * @brief Returns the area `pi * R^2` of the closed disk.
-     * @tparam ResultNumber Floating-point result type.
+     * @tparam ApproximateNumber Floating-point result type.
      * @warning Computes @ref squaredRadius, which uses division unless the disk has been defined by center and radius.
      */
-    template <std::floating_point ResultNumber = double>
-    [[nodiscard]] constexpr ResultNumber area() const {
-        return std::numbers::pi_v<ResultNumber> * squaredRadius<ResultNumber>();
+    template <std::floating_point ApproximateNumber = double>
+    [[nodiscard]] constexpr ApproximateNumber area() const {
+        return std::numbers::pi_v<ApproximateNumber> * squaredRadius<ApproximateNumber>();
     }
 
     /**
@@ -644,18 +644,18 @@ struct Disk {
      * The box spans `[cx - r, cy - r]` to `[cx + r, cy + r]`; it is tight up to
      * floating-point rounding of the center and radius.
      *
-     * @tparam ResultNumber Floating-point coordinate type of the box.
+     * @tparam ApproximateNumber Floating-point coordinate type of the box.
      * @warning Computes @ref center and @ref radius, which use division.
      */
-    template <std::floating_point ResultNumber = double>
-    [[nodiscard]] constexpr Rectangle<Point<ResultNumber>> fbox() const {
-        const ResultNumber r = radius<ResultNumber>();
-        const auto center_point = center<ResultNumber>();
-        const ResultNumber cx = center_point.x();
-        const ResultNumber cy = center_point.y();
-        return Rectangle<Point<ResultNumber>>(
-            Point<ResultNumber>(cx - r, cy - r),
-            Point<ResultNumber>(cx + r, cy + r));
+    template <std::floating_point ApproximateNumber = double>
+    [[nodiscard]] constexpr Rectangle<Point<ApproximateNumber>> fbox() const {
+        const ApproximateNumber r = radius<ApproximateNumber>();
+        const auto center_point = center<ApproximateNumber>();
+        const ApproximateNumber cx = center_point.x();
+        const ApproximateNumber cy = center_point.y();
+        return Rectangle<Point<ApproximateNumber>>(
+            Point<ApproximateNumber>(cx - r, cy - r),
+            Point<ApproximateNumber>(cx + r, cy + r));
     }
 
     /**
@@ -710,13 +710,13 @@ struct Disk {
      * square of `|point - center| - radius`, the gap between the point and the
      * nearest point of the circle.
      *
-     * Reports in `detail::floating_result_t<ResultNumber>`: the distance to an
+     * Reports in `detail::floating_result_t<ApproximateNumber>`: the distance to an
      * exterior point is generally irrational, so unlike the other shapes an
-     * exact `ResultNumber` cannot be honoured. A floating-point one is used as
+     * exact `ApproximateNumber` cannot be honoured. A floating-point one is used as
      * asked; anything else falls back to `double`.
      */
-    template <class ResultNumber = double, PointConcept OtherPoint>
-    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherPoint& point) const;
+    template <class ApproximateNumber = double, PointConcept OtherPoint>
+    [[nodiscard]] detail::floating_result_t<ApproximateNumber> squaredDistance(const OtherPoint& point) const;
 
     /**
      * @brief Returns the squared Euclidean distance from this disk to a shape.
@@ -726,53 +726,53 @@ struct Disk {
      * nearest point of the circle. Because the disk is the set of points within
      * `radius` of the center, this gap is the disk-to-shape distance.
      *
-     * Reports in `detail::floating_result_t<ResultNumber>`: the gap to a
-     * circle is generally irrational, so a floating-point `ResultNumber` is
+     * Reports in `detail::floating_result_t<ApproximateNumber>`: the gap to a
+     * circle is generally irrational, so a floating-point `ApproximateNumber` is
      * honoured as asked and any other request falls back to `double`. The lower-ranked shapes forward
      * their `squaredDistance(Disk)` to this overload.
      */
-    template <class ResultNumber = double, SegmentConcept OtherSegment>
-    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherSegment& other) const;
+    template <class ApproximateNumber = double, SegmentConcept OtherSegment>
+    [[nodiscard]] detail::floating_result_t<ApproximateNumber> squaredDistance(const OtherSegment& other) const;
 
     /** @copydoc squaredDistance(const OtherSegment&) const */
-    template <class ResultNumber = double, OrientedSegmentConcept OtherOrientedSegment>
-    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherOrientedSegment& other) const;
+    template <class ApproximateNumber = double, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] detail::floating_result_t<ApproximateNumber> squaredDistance(const OtherOrientedSegment& other) const;
 
     /** @copydoc squaredDistance(const OtherSegment&) const */
-    template <class ResultNumber = double, LineConcept OtherLine>
-    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherLine& other) const;
+    template <class ApproximateNumber = double, LineConcept OtherLine>
+    [[nodiscard]] detail::floating_result_t<ApproximateNumber> squaredDistance(const OtherLine& other) const;
 
     /** @copydoc squaredDistance(const OtherSegment&) const */
-    template <class ResultNumber = double, OrientedLineConcept OtherOrientedLine>
-    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherOrientedLine& other) const;
+    template <class ApproximateNumber = double, OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] detail::floating_result_t<ApproximateNumber> squaredDistance(const OtherOrientedLine& other) const;
 
     /** @copydoc squaredDistance(const OtherSegment&) const */
-    template <class ResultNumber = double, RayConcept OtherRay>
-    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherRay& other) const;
+    template <class ApproximateNumber = double, RayConcept OtherRay>
+    [[nodiscard]] detail::floating_result_t<ApproximateNumber> squaredDistance(const OtherRay& other) const;
 
     /** @copydoc squaredDistance(const OtherSegment&) const */
-    template <class ResultNumber = double, HalfplaneConcept OtherHalfplane>
-    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherHalfplane& other) const;
+    template <class ApproximateNumber = double, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] detail::floating_result_t<ApproximateNumber> squaredDistance(const OtherHalfplane& other) const;
 
     /** @copydoc squaredDistance(const OtherSegment&) const */
-    template <class ResultNumber = double, RectangleConcept OtherRectangle>
-    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherRectangle& other) const;
+    template <class ApproximateNumber = double, RectangleConcept OtherRectangle>
+    [[nodiscard]] detail::floating_result_t<ApproximateNumber> squaredDistance(const OtherRectangle& other) const;
 
     /** @copydoc squaredDistance(const OtherSegment&) const */
-    template <class ResultNumber = double, TriangleConcept OtherTriangle>
-    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherTriangle& other) const;
+    template <class ApproximateNumber = double, TriangleConcept OtherTriangle>
+    [[nodiscard]] detail::floating_result_t<ApproximateNumber> squaredDistance(const OtherTriangle& other) const;
 
     /**
      * @brief Returns the squared Euclidean distance between two disks.
      *
      * Zero when the disks intersect (touching counts); otherwise the square of
      * `distance(centers) - radius - other.radius`.
-     * Reports in `detail::floating_result_t<ResultNumber>`: the gap to a
-     * circle is generally irrational, so a floating-point `ResultNumber` is
+     * Reports in `detail::floating_result_t<ApproximateNumber>`: the gap to a
+     * circle is generally irrational, so a floating-point `ApproximateNumber` is
      * honoured as asked and any other request falls back to `double`.
      */
-    template <class ResultNumber = double, DiskConcept OtherDisk>
-    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherDisk& other) const;
+    template <class ApproximateNumber = double, DiskConcept OtherDisk>
+    [[nodiscard]] detail::floating_result_t<ApproximateNumber> squaredDistance(const OtherDisk& other) const;
 
     /**
      * @brief Returns the squared Euclidean distance to the given shape.
@@ -781,11 +781,11 @@ struct Disk {
      * needs `squaredDistance` defined only once, on the higher-ranked shape (the
      * shapes ranked above @ref Disk are @ref Convex and @ref Polygon).
      */
-    template <class ResultNumber = double, typename OtherShape>
+    template <class ApproximateNumber = double, typename OtherShape>
         requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Disk>
                   && requires(const OtherShape& o, const Disk& self) { o.squaredDistance(self); })
-    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherShape& other) const {
-        return other.template squaredDistance<ResultNumber>(*this);
+    [[nodiscard]] detail::floating_result_t<ApproximateNumber> squaredDistance(const OtherShape& other) const {
+        return other.template squaredDistance<ApproximateNumber>(*this);
     }
 
     /**
@@ -798,16 +798,16 @@ struct Disk {
      * coarse angular scan with a golden-section search. The result defaults to
      * `double`; an explicitly requested floating-point type is preserved.
      */
-    template <class ResultNumber = double, PointConcept OtherPoint>
-    [[nodiscard]] detail::floating_result_t<ResultNumber> distanceL1(const OtherPoint& point) const;
+    template <class ApproximateNumber = double, PointConcept OtherPoint>
+    [[nodiscard]] detail::floating_result_t<ApproximateNumber> distanceL1(const OtherPoint& point) const;
 
     /**
      * @brief Returns the Chebyshev (LInf) distance from this disk to a point.
      *
      * @copydetails distanceL1(const OtherPoint&) const
      */
-    template <class ResultNumber = double, PointConcept OtherPoint>
-    [[nodiscard]] detail::floating_result_t<ResultNumber> distanceLInf(const OtherPoint& point) const;
+    template <class ApproximateNumber = double, PointConcept OtherPoint>
+    [[nodiscard]] detail::floating_result_t<ApproximateNumber> distanceLInf(const OtherPoint& point) const;
 
     /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
@@ -1644,18 +1644,18 @@ struct Disk {
      * **This one is not exact by default, and cannot be**, for the reason
      * @ref minkowskiSum(const OtherDisk&) const gives: a disk stores three
      * boundary points, so each radius is a square root of a stored quantity.
-     * @p ResultNumber therefore defaults to `double`, and a disk built from a
+     * @p ApproximateNumber therefore defaults to `double`, and a disk built from a
      * centre and a radius is the common case that stays exact.
      *
-     * @tparam ResultNumber Coordinate type of the result.
+     * @tparam ApproximateNumber Coordinate type of the result.
      * @param other The disk to erode by.
      * @return The erosion as a disk, or `std::nullopt` when the operand is
      *         wider than this disk.
      * @warning Takes a square root unless both disks were created from a centre
      *          and a radius.
      */
-    template <class ResultNumber = double, DiskConcept OtherDisk>
-    [[nodiscard]] std::optional<Disk<Point<ResultNumber, PointLabelType>>>
+    template <class ApproximateNumber = double, DiskConcept OtherDisk>
+    [[nodiscard]] std::optional<Disk<Point<ApproximateNumber, PointLabelType>>>
     minkowskiErosion(const OtherDisk& other) const;
 
     /**
@@ -1668,12 +1668,12 @@ struct Disk {
      * @ref EmptyShape. The sum of the same pair is the half-plane itself; see
      * @ref minkowskiSum(const OtherHalfplane&) const.
      *
-     * @tparam ResultNumber Coordinate type of the result.
+     * @tparam ApproximateNumber Coordinate type of the result.
      * @param other The half-plane to erode by.
      * @return The empty shape.
      */
-    template <class ResultNumber = double, HalfplaneConcept OtherHalfplane>
-    [[nodiscard]] EmptyShape<Point<ResultNumber, PointLabelType>>
+    template <class ApproximateNumber = double, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] EmptyShape<Point<ApproximateNumber, PointLabelType>>
     minkowskiErosion(const OtherHalfplane& other) const;
 
     /**
@@ -1689,25 +1689,25 @@ struct Disk {
      * `r₁ + r₂`, and a disk stores three boundary points rather than a centre
      * and a radius, so each `rᵢ` is a square root of a stored quantity: two
      * integer disks generally have an irrational sum radius, which no exact
-     * coordinate type holds. That is why @p ResultNumber defaults to `double`
+     * coordinate type holds. That is why @p ApproximateNumber defaults to `double`
      * here, as it does on @ref radius and @ref distance, rather than to the
      * exact `division_result_t` the polygonal sums default to.
      *
      * The exception is worth knowing because it is common: a disk **built from
      * a centre and a radius** carries both exactly, so a sum of two such disks
-     * with an exact @p ResultNumber is exact, and no square root is taken.
+     * with an exact @p ApproximateNumber is exact, and no square root is taken.
      * Ask for an exact type on a disk built from three boundary points and the
      * square root reports itself the way @ref radius does — by throwing, since
      * `std::sqrt` is not available for the requested type.
      *
-     * @tparam ResultNumber Coordinate type of the result.
+     * @tparam ApproximateNumber Coordinate type of the result.
      * @param other The disk to sum with.
      * @return The sum, as a disk.
      * @warning Takes a square root unless both disks were created from a centre
      *          and a radius.
      */
-    template <class ResultNumber = double, DiskConcept OtherDisk>
-    [[nodiscard]] Disk<Point<ResultNumber, PointLabelType>>
+    template <class ApproximateNumber = double, DiskConcept OtherDisk>
+    [[nodiscard]] Disk<Point<ApproximateNumber, PointLabelType>>
     minkowskiSum(const OtherDisk& other) const;
 
     /**
@@ -1719,8 +1719,8 @@ struct Disk {
      * its direction and slides out by this disk's radius along the outward unit
      * normal. A half-plane absorbs whatever is bounded, a disk included.
      */
-    template <class ResultNumber = double, HalfplaneConcept OtherHalfplane>
-    [[nodiscard]] Halfplane<Point<ResultNumber, PointLabelType>>
+    template <class ApproximateNumber = double, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] Halfplane<Point<ApproximateNumber, PointLabelType>>
     minkowskiSum(const OtherHalfplane& other) const;
 
     /**

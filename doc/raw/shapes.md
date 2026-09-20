@@ -59,6 +59,8 @@ using Triangle = pgl::Triangle<Point>;
 
 There are many [predicates](shape_methods.md#predicates) and [other methods](shape_methods.md) supported by all shapes, such as `intersects`, `contains`, `squaredDistance`, `distanceL1`, translation, and scaling.
 
+A method that constructs coordinates or measures takes the result type as its first template argument. It is named `ResultNumber` when the answer stays exact — integral coordinates then default to `ERational` — and `ApproximateNumber` when it does not, the default there being `double`. Both are spelled out below; the [defaults](shape_methods.md#other-methods-for-shapes) follow the receiver's coordinate type. Each entry states the contract and the complexity; the Doxygen link on the name gives the rest.
+
 All shapes contain their boundaries (that is, they are closed in the topological sense). The boundary of a shape is the *manifold boundary*, that is:
 
 - A point has no boundary.
@@ -115,8 +117,8 @@ std::cout << p << std::endl;
 
 A point has methods:
 - `p.swapped()`: Returns the point with x and y coordinates swapped.
-- `p.dual()`: Returns the dual line $y = ax - b$ for a point $(a,b)$.
-- `p.polar()`: Returns the polar line $ax + by = 1$ for a point $(a,b)$. Undefined for the origin.
+- `p.dual<ResultNumber>()`: Returns the dual line $y = ax - b$ for a point $(a,b)$.
+- `p.polar<ResultNumber>()`: Returns the polar line $ax + by = 1$ for a point $(a,b)$. Undefined for the origin.
 
 - Other methods:
 
@@ -150,9 +152,9 @@ if (!s.interiorsIntersect(t)) std::cout << " Interiors do not intersect!\n";
 
 A segment `s` has methods such as:
 
-- `s.midpoint<ResultNumber>()`: Returns the midpoint. Integral receivers therefore return `Point<ERational>` by default; an explicitly integral result type truncates odd coordinates.
-- `s.latticePoints<ResultNumber>()`: Returns the integer points on `s` in increasing order, an endpoint among them exactly when its own coordinates are whole. `ResultNumber` is the integer type of the answer — by default the coordinate type when it is a signed integer, the integer a `Rational` is built on, or `int64_t` — and a point that does not fit it throws `std::logic_error` rather than rounding.
-- `s.length()`: Returns `s[0].distance(s[1])`.
+- `s.midpoint<ResultNumber>()`: Returns the midpoint. An explicitly integral result type truncates odd coordinates.
+- `s.latticePoints<ResultNumber>()`: Returns the [integer points](shape_methods.md#other-methods-for-shapes) on `s` in increasing order, an endpoint among them exactly when its own coordinates are whole.
+- `s.length<ApproximateNumber>()`: Returns `s[0].distance(s[1])`.
 - `s.squaredLength()`: Returns `s[0].squaredDistance(s[1])`.
 - `s.isDegenerate()`: Returns `s.length() == 0`.
 - `s.isPoint()` / `s.getIfPoint()`: Whether the segment collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
@@ -163,8 +165,8 @@ A segment `s` has methods such as:
 - `s.collinear(t)`: Returns whether `s` and `t` are on the same line, where `t` may be a point or another segment.
 - `s.slope<ResultNumber>()`: Returns `(s[1].y()-s[0].y()) / (s[1].x()-s[0].x())`.
 - `s.parallel(t)`: Returns whether `s` and `t` have the same slope, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
-- `s.yAtX(x)`: Returns an `std::optional` with the value of the segment y coordinate at the given coordinate `x`.
-- `s.xAtY(y)`: Returns an `std::optional` with the value of the segment x coordinate at the given coordinate `y`.
+- `s.yAtX<ResultNumber>(x)`: Returns an `std::optional` with the value of the segment y coordinate at the given coordinate `x`.
+- `s.xAtY<ResultNumber>(y)`: Returns an `std::optional` with the value of the segment x coordinate at the given coordinate `y`.
 
 It knows how to convert itself with an explicit cast to:
 - `(pgl::Line) s` or `s.asLine()`: Returns the line that contains `s`.
@@ -195,9 +197,9 @@ std::cout << s << std::endl;
 
 An oriented segment `s` has all methods of the `Segment` class, with the only difference being for the slope, which may be negative:
 
-- `s.midpoint<ResultNumber>()`: Returns the midpoint. Integral receivers therefore return `Point<ERational>` by default; an explicitly integral result type truncates odd coordinates.
+- `s.midpoint<ResultNumber>()`: Returns the midpoint. An explicitly integral result type truncates odd coordinates.
 - `s.latticePoints<ResultNumber>()`: The same integer points as the unoriented segment's, listed from `source()` to `target()` instead of in increasing order.
-- `s.length()`: Returns `s[0].distance(s[1])`.
+- `s.length<ApproximateNumber>()`: Returns `s[0].distance(s[1])`.
 - `s.squaredLength()`: Returns `s[0].squaredDistance(s[1])`.
 - `s.isDegenerate()`: Returns `s.length() == 0`.
 - `s.isPoint()` / `s.getIfPoint()`: Whether the segment collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
@@ -208,8 +210,8 @@ An oriented segment `s` has all methods of the `Segment` class, with the only di
 - `s.collinear(t)`: Returns whether `s` and `t` are on the same line, where `t` may be a point or another segment.
 - `s.slope<ResultNumber>()`: Returns `(s[1].y()-s[0].y()) / (s[1].x()-s[0].x())`.
 - `s.parallel(t)`: Returns whether `s` and `t` have the same slope, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
-- `s.yAtX(x)`: Returns an `std::optional` with the value of the segment y coordinate at the given coordinate `x`.
-- `s.xAtY(y)`: Returns an `std::optional` with the value of the segment x coordinate at the given coordinate `y`.
+- `s.yAtX<ResultNumber>(x)`: Returns an `std::optional` with the value of the segment y coordinate at the given coordinate `x`.
+- `s.xAtY<ResultNumber>(y)`: Returns an `std::optional` with the value of the segment x coordinate at the given coordinate `y`.
 
 It also has:
 
@@ -253,10 +255,10 @@ A line `l` has some additional methods such as:
 - `l.parallel(t)`: Returns whether `l` and `t` have the same slope, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
 - `l.halfplaneAbove()`: Returns the half-plane defined by all points `p` that are above the line (larger y-coordinate). If the line is vertical, then it returns the half-plane with smaller x-coordinate. In other words, it returns the half-plane defined by all points `p` such that `pgl::OrientedSegment(l[0],l[1]).orientation(p) >= 0`, noticing that `l[0] < l[1]`.
 - `l.halfplaneBelow()`: Returns the half-plane containing `l` and not `halfplaneAbove`.
-- `l.dual()`: Returns the point $(a,b)$ such that `l` is defined by $y = ax - b$. Undefined behavior for vertical lines.
-- `l.polar()`: Returns the point $(a,b)$ such that `l` is defined by $ax + by = 1$. Undefined behavior for lines that contain the origin.
-- `l.yAtX(x)`: Returns the value of the line y coordinate at the given coordinate `x`.
-- `l.xAtY(y)`: Returns the value of the line x coordinate at the given coordinate `y`.
+- `l.dual<ResultNumber>()`: Returns the point $(a,b)$ such that `l` is defined by $y = ax - b$. Undefined behavior for vertical lines.
+- `l.polar<ResultNumber>()`: Returns the point $(a,b)$ such that `l` is defined by $ax + by = 1$. Undefined behavior for lines that contain the origin.
+- `l.yAtX<ResultNumber>(x)`: Returns the value of the line y coordinate at the given coordinate `x`.
+- `l.xAtY<ResultNumber>(y)`: Returns the value of the line x coordinate at the given coordinate `y`.
 
 - Other methods:
 
@@ -292,8 +294,8 @@ An oriented line `l` has methods such as:
 - `l.orientation(p)`: Given a point `p`, returns the orientation sign of `l[0],l[1],p`: null when they are collinear, negative when `l` sees `p` to its right, and positive when `l` sees `p` to its left.
 - `l.rightHalfplane()`: Returns the half-plane defined by all points `p` such that `l.orientation(p) <= 0`.
 - `l.leftHalfplane()`: Returns the half-plane defined by all points `p` such that `l.orientation(p) >= 0`.
-- `l.yAtX(x)`: Returns the value of the line y coordinate at the given coordinate `x`.
-- `l.xAtY(y)`: Returns the value of the line x coordinate at the given coordinate `y`.
+- `l.yAtX<ResultNumber>(x)`: Returns the value of the line y coordinate at the given coordinate `x`.
+- `l.xAtY<ResultNumber>(y)`: Returns the value of the line x coordinate at the given coordinate `y`.
 
 It knows how to convert itself with an explicit cast to:
 - `(pgl::Line) l` or `l.asLine()`: Returns the line without the orientation.
@@ -332,8 +334,8 @@ A ray `l` has methods such as:
 - `l.orientation(p)`: Given a point `p`, returns the orientation sign of `l[0],l[1],p`: null when they are collinear, negative when `l` sees `p` to its right, and positive when `l` sees `p` to its left.
 - `l.rightHalfplane()`: Returns the half-plane defined by all points `p` such that `l.orientation(p) <= 0`.
 - `l.leftHalfplane()`: Returns the half-plane defined by all points `p` such that `l.orientation(p) >= 0`.
-- `l.yAtX(x)`: Returns an `std::optional` with the value of the ray y coordinate at the given coordinate `x`.
-- `l.xAtY(y)`: Returns an `std::optional` with the value of the ray x coordinate at the given coordinate `y`.
+- `l.yAtX<ResultNumber>(x)`: Returns an `std::optional` with the value of the ray y coordinate at the given coordinate `x`.
+- `l.xAtY<ResultNumber>(y)`: Returns an `std::optional` with the value of the ray x coordinate at the given coordinate `y`.
 
 It knows how to convert itself with an explicit cast to:
 - `(pgl::Line) l` or `l.asLine()`: Returns the line containing the ray.
@@ -419,7 +421,7 @@ It knows how to convert itself to:
 
 The class template `Rectangle` represents an axis-aligned rectangle. While it is stored internally as only two vertices (minimum and maximum x and y coordinates), it behaves as a polygon with four vertices. It can be constructed for any number of points in a container and will construct the bounding box rectangle. If only two points are given, the container is optional. A last argument `pgl::trusted` stores two given corners as the minimum and the maximum, so the first must not exceed the second in either coordinate; inverted corners give the empty rectangle.
 
-A default-constructed rectangle is **empty**: it stores the corners `(0,0)` and `(-1,-1)`, so its maximum falls below its minimum and it covers no point. Normalizing two opposite corners never reaches that state, so it is produced only by `Rectangle()`, by the `pgl::trusted` constructor given inverted corners (which normalizes any such pair to the one canonical empty value), and by the operations that answer with a rectangle covering nothing — the bounding box of an empty range or of an empty shape, for instance. Inserting into an empty rectangle does not grow those placeholder corners: `r.insert(p)` makes `r` the single point `p`.
+A default-constructed rectangle is **empty**: it stores the corners `(0,0)` and `(-1,-1)`, so its maximum falls below its minimum and it covers no point. It is the one canonical empty value, produced by `Rectangle()`, by the `pgl::trusted` constructor given inverted corners, and by any operation that answers with a rectangle covering nothing. Inserting into an empty rectangle does not grow those placeholder corners: `r.insert(p)` makes `r` the single point `p`.
 
 ```C++
 pgl::Rectangle r({{1,3},{2,4},{3,1},{5,4},{2,3}});
@@ -474,13 +476,13 @@ Disk does not have the `intersection` method and cannot be scaled on a single ax
 - `d.isDegenerate()`: Returns true if the points are collinear or equal.
 - `d.isPoint()` / `d.getIfPoint()`: Whether the disk collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
 - `d.isUndefined()`: True if the boundary points are collinear but not all equal, so they do not determine a circle (three distinct collinear points have no circle through them; two distinct ones have infinitely many). A disk is never a segment, so this and `isPoint` cover every degenerate disk.
-- `d.latticePoints<ResultNumber>()`: The integer points of the disk, its boundary circle included. Each column grows from the row nearest the centre by the disk's own containment test, so no square root is taken and nothing is rounded.
-- `d.radius<ResultNumber = double>()`: Returns the radius length. A radius can be irrational, so the result is floating-point by default. Notice that when the disk is defined by center and radius, we may set `ResultNumber` to the same number type as the defining point.
-- `d.squaredRadius<ResultNumber>()`: Returns  the squared radius.
+- `d.latticePoints<ResultNumber>()`: The integer points of the disk, its boundary circle included. Exact: no square root is taken and nothing is rounded.
+- `d.radius<ApproximateNumber>()`: Returns the radius length. A radius can be irrational, so the result is floating-point by default. Notice that when the disk is defined by center and radius, we may set `ApproximateNumber` to the same number type as the defining point.
+- `d.squaredRadius<ResultNumber>()`: Returns the squared radius.
 - `d.center<ResultNumber>()`: Returns the center point.
-- `d.diameter<ResultNumber>()`: Returns a diameter `Segment`. A center/radius disk uses its stored horizontal diameter; a genuine three-point disk uses one boundary point and its reflection across the center.
-- `d.minkowskiSum<ResultNumber = double>(d2)`: Returns the [Minkowski sum](shape_methods.md#minkowski-sum) of two disks, which is a `Disk`: the centers add and so do the radii. This  onesum is not always exact: each radius is a square root of what a disk stores. Two center/radius disks carry both quantities exactly, so their sum with an exact `ResultNumber` is exact.
-- `d.minkowskiErosion<ResultNumber = double>(d2)`: Returns the [Minkowski erosion](shape_methods.md#minkowski-erosion) of two disks, which is a `Disk` when there is one: the centers subtract and so do the radii. The result is a `std::optional`, empty when `d2` is the wider disk and no translation of it fits. Exact under the same condition the sum is.
+- `d.diameter<ResultNumber>()`: Returns a diameter `Segment`.
+- `d.minkowskiSum<ApproximateNumber>(d2)`: Returns the [Minkowski sum](shape_methods.md#minkowski-sum) of two disks, which is a `Disk`: the centers add and so do the radii. A radius is generally a square root of what a disk stores, so the sum is exact only when both disks were built from a center and a radius and `ApproximateNumber` is given an exact type.
+- `d.minkowskiErosion<ApproximateNumber>(d2)`: Returns the [Minkowski erosion](shape_methods.md#minkowski-erosion) of two disks as a `std::optional<Disk>`: the centers subtract and so do the radii, and the result is empty when `d2` is the wider disk. Exact under the same condition the sum is.
 - Other methods:
 
 
@@ -499,14 +501,14 @@ We use the term above to refer to larger y coordinates and below to refer to sma
 - `P.isStrictlyMonotone()`: Returns true if no two vertices share an x-coordinate, so the chain is the graph of a function of x. Takes $O(n)$ time.
 - `P.insert(p)`: Extends the chain in order to contain another point `p` as a vertex.
 - `P.insert(points)`: Extends the chain in order to contain all the given points as vertices.
-- `P.erase(p)` / `P.erase(i)`: Removes a vertex, given as a point or by its index in the lexicographic order (as in `P[i]`), the first returning whether it was a vertex and the second requiring `i` to be smaller than `P.size()`; both take $O(n)$ time. Erasing an interior vertex reroutes the chain through a single edge between its neighbors, and erasing an extreme vertex shortens the chain.
+- `P.erase(p)` / `P.erase(i)`: Removes a vertex, given as a point or by its index in the lexicographic order (as in `P[i]`), the first returning whether it was a vertex and the second requiring `i` to be smaller than `P.size()`. Both take $O(n)$ time.
 - `P.indexAtX(x)`: Returns an `std::optional<size_t>` that is engaged if the chain contains a point of x-coordinate `x`. The returned value is the smallest index `i` such that `P[i].x() == x`, or the unique `i` with `P[i].x() < x < P[i+1].x()`. Takes $O(\log n)$ time.
-- `P.yAtX<ResultNumber>(x)`: Returns an `std::optional` with the y coordinate at `x` (at a vertical edge, the y of the edge's bottom vertex). Takes $O(\log n)$ time. Interpolation may divide, so integral receivers widen to ERational by default.
+- `P.yAtX<ResultNumber>(x)`: Returns an `std::optional` with the y coordinate at `x` (at a vertical edge, the y of the edge's bottom vertex). Takes $O(\log n)$ time.
 - `P.isBelow(p)`: Returns an `std::optional<size_t>` that is engaged if a ray shot down from `p` intersects `P`; the value is the index `indexAtX` returns for `p.x()`. Takes $O(\log n)$ time, exactly.
 - `P.isAbove(p)`: The same for a ray shot up from `p`. Note that `isBelow` and `isAbove` are not complementary: both are engaged when `p` lies on the chain.
-- `P.latticePoints<ResultNumber>()`: The integer points on `P`, edge by edge and hence in increasing order, the vertex two edges share reported once. Same result type and same `std::logic_error` on a point too large for it as the segment's.
-- `P.length()`, `P.lengthL1()`, `P.lengthLInf()`: Return the Euclidean, Manhattan, and Chebyshev lengths of the chain.
-- `P.edgesCross(P2)`: Returns true if `P` has a point strictly above `P2` and a point strictly below it, i.e. every sufficiently small perturbation of the vertices of `P` and `P2` still yields intersecting chains. Unlike `P.crosses(P2)`, a touch that does not swap sides never counts. The x-extents of `P` and `P2` must overlap in more than a single point, or the result is false outright — a shared x that is only one chain's own extreme vertex (e.g. a chain that is a single vertical edge) is not robust to perturbation. Takes $O(n + m)$ time if `P2` has $m$ vertices.
+- `P.latticePoints<ResultNumber>()`: The integer points on `P`, in increasing order, the vertex two edges share reported once.
+- `P.length<ApproximateNumber>()`, `P.lengthL1()`, `P.lengthLInf()`: Return the Euclidean, Manhattan, and Chebyshev lengths of the chain.
+- `P.edgesCross(P2)`: Returns true if `P` has a point strictly above `P2` and a point strictly below it, i.e. every sufficiently small perturbation of the vertices still yields intersecting chains. Unlike `P.crosses(P2)`, a touch that does not swap sides never counts, and the x-extents must overlap in more than a single point. Takes $O(n + m)$ time if `P2` has $m$ vertices.
 
 The monotone structure speeds up several predicates and constructions:
 
@@ -527,9 +529,9 @@ A polyline `P` with $n$ vertices has methods such as:
 - `P.isPoint()` / `P.getIfPoint()`: Whether the polyline collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
 - `P.isSegment()` / `P.getIfSegment()`: Whether the polyline collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
 - `P.isUndefined()`: True only for an empty polyline, which has no vertex.
-- `P.isSimple()`: Returns true if the edges only intersect at the shared endpoints of consecutive edges. The first and last edges are consecutive exactly when the polyline is closed. Takes $O(n \log n)$ time for exact coordinate types. Floating-point coordinates, which the exact sweep line cannot take, go through a bounding-box sweep instead, for $O((n+k) \log n)$ time where $k$ is the number of pairs of edges with overlapping bounding boxes, which is $O(n^2 \log n)$ in the worst case.
-- `P.latticePoints<ResultNumber>()`: The integer points on `P`, edge by edge in traversal order, each of them once — a shared vertex, a crossing and a retraced part are all reported only where the polyline first reaches them. Same result type and same `std::logic_error` on a point too large for it as the segment's.
-- `P.length()`, `P.lengthL1()`, `P.lengthLInf()`: Return the Euclidean, Manhattan, and Chebyshev lengths of the polyline. A self-overlapping polyline counts every traversal of a repeated part.
+- `P.isSimple()`: Returns true if the edges only intersect at the shared endpoints of consecutive edges. The first and last edges are consecutive exactly when the polyline is closed. Takes $O(n \log n)$ time for exact coordinate types and $O(n^2 \log n)$ for floating-point ones.
+- `P.latticePoints<ResultNumber>()`: The integer points on `P`, in traversal order, each of them once: a shared vertex, a crossing and a retraced part are reported where the polyline first reaches them.
+- `P.length<ApproximateNumber>()`, `P.lengthL1()`, `P.lengthLInf()`: Return the Euclidean, Manhattan, and Chebyshev lengths of the polyline. A self-overlapping polyline counts every traversal of a repeated part.
 
 
 - Other methods:
@@ -547,9 +549,9 @@ A convex polygon `c` has methods such as:
 - `c.empty()`: True only for a convex polygon with no vertex, which is the empty set of points: the default-constructed one, the hull of no points, and every convex-valued result that comes back empty.
 - `c.isUndefined()`: Always `false`: a degenerate convex polygon is always empty, a point, or a segment.
 - `c.centroid<ResultNumber>()`: Returns the centroid.
-- `c.smallestEnclosingRectangle()`: Returns the smallest-area enclosing rectangle as a `HalfplaneIntersection` in the polygon's own number type. The rectangle is generally not axis-parallel (`c.bbox()` is the axis-parallel one) and its corners generally need fractions, but its four supporting lines do not: each runs through a vertex, along the flush edge or along that edge turned 90 degrees, so the defining coordinates reach about twice the extent of the polygon. Ask the region for the corners at the wanted precision, with `k.vertices<ResultNumber>()` or `k.asConvex<ResultNumber>()`. A convex polygon with fewer than three vertices comes back as its own region.
-- `c.smallestEnclosingSlab()`: Returns the narrowest strip between two parallel supporting lines as a `HalfplaneIntersection` in the polygon's own number type. Like the enclosing rectangle, the two lines are exact while the distance between them is not, and a convex polygon with fewer than three vertices comes back as its own region. The slab is unbounded, so it has no corners to ask for.
-- `c.squaredMinimumWidth<ResultNumber>()`: Returns the squared distance between those two lines. The width itself divides by an edge length and is irrational; its square is a fraction and stays exact, so this is the form to compare against a threshold or between polygons. An explicitly integral `ResultNumber` truncates it.
+- `c.smallestEnclosingRectangle()`: Returns the smallest-area enclosing rectangle as a `HalfplaneIntersection` in the polygon's own number type. It is generally not axis-parallel (`c.bbox()` is) and its corners generally need fractions, so ask the region for them at the wanted precision, with `vertices<ResultNumber>()`{HalfplaneIntersection} or `asConvex<ResultNumber>()`{HalfplaneIntersection}. A convex polygon with fewer than three vertices comes back as its own region.
+- `c.smallestEnclosingSlab()`: Returns the narrowest strip between two parallel supporting lines as a `HalfplaneIntersection` in the polygon's own number type. The two lines are exact while the distance between them is not, and a convex polygon with fewer than three vertices comes back as its own region.
+- `c.squaredMinimumWidth<ResultNumber>()`: Returns the squared distance between those two lines. The width itself is generally irrational while its square is a fraction, so this is the form to compare exactly against a threshold or between polygons. An explicitly integral `ResultNumber` truncates it.
 - `c.minimumWidth<ApproximateNumber>()`: Returns that distance as a floating-point number.
 - `c.insert(s)`: Enlarges the convex polygon in order to contain a finite shape `s`. The shape must expose its vertices.
 - `c.insert(points)`: Enlarges the convex polygon in order to contain every point in the input range.
@@ -563,7 +565,7 @@ It knows how to convert itself to:
 
 If the convex polygon `c` has $n$ vertices, then:
 
-- `c.diameter()`, `c.smallestEnclosingRectangle()` and the three minimum-width methods take $O(n)$ time, each with a single rotating-calipers sweep. Comparing two candidate rectangle areas or two candidate widths is degree six in the coordinates, so it runs in `BigInt` for integral coordinates and in `ERational` for rational ones, floating point unchanged.
+- `c.diameter()`, `c.smallestEnclosingRectangle()` and the three minimum-width methods take $O(n)$ time. The comparisons they make are degree six in the coordinates, so they run in `BigInt` for integral coordinates and in `ERational` for rational ones, floating point unchanged.
 - `c.intersects(s)` takes $O(\log n)$ time if `s` is a shape with $O(1)$ vertices (not including Disk).
 - `s.intersects(c)` takes $O(\log n)$ time if `s` is a shape with $O(1)$ vertices (not including Disk).
 - `c.intersects(c2)` takes $O(\min(n,m) \log(n+m))$ time if `c2` is a convex polygon with $m$ vertices.
@@ -583,13 +585,13 @@ A polygon `P` has methods such as:
 - `P.isSegment()` / `P.getIfSegment()`: Whether the polygon collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
 - `P.empty()`: True only for a polygon with no vertex, which is the empty set of points.
 - `P.isUndefined()`: True if the polygon is degenerate yet covers more than a segment, that is, when its zero area comes from a self-overlapping boundary rather than from collinear vertices. The empty polygon is *not* undefined; use `empty` for it.
-- `P.isSimple()`: Returns true if the edges only intersect at the endpoints of consecutive edges. Takes $O(n \log n)$ time for $n$ edges with exact coordinate types. Floating-point coordinates, which the exact sweep line cannot take, go through a bounding-box sweep instead, for $O((n+k) \log n)$ time where $k$ is the number of pairs of edges with overlapping bounding boxes, which is $O(n^2 \log n)$ in the worst case.
+- `P.isSimple()`: Returns true if the edges only intersect at the endpoints of consecutive edges. Takes $O(n \log n)$ time for $n$ edges with exact coordinate types and $O(n^2 \log n)$ with floating-point ones.
 - `P.isConvex()`: Returns true if the polygon is convex, possibly with vertices subdividing convex hull edges. Takes $O(n)$ time.
 - `P.isStarShaped()` / `P.getStarShapedKernel()`: Whether some point of the polygon sees all of it, and the set of such points (the kernel) as a `HalfplaneIntersection`, or `std::nullopt` when the polygon is not star-shaped. A polygon collapsed to a point or a segment is its own kernel. Only meaningful for a simple polygon. Takes $O(n \log n)$ time.
 - `P.asPolygonWithHoles()`: Returns the polygon as a hole-free `PolygonWithHoles` region.
 - `P.boundary()`: Returns the closed `Polyline` through the vertices in order, the first repeated at the end. Simplicity is not checked. Takes $O(n)$ time.
-- `P.asBitMatrix<ResultNumber>()`: Returns the polygon rasterized into a [`BitMatrix`](data_structures.md#bit-matrix) over its bounding box, one bit per covered cell. Every edge must be axis-parallel and every coordinate a whole number, otherwise it throws `std::logic_error` — a `Rational` or floating-point coordinate is checked, never rounded. `ResultNumber` is the grid's integer type, by default the coordinate type itself, the integer a `Rational` is built on, or `int64_t`.
-- `P.untangle()`: Makes the polygon simple in place. Edges that cross are flipped and when a flip is blocked by collinearity (collinear vertices) the offending vertex is removed. On return `P.isSimple()` holds. Worst-case complexity is high.
+- `P.asBitMatrix<ResultNumber>()`: Returns the polygon [rasterized](shape_methods.md#other-methods-for-shapes) into a [`BitMatrix`](data_structures.md#bit-matrix) over its bounding box, one bit per covered cell. Every edge must be axis-parallel and every coordinate a whole number, otherwise it throws `std::logic_error`.
+- `P.untangle()`: Makes the polygon simple in place, removing vertices where it must. On return `P.isSimple()` holds. No worst-case bound.
 - `P.interiorContainsInterior(s)`: Returns true when the open segment lies in the polygon's strict interior; its endpoints may lie on the boundary.
 
 - Other methods:
@@ -625,26 +627,26 @@ A region `A` with $n$ vertices in total and $k$ holes has methods such as:
 - `A.holeCount()` / `A.hasHoles()` / `A.hole(i)` / `A.holes()`: The holes, in canonical (sorted) order. Iterating a region iterates its holes.
 - `A.addHole(h)`: Adds a hole, keeping the canonical order. A zero-area ring removes nothing and is ignored.
 - `A.eraseHole(i)` / `A.eraseHole(h)`: Fills a hole back in, by its index in the canonical order or by the polygon itself, the second returning whether it found one to erase. Takes $O(k)$ time by index and $O(k + s \log k)$ for a hole of $s$ vertices.
-- `A.vertexCount()`: Returns the total number of vertices over all rings. Deliberately not named `size`: unlike a polygon's, it counts the outer boundary *and* every hole, and a name shared with a shape whose meaning differs would be a trap in generic code. For the same reason a region has no `operator[]`.
+- `A.vertexCount()`: Returns the total number of vertices over all rings, the outer boundary *and* every hole. Deliberately not named `size`, and for the same reason a region has no `operator[]`.
 - `A.vertices()` / `A.edges()`: The vertices and the boundary edges of every ring, outer boundary first.
 - `A.orientedEdges()`: The boundary edges directed so the region lies to the left: the outer ring counterclockwise as stored, the hole rings **reversed**, i.e. clockwise.
 - `A.empty()`: Returns true if the region has no outer boundary at all.
 - `A.isDegenerate()`: Returns true if the region has null area.
 - `A.isPoint()` / `A.isSegment()`: Whether the region covers exactly one point, or exactly one segment of positive length. Zero-area holes are dropped at construction, so both are decided by the outer boundary alone.
 - `A.isUndefined()`: True if the region is degenerate without covering a point or a segment, which includes the empty region.
-- `A.isSimple()`: Returns true if every ring is simple. This is a per-ring check only and says nothing about how the rings sit relative to one another. Takes $O(n \log n)$ time for exact coordinate types and $O(n^2 \log n)$ for floating-point ones.
+- `A.isSimple()`: Returns true if every ring is simple. A per-ring check only, saying nothing about how the rings sit relative to one another. Takes $O(n \log n)$ time for exact coordinate types and $O(n^2 \log n)$ for floating-point ones.
 - `A.isValid()`: Tests the whole structural contract above. Takes $O(n^2 \log n)$ time.
 - `A.isRegular()`: Returns true if the region is the closure of its own interior, $A = \mathrm{closure}(A^\circ)$. Since the contract above constrains interiors only, a valid region may pinch shut along a whole stretch of edge — a **slit**, region material with no area on either side of it, as when a hole shares an edge with another hole or with the outer boundary. A slit belongs to $A$ but not to $\mathrm{closure}(A^\circ)$, so a region with area is regular exactly when it has no slit. Pinching at an isolated *point* is not a slit: the interior still reaches the point from every side, so rings meeting at a vertex leave the region regular. Takes $O(n^2)$ time.
-- `A.regularized()`: Returns $\mathrm{closure}(A^\circ)$ — the region without its slits — as a `std::vector<PolygonWithHoles>`, the same regularization every [boolean operation](shape_methods.md#boolean-operations) applies to its own result. Dropping the slits can disconnect what they were holding together, which is why the result is a set of regions: a region whose slits are its only connective tissue comes back as several pieces, and a region with no area comes back empty. A region that is already regular is returned unchanged, vertex for vertex; the pieces of one that is not are read off an arrangement of its boundary, which drops vertices that no longer sit at a corner.
-- `A.twiceArea()`: Returns twice the area, `2·area(outer) − Σ 2·area(hole)`, exactly and without division.
+- `A.regularized<ResultNumber>()`: Returns $\mathrm{closure}(A^\circ)$ — the region without its slits — as a `std::vector<PolygonWithHoles>`, the same regularization every [boolean operation](shape_methods.md#boolean-operations) applies to its own result. The result is a set of regions because dropping the slits can disconnect the region; one with no area comes back empty. A region that is already regular is returned unchanged, vertex for vertex; the pieces of one that is not may lose vertices that no longer sit at a corner.
+- `A.twiceArea<ResultNumber>()`: Returns twice the area, `2·area(outer) − Σ 2·area(hole)`, exactly and without division.
 - `A.area<ResultNumber>()`: Returns the area; the final division by two is exact by default for integral receivers.
 - `A.centroid<ResultNumber>()`: Returns the area-weighted centroid, the holes entering with negative weight. When the net area is zero the region has no area-weighted centroid and the centroid of the vertex set is returned instead.
 - `A.verticesCentroid<ResultNumber>()`: Returns the centroid of the vertex set over all rings.
-- `A.pointInside<ResultNumber>()`: Returns a point strictly inside the region, so inside the outer boundary and outside every hole. A polygon finds one from an ear of its smallest vertex; that argument does not survive holes — an ear can be occupied by one — so this triangulates. It may divide coordinates by four and is undefined for a region with no area.
-- `A.triangulation()`: Returns the constrained Delaunay [triangulation](data_structures.md#triangulation) of the region, optionally with extra interior constraint segments. Every ring becomes constrained edges and the hole interiors are left out of the domain, so the in-domain triangles cover exactly the part of the region that has area — a slit, having none, carries no triangle.
+- `A.pointInside<ResultNumber>()`: Returns a point strictly inside the region, so inside the outer boundary and outside every hole. It may divide coordinates by four and is undefined for a region with no area.
+- `A.triangulation()`: Returns the constrained Delaunay [triangulation](data_structures.md#triangulation) of the region, optionally with extra interior constraint segments. Every ring becomes constrained edges and the hole interiors are left out of the domain, so the in-domain triangles cover exactly the part of the region that has area.
 - `A.latticePoints<ResultNumber>()`: The integer points of the region. A hole takes away the points strictly inside it and keeps the ones on its boundary, which belong to the region as any boundary point does.
-- `A.asBitMatrix<ResultNumber>()`: The region rasterized into a [`BitMatrix`](data_structures.md#bit-matrix) over its bounding box, the holes left unset. Every edge of every ring must be axis-parallel and every coordinate a whole number, otherwise it throws `std::logic_error`. Same `ResultNumber` rule as on a polygon.
-- `A.diameter()` / `A.bbox()`: The holes lie inside the outer boundary and cannot contribute, so both are the outer polygon's.
+- `A.asBitMatrix<ResultNumber>()`: The region rasterized into a [`BitMatrix`](data_structures.md#bit-matrix) over its bounding box, the holes left unset, under the same requirements as on a polygon.
+- `A.diameter()` / `A.bbox()`: Both are the outer polygon's, the holes being unable to contribute.
 - `A.interiorContainsInterior(s)`: Returns true when the open segment lies in the polygon's strict interior. The segment interior must be strictly inside the outer ring and may not touch a hole, while either endpoint may lie on any ring.
 
 Against a region of $n$ vertices and an operand of $m$:
@@ -679,7 +681,7 @@ That last clause is the one that earns its keep. It is what makes the interior o
 
 A set `A` with $k$ components and $n$ vertices in total has methods such as:
 
-- `A.componentCount()` / `A.component(i)` / `A.components()`: The components, in canonical (sorted) order. Iterating a set iterates its components. Deliberately not `size` and `operator[]`: `size` counts *defining points* on `Polygon`, `Convex`, `Polyline` and `MonotoneChain`, and a name whose meaning differs per shape is a trap in generic code — the same call `PolygonWithHoles` made for its holes.
+- `A.componentCount()` / `A.component(i)` / `A.components()`: The components, in canonical (sorted) order. Iterating a set iterates its components. Deliberately not `size` and `operator[]`, which count *defining points* on the other shapes.
 - `A.addComponent(c)`: Adds a component, keeping the canonical order. One with no area, or one already present, is ignored.
 - `A.eraseComponent(i)` / `A.eraseComponent(c)`: Drops a component, by its index in the canonical order or by the region itself, the second returning whether it found one to erase. Takes $O(k)$ time by index and $O(k + s \log k)$ for a component of $s$ vertices.
 - `A.vertexCount()` / `A.vertices()` / `A.edges()` / `A.orientedEdges()`: The totals over every ring of every component, with the same meaning they have on a region.
@@ -687,18 +689,18 @@ A set `A` with $k$ components and $n$ vertices in total has methods such as:
 - `A.empty()`: Returns true if the set has no components at all.
 - `A.isDegenerate()` / `A.isPoint()` / `A.isSegment()` / `A.isUndefined()`: A canonical set drops its zero-area components, so a degenerate set is exactly an empty one; only a set adopted with `pgl::trusted` can answer otherwise.
 - `A.isConnected()`: Returns true if the set is connected as a point set. This is the library's first shape that need not be — two components that never touch are two pieces — and it is what the [cut predicates](shape_methods.md#predicates) ask before dismissing a remover that misses the set.
-- `A.isPinched()`: Returns true if two components touch each other anywhere. A set whose components stay apart is a disjoint union of closed sets at positive distance, and then every predicate folds componentwise exactly. Memoized.
+- `A.isPinched()`: Returns true if two components touch each other anywhere. A set whose components stay apart is a disjoint union of closed sets at positive distance, and then every predicate folds componentwise exactly.
 - `A.isValid()`: Tests the whole structural contract above.
-- `A.isRegular()` / `A.regularized()`: A set is regular exactly when every component is, since no slit can run between two components. `regularized()` returns a `PolygonSet`, so the regularization is idempotent in the type system and not only in the mathematics.
-- `A.twiceArea()` / `A.area<ResultNumber>()`: The sum over the components, which is the area of their union because the interiors are disjoint.
+- `A.isRegular()` / `A.regularized<ResultNumber>()`: A set is regular exactly when every component is, since no slit can run between two components. `regularized()` returns a `PolygonSet`, so the regularization is idempotent in the type system and not only in the mathematics.
+- `A.twiceArea<ResultNumber>()` / `A.area<ResultNumber>()`: The sum over the components, which is the area of their union because the interiors are disjoint.
 - `A.centroid<ResultNumber>()` / `A.verticesCentroid<ResultNumber>()`: The area-weighted centroid over the components, falling back on the vertex centroid when the total area is zero.
-- `A.diameter()`: Unlike a region's, this cannot be delegated to any one component — the farthest pair generally has its two ends in different ones. Every hole lies inside its own component's outer ring, so it is the diameter of the outer rings' convex hull.
-- `A.bbox()`: The union of the components' boxes, cached — unlike a region, which delegates to the box its outer ring already caches.
+- `A.diameter()`: The diameter of the outer rings' convex hull; unlike a region's, it cannot be delegated to any one component.
+- `A.bbox()`: The union of the components' boxes.
 - `A.latticePoints<ResultNumber>()`: The integer points of the set, over all components at once, so a point two touching components share is reported once.
 - `A.pointInside<ResultNumber>()`: A point in the first component's interior.
-- `A.triangulation()`: The constrained Delaunay [triangulation](data_structures.md#triangulation) of the set, optionally with extra interior constraint segments. Every ring of every component becomes constrained edges; the hole interiors and the gaps between components are left out of the domain.
+- `A.triangulation()`: The constrained Delaunay [triangulation](data_structures.md#triangulation) of the set, optionally with extra interior constraint segments. The hole interiors and the gaps between components are left out of the domain.
 - `A.convexPartition()` / `A.convexCovering()`: As on a region, derived from the triangulation.
-- `A.asBitMatrix<ResultNumber>()`: The set rasterized into a [`BitMatrix`](data_structures.md#bit-matrix) over the bounding box of the whole set, the holes and the gaps between components left unset. Same rectilinear and whole-number requirement as on a region.
+- `A.asBitMatrix<ResultNumber>()`: The set rasterized into a [`BitMatrix`](data_structures.md#bit-matrix) over the bounding box of the whole set, the holes and the gaps between components left unset, under the same requirements as on a region.
 - `A.interiorContainsInterior(s)`: Returns true when the open segment lies strictly inside one component; boundary endpoints are allowed, but an interior passage through a component pinch is not.
 
 
@@ -713,22 +715,22 @@ The half-planes are stored sorted counterclockwise by boundary direction, with n
 
 A half-plane intersection `k` has methods such as:
 
-- `k.insert(h)`: Intersects the region with one more half-plane. The half-plane is discarded (returning false) when it is redundant or undefined (a degenerate half-plane bounds no side, so it carries no constraint); when it empties the region, the region switches to a sticky empty state; otherwise it is stored and the stored half-planes it makes redundant are removed.
+- `k.insert(h)`: Intersects the region with one more half-plane, returning whether it was stored. A redundant or undefined half-plane is discarded, and one that empties the region leaves it in a sticky empty state.
 - `k.empty()`, `k.isPlane()`, `k.isBounded()`, `k.isDegenerate()`: State queries. A degenerate region has empty interior (a line, ray, segment, or point built from touching constraints); it remains fully supported by the predicates.
 - `k.isUndefined()`: Always `false`: `insert` ignores undefined half-planes, so every region — empty, degenerate, or full-dimensional — is well defined.
 - `k.isHalfplane()` / `k.getIfHalfplane()`: Whether the region is exactly one closed half-plane (a single stored constraint), and that half-plane. Exact, no division.
-- `k.isLine()` / `k.getIfLine()`: Whether the region is exactly one line, and that line. A degenerate region is a point, segment, ray, or line, and only the line has no vertex, so this needs no coordinate arithmetic. Exact, no division.
+- `k.isLine()` / `k.getIfLine()`: Whether the region is exactly one line, and that line. Exact, no division.
 - `k.isPoint()` / `k.getIfPoint<ResultNumber>()`: Whether the region is a single point, and that point. The test and the default returned point are exact for an integral region, including when the point is not representable in `NumberType`.
 - `k.isSegment()` / `k.getIfSegment<ResultNumber>()`: Whether the region is a segment of positive length, and that segment. The default endpoints are exact for integral constraints.
-- `k.isRay()` / `k.getIfRay<ResultNumber>()`: Whether the region is a ray, and that ray. The test needs no coordinate arithmetic (a ray is the only unbounded degenerate region with a vertex); the default source is exact for integral constraints.
+- `k.isRay()` / `k.getIfRay<ResultNumber>()`: Whether the region is a ray, and that ray. The default source is exact for integral constraints.
 - Together with `empty` and `isPlane` these name every region a half-plane intersection can be, except a full-dimensional one other than a half-plane.
-- `k.latticePoints<ResultNumber>()`: The integer points of the region, read off the exact convex polygon its constraints cut out. Throws `std::logic_error` for an unbounded region, which covers infinitely many.
-- `k.vertex<R>(i)`, `k.vertices<R>()`, `k.vertexCount()`: The implicit vertices, counterclockwise for bounded regions.
-- `k.edge<R>(i)`: The boundary contribution of half-plane `i` as a `std::variant` of `Segment`, `Ray`, or `Line`.
-- `k.bbox<R>()`, `k.fbox()`: Bounding box; throws `std::logic_error` when the region is empty or unbounded. With an explicitly integral result type the box is rounded outward so it always encloses the region.
-- `k.asConvex<R>()`: The region as a `Convex`; throws when unbounded.
-- `k.twiceArea<R>()`, `k.area<R>()`, and `k.centroid<R>()`: Measures of a bounded region; they throw when the region is unbounded. Their defaults account for fractional implicit vertices as well as the final area or centroid division.
-- `k.squaredHausdorffDistance<R>(s)`, `k.hausdorffDistanceL1<R>(s)`, and `k.hausdorffDistanceLInf<R>(s)`: Hausdorff distances to a bounded convex shape — a `Point`, `Segment`, `OrientedSegment`, `Rectangle`, `Triangle`, `Convex`, or another region. They throw `std::logic_error` when either region is unbounded, the distance then being infinite; the empty region is a precondition violation. All three default to `division_result_t`, the region's vertices being fractional.
+- `k.latticePoints<ResultNumber>()`: The integer points of the region. Throws `std::logic_error` for an unbounded region, which covers infinitely many.
+- `k.vertex<ResultNumber>(i)`, `k.vertices<ResultNumber>()`, `k.vertexCount()`: The implicit vertices, counterclockwise for bounded regions.
+- `k.edge<ResultNumber>(i)`: The boundary contribution of half-plane `i` as a `std::variant` of `Segment`, `Ray`, or `Line`.
+- `k.bbox<ResultNumber>()`, `k.fbox<ApproximateNumber>()`: Bounding box; throws `std::logic_error` when the region is empty or unbounded. With an explicitly integral result type the box is rounded outward so it always encloses the region.
+- `k.asConvex<ResultNumber>()`: The region as a `Convex`; throws when unbounded.
+- `k.twiceArea<ResultNumber>()`, `k.area<ResultNumber>()`, and `k.centroid<ResultNumber>()`: Measures of a bounded region; they throw when the region is unbounded.
+- `k.squaredHausdorffDistance<ResultNumber>(s)`, `k.hausdorffDistanceL1<ResultNumber>(s)`, and `k.hausdorffDistanceLInf<ResultNumber>(s)`: [Hausdorff distances](shape_methods.md#other-methods-for-shapes) to a bounded convex shape — a `Point`, `Segment`, `OrientedSegment`, `Rectangle`, `Triangle`, `Convex`, or another region. They throw `std::logic_error` when either region is unbounded, the distance then being infinite; the empty region is a precondition violation.
 
 If the region has $n$ half-planes, then:
 

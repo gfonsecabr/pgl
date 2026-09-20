@@ -1288,8 +1288,8 @@ struct HalfplaneIntersection {
      *
      * Throws `std::logic_error` when the region is empty or unbounded.
      */
-    template <std::floating_point ResultNumber = double>
-    constexpr Rectangle<Point<ResultNumber>> fbox() const;
+    template <std::floating_point ApproximateNumber = double>
+    constexpr Rectangle<Point<ApproximateNumber>> fbox() const;
 
     /**
      * @brief Returns the Minkowski sum of this shape and another (A ⊕ B).
@@ -2294,12 +2294,12 @@ struct HalfplaneIntersection {
     /**
      * @brief Returns the squared Euclidean distance to the given disk.
      *
-     * Reports in `detail::floating_result_t<ResultNumber>`: the gap to a
-     * circle is generally irrational, so a floating-point `ResultNumber` is
+     * Reports in `detail::floating_result_t<ApproximateNumber>`: the gap to a
+     * circle is generally irrational, so a floating-point `ApproximateNumber` is
      * honoured as asked and any other request falls back to `double`.
      */
-    template <class ResultNumber = double, DiskConcept OtherDisk>
-    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherDisk& other) const;
+    template <class ApproximateNumber = double, DiskConcept OtherDisk>
+    [[nodiscard]] detail::floating_result_t<ApproximateNumber> squaredDistance(const OtherDisk& other) const;
 
     /** @copydoc squaredDistance(const OtherPoint&) const */
     template <class ResultNumber = division_result_t<NumberType>, HalfplaneIntersectionConcept OtherRegion>

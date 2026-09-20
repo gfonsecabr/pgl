@@ -752,11 +752,11 @@ struct Polygon {
 
     /**
      * @brief Computes the floating-point bounding box of the polygon.
-     * @tparam ResultNumber The floating-point type for the result.
+     * @tparam ApproximateNumber The floating-point type for the result.
      * @return A rectangle with floating-point coordinates representing the bounding box.
      */
-    template <std::floating_point ResultNumber = double>
-    constexpr Rectangle<Point<ResultNumber>> fbox() const;
+    template <std::floating_point ApproximateNumber = double>
+    constexpr Rectangle<Point<ApproximateNumber>> fbox() const;
 
     /**
      * @brief Returns the vertices of the polygon (translation applied).
@@ -2631,12 +2631,12 @@ struct Polygon {
      * @brief Returns the squared Euclidean distance to a disk.
      *
      * Zero when the polygon's closed region intersects the disk; otherwise the
-     * squared exterior gap. Reports in `detail::floating_result_t<ResultNumber>`: the gap to a
-     * circle is generally irrational, so a floating-point `ResultNumber` is
+     * squared exterior gap. Reports in `detail::floating_result_t<ApproximateNumber>`: the gap to a
+     * circle is generally irrational, so a floating-point `ApproximateNumber` is
      * honoured as asked and any other request falls back to `double`.
      */
-    template <class ResultNumber = double, class DiskPointType, class DiskLabel>
-    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(
+    template <class ApproximateNumber = double, class DiskPointType, class DiskLabel>
+    [[nodiscard]] detail::floating_result_t<ApproximateNumber> squaredDistance(
         const Disk<DiskPointType, DiskLabel>& disk) const;
 
     /**
