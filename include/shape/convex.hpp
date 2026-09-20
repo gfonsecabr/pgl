@@ -2275,6 +2275,9 @@ struct Convex {
      *
      * Complexity: O(log n) for n vertices.
      *
+     * The polygon must not be empty: the empty set has no nearest point, so
+     * asking for a distance from one is a precondition violation.
+     *
      * @tparam ResultNumber Coordinate type of the returned distance (default: @ref division_result_t).
      *
      * @warning With an integer @p ResultNumber the exact squared distance is
@@ -2579,6 +2582,9 @@ struct Convex {
      * cyclic support-function search): the L1 gauge is not linear along an
      * edge normal the way the Euclidean squared distance is, so the fast
      * path's search functional does not carry over.
+     *
+     * The polygon must not be empty: the empty set has no nearest point, so
+     * asking for a distance from one is a precondition violation.
      */
     template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceL1(const OtherPoint& point) const;
@@ -2648,6 +2654,9 @@ struct Convex {
      * cyclic support-function search): the LInf gauge is not linear along an
      * edge normal the way the Euclidean squared distance is, so the fast
      * path's search functional does not carry over.
+     *
+     * The polygon must not be empty: the empty set has no nearest point, so
+     * asking for a distance from one is a precondition violation.
      */
     template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceLInf(const OtherPoint& point) const;
@@ -2710,7 +2719,13 @@ struct Convex {
         return other.template distanceLInf<ResultNumber>(*this);
     }
 
-    /** @brief Returns the Manhattan (L1) Hausdorff distance to the given shape. */
+    /**
+     * @brief Returns the Manhattan (L1) Hausdorff distance to the given shape.
+     *
+     * Neither shape may be empty: the empty set has no farthest point, so
+     * it has no Hausdorff distance to anything, and asking for one is a
+     * precondition violation.
+     */
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherPoint& point) const;
 
@@ -2750,7 +2765,13 @@ struct Convex {
         return other.template hausdorffDistanceL1<ResultNumber>(*this);
     }
 
-    /** @brief Returns the Chebyshev (LInf) Hausdorff distance to the given shape. */
+    /**
+     * @brief Returns the Chebyshev (LInf) Hausdorff distance to the given shape.
+     *
+     * Neither shape may be empty: the empty set has no farthest point, so
+     * it has no Hausdorff distance to anything, and asking for one is a
+     * precondition violation.
+     */
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherPoint& point) const;
 
@@ -2796,6 +2817,10 @@ struct Convex {
      * The directed Hausdorff distance in either direction is attained at a
      * vertex of the source shape, since distance to a convex shape is convex
      * and its supremum over any polygon is attained at a vertex.
+     *
+     * Neither shape may be empty: the empty set has no farthest point, so
+     * it has no Hausdorff distance to anything, and asking for one is a
+     * precondition violation.
      *
      * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
      */

@@ -3485,6 +3485,9 @@ struct Polygon {
      * Used when the polygon does not intersect @p other and its closest point
      * therefore lies on the boundary. Requires the edge segment to support
      * `squaredDistance(OtherShape)` (directly or via the shape's forwarder).
+     *
+     * The polygon must not be empty: the empty set has no nearest point, so
+     * asking for a distance from one is a precondition violation.
      */
     template <class ResultNumber, class OtherShape>
     constexpr ResultNumber edgeMinSquaredDistance(const OtherShape& other) const;

@@ -106,6 +106,8 @@ constexpr ResultNumber segmentLikeDistanceLInf(const Point<ResultNumber>& a, con
  */
 template <class ResultNumber, class Self, class OtherShape>
 constexpr ResultNumber maxVertexDistanceLInf(const Self& self, const OtherShape& other) {
+    // Neither operand may be empty; see @ref maxVertexSquaredDistance.
+    assert(nonEmptyOperand(self) && nonEmptyOperand(other));
     const auto self_vertices = self.vertices();
     const auto distanceToVertex = [&other](const auto& vertex) -> ResultNumber {
         return other.template distanceLInf<ResultNumber>(vertex);
@@ -699,10 +701,16 @@ constexpr auto Triangle<PointType, LabelType>::distanceLInf(const OtherTriangle&
 // O(n·m) against another convex polygon of m vertices. See the distanceLInf
 // declarations in convex.hpp for why the Euclidean fast path's search
 // functional does not carry over to the LInf gauge.
+//
+// Every scan below reads the polygon's first edge or vertex to seed the
+// minimum, so the empty polygon -- which has no nearest point to anything --
+// is a precondition violation, as an empty Rectangle is. The asserts state it
+// where the scan starts; the overloads that only forward inherit it.
 
 template <class PointType_, class LabelType>
 template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Convex<PointType_, LabelType>::distanceLInf(const OtherPoint& point) const {
+    assert(!empty());
     if (contains(point)) {
         return ResultNumber{};
     }
@@ -720,6 +728,7 @@ constexpr auto Convex<PointType_, LabelType>::distanceLInf(const OtherPoint& poi
 template <class PointType_, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>
 constexpr auto Convex<PointType_, LabelType>::distanceLInf(const OtherSegment& other) const {
+    assert(!empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -744,6 +753,7 @@ constexpr auto Convex<PointType_, LabelType>::distanceLInf(const OtherOrientedSe
 template <class PointType_, class LabelType>
 template <class ResultNumber, ConvexConcept OtherConvex>
 constexpr auto Convex<PointType_, LabelType>::distanceLInf(const OtherConvex& other) const {
+    assert(!empty() && !other.empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -781,6 +791,7 @@ constexpr auto Convex<PointType_, LabelType>::distanceLInf(const OtherRectangle&
 template <class PointType_, class LabelType>
 template <class ResultNumber, LineConcept OtherLine>
 constexpr auto Convex<PointType_, LabelType>::distanceLInf(const OtherLine& other) const {
+    assert(!empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -803,6 +814,7 @@ constexpr auto Convex<PointType_, LabelType>::distanceLInf(const OtherOrientedLi
 template <class PointType_, class LabelType>
 template <class ResultNumber, RayConcept OtherRay>
 constexpr auto Convex<PointType_, LabelType>::distanceLInf(const OtherRay& other) const {
+    assert(!empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -832,6 +844,9 @@ constexpr auto Convex<PointType_, LabelType>::distanceLInf(const OtherHalfplane&
 template <class PointType_, class TLabel>
 template <class ResultNumber, class OtherShape>
 constexpr ResultNumber Polygon<PointType_, TLabel>::edgeMinDistanceLInf(const OtherShape& other) const {
+    // The empty polygon has no edge to measure from, and no nearest point
+    // to anything; the chains and polylines say the same below.
+    assert(size() >= 1);
     const auto boundaryEdges = edges();
     ResultNumber best = boundaryEdges[0].template distanceLInf<ResultNumber>(other);
     for (std::size_t index = 1; index < boundaryEdges.size(); ++index) {

@@ -28,6 +28,23 @@ namespace pgl {
 namespace detail {
 
 /**
+ * @brief Whether @p shape covers at least one point.
+ *
+ * Only some shapes can be empty at all; one with no `empty()` and no `size()`
+ * always covers something. Used by the Hausdorff preconditions below.
+ */
+template <class ShapeType>
+constexpr bool nonEmptyOperand(const ShapeType& shape) {
+    if constexpr (requires { shape.empty(); }) {
+        return !shape.empty();
+    } else if constexpr (requires { shape.size(); }) {
+        return shape.size() != 0;
+    } else {
+        return true;
+    }
+}
+
+/**
  * @brief Farthest vertex of `self` from `other`: sup_{v in self} squaredDistance(v, other).
  *
  * Distance to `other` is a convex function whenever `other` is convex (true of
@@ -41,6 +58,11 @@ namespace detail {
  */
 template <class ResultNumber, class Self, class OtherShape>
 constexpr ResultNumber maxVertexSquaredDistance(const Self& self, const OtherShape& other) {
+    // The empty set has no farthest point, so it has no Hausdorff distance to
+    // anything; asking for one is a precondition violation, as it is for an
+    // empty Rectangle. Both operands are read — `self`'s vertices, and
+    // `other`'s distance to each of them — so neither may be empty.
+    assert(nonEmptyOperand(self) && nonEmptyOperand(other));
     const auto self_vertices = self.vertices();
     ResultNumber worst = other.template squaredDistance<ResultNumber>(self_vertices[0]);
     for (std::size_t index = 1; index < self_vertices.size(); ++index) {
@@ -786,10 +808,16 @@ constexpr auto Triangle<PointType, LabelType>::squaredHausdorffDistance(const Ot
 }
 
 // Convex
+//
+// Every scan below reads the polygon's first edge or vertex to seed the
+// minimum, so the empty polygon -- which has no nearest point to anything --
+// is a precondition violation, as an empty Rectangle is. The asserts state it
+// where the scan starts; the overloads that only forward inherit it.
 
 template <class PointType_, class LabelType>
 template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherPoint& point) const {
+    assert(!empty());
     // Promoted so a query point of a different coordinate type (e.g. a Disk's
     // inherently-double center) combines safely with this polygon's own vertex
     // type, matching the promotion orientationDeterminant already applies below.
@@ -891,6 +919,7 @@ constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherPoint& 
 template <class PointType_, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>
 constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherSegment& other) const {
+    assert(!empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -957,6 +986,7 @@ constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherOriente
 template <class PointType_, class LabelType>
 template <class ResultNumber, ConvexConcept OtherConvex>
 constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherConvex& other) const {
+    assert(!empty() && !other.empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -998,6 +1028,7 @@ constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherRectang
 template <class PointType_, class LabelType>
 template <class ResultNumber, LineConcept OtherLine>
 constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherLine& other) const {
+    assert(!empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -1046,6 +1077,7 @@ constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherOriente
 template <class PointType_, class LabelType>
 template <class ResultNumber, RayConcept OtherRay>
 constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherRay& other) const {
+    assert(!empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -1211,6 +1243,7 @@ template <class ApproximateNumber, DiskConcept OtherDisk>
 detail::floating_result_t<ApproximateNumber> Convex<PointType_, LabelType>::squaredDistance(
     const OtherDisk& other) const {
     using Float = detail::floating_result_t<ApproximateNumber>;
+    assert(!empty());
     // Beyond a few edges the per-edge test is replaced by one exact comparison:
     // the disk meets the polygon exactly when the circumcenter of its boundary
     // points is within the circumradius of it, and that distance is an O(log n)
@@ -1378,6 +1411,9 @@ detail::floating_result_t<ApproximateNumber> Disk<PointType_, TLabel>::squaredDi
 template <class PointType_, class TLabel>
 template <class ResultNumber, class OtherShape>
 constexpr ResultNumber Polygon<PointType_, TLabel>::edgeMinSquaredDistance(const OtherShape& other) const {
+    // The empty polygon has no edge to measure from, and no nearest point
+    // to anything; the chains and polylines say the same below.
+    assert(size() >= 1);
     const auto boundaryEdges = edges();
     ResultNumber best = boundaryEdges[0].template squaredDistance<ResultNumber>(other);
     for (std::size_t index = 1; index < boundaryEdges.size(); ++index) {
