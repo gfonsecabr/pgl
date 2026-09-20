@@ -92,7 +92,7 @@ why that is safe here). `--no-catch-crashes` turns it off.
 
 ## What is checked
 
-`--list` prints the current set: 82 properties in sixteen groups, drawn from 26
+`--list` prints the current set: 86 properties in sixteen groups, drawn from 26
 generators.
 
 | Group | What it asserts |
