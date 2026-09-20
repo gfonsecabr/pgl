@@ -12,8 +12,6 @@
 
 <br/>
 
-> ℹ️ **Pre-release**: pgl is extensively tested, but it has not had a stable release yet and its API may still change.
-
 ## Methods Common to Most Shapes
 
 The following methods apply to many shapes and fall into several groups:

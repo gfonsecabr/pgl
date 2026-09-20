@@ -14,8 +14,6 @@
 
 <br/>
 
-> ℹ️ **Pre-release**: pgl is extensively tested, but it has not had a stable release yet and its API may still change.
-
 ## Comparison with CGAL
 
 [CGAL](https://www.cgal.org/) is the reference implementation of computational geometry in C++: decades of work, arbitrary dimensions, many kernels, and a feature set pgl does not approach. It is the yardstick this page measures against: what each library covers (see [Scope](#scope)), how fast they run on the problems both solve (see [Speed](#speed)), and how much code a task takes to write (see [Interface](#interface)).

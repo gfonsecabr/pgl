@@ -12,8 +12,6 @@
 
 <br/>
 
-> ℹ️ **Pre-release**: pgl is extensively tested, but it has not had a stable release yet and its API may still change.
-
 ## Polymorphism with `Shape`
 
 Most of pgl is static: the pair of [shapes](shapes.md) is known at compile time and the tightest result type is chosen there. `Shape` is the runtime alternative — a `std::variant` over every shape, with the whole common interface forwarded to whichever one it holds.

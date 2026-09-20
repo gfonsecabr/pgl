@@ -6,6 +6,8 @@
 # Project
 #---------------------------------------------------------------------------
 PROJECT_NAME           = "Pangolin"
+# Keep in step with the VERSION in CMakeLists.txt and the release tag.
+PROJECT_NUMBER         = 1.0.0
 PROJECT_BRIEF          = "Header-only C++20 plane computational geometry library"
 PROJECT_LOGO           = doc/figures/logo.png
 OUTPUT_DIRECTORY       = build/doc

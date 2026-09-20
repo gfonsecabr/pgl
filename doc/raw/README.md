@@ -12,8 +12,6 @@
 
 <br/>
 
-> ℹ️ **Pre-release**: pgl is extensively tested, but it has not had a stable release yet and its API may still change.
-
 Pangolin (or pgl) is a header-only C++ library for computational geometry algorithms in the plane. It is intended to be easy to use and efficient.
 
 The `Point` and `Segment` classes are two of [several shapes](shapes.md).

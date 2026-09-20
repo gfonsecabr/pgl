@@ -5,13 +5,14 @@ cmake_minimum_required(VERSION 3.14)
 # generate the package config that makes find_package(pgl) work. Consumers who
 # prefer to pass -Iinclude by hand need none of it.
 project(pgl
-        VERSION 0.9.0
+        VERSION 1.0.0
         DESCRIPTION "Header-only C++20 library for plane computational geometry"
         HOMEPAGE_URL "https://github.com/gfonsecabr/pgl"
         LANGUAGES CXX)
 
-# Pre-1.0: bump the VERSION above to 1.0.0 in the commit that tags the release,
-# so that find_package(pgl 1.0) resolves it.
+# Keep the VERSION above in step with the release tag. The generated
+# pgl-config-version.cmake is SameMajorVersion, so find_package(pgl 1.0)
+# is satisfied by any later 1.x.
 
 include(GNUInstallDirs)
 

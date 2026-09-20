@@ -14,8 +14,6 @@
 
 <br/>
 
-> ℹ️ **Pre-release**: pgl is extensively tested, but it has not had a stable release yet and its API may still change.
-
 ## Algorithms
 
 - [Intersection of Line Segments](#intersection-of-line-segments) reports the intersecting, crossing or overlapping pairs of segments.

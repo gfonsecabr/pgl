@@ -12,8 +12,6 @@
 
 <br/>
 
-> ℹ️ **Pre-release**: pgl is extensively tested, but it has not had a stable release yet and its API may still change.
-
 ## Template Types
 
 `pgl::Point` is shorthand for `pgl::Point<int>`. All other geometry classes are templates of a point type.

@@ -14,8 +14,6 @@
 
 <br/>
 
-> ℹ️ **Pre-release**: pgl is extensively tested, but it has not had a stable release yet and its API may still change.
-
 ## Template Types
 
 [`pgl::Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html "Two-dimensional point with optional label payload.") is shorthand for `pgl::Point<int>`. All other geometry classes are templates of a point type.

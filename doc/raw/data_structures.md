@@ -12,8 +12,6 @@
 
 <br/>
 
-> ℹ️ **Pre-release**: pgl is extensively tested, but it has not had a stable release yet and its API may still change.
-
 ## Data Structures
 
 - [Shape Tree](#shape-tree) answers range queries over a set of bounded shapes.

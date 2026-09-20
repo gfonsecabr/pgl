@@ -12,8 +12,6 @@
 
 <br/>
 
-> ℹ️ **Pre-release**: pgl is extensively tested, but it has not had a stable release yet and its API may still change.
-
 ## Canvas
 
 `Canvas` is a lightweight SVG renderer for Pangolin shapes. It is designed for
