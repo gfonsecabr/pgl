@@ -148,6 +148,11 @@ public:
 /**
  * @brief Arbitrary precision signed integer.
  *
+ * pgl ships its own rather than depending on one, and tunes it for the numbers
+ * computational geometry actually produces: many of them small, few of them
+ * huge. Hence the unallocated fast path below, and hence no Karatsuba
+ * multiplication — the operands never grow large enough for it to pay.
+ *
  * The value is stored in sign-magnitude form:
  * - @ref negative_ holds the sign (always false when the value is zero);
  * - when @ref limbs_ is empty the magnitude is @ref small_, a non-negative

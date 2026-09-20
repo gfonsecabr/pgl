@@ -902,6 +902,9 @@ struct Line {
      * @brief Returns the half-plane geometrically above this line.
      *
      * For vertical lines, this is the half-plane with smaller x-coordinate.
+     * Equivalently, it is the closed half-plane of the points `p` with
+     * `OrientedSegment(min(), max()).orientation(p) >= 0`, which is
+     * `Halfplane(min(), max())`.
      *
      * @return Closed half-plane above the line.
      */

@@ -83,14 +83,14 @@ Many pairs of shapes `A` and `B` support the following predicates, where $\parti
 
 | Predicate | Definition | Question |
 | --------- | ---------- | --------- |
-| `A.samePointSet(B)` | $A = B$ | Do `A` and `B` define the same point set? |
-| `A.contains(B)` | $A \supseteq B$ | Does `A` contain `B`? |
-| `A.boundaryContains(B)` | $\partial A \supseteq B$ | Does the boundary of `A` contain `B`? |
-| `A.interiorContains(B)` | $A^\circ \supseteq B$ | Does the interior of `A` contain `B`? |
-| `A.intersects(B)` | $A \cap B \neq \emptyset$ | Do `A` and `B` intersect? |
-| `A.interiorsIntersect(B)` | $A^\circ \cap B^\circ \neq \emptyset$ | Do the interiors of `A` and `B` intersect? |
-| `A.separates(B)` | $B \setminus A$ disconnected | Does the removal of `A` separate `B`? |
-| `A.crosses(B)` | $A \setminus B$ and $B \setminus A$ disconnected | Does the removal of each of `A` and `B` separate the other? |
+| `A.samePointSet(B)`{Polygon} | $A = B$ | Do `A` and `B` define the same point set? |
+| `A.contains(B)`{Polygon} | $A \supseteq B$ | Does `A` contain `B`? |
+| `A.boundaryContains(B)`{Polygon} | $\partial A \supseteq B$ | Does the boundary of `A` contain `B`? |
+| `A.interiorContains(B)`{Polygon} | $A^\circ \supseteq B$ | Does the interior of `A` contain `B`? |
+| `A.intersects(B)`{Polygon} | $A \cap B \neq \emptyset$ | Do `A` and `B` intersect? |
+| `A.interiorsIntersect(B)`{Polygon} | $A^\circ \cap B^\circ \neq \emptyset$ | Do the interiors of `A` and `B` intersect? |
+| `A.separates(B)`{Polygon} | $B \setminus A$ disconnected | Does the removal of `A` separate `B`? |
+| `A.crosses(B)`{Polygon} | $A \setminus B$ and $B \setminus A$ disconnected | Does the removal of each of `A` and `B` separate the other? |
 
 The following table illustrates the result of the predicates for a triangle and a line segment.
 
@@ -208,7 +208,7 @@ The six bounded region types are `Rectangle`, `Triangle`, `Convex`, `Polygon`, `
 
 Every pair outside those grids throws `pgl::unsupported_operation`. Two unbounded operands are the case to know: $A \cap B$ need not be bounded then, so no `PolygonSet` can hold it, and `halfplane.regularizedIntersection(halfplane)` throws. Use `intersection` there, which answers a `HalfplaneIntersection`.
 
-A pair of convex operands never builds an arrangement: two convex shapes meet in a convex shape, so the answer is one clip and one piece. Two rectangles cost a coordinate comparison per side.
+A pair of convex operands is answered by a single clip instead of an arrangement, and two rectangles by a coordinate comparison per side.
 
 ```c++
 pgl::Rectangle<> rect(0,0, 4,4);
@@ -270,7 +270,7 @@ The shape returned by the Minkowski sum depends on the two operands, and is summ
 
 The Minkowski erosion of a shape by another is the set of translations of the second that keep it inside the first, $A \ominus B = \{x : x \oplus B \subseteq A\} = \bigcap_{b \in B} (A - b)$. It is written `a.minkowskiErosion(b)` and is defined for exactly the pairs [`minkowskiSum`](#minkowski-sum) is defined for. Unlike the sum it is **not commutative**: `a.minkowskiErosion(b)` and `b.minkowskiErosion(a)` are different questions.
 
-A **convex receiver** is an intersection of half-planes, and eroding it moves each of them in by the operand's support point in that direction — one clamp per constraint, in $O(a + m \log m)$ time for a receiver of $a$ constraints and an operand of $m$ vertices, and $O(a + m)$ when the operand is a `Convex` or a full-dimensional `HalfplaneIntersection` of $m$ constraints. The half-planes stay on the operands' lattice, but their crossings need not, so the result is a [`HalfplaneIntersection`](shapes.md#halfplane-intersection), which represents a two-dimensional region, a segment, a point, the empty set and the whole plane alike. Ask it for `asConvex<ResultNumber>()` to get the vertices.
+A **convex receiver** erodes to an intersection of half-planes, in $O(a + m \log m)$ time for a receiver of $a$ constraints and an operand of $m$ vertices, and $O(a + m)$ when the operand is a `Convex` or a full-dimensional `HalfplaneIntersection` of $m$ constraints. Those half-planes stay on the operands' lattice, but their crossings need not, so the result is a [`HalfplaneIntersection`](shapes.md#halfplane-intersection), which represents a two-dimensional region, a segment, a point, the empty set and the whole plane alike. Ask it for `asConvex<ResultNumber>()` to get the vertices.
 
 ```c++
 pgl::Triangle<> tri(0,0, 2,0, 0,3);
@@ -278,7 +278,7 @@ auto shrunk = tri.minkowskiErosion(pgl::Segment(0,0, 0,1));
 shrunk.asConvex<pgl::ERational>();                    // Convex[(0,0),(4/3,0),(0,2)]
 ```
 
-Because only the operand's *support function* is read, and a support function sees no further than the convex hull, a convex erodes by a non-convex operand in $O(a + m \log m)$ time and with the same answer its hull gives. That is why a convex shape keeps the pairs whose sum it forwards to a `Polygon` or a region.
+Only the convex hull of the operand matters, so a convex receiver erodes by a non-convex operand in the same $O(a + m \log m)$ time and with the same answer that hull gives.
 
 ```c++
 pgl::Rectangle<> box(0,0, 10,10);
@@ -294,9 +294,9 @@ pgl::Halfplane up = {0,0, 1,0};                       // y >= 0
 up.minkowskiErosion(pgl::Rectangle(2,3, 5,7));        // y >= -3
 ```
 
-An **unbounded operand** fits inside no bounded receiver, and the clamp says so: the support in a direction the operand recedes through is infinite, so that constraint admits nothing and the erosion is empty. An unbounded *receiver* erodes like any other: a line survives only an operand parallel to it, and a half-plane survives a line, a ray or a half-plane parallel to its own boundary.
+An **unbounded operand** fits inside no bounded receiver, so the erosion is empty. An unbounded *receiver* erodes like any other: a line survives only an operand parallel to it, and a half-plane survives a line, a ray or a half-plane parallel to its own boundary.
 
-A **non-convex receiver** — a `Polygon`, a `PolygonWithHoles`, a `PolygonSet`, a `Polyline` or a `MonotoneChain` — returns a [`PolygonSet`](shapes.md#polygon-set), because an erosion disconnects what it shrinks: a dumbbell eroded by anything taller than its handle is two regions, for operands that are in no way degenerate. This is where the sum's single-region guarantee has no counterpart. The result is *regularized*, `closure((A ⊖ B)°)`, as the [boolean operations](#boolean-operations) are, so material an erosion thins to a curve — a corridor exactly as wide as its operand — is dropped rather than represented, and a receiver with no area erodes to the empty set. As everywhere else, the coordinate type is the caller's, defaulting to `division_result_t`.
+A **non-convex receiver** — a `Polygon`, a `PolygonWithHoles`, a `PolygonSet`, a `Polyline` or a `MonotoneChain` — returns a [`PolygonSet`](shapes.md#polygon-set), because an erosion can disconnect what it shrinks: a dumbbell eroded by anything taller than its handle is two regions. The result is *regularized*, `closure((A ⊖ B)°)`, as the [boolean operations](#boolean-operations) are, so material an erosion thins to a curve — a corridor exactly as wide as its operand — is dropped rather than represented, and a receiver with no area erodes to the empty set.
 
 ```c++
 pgl::Polygon<> u({{0,0},{6,0},{6,6},{4,6},{4,2},{2,2},{2,6},{0,6}});   // a U
@@ -305,7 +305,7 @@ eroded.component(0).outer();     // [(0,0),(5,0),(5,5),(4,5),(4,1),(1,1),(1,5),(
 u.minkowskiErosion<int>(pgl::Rectangle(0,0, 1,1));                     // integer coordinates
 ```
 
-Two `Disk`s erode to a `Disk` — the centers subtract and so do the radii — reported as a `std::optional` that is empty when the operand is the wider disk, since a disk has no empty state of its own. A `Halfplane` eroded by a `Disk` slides in by the radius along its own normal, where the sum slides it out. Both take a square root unless the disks were built from a center and a radius, so the parameter is an `ApproximateNumber`, defaulting to `double` as it does for the disk sum.
+Two `Disk`s erode to a `Disk` — the centers subtract and so do the radii — reported as a `std::optional` that is empty when the operand is the wider disk, since a disk has no empty state of its own. A `Halfplane` eroded by a `Disk` slides in by the radius along its own normal, where the sum slides it out. Both take an `ApproximateNumber`, a radius being generally irrational.
 
 ```c++
 pgl::Disk a(pgl::Point(0,0), 5), b(pgl::Point(4,1), 2);
@@ -318,99 +318,95 @@ b.minkowskiErosion(a);                 // std::nullopt
 
 Methods that construct coordinates or return numeric measurements take the result type as their first template argument, and its **name states whether the default answer is exact**:
 
-- `ApproximateNumber = double` when the result may be irrational, such as a disk radius, a Euclidean length, or a distance involving a disk. The default is floating point, so the default answer is an approximation.
-- `ResultNumber` otherwise, with one of two exact defaults:
-  - `division_result_t<NumberType>` when the operation may divide. Integral and `BigInt` receivers widen to `ERational`, while floating-point and already-rational receivers retain their coordinate type.
-  - `NumberType`, or the integer a `Rational` is built on, when the operation needs no division at all — rectangle area, Point–Point squared, L1, and LInf distances, `latticePoints`, `asBitMatrix`.
+- `ResultNumber` when the default is exact: `ERational` for an integral receiver when the operation may divide, and the receiver's own coordinate type when it does not. A floating-point or rational receiver keeps its coordinate type either way.
+- `ApproximateNumber = double` when the result may be irrational, such as a disk radius, a Euclidean length, or a distance involving a disk, so the default answer is an approximation.
 
-An overload set may use both names, one per overload: `squaredDistance`, `distanceL1` and `distanceLInf` take a `ResultNumber` against every shape but `Disk`, and an `ApproximateNumber` against a `Disk`.
+An overload set may use both names, one per overload: `squaredDistance`, `distanceL1` and `distanceLInf` take a `ResultNumber` against every shape but `Disk`, and an `ApproximateNumber` against a `Disk`. An explicit result type overrides the default, and an integral one truncates an operation that divides.
 
-The policy is receiver-only: mixed-coordinate calls use the receiver's default. An explicit result template argument overrides it. Explicit integral results can truncate an operation that divides. Disk distance operations fall back to `double` for non-floating requests, while other disk operations may reject an exact type when they require a square root.
+- `rotated90(int k = 1)`{Polygon}: Returns the shape rotated by `90k` degrees around the origin.
 
-- `rotated90(int k = 1)`: Returns the shape rotated by `90k` degrees around the origin.
+- `rotate90(int k = 1)`{Polygon}: Rotates the shape by `90k` degrees around the origin.
 
-- `rotate90(int k = 1)`: Rotates the shape by `90k` degrees around the origin.
+- `scaledUpX(Number)`{Polygon}: Returns the shape with the x-coordinate multiplied by a number.
 
-- `scaledUpX(Number)`: Returns the shape with the x-coordinate multiplied by a number.
+- `scaleUpX(Number)`{Polygon}: Multiplies the x-coordinate by a number.
 
-- `scaleUpX(Number)`: Multiplies the x-coordinate by a number.
+- `scaledUpY(Number)`{Polygon}: Returns the shape with the y-coordinate multiplied by a number.
 
-- `scaledUpY(Number)`: Returns the shape with the y-coordinate multiplied by a number.
+- `scaleUpY(Number)`{Polygon}: Multiplies the y-coordinate by a number.
 
-- `scaleUpY(Number)`: Multiplies the y-coordinate by a number.
+- `scaledDownX(Number)`{Polygon}: Returns the shape with the x-coordinate divided by a number.
 
-- `scaledDownX(Number)`: Returns the shape with the x-coordinate divided by a number.
+- `scaleDownX(Number)`{Polygon}: Divides the x-coordinate by a number.
 
-- `scaleDownX(Number)`: Divides the x-coordinate by a number.
+- `scaledDownY(Number)`{Polygon}: Returns the shape with the y-coordinate divided by a number.
 
-- `scaledDownY(Number)`: Returns the shape with the y-coordinate divided by a number.
+- `scaleDownY(Number)`{Polygon}: Divides the y-coordinate by a number.
 
-- `scaleDownY(Number)`: Divides the y-coordinate by a number.
+- `squaredDistance<ResultNumber>(Shape)`{Polygon}: Returns the squared distance, exact by default. A pair involving a `Disk` takes an `ApproximateNumber` instead and answers in floating point.
 
-- `squaredDistance<ResultNumber>(Shape)`: Returns the squared distance using the result policy selected by the result type. Point–Point and the axis-aligned rectangle cases default to `NumberType`; pairs that may project onto an edge default to `division_result_t<NumberType>`; a pair involving `Disk` takes an `ApproximateNumber` and defaults to `double`. An explicitly integral result truncates any projection division, while a disk pair falls back to `double` for a non-floating request.
+- `closestSegments<ResultNumber>(Shape)`{Polygon}: Returns an `optional<array<Segment,2>>` naming the two elements that realize `squaredDistance` — the receiver's first, the argument's second — each an edge of its shape, degenerate to a vertex where the shape has no edge. Empty exactly when the distance is zero, which includes one shape nested inside the other. Defined for every pair among the bounded polygonal shapes — `Point`, `Segment`, `OrientedSegment`, `Rectangle`, `Triangle`, `Convex`, `MonotoneChain`, `Polyline`, `Polygon`, `PolygonWithHoles`, and `PolygonSet` — the only ones whose distance is realized on an edge or at a vertex. Not defined for `Line`, `OrientedLine`, `Ray`, `Halfplane`, `HalfplaneIntersection`, or `Disk`; the unbounded ones among those still have `closestPoints`.
 
-- `closestSegments<ResultNumber>(Shape)`: Returns an `optional<array<Segment,2>>` naming the two elements that realize `squaredDistance` — the receiver's first, the argument's second — each an edge of its shape, degenerate to a vertex where the shape has no edge. Empty exactly when the distance is zero, which includes one shape nested inside the other. Defaults to `NumberType`, since the endpoints are the shapes' own vertices; the argument's coordinates and labels are re-expressed in the receiver's, so a narrower `ResultNumber` loses them. Defined for every pair among `Point`, `Segment`, `OrientedSegment`, `Rectangle`, `Triangle`, `Convex`, `MonotoneChain`, `Polyline`, `Polygon`, `PolygonWithHoles`, and `PolygonSet` — the bounded polygonal shapes, the only ones whose distance is realized on an edge or at a vertex. Not defined for `Line`, `OrientedLine`, `Ray`, `Halfplane`, `HalfplaneIntersection`, or `Disk`; the unbounded ones among those still have `closestPoints`.
+- `closestPoints<ResultNumber>(Shape)`{Polygon}: Returns an `optional<array<Point,2>>` with the two points that realize `squaredDistance`, the receiver's first, and empty exactly when the distance is zero. Where `closestSegments` is defined this refines the elements it names, so the two agree. Defined for every pair `closestSegments` covers, plus every pair of one of those with `Line`, `OrientedLine`, `Ray`, `Halfplane`, or `HalfplaneIntersection` in either position. Not defined with an unbounded shape on *both* sides, nor with `Disk`, whose nearest point is irrational.
 
-- `closestPoints<ResultNumber>(Shape)`: Returns an `optional<array<Point,2>>` with the two points that realize `squaredDistance`, the receiver's first, and empty exactly when the distance is zero. Where `closestSegments` is defined this refines the elements it names, so the two agree. Defined for every pair `closestSegments` covers, plus every pair of one of those with `Line`, `OrientedLine`, `Ray`, `Halfplane`, or `HalfplaneIntersection` in either position — an unbounded convex shape has no element to name but still has the point, found against its boundary. Not defined with an unbounded shape on *both* sides (two parallel lines realize their distance along their whole length, with nothing to anchor a choice to), nor with `Disk` (its nearest point is irrational). Defaults to `division_result_t<NumberType>`: a point interior to an element comes from a division, so an explicitly integral result truncates it.
+- `squaredHausdorffDistance<ResultNumber>(Shape)`{Polygon}: Returns the squared Hausdorff distance. Defined for every pair among `Point`, `Segment`, `OrientedSegment`, `Rectangle`, `Triangle`, `Convex`, and `HalfplaneIntersection` — all bounded and convex. A `HalfplaneIntersection` operand must be bounded and nonempty: an unbounded one throws `std::logic_error`, and the empty one is a precondition violation. Not defined for `Line`, `OrientedLine`, `Ray`, or `Halfplane`, whose Hausdorff distance is infinite, nor yet for `Disk`, `MonotoneChain`, `Polyline`, `Polygon`, `PolygonWithHoles`, or `PolygonSet`.
 
-- `squaredHausdorffDistance<ResultNumber>(Shape)`: Returns the squared Hausdorff distance. Pair-specific defaults are native when the extrema only reuse stored vertices and `division_result_t<NumberType>` when an edge projection may be needed; a pair with a `HalfplaneIntersection` always defaults to `division_result_t<NumberType>`, its vertices being crossings of the stored boundary lines. Defined for every pair among `Point`, `Segment`, `OrientedSegment`, `Rectangle`, `Triangle`, `Convex`, and `HalfplaneIntersection` — all bounded, convex shapes, so the directed distance in either direction is always attained at a vertex. A `HalfplaneIntersection` operand must be bounded and nonempty: an unbounded one throws `std::logic_error`, and the empty one is a precondition violation. Not defined for `Line`, `OrientedLine`, `Ray`, or `Halfplane` (unbounded, so the Hausdorff distance to or from them is infinite), nor yet for `Disk`, `MonotoneChain`, `Polyline`, `Polygon`, `PolygonWithHoles`, or `PolygonSet`.
+- `distanceL1<ResultNumber>(Shape)`{Polygon} / `distanceLInf<ResultNumber>(Shape)`: Return the Manhattan (L1) or Chebyshev (LInf) distance to the given shape, exact by default. Defined for every pair among `Point`, `Segment`, `OrientedSegment`, `Line`, `OrientedLine`, `Ray`, `Halfplane`, `Rectangle`, `Triangle`, `Convex`, `MonotoneChain`, `Polygon`, and `HalfplaneIntersection`, plus Disk–Point, which takes an `ApproximateNumber` and answers in floating point. The remaining `Disk` pairs are not implemented.
 
-- `distanceL1<ResultNumber>(Shape)` / `distanceLInf<ResultNumber>(Shape)`: Return the Manhattan (L1) or Chebyshev (LInf) distance to the given shape. Point–Point and the axis-aligned rectangle cases default to `NumberType`; pairs that may project onto an edge default to `division_result_t<NumberType>`; the `Disk` pair takes an `ApproximateNumber`. Point–Point is templated too, so mixed-coordinate callers can explicitly choose the arithmetic type. Defined for every pair among `Point`, `Segment`, `OrientedSegment`, `Line`, `OrientedLine`, `Ray`, `Halfplane`, `Rectangle`, `Triangle`, `Convex`, `MonotoneChain`, `Polygon`, and `HalfplaneIntersection`, plus Disk–Point. Disk distances default to `double` because the implementation uses a numeric search; an explicitly requested floating-point type is preserved. The remaining `Disk` pairs (`Disk` against any shape other than `Point`, and Disk–Disk) are not implemented.
+- `hausdorffDistanceL1<ResultNumber>(Shape)`{Polygon} / `hausdorffDistanceLInf<ResultNumber>(Shape)`: Return the L1 or LInf Hausdorff distance. Defined for every pair among `Point`, `Segment`, `OrientedSegment`, `Rectangle`, `Triangle`, `Convex`, `MonotoneChain`, `Polyline`, `Polygon`, `PolygonWithHoles`, and `PolygonSet`, and for a `HalfplaneIntersection` against itself, `Point`, `Segment`, `OrientedSegment`, `Rectangle`, `Triangle` or `Convex` under the same boundedness requirement as `squaredHausdorffDistance`. Runs in $O(N^3 \alpha(N))$ time for $N$ vertices over both shapes, where $\alpha$ is the inverse Ackermann function; $O(n \cdot m)$ for a `HalfplaneIntersection` of $n$ half-planes against a convex shape of $m$ vertices.
 
-- `hausdorffDistanceL1<ResultNumber>(Shape)` / `hausdorffDistanceLInf<ResultNumber>(Shape)`: Return the L1 or LInf Hausdorff distance. A pair with a `Point` defaults to `NumberType`; the other pairs default to `division_result_t<NumberType>`, and an explicitly integral result receives the exact distance truncated. Defined for every pair among `Point`, `Segment`, `OrientedSegment`, `Rectangle`, `Triangle`, `Convex`, `MonotoneChain`, `Polyline`, `Polygon`, `PolygonWithHoles`, and `PolygonSet`, and for a `HalfplaneIntersection` against itself, `Point`, `Segment`, `OrientedSegment`, `Rectangle`, `Triangle` or `Convex` under the same boundedness requirement as `squaredHausdorffDistance`. Runs in $O(N^3 \alpha(N))$ time for $N$ vertices over both shapes, where $\alpha$ is the inverse Ackermann function; $O(n \cdot m)$ for a `HalfplaneIntersection` of $n$ half-planes against a convex shape of $m$ vertices.
+- `bbox()`{Polygon}: Returns an axis-aligned bounding box in the stored point type that contains the bounded shape. It is tight for the polygonal shapes; a disk built from three boundary points may return a larger exact-coordinate box. A bounded, nonempty `HalfplaneIntersection` instead exposes `bbox<ResultNumber = division_result_t<NumberType>>()` because its implicit vertices may be fractional.
 
-- `bbox()`: Returns an axis-aligned bounding box in the stored point type that contains the bounded shape. It is tight for the polygonal shapes; a disk built from three boundary points may return a larger exact-coordinate box. A bounded, nonempty `HalfplaneIntersection` instead exposes `bbox<ResultNumber = division_result_t<NumberType>>()` because its implicit vertices may be fractional.
-
-- `fbox<ApproximateNumber>()`: Returns a floating-point bounding box with coordinates of type `ApproximateNumber`. For shapes whose box comes from stored exact coordinates, conversions are rounded outward when the coordinate type supplies directed bounds. A disk's box is computed from its floating-point center and radius and is tight only up to floating-point rounding.
+- `fbox<ApproximateNumber>()`{Polygon}: Returns a floating-point bounding box with coordinates of type `ApproximateNumber`, rounded outward where the exact box does not convert exactly. A disk's box is computed from its floating-point center and radius and is tight only up to floating-point rounding.
 
 - `convexHull()`{Polygon}: Returns the smallest convex polygon that contains the shape.
 
-- `area<ResultNumber>()`: Returns the area. Rectangle and zero- or one-dimensional shapes default to `NumberType`; polygonal shapes and `HalfplaneIntersection` default to `division_result_t<NumberType>` because they may divide by two or construct fractional vertices. `Disk` instead takes an `area<ApproximateNumber>()`, because its area contains π.
+- `area<ResultNumber>()`{Polygon}: Returns the area, exactly by default. `Disk` instead takes an `area<ApproximateNumber>()`, because its area contains π.
 
-- `twiceArea()`: Returns two times the area in native arithmetic for stored shapes. `HalfplaneIntersection` uses `twiceArea<ResultNumber = division_result_t<NumberType>>()`, because even its implicit vertices may require division.
+- `twiceArea()`{Polygon}: Returns two times the area in the shape's own coordinate type, so no division is needed. `HalfplaneIntersection` instead takes a `ResultNumber`, because even its vertices may be fractional.
 
-- `diameter()`: Returns a segment that defines the diameter in native coordinates. `Disk` instead exposes `diameter<ResultNumber = division_result_t<NumberType>>()`, since finding the center of a three-point disk may divide.
+- `diameter()`{Polygon}: Returns a segment that defines the diameter, in the shape's own coordinate type. `Disk` instead exposes `diameter<ResultNumber>()`, since finding the center of a three-point disk may divide.
 
-- `pointInside<ResultNumber>()`: Returns a point in the relative interior of the shape. Forms that divide by a power of two default to `division_result_t<NumberType>`; forms that simply select a stored point default to `NumberType`.
+- `pointInside<ResultNumber>()`{Polygon}: Returns a point in the relative interior of the shape.
 
-- `pointInsideInteriorContainedIn(other)`: Returns true if the `pointInside()` witness from this shape's relative interior lies in the strict interior of `other`. It scales both shapes when necessary to keep the witness exact instead of letting integer truncation round it onto the boundary.
+- `pointInsideInteriorContainedIn(other)`{Polygon}: Returns true if the `pointInside()` witness from this shape's relative interior lies in the strict interior of `other`, the witness being kept exact even for an integral coordinate type.
 
-- `verticesContain(p)`: Returns true if there is an index `i` such that `s[i] == p` for the shape `s`. Two shapes, such as lines, may be equal according to `==` but behave differently for `verticesContain` when they are defined by different points.
+- `verticesContain(p)`{Triangle}: Returns true if there is an index `i` such that `s[i] == p` for the shape `s`. Two shapes, such as lines, may be equal according to `==` but behave differently for `verticesContain` when they are defined by different points.
 
-- `convexPartition()` (`Polygon` and `PolygonWithHoles`): Returns the shape cut into `Convex` pieces with pairwise disjoint interiors whose union is the shape, using at most four times the fewest possible pieces. It is shorthand for `triangulation().convexPartition()`; see [Triangulation](data_structures.md#triangulation). A convex shape comes back as a single piece. On a region, the pieces cover only what has area, so the holes are where there is no piece, and a slit—having no area—appears in none of them.
+- `convexPartition()`{Polygon} (`Polygon` and `PolygonWithHoles`): Returns the shape cut into `Convex` pieces with pairwise disjoint interiors whose union is the shape, using at most four times the fewest possible pieces. It is shorthand for `triangulation().convexPartition()`; see [Triangulation](data_structures.md#triangulation). A convex shape comes back as a single piece. On a region, the pieces cover only what has area, so the holes are where there is no piece, and a slit—having no area—appears in none of them.
 
-- `convexCovering()` (`Polygon` and `PolygonWithHoles`): Returns an irredundant covering by `Convex` pieces. The pieces may overlap, and the covering is not necessarily minimum. For a `Polygon`, the constrained Delaunay triangles form a full-visibility subgraph using the paper's dual-graph BFS, a DSATUR vertex clique cover groups them, and every clique becomes one convex hull. For `PolygonWithHoles`, the method remains shorthand for `triangulation().convexCovering()` because clique hulls can surround holes and require an additional splitting step. On a region, the covering leaves holes and slits uncovered.
+- `convexCovering()`{Polygon} (`Polygon` and `PolygonWithHoles`): Returns an irredundant covering by `Convex` pieces. The pieces may overlap, and the covering is not necessarily minimum; see [Triangulation](data_structures.md#triangulation). On a region, the covering leaves holes and slits uncovered.
 
-- `latticePoints<ResultNumber>()`: Returns the integer points the shape contains, in increasing order and each of them once. The boundary counts, as it does for `contains`, so a point on an edge is reported. Defined for the bounded shapes — `Segment`, `OrientedSegment`, `MonotoneChain`, `Polyline`, `Rectangle`, `Triangle`, `Disk`, `Convex`, `Polygon`, `PolygonWithHoles`, `PolygonSet`, and a `HalfplaneIntersection` that is bounded, which throws `std::logic_error` when it is not. `Line`, `OrientedLine`, `Ray` and `Halfplane` do not have it: an unbounded shape covers infinitely many. Reporting $k$ points of a shape with $n$ vertices whose bounding box spans $W$ integer columns takes $O(k + 1)$ time for a `Rectangle`, $O(n + k)$ for a `Segment`, an `OrientedSegment` or a `MonotoneChain`, $O(n (k + 1))$ for a `Polyline`, $O(W + k)$ for a `Disk`, and $O((W + 1)\, n \log n + k \log k)$ for the other two-dimensional shapes. `ResultNumber` is the integer type of the answer, defaulting as `asBitMatrix`'s does — the coordinate type itself when it is a signed integer, the integer a `Rational` is built on, or `int64_t` — and a point that does not fit it throws `std::logic_error` rather than rounding.
+- `latticePoints<ResultNumber>()`{Polygon}: Returns the integer points the shape contains, in increasing order and each of them once. The boundary counts, as it does for `contains`, so a point on an edge is reported. Defined for the bounded shapes — `Segment`, `OrientedSegment`, `MonotoneChain`, `Polyline`, `Rectangle`, `Triangle`, `Disk`, `Convex`, `Polygon`, `PolygonWithHoles`, `PolygonSet`, and a `HalfplaneIntersection` that is bounded, which throws `std::logic_error` when it is not. `Line`, `OrientedLine`, `Ray` and `Halfplane` do not have it: an unbounded shape covers infinitely many. Reporting $k$ points of a shape with $n$ vertices whose bounding box spans $W$ integer columns takes $O(k + 1)$ time for a `Rectangle`, $O(n + k)$ for a `Segment`, an `OrientedSegment` or a `MonotoneChain`, $O(n (k + 1))$ for a `Polyline`, $O(W + k)$ for a `Disk`, and $O((W + 1)\, n \log n + k \log k)$ for the other two-dimensional shapes. `ResultNumber` is the integer type of the answer, and a point that does not fit it throws `std::logic_error` rather than rounding.
 
-- `asBitMatrix<ResultNumber>()` (`Polygon`, `PolygonWithHoles` and `PolygonSet`): Returns the shape rasterized into a [`BitMatrix`](data_structures.md#bit-matrix) over its bounding box, one bit per covered cell, holes left unset. Only a rectilinear shape is exactly a set of grid cells, so every edge must be axis-parallel and every coordinate a whole number the grid can hold; it throws `std::logic_error` otherwise, rounding nothing. `ResultNumber` is the grid's integer type, by default the coordinate type itself, the integer a `Rational` is built on, or `int64_t`. Use `innerRaster` or `outerRaster` to approximate any other shape.
+- `asBitMatrix<ResultNumber>()`{Polygon} (`Polygon`, `PolygonWithHoles` and `PolygonSet`): Returns the shape rasterized into a [`BitMatrix`](data_structures.md#bit-matrix) over its bounding box, one bit per covered cell, holes left unset. Only a rectilinear shape is exactly a set of grid cells, so every edge must be axis-parallel and every coordinate a whole number the grid can hold; it throws `std::logic_error` otherwise, rounding nothing. `ResultNumber` is the grid's integer type. Use `innerRaster` or `outerRaster` to approximate any other shape.
 
 
 ## Iterating
 
 Several methods iterate through vertices, edges, or oriented edges. An [`std::array`](https://en.cppreference.com/w/cpp/container/array.html) is used for shapes of constant size, and an [`std::vector`](https://en.cppreference.com/w/cpp/container/vector.html) is used otherwise.
 
-- `vertices()`: Returns an `std::array` or an `std::vector` of the stored `Point` type for ordinary shapes. `HalfplaneIntersection` exposes `vertices<ResultNumber>()` because its vertices are derived from line intersections.
+- `vertices()`{Polygon}: Returns an `std::array` or an `std::vector` of the stored `Point` type for ordinary shapes. `HalfplaneIntersection` exposes `vertices<ResultNumber>()` because its vertices are derived from line intersections.
 
-- `edges()`: Returns an `std::array` or an `std::vector` of `Segment` objects representing the edges.
+- `edges()`{Polygon}: Returns an `std::array` or an `std::vector` of `Segment` objects representing the edges.
 
-- `orientedEdges()`: Returns an `std::array` or an `std::vector` of `OrientedSegment` objects. Boundary shapes return them in counterclockwise order. This method is not defined for `Disk`.
+- `orientedEdges()`{Polygon}: Returns an `std::array` or an `std::vector` of `OrientedSegment` objects. Boundary shapes return them in counterclockwise order. This method is not defined for `Disk`.
 
-- `begin()`, `end()`, `edgesBegin()`, `edgesEnd()`, `orientedEdgesBegin()`, and `orientedEdgesEnd()`: Provide iterator access corresponding to `vertices()`, `edges()`, and `orientedEdges()` above, with `O(1)` work per element visited, except that `begin()` and `end()` iterate the stored half-planes of a `HalfplaneIntersection`, the holes of a `PolygonWithHoles` and the components of a `PolygonSet`.
+- `begin()`{Polygon}, `end()`, `edgesBegin()`, `edgesEnd()`, `orientedEdgesBegin()`, and `orientedEdgesEnd()`: Provide iterator access corresponding to `vertices()`, `edges()`, and `orientedEdges()` above, with `O(1)` work per element visited, except that `begin()` and `end()` iterate the stored half-planes of a `HalfplaneIntersection`, the holes of a `PolygonWithHoles` and the components of a `PolygonSet`.
 
-- `verticesView()`, `edgesView()`, and `orientedEdgesView()`: Lazy views over the same sequences, materializing each element on the fly instead of allocating a vector. They exist for the shapes whose sequences are vector-backed: `Convex`, `Polyline`, `MonotoneChain`, `Polygon`, and — for `verticesView()` only — `PolygonWithHoles` and `PolygonSet`. On those last two the view walks the points of every ring, which `begin()` does not, since those iterate holes and components respectively; those two views are forward ranges and not sized, so ask `vertexCount()` for the count. The rest wrap random-access vertex iterators and are sized.
+- `verticesView()`{Polygon}, `edgesView()`, and `orientedEdgesView()`: Lazy views over the same sequences, materializing each element on the fly instead of allocating a vector. They exist for the shapes whose sequences are vector-backed: `Convex`, `Polyline`, `MonotoneChain`, `Polygon`, and — for `verticesView()` only — `PolygonWithHoles` and `PolygonSet`. On those last two the view walks the points of every ring, which `begin()` does not, since those iterate holes and components respectively; those two views are forward ranges and not sized, so ask `vertexCount()` for the count. The rest wrap random-access vertex iterators and are sized.
 
 ### Indexed access
 
 Most concrete shapes expose indexed access over their defining points. `Point` instead indexes its two coordinates, and `HalfplaneIntersection` indexes its stored halfplanes. `PolygonWithHoles` and `PolygonSet` deliberately have no single indexed sequence.
 
-- `size()`: Returns the number of indexable elements.
+- `size()`{Polygon}: Returns the number of indexable elements.
 
 - `s[i]`: Returns the `i`-th element.
 
-- `s.get(i)`: Same as `s[i]`, but `i` is taken modulo `s.size()`, so negative values wrap from the end.
+- `s.get(i)`{Polygon}: Same as `s[i]`, but `i` is taken modulo `s.size()`, so negative values wrap from the end.
 
-- `s.index(p)`: Returns the smallest index `i` such that `s[i] == p`, or -1 if no such index exists.
+- `s.index(p)`{Polygon}: Returns the smallest index `i` such that `s[i] == p`, or -1 if no such index exists.
 
 ```c++
 pgl::Convex c({{0,0},{4,0},{4,3},{0,3}});

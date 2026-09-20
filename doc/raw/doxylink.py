@@ -296,7 +296,10 @@ def resolve(content, override, context, methods, class_by_norm, class_page,
     # variable, and `triangulation` is Polygon::triangulation(), not pgl::Triangulation.
     # Without this guard both would be captured here -- the first mis-linked to the
     # class page, the second swallowed as not-a-mention before method resolution runs.
-    if method[:1].isupper() and norm(method) in class_by_norm:
+    # An explicit pgl:: qualification lifts the guard, since it already says the token
+    # is a namespace-level entity rather than a member: that is what links the
+    # lowercase-named classes, `pgl::unsupported_operation` among them.
+    if (method[:1].isupper() or qualified) and norm(method) in class_by_norm:
         if receiver is None and parens is None:
             full = class_by_norm[norm(method)]
             page = class_page.get(full)
@@ -407,10 +410,16 @@ def process(src, dst, methods, class_by_norm, class_page, freefuncs, ns_names,
                               for m in others)
             out_lines[idx] = f"{prefix} {items}."
         else:
-            out_lines[idx] = prefix
+            # Nothing left to list: the section already links every member. Drop the
+            # line, and the blank line that separated it, rather than publishing an
+            # empty bullet.
+            out_lines[idx] = None
+            if idx > 0 and out_lines[idx - 1] == "":
+                out_lines[idx - 1] = None
 
     if write:
-        new_text = BANNER.format(src=src) + "\n\n" + "\n".join(out_lines)
+        kept = [l for l in out_lines if l is not None]
+        new_text = BANNER.format(src=src) + "\n\n" + "\n".join(kept)
         with open(dst, "w") as fh:
             fh.write(new_text)
     return stats, details

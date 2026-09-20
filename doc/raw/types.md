@@ -101,7 +101,7 @@ You may disable promotion by defining `PGL_DISABLE_PROMOTION` before including a
 
 128-bit integers are available on most compilers (g++ and clang++, but not MSVC) on modern machines. For compatibility, Pangolin defines the type `pgl::int128` as the native `__int128_t` if available, and uses boost to emulate 128 bit integers when not available. Boost is a dependency of pgl only when `__int128_t`is not available (for example under MSVC).
 
-The `BigInt` class is available for arbitrary precision integers. We've chosen to provide our own `BigInt` class for two main reasons. One is to avoid unneeded dependencies. The other is because we found that `boost::multiprecision::cpp_int` is slow in our use case. In contrast to cryptographic applications, the typical use case of computational geometry includes many small numbers. The `BigInt` type is optimized to be fast when the numbers are not too big, and only allocates heap storage for numbers larger than $2^{127}$. It doesn't even include Karatsuba multiplication, as the numbers are not big enough for Karatsuba to be faster. Check the [benchmark](#benchmark) for details.
+The `BigInt` class is available for arbitrary precision integers. We've chosen to provide our own `BigInt` class for two main reasons. One is to avoid unneeded dependencies. The other is because we found that `boost::multiprecision::cpp_int` is slow in our use case. In contrast to cryptographic applications, the typical use case of computational geometry includes many small numbers. The `BigInt` type is optimized to be fast when the numbers are not too big, and only allocates heap storage for numbers larger than $2^{127}$. Check the [benchmark](#benchmark) for details.
 
 
 ### Overflow
@@ -123,7 +123,7 @@ Hence, it is safe to use coordinates of the following values.
 
 For disks, the inCircle test promotes numbers twice to avoid overflows.
 
-When the (promoted) type is an arbitrary precision one (which is the case for `int64_t`, `pgl::int128` and `pgl::BigInt` coordinates, and for any `pgl::Rational<pgl::BigInt>`) several fundamental geometric predicates (orientation test, incircle test...) are first attempted in floating point, carrying an error bound alongside the value. The sign is reported from that attempt only when the bound proves it, and the exact determinant is computed otherwise. Coordinates whose determinant already fits in a type without arbitrary precision skip the attempt entirely, their exact arithmetic being cheaper than the filter.
+When the exact arithmetic a predicate would need is an arbitrary precision one — `pgl::int128` and `pgl::BigInt` coordinates, any `pgl::Rational<pgl::BigInt>`, and the incircle test on `int64_t`, which promotes twice — the fundamental predicates (orientation test, incircle test...) first attempt a floating-point evaluation carrying an error bound, and compute the exact determinant only when that bound does not prove the sign. Coordinates whose determinant fits in a fixed-width type skip the attempt, their exact arithmetic being cheaper than the filter. Either way the answer is the same one.
 
 
 ### Rational Numbers
@@ -132,16 +132,13 @@ Important geometric properties may need coordinates that are not integers. For e
 
 Pangolin comes with its own rational number class template `pgl::Rational<T>`, where `T` is set to `int64_t` by default, but may be any integer type, including `pgl::BigInt`. The class stores numbers as a numerator and denominator of type `T` and transparently simplifies the fraction. The simplified numerator and denominator of a `Rational r` are accessible with `r.numerator()` and `r.denominator()`. Rational numbers are never promoted.
 
-The simplification is *deferred*: an arithmetic result keeps whatever numerator and denominator it was built with, and the reduction happens on demand. `r.numerator()` and `r.denominator()` therefore each compute their own gcd and discard it, so a value that is read many times pays for the reduction many times over, and reading both parts pays twice per read. Two methods let you pay for it once instead:
+The simplification is *deferred*: an arithmetic result keeps whatever numerator and denominator it was built with, and the reduction happens on demand. `r.numerator()` and `r.denominator()` each compute their own gcd and discard it, so a value that is read many times pays for the reduction many times over. Three methods let you pay for it once instead:
 
-- `r.simplify()` reduces `r` in place. It is non-const, and it is the one that *keeps* the result: every later read of `r` then takes the already-simplified fast path. Use it on a value that is about to be read repeatedly — hashed into a container, compared across a sweep, carried through a chain of predicates.
-- `r.simplified()` returns the reduced value without modifying `r`, for values reached through a const reference. It is also the cheap way to get both parts of one fraction, since it runs a single gcd for the pair.
+- `r.simplify()` reduces `r` in place and *keeps* the result, so every later read takes the already-simplified fast path. Use it on a value that is about to be read repeatedly — hashed into a container, compared across a sweep, carried through a chain of predicates.
+- `r.simplified()` returns the reduced value without modifying `r`, for a value reached through a const reference, and is the cheap way to read both parts of one fraction.
+- `r.simplifyIfLarge()` and `r.simplifiedIfLarge()` reduce only a fraction that has already grown wide enough for the next arithmetic step to reduce it anyway, so they never spend a gcd the library was not going to spend. That makes them safe on a stored value whose later use is unknown, but only the unconditional `simplify()` keeps a still narrow fraction narrow.
 
-`r.simplifyIfLarge()` and `r.simplifiedIfLarge()` are conditional variants: they reduce only when the stored parts have already grown wide enough that the next arithmetic step would have reduced them anyway, and leave a narrow fraction untouched. That makes them free of regression — they never spend a gcd the library was not going to spend — and so safe to apply to a stored value whose later use is not known.
-
-They are, however, usually the weaker choice where you *do* know the use. Reducing a fraction that is still narrow is what keeps everything computed from it narrow, and that is a bet only the unconditional `simplify()` makes. In this library's own sweep line and arrangement vertices, gating on width left the gcd count essentially unchanged while reducing outright cut it by 41% and 55% respectively; prefer `simplify()` whenever the value is known to be read repeatedly.
-
-None of the four changes the value a `Rational` represents, so choosing among them is only ever a performance decision. All work in constant expressions.
+None of them changes the value a `Rational` represents, so choosing among them is only ever a performance decision. All work in constant expressions.
 
 Notice that numerators and denominators may grow from $p$ to roughly $p^4$ for prime numbers, even for a simple\
 dot product

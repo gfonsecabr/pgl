@@ -195,25 +195,9 @@ std::cout << s << std::endl;
 // Output: (5,2)->(7,4)
 ```
 
-An oriented segment `s` has all methods of the `Segment` class, with the only difference being for the slope, which may be negative:
+An oriented segment computes the same values as the [`Segment`](#segment) class does from the same two points: `midpoint`, `latticePoints`, `length`, `squaredLength`, `isDegenerate`, `isPoint`, `getIfPoint`, `isUndefined`, `isVertical`, `isHorizontal`, `containsEndpoint`, `collinear`, `slope`, `parallel`, `yAtX` and `xAtY`. Since the endpoints are not reordered, `s.latticePoints<ResultNumber>()` lists the integer points from `source()` to `target()` rather than in increasing order.
 
-- `s.midpoint<ResultNumber>()`: Returns the midpoint. An explicitly integral result type truncates odd coordinates.
-- `s.latticePoints<ResultNumber>()`: The same integer points as the unoriented segment's, listed from `source()` to `target()` instead of in increasing order.
-- `s.length<ApproximateNumber>()`: Returns `s[0].distance(s[1])`.
-- `s.squaredLength()`: Returns `s[0].squaredDistance(s[1])`.
-- `s.isDegenerate()`: Returns `s.length() == 0`.
-- `s.isPoint()` / `s.getIfPoint()`: Whether the segment collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
-- `s.isUndefined()`: Always `false`: a degenerate segment is always a point.
-- `s.isVertical()`: Returns `s[0].x() == s[1].x()`.
-- `s.isHorizontal()`: Returns `s[0].y() == s[1].y()`.
-- `s.containsEndpoint(p)`: Returns `s[0] == p || s[1] == p`
-- `s.collinear(t)`: Returns whether `s` and `t` are on the same line, where `t` may be a point or another segment.
-- `s.slope<ResultNumber>()`: Returns `(s[1].y()-s[0].y()) / (s[1].x()-s[0].x())`.
-- `s.parallel(t)`: Returns whether `s` and `t` have the same slope, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
-- `s.yAtX<ResultNumber>(x)`: Returns an `std::optional` with the value of the segment y coordinate at the given coordinate `x`.
-- `s.xAtY<ResultNumber>(y)`: Returns an `std::optional` with the value of the segment x coordinate at the given coordinate `y`.
-
-It also has:
+The orientation adds:
 
 - `s.opposite()`: Returns the segment with source and target interchanged.
 - `s.orientation(p)`: Given a point `p`, returns the orientation sign of `s[0],s[1],p`: null when they are collinear, negative when `s` sees `p` to its right, and positive when `s` sees `p` to its left.
@@ -253,7 +237,7 @@ A line `l` has some additional methods such as:
 - `l.isHorizontal()`: Returns `l[0].y() == l[1].y()`.
 - `l.slope<ResultNumber>()`: Returns `(l[1].y()-l[0].y()) / (l[1].x()-l[0].x())`.
 - `l.parallel(t)`: Returns whether `l` and `t` have the same slope, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
-- `l.halfplaneAbove()`: Returns the half-plane defined by all points `p` that are above the line (larger y-coordinate). If the line is vertical, then it returns the half-plane with smaller x-coordinate. In other words, it returns the half-plane defined by all points `p` such that `pgl::OrientedSegment(l[0],l[1]).orientation(p) >= 0`, noticing that `l[0] < l[1]`.
+- `l.halfplaneAbove()`: Returns the half-plane defined by all points `p` that are above the line (larger y-coordinate), or the one with smaller x-coordinate for a vertical line. Equivalently, the points `p` with `pgl::OrientedSegment(l[0],l[1]).orientation(p) >= 0`, since `l[0] < l[1]`.
 - `l.halfplaneBelow()`: Returns the half-plane containing `l` and not `halfplaneAbove`.
 - `l.dual<ResultNumber>()`: Returns the point $(a,b)$ such that `l` is defined by $y = ax - b$. Undefined behavior for vertical lines.
 - `l.polar<ResultNumber>()`: Returns the point $(a,b)$ such that `l` is defined by $ax + by = 1$. Undefined behavior for lines that contain the origin.
@@ -289,7 +273,7 @@ An oriented line `l` has methods such as:
 - `l.opposite()`: Returns the oriented line with source and target interchanged.
 - `l.slope<ResultNumber>()`: Returns `(l[1].y()-l[0].y()) / (l[1].x()-l[0].x())`, possibly negative.
 - `l.parallel(t)`: Returns whether `l` and `t` have the same slope, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
-- `l.halfplaneAbove()`: Returns the half-plane defined by all points `p` that are above the line (larger y-coordinate). If the line is vertical, then it returns the half-plane with smaller x-coordinate. In other words, it returns the half-plane defined by all points `p` such that `pgl::OrientedSegment(l[0],l[1]).orientation(p) <= 0`, noticing that `l[0] < l[1]`.
+- `l.halfplaneAbove()`: Returns the half-plane defined by all points `p` that are above the line (larger y-coordinate), or the one with smaller x-coordinate for a vertical line. The stored orientation is ignored, so this is the half-plane `l.asLine().halfplaneAbove()` returns.
 - `l.halfplaneBelow()`: Returns the half-plane containing `l` and not `halfplaneAbove`.
 - `l.orientation(p)`: Given a point `p`, returns the orientation sign of `l[0],l[1],p`: null when they are collinear, negative when `l` sees `p` to its right, and positive when `l` sees `p` to its left.
 - `l.rightHalfplane()`: Returns the half-plane defined by all points `p` such that `l.orientation(p) <= 0`.
@@ -329,7 +313,7 @@ A ray `l` has methods such as:
 - `l.opposite()`: Returns the ray with source and target interchanged.
 - `l.slope<ResultNumber>()`: Returns `(l[1].y()-l[0].y()) / (l[1].x()-l[0].x())`, possibly negative.
 - `l.parallel(t)`: Returns whether `l` and `t` have the same slope, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
-- `l.halfplaneAbove()`: Returns the half-plane defined by all points `p` that are above the line (larger y-coordinate). If the line is vertical, then it returns the half-plane with smaller x-coordinate. In other words, it returns the half-plane defined by all points `p` such that `pgl::OrientedSegment(l[0],l[1]).orientation(p) <= 0`, noticing that `l[0] < l[1]`.
+- `l.halfplaneAbove()`: Returns the half-plane defined by all points `p` that are above the line (larger y-coordinate), or the one with smaller x-coordinate for a vertical line. The stored orientation is ignored, so this is the half-plane `l.asLine().halfplaneAbove()` returns.
 - `l.halfplaneBelow()`: Returns the half-plane containing `l` and not `halfplaneAbove`.
 - `l.orientation(p)`: Given a point `p`, returns the orientation sign of `l[0],l[1],p`: null when they are collinear, negative when `l` sees `p` to its right, and positive when `l` sees `p` to its left.
 - `l.rightHalfplane()`: Returns the half-plane defined by all points `p` such that `l.orientation(p) <= 0`.
@@ -514,7 +498,9 @@ The monotone structure speeds up several predicates and constructions:
 
 - `P.contains(s)` takes $O(\log n)$ time if `s` is a point, and $O(\log n + k)$ if `s` is a segment whose x-range spans $k$ vertices (a chain contains a segment exactly when the segment is a straight sub-path of the chain).
 - `P.intersects(s)` takes $O(\log n + k)$ time for a segment, where $k$ is the number of edges of the chain whose x-range meets that of the segment.
-- `P.intersects(P2)` takes $O(n+m)$ time if `P2` is a chain with $m$ vertices, via a merge sweep over the two sorted vertex sequences.
+- `P.intersects(P2)` takes $O(n+m)$ time if `P2` is a chain with $m$ vertices.
+
+- Other methods:
 
 
 ### Polyline
@@ -565,7 +551,7 @@ It knows how to convert itself to:
 
 If the convex polygon `c` has $n$ vertices, then:
 
-- `c.diameter()`, `c.smallestEnclosingRectangle()` and the three minimum-width methods take $O(n)$ time. The comparisons they make are degree six in the coordinates, so they run in `BigInt` for integral coordinates and in `ERational` for rational ones, floating point unchanged.
+- `c.diameter()`, `c.smallestEnclosingRectangle()` and the three minimum-width methods take $O(n)$ time.
 - `c.intersects(s)` takes $O(\log n)$ time if `s` is a shape with $O(1)$ vertices (not including Disk).
 - `s.intersects(c)` takes $O(\log n)$ time if `s` is a shape with $O(1)$ vertices (not including Disk).
 - `c.intersects(c2)` takes $O(\min(n,m) \log(n+m))$ time if `c2` is a convex polygon with $m$ vertices.
@@ -636,7 +622,7 @@ A region `A` with $n$ vertices in total and $k$ holes has methods such as:
 - `A.isUndefined()`: True if the region is degenerate without covering a point or a segment, which includes the empty region.
 - `A.isSimple()`: Returns true if every ring is simple. A per-ring check only, saying nothing about how the rings sit relative to one another. Takes $O(n \log n)$ time for exact coordinate types and $O(n^2 \log n)$ for floating-point ones.
 - `A.isValid()`: Tests the whole structural contract above. Takes $O(n^2 \log n)$ time.
-- `A.isRegular()`: Returns true if the region is the closure of its own interior, $A = \mathrm{closure}(A^\circ)$. Since the contract above constrains interiors only, a valid region may pinch shut along a whole stretch of edge — a **slit**, region material with no area on either side of it, as when a hole shares an edge with another hole or with the outer boundary. A slit belongs to $A$ but not to $\mathrm{closure}(A^\circ)$, so a region with area is regular exactly when it has no slit. Pinching at an isolated *point* is not a slit: the interior still reaches the point from every side, so rings meeting at a vertex leave the region regular. Takes $O(n^2)$ time.
+- `A.isRegular()`: Returns true if the region is the closure of its own interior, $A = \mathrm{closure}(A^\circ)$. A valid region may still pinch shut along a stretch of edge — a **slit**, region material with no area on either side of it, as when a hole shares an edge with another hole or with the outer boundary — and a region with area is regular exactly when it has no slit. Rings meeting at an isolated *point* leave it regular. Takes $O(n^2)$ time.
 - `A.regularized<ResultNumber>()`: Returns $\mathrm{closure}(A^\circ)$ — the region without its slits — as a `std::vector<PolygonWithHoles>`, the same regularization every [boolean operation](shape_methods.md#boolean-operations) applies to its own result. The result is a set of regions because dropping the slits can disconnect the region; one with no area comes back empty. A region that is already regular is returned unchanged, vertex for vertex; the pieces of one that is not may lose vertices that no longer sit at a corner.
 - `A.twiceArea<ResultNumber>()`: Returns twice the area, `2·area(outer) − Σ 2·area(hole)`, exactly and without division.
 - `A.area<ResultNumber>()`: Returns the area; the final division by two is exact by default for integral receivers.
@@ -677,7 +663,7 @@ The components are kept sorted by `PolygonWithHoles::operator<=>`, so equality, 
 
 As with [`Polygon`](#polygon) and [`PolygonWithHoles`](#polygon-with-holes), structural validity is a documented precondition rather than an enforced invariant. A set is valid when every component is, when the component interiors are pairwise disjoint, and when no two components share a stretch of edge — they may meet only at finitely many points. `isValid` checks all three on demand.
 
-That last clause is the one that earns its keep. It is what makes the interior of the set the union of the components' interiors, $A^\circ = \bigcup_i A_i^\circ$, and that identity is what lets a question about the set be answered one component at a time. Two squares glued along an edge would have interior points belonging to neither component's interior, and the componentwise answers would be wrong.
+That last clause is what makes the interior of the set the union of the components' interiors, $A^\circ = \bigcup_i A_i^\circ$, so that a question about the set can be answered one component at a time.
 
 A set `A` with $k$ components and $n$ vertices in total has methods such as:
 

@@ -989,7 +989,11 @@ struct OrientedLine {
      * @brief Returns the half-plane geometrically above the supporting line.
      *
      * This ignores the stored orientation and depends only on the underlying
-     * geometric line.
+     * geometric line: it is `Halfplane(min(), max())`, the closed half-plane of
+     * the points `p` with `OrientedSegment(min(), max()).orientation(p) >= 0`,
+     * and the half-plane with smaller x-coordinate when the line is vertical.
+     * The stored @ref source may be either of `min()` and `max()`, so this is
+     * generally neither @ref leftHalfplane nor @ref rightHalfplane.
      *
      * @return Closed half-plane above the supporting line.
      */
