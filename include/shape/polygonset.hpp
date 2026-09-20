@@ -1564,6 +1564,56 @@ struct PolygonSet {
     [[nodiscard]] auto distanceLInf(const OtherSet& other) const;
 
     /**
+     * @brief Returns the Manhattan (L1) Hausdorff distance to the given point.
+     *
+     * The farthest point of the set from @p point is one of its vertices, so
+     * the distance needs no division and defaults to @ref NumberType.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherPoint& point) const;
+
+    /**
+     * @brief Returns the Manhattan (L1) Hausdorff distance to the given shape.
+     *
+     * Defined for every bounded polygonal @p other. Exact in
+     * any @p ResultNumber closed under division; implementation/hausdorff.hpp
+     * explains where the farthest point is looked for.
+     *
+     * Complexity: O(N^3 α(N)) for N vertices over both shapes.
+     *
+     * @warning The distance is generally a fraction. An integer @p ResultNumber
+     *          receives it truncated.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, BoundedPolygonalConcept OtherShape>
+        requires(!PointConcept<OtherShape>)
+    [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherShape& other) const;
+
+    /**
+     * @brief Returns the Chebyshev (LInf) Hausdorff distance to the given point.
+     *
+     * The farthest point of the set from @p point is one of its vertices, so
+     * the distance needs no division and defaults to @ref NumberType.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherPoint& point) const;
+
+    /**
+     * @brief Returns the Chebyshev (LInf) Hausdorff distance to the given shape.
+     *
+     * Defined for every bounded polygonal @p other. Exact in
+     * any @p ResultNumber closed under division; implementation/hausdorff.hpp
+     * explains where the farthest point is looked for.
+     *
+     * Complexity: O(N^3 α(N)) for N vertices over both shapes.
+     *
+     * @warning The distance is generally a fraction. An integer @p ResultNumber
+     *          receives it truncated.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, BoundedPolygonalConcept OtherShape>
+        requires(!PointConcept<OtherShape>)
+    [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherShape& other) const;
+
+    /**
      * @brief Tests whether two components touch each other anywhere.
      *
      * `false` is the cheap exact case: components that stay apart make the set a

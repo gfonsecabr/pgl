@@ -2739,7 +2739,7 @@ struct Convex {
      *
      * Forwards to the other shape's implementation so that each unordered pair
      * needs `hausdorffDistanceL1` defined only once, on the higher-ranked shape
-     * (the only shape ranked above @ref Convex is @ref Polygon).
+     * (the chains, polylines, polygons, regions and sets).
      */
     template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Convex>)
@@ -2779,7 +2779,7 @@ struct Convex {
      *
      * Forwards to the other shape's implementation so that each unordered pair
      * needs `hausdorffDistanceLInf` defined only once, on the higher-ranked shape
-     * (the only shape ranked above @ref Convex is @ref Polygon).
+     * (the chains, polylines, polygons, regions and sets).
      */
     template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Convex>)

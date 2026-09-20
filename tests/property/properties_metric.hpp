@@ -28,6 +28,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
+#include <string>
 
 namespace pglprop {
 
@@ -254,6 +256,102 @@ inline Result vanishingHausdorffMeansEqualSets(const AnyShape& a, const AnyShape
     return held();
 }
 
+// ------------------------------------------------------ L1 and LInf Hausdorff
+//
+// Unlike the squared one, these are defined for every pair of bounded polygonal
+// shapes, convex or not, and computed by a search of their own
+// (implementation/hausdorff.hpp) that shares nothing with the predicates or the
+// nearest-point distances. A pair without them throws and is skipped.
+
+/** @brief The L1 and LInf Hausdorff distances of both argument orders. */
+struct PolygonalHausdorff {
+    Exact l1;
+    Exact l1Back;
+    Exact lInf;
+    Exact lInfBack;
+};
+
+inline std::optional<PolygonalHausdorff> polygonalHausdorff(const AnyShape& a, const AnyShape& b) {
+    if (a.empty() || b.empty()) {
+        return std::nullopt;
+    }
+    const auto l1 = attempt([&] { return a.template hausdorffDistanceL1<Exact>(b); });
+    const auto l1Back = attempt([&] { return b.template hausdorffDistanceL1<Exact>(a); });
+    const auto lInf = attempt([&] { return a.template hausdorffDistanceLInf<Exact>(b); });
+    const auto lInfBack = attempt([&] { return b.template hausdorffDistanceLInf<Exact>(a); });
+    if (!l1 || !l1Back || !lInf || !lInfBack) {
+        return std::nullopt;
+    }
+    return PolygonalHausdorff{*l1, *l1Back, *lInf, *lInfBack};
+}
+
+/** @brief The L1 and LInf Hausdorff distances are symmetric by definition. */
+inline Result polygonalHausdorffIsSymmetric(const AnyShape& a, const AnyShape& b) {
+    const auto h = polygonalHausdorff(a, b);
+    if (!h) {
+        return skipped();
+    }
+    PGLPROP_CHECK(h->l1 == h->l1Back, pair(a, b) + " ; A.hausdorffDistanceL1(B)=" + detail::show(h->l1) +
+                                          " but B.hausdorffDistanceL1(A)=" + detail::show(h->l1Back));
+    PGLPROP_CHECK(h->lInf == h->lInfBack,
+                  pair(a, b) + " ; A.hausdorffDistanceLInf(B)=" + detail::show(h->lInf) +
+                      " but B.hausdorffDistanceLInf(A)=" + detail::show(h->lInfBack));
+    return held();
+}
+
+/** @brief Each Hausdorff distance dominates the nearest-point distance in its metric. */
+inline Result polygonalHausdorffDominatesDistance(const AnyShape& a, const AnyShape& b) {
+    const auto h = polygonalHausdorff(a, b);
+    if (!h) {
+        return skipped();
+    }
+    const auto l1 = attempt([&] { return a.template distanceL1<Exact>(b); });
+    const auto lInf = attempt([&] { return a.template distanceLInf<Exact>(b); });
+    if (l1) {
+        PGLPROP_CHECK(*l1 <= h->l1, pair(a, b) + " ; distanceL1=" + detail::show(*l1) +
+                                        " exceeds hausdorffDistanceL1=" + detail::show(h->l1));
+    }
+    if (lInf) {
+        PGLPROP_CHECK(*lInf <= h->lInf, pair(a, b) + " ; distanceLInf=" + detail::show(*lInf) +
+                                            " exceeds hausdorffDistanceLInf=" + detail::show(h->lInf));
+    }
+    return (l1 || lInf) ? held() : skipped();
+}
+
+/**
+ * @brief The two Hausdorff distances stand in the order of their metrics.
+ *
+ * `|v|_inf <= |v|_1 <= 2 |v|_inf` for every vector, and a Hausdorff distance is
+ * a maximum of minima of its metric over the same point pairs, so the chain
+ * carries over.
+ */
+inline Result polygonalHausdorffMetricsAreOrdered(const AnyShape& a, const AnyShape& b) {
+    const auto h = polygonalHausdorff(a, b);
+    if (!h) {
+        return skipped();
+    }
+    const std::string values = " ; LInf=" + detail::show(h->lInf) + " L1=" + detail::show(h->l1);
+    PGLPROP_CHECK(h->lInf <= h->l1, pair(a, b) + values);
+    PGLPROP_CHECK(h->l1 <= h->lInf + h->lInf, pair(a, b) + values);
+    return held();
+}
+
+/** @brief Either Hausdorff distance vanishes exactly on mutual containment. */
+inline Result vanishingPolygonalHausdorffMeansEqualSets(const AnyShape& a, const AnyShape& b) {
+    const auto h = polygonalHausdorff(a, b);
+    if (!h) {
+        return skipped();
+    }
+    const bool mutualContainment = a.contains(b) && b.contains(a);
+    PGLPROP_CHECK((h->l1 == Exact(0)) == mutualContainment,
+                  pair(a, b) + " ; hausdorffDistanceL1=" + detail::show(h->l1) + " but mutual containment is " +
+                      detail::show(mutualContainment));
+    PGLPROP_CHECK((h->lInf == Exact(0)) == mutualContainment,
+                  pair(a, b) + " ; hausdorffDistanceLInf=" + detail::show(h->lInf) +
+                      " but mutual containment is " + detail::show(mutualContainment));
+    return held();
+}
+
 }  // namespace props
 
 /** @brief Adds the distance-versus-predicate properties to a registry. */
@@ -277,6 +375,14 @@ inline void registerMetricProperties(Registry& registry) {
                                props::hausdorffDominatesDistance});
     registry.binary.push_back({"metric", "vanishing-hausdorff-means-equal-sets", kNoTag,
                                props::vanishingHausdorffMeansEqualSets});
+    registry.binary.push_back({"metric", "polygonal-hausdorff-is-symmetric", kNoTag,
+                               props::polygonalHausdorffIsSymmetric});
+    registry.binary.push_back({"metric", "polygonal-hausdorff-dominates-distance", kNoTag,
+                               props::polygonalHausdorffDominatesDistance});
+    registry.binary.push_back({"metric", "polygonal-hausdorff-metrics-are-ordered", kNoTag,
+                               props::polygonalHausdorffMetricsAreOrdered});
+    registry.binary.push_back({"metric", "vanishing-polygonal-hausdorff-means-equal-sets", kNoTag,
+                               props::vanishingPolygonalHausdorffMeansEqualSets});
 }
 
 }  // namespace pglprop

@@ -62,6 +62,7 @@
 #include "implementation/distance.hpp"
 #include "implementation/distancel1.hpp"
 #include "implementation/distancelinf.hpp"
+#include "implementation/hausdorff.hpp"
 #include "implementation/closest.hpp"
 #include "implementation/shapedispatch.hpp"
 #include "visualization/canvas.hpp"

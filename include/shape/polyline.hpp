@@ -1966,6 +1966,90 @@ struct Polyline {
     }
 
     /**
+     * @brief Returns the Manhattan (L1) Hausdorff distance to the given point.
+     *
+     * The farthest point of the polyline from @p point is one of its vertices, so
+     * the distance needs no division and defaults to @ref NumberType.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherPoint& point) const;
+
+    /**
+     * @brief Returns the Manhattan (L1) Hausdorff distance to the given shape.
+     *
+     * Defined for every bounded polygonal @p other ranked no higher than
+     * this shape; the overload below forwards the others to them. Exact in
+     * any @p ResultNumber closed under division; implementation/hausdorff.hpp
+     * explains where the farthest point is looked for.
+     *
+     * Complexity: O(N^3 α(N)) for N vertices over both shapes.
+     *
+     * @warning The distance is generally a fraction. An integer @p ResultNumber
+     *          receives it truncated.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, BoundedPolygonalConcept OtherShape>
+        requires(!PointConcept<OtherShape> &&
+                 detail::shapeRank<OtherShape> <= detail::shapeRank<Polyline<PointType_, TLabel>>)
+    [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherShape& other) const;
+
+    /**
+     * @brief Returns the Manhattan (L1) Hausdorff distance to the given shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `hausdorffDistanceL1` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Polyline>)
+                  && requires(const OtherShape& o, const Polyline& self) {
+                         o.template hausdorffDistanceL1<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherShape& other) const {
+        return other.template hausdorffDistanceL1<ResultNumber>(*this);
+    }
+
+    /**
+     * @brief Returns the Chebyshev (LInf) Hausdorff distance to the given point.
+     *
+     * The farthest point of the polyline from @p point is one of its vertices, so
+     * the distance needs no division and defaults to @ref NumberType.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherPoint& point) const;
+
+    /**
+     * @brief Returns the Chebyshev (LInf) Hausdorff distance to the given shape.
+     *
+     * Defined for every bounded polygonal @p other ranked no higher than
+     * this shape; the overload below forwards the others to them. Exact in
+     * any @p ResultNumber closed under division; implementation/hausdorff.hpp
+     * explains where the farthest point is looked for.
+     *
+     * Complexity: O(N^3 α(N)) for N vertices over both shapes.
+     *
+     * @warning The distance is generally a fraction. An integer @p ResultNumber
+     *          receives it truncated.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, BoundedPolygonalConcept OtherShape>
+        requires(!PointConcept<OtherShape> &&
+                 detail::shapeRank<OtherShape> <= detail::shapeRank<Polyline<PointType_, TLabel>>)
+    [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherShape& other) const;
+
+    /**
+     * @brief Returns the Chebyshev (LInf) Hausdorff distance to the given shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `hausdorffDistanceLInf` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Polyline>)
+                  && requires(const OtherShape& o, const Polyline& self) {
+                         o.template hausdorffDistanceLInf<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherShape& other) const {
+        return other.template hausdorffDistanceLInf<ResultNumber>(*this);
+    }
+
+    /**
      * @brief Computes the Euclidean length of the polyline (the sum of its edge lengths).
      *
      * A self-overlapping polyline counts every traversal of a repeated part.

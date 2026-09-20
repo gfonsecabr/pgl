@@ -943,8 +943,8 @@ constexpr auto Polygon<PointType_, TLabel>::distanceLInf(const OtherPolygon& oth
 }
 
 // -----------------------------------------------------------------------------
-// Hausdorff distance (added only where a Euclidean squaredHausdorffDistance
-// overload already exists; Polygon has none today, so it gets none here).
+// Hausdorff distance between two convex shapes, attained at a vertex. Every
+// other bounded polygonal pair is answered in hausdorff.hpp.
 
 template <class PointType, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>

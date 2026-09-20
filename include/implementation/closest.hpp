@@ -1,6 +1,6 @@
 #pragma once
 
-#include "implementation/distancelinf.hpp"
+#include "implementation/hausdorff.hpp"
 
 /**
  * @file closest.hpp

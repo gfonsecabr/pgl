@@ -489,12 +489,13 @@ TEST_CASE("Shape dispatches hausdorffDistanceL1/hausdorffDistanceLInf across wra
     CHECK(t1.hausdorffDistanceL1<int>(t2) == static_cast<Triangle>(t1).hausdorffDistanceL1<int>(static_cast<Triangle>(t2)));
     CHECK(t1.hausdorffDistanceLInf<int>(t2) == static_cast<Triangle>(t1).hausdorffDistanceLInf<int>(static_cast<Triangle>(t2)));
 
-    // Defined for Point/Segment/OrientedSegment/Rectangle/Triangle/Convex only:
-    // an unbounded Line, or a Polygon (no overload yet), always throws.
+    // Defined for every pair of bounded polygonal shapes, a Polygon included;
+    // an unbounded Line always throws.
     const Shape line = Line({0, 0}, {1, 0});
     const Shape polygon = Polygon({Point(0, 0), Point(2, 0), Point(2, 2), Point(0, 2)});
     CHECK_THROWS_AS((void)t1.hausdorffDistanceL1<int>(line), std::logic_error);
-    CHECK_THROWS_AS((void)t1.hausdorffDistanceLInf<int>(polygon), std::logic_error);
+    CHECK(t1.hausdorffDistanceL1<int>(polygon) == 2);
+    CHECK(polygon.hausdorffDistanceLInf<int>(t1) == 1);
 }
 
 TEST_CASE("Concrete shapes accept a Shape argument for every distance method, symmetrically") {
@@ -1286,7 +1287,7 @@ TEST_CASE("Shape dispatches predicates, regularized intersection, and distances 
     CHECK(pair.distanceLInf<int>(farPoint) == 4);
     CHECK(shape.squaredDistance<int>(Shape(pair + Point(20, 0))) == 196);
     // An L1 or L-infinity distance to a Disk is nowhere defined in the library,
-    // and neither is any Hausdorff distance to a set.
+    // and neither is a squared Hausdorff distance to a set.
     CHECK_THROWS_AS((void)shape.distanceL1<int>(Shape(Disk(Point(20, 1), 1))), std::logic_error);
     CHECK_THROWS_AS((void)shape.squaredHausdorffDistance<int>(farPoint), std::logic_error);
 
