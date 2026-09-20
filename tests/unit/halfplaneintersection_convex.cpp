@@ -3,6 +3,7 @@
 
 #include "pgl.hpp"
 
+#include <stdexcept>
 #include <vector>
 
 using Point = pgl::Point<int>;
@@ -123,4 +124,31 @@ TEST_CASE("Region meets a convex polygon in a convex region") {
         CHECK(none.regularizedIntersection<int>(square(0, 2)).empty());
         CHECK(Region().regularizedIntersection<int>(square(0, 2)).componentCount() == 1);
     }
+}
+
+TEST_CASE("Hausdorff distance to a convex polygon") {
+    using Exact = pgl::ERational;
+    const Region k = box6();
+    const Convex beyond(std::vector<Point>{{9, 2}, {11, 2}, {11, 4}, {9, 4}});
+
+    // The box corners (0,0) and (0,6) are the farthest from the polygon.
+    CHECK(k.squaredHausdorffDistance(beyond) == Exact(85));
+    CHECK(k.hausdorffDistanceL1(beyond) == Exact(11));
+    CHECK(k.hausdorffDistanceLInf(beyond) == Exact(9));
+    CHECK(beyond.squaredHausdorffDistance<Exact>(k) == Exact(85));
+    CHECK(beyond.hausdorffDistanceL1<Exact>(k) == Exact(11));
+    CHECK(beyond.hausdorffDistanceLInf<Exact>(k) == Exact(9));
+
+    // A nested polygon is measured by the region's farthest corner: each of
+    // the box's four corners is two across and two up from [2,4] x [2,4].
+    CHECK(k.squaredHausdorffDistance(square(2, 4)) == Exact(8));
+    CHECK(k.hausdorffDistanceL1(square(2, 4)) == Exact(4));
+    CHECK(k.hausdorffDistanceLInf(square(2, 4)) == Exact(2));
+
+    // The region's convex polygon answers the same, which is what the region
+    // hands its own vertices over as.
+    CHECK(k.squaredHausdorffDistance(beyond) ==
+          k.asConvex<Exact>().squaredHausdorffDistance<Exact>(beyond));
+
+    CHECK_THROWS_AS((void)vslab().hausdorffDistanceL1(beyond), std::logic_error);
 }

@@ -20,6 +20,7 @@
 #include <cmath>
 #include <cstddef>
 #include <ranges>
+#include <stdexcept>
 
 
 namespace pgl {
@@ -1848,6 +1849,30 @@ constexpr ResultNumber regionEdgesSquaredDistance(const Region& region, const Ot
     return best;
 }
 
+/**
+ * @brief The region as a convex polygon with exact vertices, for a Hausdorff
+ *        query.
+ *
+ * A Hausdorff distance reads a bounded region only through its vertices, and
+ * those are fractions of the stored coordinates, so the polygon is built over
+ * the same exact type the region's other constructions use; the caller's
+ * ResultNumber governs only the measurement that follows. @p message names the
+ * asking operation in the error an unbounded region raises -- the distance
+ * between an unbounded set and anything else is infinite, which no result type
+ * represents.
+ */
+template <class Region>
+constexpr auto regionHausdorffHull(const Region& region, const char* message) {
+    // The empty set has no farthest point, so it has no Hausdorff distance to
+    // anything; asking for one is a precondition violation, as it is for an
+    // empty Rectangle.
+    assert(!region.empty());
+    if (!region.isBounded()) {
+        throw std::logic_error(message);
+    }
+    return region.template asConvex<region_exact_number_t<typename Region::NumberType>>();
+}
+
 }  // namespace detail
 
 #define PGL_HPI_SQUARED_DISTANCE(ConceptName, ArgType)                                        \
@@ -1912,6 +1937,45 @@ constexpr auto HalfplaneIntersection<PointType, LabelType>::squaredDistance(cons
     }
     return detail::regionEdgesSquaredDistance<ResultNumber>(*this, other);
 }
+
+
+// The Hausdorff distance from a bounded region: both directed distances are
+// attained at a vertex, since distance to a convex shape is convex and its
+// supremum over a convex polygon is attained at a vertex. The region's
+// vertices are exactly what its convex polygon holds, so each pair hands the
+// measurement to the matching Convex overload.
+
+#define PGL_HPI_SQUARED_HAUSDORFF_UNBOUNDED \
+    "HalfplaneIntersection::squaredHausdorffDistance requires a bounded region"
+
+#define PGL_HPI_SQUARED_HAUSDORFF(ConceptName, ArgType)                                    \
+    template <class PointType, class LabelType>                                            \
+    template <class ResultNumber, ConceptName ArgType>                                     \
+    constexpr auto HalfplaneIntersection<PointType, LabelType>::squaredHausdorffDistance(  \
+        const ArgType& other) const {                                                      \
+        return detail::regionHausdorffHull(*this, PGL_HPI_SQUARED_HAUSDORFF_UNBOUNDED)     \
+            .template squaredHausdorffDistance<ResultNumber>(other);                       \
+    }
+
+PGL_HPI_SQUARED_HAUSDORFF(PointConcept, OtherPoint)
+PGL_HPI_SQUARED_HAUSDORFF(SegmentConcept, OtherSegment)
+PGL_HPI_SQUARED_HAUSDORFF(OrientedSegmentConcept, OtherOrientedSegment)
+PGL_HPI_SQUARED_HAUSDORFF(RectangleConcept, OtherRectangle)
+PGL_HPI_SQUARED_HAUSDORFF(TriangleConcept, OtherTriangle)
+PGL_HPI_SQUARED_HAUSDORFF(ConvexConcept, OtherConvex)
+
+#undef PGL_HPI_SQUARED_HAUSDORFF
+
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneIntersectionConcept OtherRegion>
+constexpr auto
+HalfplaneIntersection<PointType, LabelType>::squaredHausdorffDistance(const OtherRegion& other) const {
+    return detail::regionHausdorffHull(*this, PGL_HPI_SQUARED_HAUSDORFF_UNBOUNDED)
+        .template squaredHausdorffDistance<ResultNumber>(
+            detail::regionHausdorffHull(other, PGL_HPI_SQUARED_HAUSDORFF_UNBOUNDED));
+}
+
+#undef PGL_HPI_SQUARED_HAUSDORFF_UNBOUNDED
 
 
 // -----------------------------------------------------------------------------

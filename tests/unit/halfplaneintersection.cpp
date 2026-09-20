@@ -9,6 +9,7 @@
 #include <random>
 #include <sstream>
 #include <stdexcept>
+#include <type_traits>
 #include <unordered_set>
 #include <variant>
 #include <vector>
@@ -712,6 +713,54 @@ TEST_CASE("Region distances to another region") {
     CHECK(hslab(0, 1).squaredDistance<int>(hslab(3, 4)) == 4);
     CHECK(hslab(0, 1).distanceL1<int>(hslab(3, 4)) == 2);
     CHECK(hslab(0, 1).distanceLInf<int>(hslab(3, 4)) == 2);
+}
+
+TEST_CASE("Region Hausdorff distances to another region") {
+    using Exact = pgl::ERational;
+    const Region square = unitSquare();
+    const Region tri = triangle();
+
+    // The square holds the triangle, so only the square's corner (1,1) counts;
+    // its nearest triangle point is the middle of the hypotenuse.
+    CHECK(square.squaredHausdorffDistance(tri) == Exact(1, 2));
+    CHECK(square.hausdorffDistanceL1(tri) == Exact(1));
+    CHECK(square.hausdorffDistanceLInf(tri) == Exact(1, 2));
+
+    // The distance is symmetric, and zero exactly on equal point sets.
+    CHECK(tri.squaredHausdorffDistance(square) == Exact(1, 2));
+    CHECK(tri.hausdorffDistanceL1(square) == Exact(1));
+    CHECK(tri.hausdorffDistanceLInf(square) == Exact(1, 2));
+    CHECK(square.squaredHausdorffDistance(square) == Exact(0));
+    CHECK(square.hausdorffDistanceL1(square) == Exact(0));
+    CHECK(square.hausdorffDistanceLInf(square) == Exact(0));
+
+    // The default result type is exact; a requested one is used as asked.
+    static_assert(std::is_same_v<decltype(square.squaredHausdorffDistance(tri)), Exact>);
+    CHECK(square.squaredHausdorffDistance<double>(tri) == doctest::Approx(0.5));
+    CHECK(square.squaredHausdorffDistance<int>(tri) == 0);   // truncated
+
+    // Either operand being unbounded leaves the distance infinite.
+    CHECK_THROWS_AS((void)quadrant().squaredHausdorffDistance(square), std::logic_error);
+    CHECK_THROWS_AS((void)square.squaredHausdorffDistance(quadrant()), std::logic_error);
+    CHECK_THROWS_AS((void)strip().hausdorffDistanceL1(square), std::logic_error);
+    CHECK_THROWS_AS((void)square.hausdorffDistanceLInf(quadrant()), std::logic_error);
+}
+
+TEST_CASE("A region measures like the shape it was built from") {
+    using Exact = pgl::ERational;
+    const pgl::Triangle<Point> source(Point(0, 0), Point(4, 0), Point(0, 3));
+    const pgl::Rectangle<Point> other(Point(6, 1), Point(8, 5));
+    const Region built(source);
+
+    CHECK(built.squaredHausdorffDistance(other) == source.squaredHausdorffDistance<Exact>(other));
+    CHECK(built.hausdorffDistanceL1(other) == source.hausdorffDistanceL1<Exact>(other));
+    CHECK(built.hausdorffDistanceLInf(other) == source.hausdorffDistanceLInf<Exact>(other));
+
+    // Both operands as regions give the same answers.
+    const Region otherRegion(other);
+    CHECK(built.squaredHausdorffDistance(otherRegion) == source.squaredHausdorffDistance<Exact>(other));
+    CHECK(built.hausdorffDistanceL1(otherRegion) == source.hausdorffDistanceL1<Exact>(other));
+    CHECK(built.hausdorffDistanceLInf(otherRegion) == source.hausdorffDistanceLInf<Exact>(other));
 }
 
 TEST_CASE("Region self-pair works with rational coordinates") {

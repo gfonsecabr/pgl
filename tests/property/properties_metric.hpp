@@ -39,11 +39,17 @@ namespace props {
  * @brief Whether `squaredHausdorffDistance` is defined for this alternative.
  *
  * Documented as the pairs among `Point`, `Segment`, `OrientedSegment`,
- * `Rectangle`, `Triangle` and `Convex` — all bounded and convex, so a directed
- * distance is always attained at a vertex. Everything else throws, so the
- * Hausdorff properties select on this rather than catching.
+ * `Rectangle`, `Triangle`, `Convex` and a bounded `HalfplaneIntersection` —
+ * all bounded and convex, so a directed distance is always attained at a
+ * vertex. Everything else throws, so the Hausdorff properties select on this
+ * rather than catching. An unbounded region is left out for the same reason a
+ * `Line` is: the distance to it is infinite, and the call throws instead of
+ * answering.
  */
 inline bool supportsHausdorff(const AnyShape& shape) {
+    if (const auto* region = shape.getIfHoldsHalfplaneIntersection()) {
+        return region->isBounded();
+    }
     return shape.holdsPoint() || shape.holdsSegment() || shape.holdsOrientedSegment() ||
            shape.holdsRectangle() || shape.holdsTriangle() || shape.holdsConvex();
 }
@@ -261,7 +267,9 @@ inline Result vanishingHausdorffMeansEqualSets(const AnyShape& a, const AnyShape
 // Unlike the squared one, these are defined for every pair of bounded polygonal
 // shapes, convex or not, and computed by a search of their own
 // (implementation/hausdorff.hpp) that shares nothing with the predicates or the
-// nearest-point distances. A pair without them throws and is skipped.
+// nearest-point distances -- except for two convex shapes, and for a bounded
+// HalfplaneIntersection, which are measured through their vertices as the
+// squared one is. A pair without them throws and is skipped.
 
 /** @brief The L1 and LInf Hausdorff distances of both argument orders. */
 struct PolygonalHausdorff {

@@ -728,12 +728,14 @@ A half-plane intersection `k` has methods such as:
 - `k.bbox<R>()`, `k.fbox()`: Bounding box; throws `std::logic_error` when the region is empty or unbounded. With an explicitly integral result type the box is rounded outward so it always encloses the region.
 - `k.asConvex<R>()`: The region as a `Convex`; throws when unbounded.
 - `k.twiceArea<R>()`, `k.area<R>()`, and `k.centroid<R>()`: Measures of a bounded region; they throw when the region is unbounded. Their defaults account for fractional implicit vertices as well as the final area or centroid division.
+- `k.squaredHausdorffDistance<R>(s)`, `k.hausdorffDistanceL1<R>(s)`, and `k.hausdorffDistanceLInf<R>(s)`: Hausdorff distances to a bounded convex shape — a `Point`, `Segment`, `OrientedSegment`, `Rectangle`, `Triangle`, `Convex`, or another region. They throw `std::logic_error` when either region is unbounded, the distance then being infinite; the empty region is a precondition violation. All three default to `division_result_t`, the region's vertices being fractional.
 
 If the region has $n$ half-planes, then:
 
 - `k.contains(p)`, `k.intersects(s)`, and the other predicates against points, segments, lines, rays, and half-planes take $O(\log n)$ time, except that `separates` against a half-plane takes $O(n)$, and so, when the region is degenerate, do `crosses` against a segment or a ray and the predicates of those shapes against the region.
 - `k.insert(h)` takes $O(n)$ time.
 - `k.isBounded()` and `k.vertexCount()` take $O(n)$ time.
+- `k.hausdorffDistanceL1(s)` and `k.hausdorffDistanceLInf(s)` take $O(n \cdot m)$ time against a convex shape of $m$ vertices, and `k.squaredHausdorffDistance(s)` takes $O(n \cdot (1 + \log m) + m \cdot \log n)$.
 
 - Other methods:
 

@@ -2436,6 +2436,124 @@ struct HalfplaneIntersection {
     template <class ResultNumber = division_result_t<NumberType>, HalfplaneIntersectionConcept OtherRegion>
     [[nodiscard]] constexpr auto distanceLInf(const OtherRegion& other) const;
 
+    // --- Hausdorff distances (defined in the implementation layer) ---
+    //
+    // Only against a bounded convex shape, and only from a bounded region: the
+    // Hausdorff distance between an unbounded set and anything else is
+    // infinite, which no result type represents. The region is measured
+    // through its vertices, which are generally fractions of the stored
+    // coordinates, so every pair divides and defaults to
+    // @ref division_result_t.
+
+    /**
+     * @brief Returns the squared Euclidean Hausdorff distance to the given shape.
+     *
+     * The directed distance in either direction is attained at a vertex of the
+     * shape it starts from: distance to a convex shape is a convex function,
+     * and its supremum over a convex polygon is attained at a vertex.
+     *
+     * Complexity: O(n·(1 + log m) + m·log n) for n stored half-planes and a
+     * shape of m vertices.
+     *
+     * @throws std::logic_error If the region is unbounded (including the whole
+     *         plane). Querying the empty region is undefined behavior.
+     *
+     * @warning Divides after casting to ResultNumber; request a floating-point
+     *          or pgl::Rational result type for an accurate value.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherPoint& other) const;
+
+    /** @copydoc squaredHausdorffDistance(const OtherPoint&) const */
+    template <class ResultNumber = division_result_t<NumberType>, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherSegment& other) const;
+
+    /** @copydoc squaredHausdorffDistance(const OtherPoint&) const */
+    template <class ResultNumber = division_result_t<NumberType>, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherOrientedSegment& other) const;
+
+    /** @copydoc squaredHausdorffDistance(const OtherPoint&) const */
+    template <class ResultNumber = division_result_t<NumberType>, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherRectangle& other) const;
+
+    /** @copydoc squaredHausdorffDistance(const OtherPoint&) const */
+    template <class ResultNumber = division_result_t<NumberType>, TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherTriangle& other) const;
+
+    /** @copydoc squaredHausdorffDistance(const OtherPoint&) const */
+    template <class ResultNumber = division_result_t<NumberType>, ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherConvex& other) const;
+
+    /** @copydoc squaredHausdorffDistance(const OtherPoint&) const */
+    template <class ResultNumber = division_result_t<NumberType>, HalfplaneIntersectionConcept OtherRegion>
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherRegion& other) const;
+
+    /**
+     * @brief Returns the Manhattan (L1) Hausdorff distance to the given shape.
+     *
+     * @copydetails squaredHausdorffDistance(const OtherPoint&) const
+     *
+     * Complexity: O(n·m) for n stored half-planes and a shape of m vertices.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherPoint& other) const;
+
+    /** @copydoc hausdorffDistanceL1(const OtherPoint&) const */
+    template <class ResultNumber = division_result_t<NumberType>, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherSegment& other) const;
+
+    /** @copydoc hausdorffDistanceL1(const OtherPoint&) const */
+    template <class ResultNumber = division_result_t<NumberType>, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherOrientedSegment& other) const;
+
+    /** @copydoc hausdorffDistanceL1(const OtherPoint&) const */
+    template <class ResultNumber = division_result_t<NumberType>, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherRectangle& other) const;
+
+    /** @copydoc hausdorffDistanceL1(const OtherPoint&) const */
+    template <class ResultNumber = division_result_t<NumberType>, TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherTriangle& other) const;
+
+    /** @copydoc hausdorffDistanceL1(const OtherPoint&) const */
+    template <class ResultNumber = division_result_t<NumberType>, ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherConvex& other) const;
+
+    /** @copydoc hausdorffDistanceL1(const OtherPoint&) const */
+    template <class ResultNumber = division_result_t<NumberType>, HalfplaneIntersectionConcept OtherRegion>
+    [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherRegion& other) const;
+
+    /**
+     * @brief Returns the Chebyshev (LInf) Hausdorff distance to the given shape.
+     *
+     * @copydetails hausdorffDistanceL1(const OtherPoint&) const
+     */
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherPoint& other) const;
+
+    /** @copydoc hausdorffDistanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = division_result_t<NumberType>, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherSegment& other) const;
+
+    /** @copydoc hausdorffDistanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = division_result_t<NumberType>, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherOrientedSegment& other) const;
+
+    /** @copydoc hausdorffDistanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = division_result_t<NumberType>, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherRectangle& other) const;
+
+    /** @copydoc hausdorffDistanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = division_result_t<NumberType>, TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherTriangle& other) const;
+
+    /** @copydoc hausdorffDistanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = division_result_t<NumberType>, ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherConvex& other) const;
+
+    /** @copydoc hausdorffDistanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = division_result_t<NumberType>, HalfplaneIntersectionConcept OtherRegion>
+    [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherRegion& other) const;
+
     // Distances to a higher-ranked shape, forwarded so that each unordered pair
     // needs its implementation only once, on that shape.
 

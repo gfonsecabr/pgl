@@ -1459,6 +1459,43 @@ constexpr auto HalfplaneIntersection<PointType, LabelType>::distanceL1(const Oth
 }
 
 
+// The Hausdorff distance from a bounded region, as in distance.hpp: both
+// directed distances are attained at a vertex, so each pair hands the
+// measurement to the matching Convex overload.
+
+#define PGL_HPI_HAUSDORFF_L1_UNBOUNDED \
+    "HalfplaneIntersection::hausdorffDistanceL1 requires a bounded region"
+
+#define PGL_HPI_HAUSDORFF_L1(ConceptName, ArgType)                                    \
+    template <class PointType, class LabelType>                                       \
+    template <class ResultNumber, ConceptName ArgType>                                \
+    constexpr auto HalfplaneIntersection<PointType, LabelType>::hausdorffDistanceL1(  \
+        const ArgType& other) const {                                                 \
+        return detail::regionHausdorffHull(*this, PGL_HPI_HAUSDORFF_L1_UNBOUNDED)     \
+            .template hausdorffDistanceL1<ResultNumber>(other);                       \
+    }
+
+PGL_HPI_HAUSDORFF_L1(PointConcept, OtherPoint)
+PGL_HPI_HAUSDORFF_L1(SegmentConcept, OtherSegment)
+PGL_HPI_HAUSDORFF_L1(OrientedSegmentConcept, OtherOrientedSegment)
+PGL_HPI_HAUSDORFF_L1(RectangleConcept, OtherRectangle)
+PGL_HPI_HAUSDORFF_L1(TriangleConcept, OtherTriangle)
+PGL_HPI_HAUSDORFF_L1(ConvexConcept, OtherConvex)
+
+#undef PGL_HPI_HAUSDORFF_L1
+
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneIntersectionConcept OtherRegion>
+constexpr auto
+HalfplaneIntersection<PointType, LabelType>::hausdorffDistanceL1(const OtherRegion& other) const {
+    return detail::regionHausdorffHull(*this, PGL_HPI_HAUSDORFF_L1_UNBOUNDED)
+        .template hausdorffDistanceL1<ResultNumber>(
+            detail::regionHausdorffHull(other, PGL_HPI_HAUSDORFF_L1_UNBOUNDED));
+}
+
+#undef PGL_HPI_HAUSDORFF_L1_UNBOUNDED
+
+
 // -----------------------------------------------------------------------------
 // PolygonWithHoles
 //

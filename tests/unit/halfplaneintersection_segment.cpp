@@ -4,6 +4,7 @@
 #include "pgl.hpp"
 
 #include <optional>
+#include <stdexcept>
 #include <variant>
 
 using Point = pgl::Point<int>;
@@ -205,4 +206,30 @@ TEST_CASE("Oriented segments behave like their unoriented counterparts") {
     const auto isec = k.intersection<Q>(forward);
     REQUIRE(isec.has_value());
     CHECK(isec->index() == 1);
+}
+
+TEST_CASE("Hausdorff distance to a segment") {
+    using Exact = pgl::ERational;
+    const Region k = unitSquare();
+    const Segment beyond(Point(3, 0), Point(3, 1));
+
+    // The square's left corners are 3 away from the segment, while the
+    // segment's endpoints are only 2 from the square.
+    CHECK(k.squaredHausdorffDistance(beyond) == Exact(9));
+    CHECK(k.hausdorffDistanceL1(beyond) == Exact(3));
+    CHECK(k.hausdorffDistanceLInf(beyond) == Exact(3));
+    CHECK(beyond.squaredHausdorffDistance<Exact>(k) == Exact(9));
+    CHECK(beyond.hausdorffDistanceL1<Exact>(k) == Exact(3));
+    CHECK(beyond.hausdorffDistanceLInf<Exact>(k) == Exact(3));
+
+    // An oriented segment answers what its unoriented counterpart does.
+    const OrientedSegment oriented(Point(3, 1), Point(3, 0));
+    CHECK(k.squaredHausdorffDistance(oriented) == Exact(9));
+    CHECK(k.hausdorffDistanceL1(oriented) == Exact(3));
+    CHECK(k.hausdorffDistanceLInf(oriented) == Exact(3));
+    CHECK(oriented.squaredHausdorffDistance<Exact>(k) == Exact(9));
+
+    // An unbounded region has no Hausdorff distance to anything.
+    CHECK_THROWS_AS((void)quadrant().hausdorffDistanceL1(beyond), std::logic_error);
+    CHECK_THROWS_AS((void)beyond.squaredHausdorffDistance<Exact>(quadrant()), std::logic_error);
 }

@@ -3,6 +3,8 @@
 
 #include "pgl.hpp"
 
+#include <stdexcept>
+
 using Point = pgl::Point<int>;
 using Halfplane = pgl::Halfplane<Point>;
 using Region = pgl::HalfplaneIntersection<Point>;
@@ -112,4 +114,28 @@ TEST_CASE("Region meets a triangle in a convex region") {
         CHECK(none.regularizedIntersection<int>(small).empty());
         CHECK(Region().regularizedIntersection<int>(small).componentCount() == 1);
     }
+}
+
+TEST_CASE("Hausdorff distance to a triangle") {
+    using Exact = pgl::ERational;
+    const Region k = box6();
+    const Triangle beyond(Point(9, 2), Point(12, 2), Point(9, 6));
+
+    // The box corner (0,0) is 9 across and 2 up from the triangle's nearest
+    // vertex; no triangle vertex is that far from the box.
+    CHECK(k.squaredHausdorffDistance(beyond) == Exact(85));
+    CHECK(k.hausdorffDistanceL1(beyond) == Exact(11));
+    CHECK(k.hausdorffDistanceLInf(beyond) == Exact(9));
+    CHECK(beyond.squaredHausdorffDistance<Exact>(k) == Exact(85));
+    CHECK(beyond.hausdorffDistanceL1<Exact>(k) == Exact(11));
+    CHECK(beyond.hausdorffDistanceLInf<Exact>(k) == Exact(9));
+
+    // A region built from a triangle measures like that triangle.
+    const Triangle source(Point(0, 0), Point(4, 0), Point(0, 3));
+    const Region built(source);
+    CHECK(built.squaredHausdorffDistance(beyond) == source.squaredHausdorffDistance<Exact>(beyond));
+    CHECK(built.hausdorffDistanceL1(beyond) == source.hausdorffDistanceL1<Exact>(beyond));
+    CHECK(built.hausdorffDistanceLInf(beyond) == source.hausdorffDistanceLInf<Exact>(beyond));
+
+    CHECK_THROWS_AS((void)upperHalf().hausdorffDistanceL1(beyond), std::logic_error);
 }

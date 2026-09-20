@@ -1448,6 +1448,43 @@ constexpr auto HalfplaneIntersection<PointType, LabelType>::distanceLInf(const O
 }
 
 
+// The Hausdorff distance from a bounded region, as in distance.hpp: both
+// directed distances are attained at a vertex, so each pair hands the
+// measurement to the matching Convex overload.
+
+#define PGL_HPI_HAUSDORFF_LINF_UNBOUNDED \
+    "HalfplaneIntersection::hausdorffDistanceLInf requires a bounded region"
+
+#define PGL_HPI_HAUSDORFF_LINF(ConceptName, ArgType)                                    \
+    template <class PointType, class LabelType>                                         \
+    template <class ResultNumber, ConceptName ArgType>                                  \
+    constexpr auto HalfplaneIntersection<PointType, LabelType>::hausdorffDistanceLInf(  \
+        const ArgType& other) const {                                                   \
+        return detail::regionHausdorffHull(*this, PGL_HPI_HAUSDORFF_LINF_UNBOUNDED)     \
+            .template hausdorffDistanceLInf<ResultNumber>(other);                       \
+    }
+
+PGL_HPI_HAUSDORFF_LINF(PointConcept, OtherPoint)
+PGL_HPI_HAUSDORFF_LINF(SegmentConcept, OtherSegment)
+PGL_HPI_HAUSDORFF_LINF(OrientedSegmentConcept, OtherOrientedSegment)
+PGL_HPI_HAUSDORFF_LINF(RectangleConcept, OtherRectangle)
+PGL_HPI_HAUSDORFF_LINF(TriangleConcept, OtherTriangle)
+PGL_HPI_HAUSDORFF_LINF(ConvexConcept, OtherConvex)
+
+#undef PGL_HPI_HAUSDORFF_LINF
+
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneIntersectionConcept OtherRegion>
+constexpr auto
+HalfplaneIntersection<PointType, LabelType>::hausdorffDistanceLInf(const OtherRegion& other) const {
+    return detail::regionHausdorffHull(*this, PGL_HPI_HAUSDORFF_LINF_UNBOUNDED)
+        .template hausdorffDistanceLInf<ResultNumber>(
+            detail::regionHausdorffHull(other, PGL_HPI_HAUSDORFF_LINF_UNBOUNDED));
+}
+
+#undef PGL_HPI_HAUSDORFF_LINF_UNBOUNDED
+
+
 // -----------------------------------------------------------------------------
 // PolygonWithHoles
 //

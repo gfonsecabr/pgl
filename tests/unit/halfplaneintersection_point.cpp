@@ -4,6 +4,8 @@
 #include "pgl.hpp"
 
 #include <optional>
+#include <stdexcept>
+#include <type_traits>
 
 using Point = pgl::Point<int>;
 using Halfplane = pgl::Halfplane<Point>;
@@ -133,4 +135,60 @@ TEST_CASE("Symmetric predicates forward from lower-ranked shapes") {
     CHECK(yGE0.intersects(k));
     CHECK(pgl::Segment<Point>(Point(-1, 0), Point(2, 0)).intersects(k));
     CHECK(pgl::Line<Point>(Point(-1, 0), Point(2, 0)).intersects(k));
+}
+
+TEST_CASE("Hausdorff distance to a point") {
+    using Exact = pgl::ERational;
+    const Region k = unitSquare();
+
+    // The farthest point of the square from (3,4) is the opposite corner; the
+    // point's own distance to the square is smaller, so it never decides.
+    CHECK(k.squaredHausdorffDistance(Point(3, 4)) == Exact(25));
+    CHECK(k.hausdorffDistanceL1(Point(3, 4)) == Exact(7));
+    CHECK(k.hausdorffDistanceLInf(Point(3, 4)) == Exact(4));
+
+    // A corner of the region measures to the corner across the diagonal.
+    CHECK(k.squaredHausdorffDistance(Point(0, 0)) == Exact(2));
+    CHECK(k.hausdorffDistanceL1(Point(0, 0)) == Exact(2));
+    CHECK(k.hausdorffDistanceLInf(Point(0, 0)) == Exact(1));
+
+    // The point answers the same, through its forwarder to the higher-ranked
+    // region.
+    CHECK(Point(3, 4).squaredHausdorffDistance<Exact>(k) == Exact(25));
+    CHECK(Point(3, 4).hausdorffDistanceL1<Exact>(k) == Exact(7));
+    CHECK(Point(3, 4).hausdorffDistanceLInf<Exact>(k) == Exact(4));
+
+    // A degenerate region stands for its point set.
+    const Region dot(Point(2, 2));
+    CHECK(dot.squaredHausdorffDistance(Point(5, 6)) == Exact(25));
+    CHECK(dot.hausdorffDistanceL1(Point(5, 6)) == Exact(7));
+    CHECK(dot.hausdorffDistanceLInf(Point(5, 6)) == Exact(4));
+}
+
+TEST_CASE("The region's Hausdorff distance is exact on its own vertices") {
+    using Exact = pgl::ERational;
+    // y >= 0, 2y <= x, 3x + 2y <= 7: the vertices (0,0), (7/3,0) and (7/4,7/8)
+    // are not lattice points.
+    const Region k({Halfplane(Point(0, 0), Point(1, 0)), Halfplane(Point(2, 1), Point(0, 0)),
+                    Halfplane(Point(3, -1), Point(1, 2))});
+    REQUIRE(k.isBounded());
+
+    CHECK(k.squaredHausdorffDistance(Point(0, 0)) == Exact(49, 9));
+    CHECK(k.hausdorffDistanceL1(Point(0, 0)) == Exact(21, 8));
+    CHECK(k.hausdorffDistanceLInf(Point(0, 0)) == Exact(7, 3));
+
+    // The default result type is exact; another is honoured as asked, and an
+    // integral one truncates.
+    static_assert(std::is_same_v<decltype(k.hausdorffDistanceL1(Point(0, 0))), Exact>);
+    CHECK(k.hausdorffDistanceL1<double>(Point(0, 0)) == doctest::Approx(21.0 / 8.0));
+    CHECK(k.hausdorffDistanceL1<int>(Point(0, 0)) == 2);
+}
+
+TEST_CASE("A Hausdorff distance needs a bounded region") {
+    // The distance from an unbounded set is infinite, which no result type
+    // represents.
+    CHECK_THROWS_AS((void)quadrant().squaredHausdorffDistance(Point(0, 0)), std::logic_error);
+    CHECK_THROWS_AS((void)strip().hausdorffDistanceL1(Point(0, 0)), std::logic_error);
+    CHECK_THROWS_AS((void)Region().hausdorffDistanceLInf(Point(0, 0)), std::logic_error);
+    CHECK_THROWS_AS((void)Point(0, 0).hausdorffDistanceL1<pgl::ERational>(quadrant()), std::logic_error);
 }

@@ -912,7 +912,15 @@ TEST_CASE("Shape dispatches predicates, intersection, and distances through a Ha
     CHECK(square.distanceL1<int>(farPoint) == 14);   // concrete region, Shape argument
     CHECK(square.distanceLInf<int>(farPoint) == 14);
     CHECK(shape.squaredDistance<int>(strip) == 0);
-    CHECK_THROWS_AS((void)shape.squaredHausdorffDistance<int>(farPoint), std::logic_error);
+    // A bounded region answers a Hausdorff distance: the corners (0,0) and
+    // (0,6) are the farthest points of the square from (20,3).
+    CHECK(shape.squaredHausdorffDistance<int>(farPoint) == 409);
+    CHECK(farPoint.squaredHausdorffDistance<int>(shape) == 409);
+    CHECK(shape.hausdorffDistanceL1<int>(farPoint) == 23);
+    CHECK(shape.hausdorffDistanceLInf<int>(farPoint) == 20);
+    CHECK(square.hausdorffDistanceL1<int>(farPoint) == 23);   // concrete region, Shape argument
+    // An unbounded one has none, and neither has an L1 distance to a Disk.
+    CHECK_THROWS_AS((void)strip.hausdorffDistanceL1<int>(farPoint), std::logic_error);
     CHECK_THROWS_AS((void)shape.distanceL1<int>(Shape(Disk(Point(20, 3), 1))), std::logic_error);
 
     // Transformations preserve the alternative.
