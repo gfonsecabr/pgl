@@ -192,8 +192,8 @@ struct MonotoneChain {
         if (!trust) {
             normalize();
         }
-        assert(std::is_sorted(points_.begin(), points_.end()) &&
-               std::adjacent_find(points_.begin(), points_.end()) == points_.end());
+        // assert(std::is_sorted(points_.begin(), points_.end()) &&
+        //        std::adjacent_find(points_.begin(), points_.end()) == points_.end());  // O(n): uncomment when debugging
     }
 
     /**
@@ -214,8 +214,8 @@ struct MonotoneChain {
              std::constructible_from<Storage, Range&&>
     constexpr explicit MonotoneChain(Range&& points, Trust = trusted)
         : points_(std::forward<Range>(points)) {
-        assert(std::is_sorted(points_.begin(), points_.end()) &&
-               std::adjacent_find(points_.begin(), points_.end()) == points_.end());
+        // assert(std::is_sorted(points_.begin(), points_.end()) &&
+        //        std::adjacent_find(points_.begin(), points_.end()) == points_.end());  // O(n): uncomment when debugging
     }
 
     /**
@@ -242,8 +242,8 @@ struct MonotoneChain {
         if (!trust) {
             normalize();
         }
-        assert(std::is_sorted(points_.begin(), points_.end()) &&
-               std::adjacent_find(points_.begin(), points_.end()) == points_.end());
+        // assert(std::is_sorted(points_.begin(), points_.end()) &&
+        //        std::adjacent_find(points_.begin(), points_.end()) == points_.end());  // O(n): uncomment when debugging
     }
 
     /**

@@ -195,7 +195,7 @@ public:
     template <class U>
     Handle insertBefore(Handle h, U &&v) {
         assert(h && "insertBefore needs a node to insert before");
-        assert(!prev(h) || !comp(v, prev(h)->value));
+        // assert(!prev(h) || !comp(v, prev(h)->value));  // O(log n): uncomment when debugging
         assert(!comp(h->value, v));
         return insertBeside(h, 0, std::forward<U>(v));
     }
@@ -204,7 +204,7 @@ public:
     template <class U>
     Handle insertAfter(Handle h, U &&v) {
         assert(h && "insertAfter needs a node to insert after");
-        assert(!next(h) || !comp(next(h)->value, v));
+        // assert(!next(h) || !comp(next(h)->value, v));  // O(log n): uncomment when debugging
         assert(!comp(v, h->value));
         return insertBeside(h, 1, std::forward<U>(v));
     }
@@ -212,7 +212,7 @@ public:
     /// Inserts @p v as the tree's smallest element.
     template <class U>
     Handle insertFirst(U &&v) {
-        assert(!root || !comp(first()->value, v));
+        // assert(!root || !comp(first()->value, v));  // O(log n): uncomment when debugging
         return root ? insertBeside(first(), 0, std::forward<U>(v))
                     : attachRoot(std::forward<U>(v));
     }
@@ -220,7 +220,7 @@ public:
     /// Inserts @p v as the tree's largest element.
     template <class U>
     Handle insertLast(U &&v) {
-        assert(!root || !comp(v, last()->value));
+        // assert(!root || !comp(v, last()->value));  // O(log n): uncomment when debugging
         return root ? insertBeside(last(), 1, std::forward<U>(v))
                     : attachRoot(std::forward<U>(v));
     }

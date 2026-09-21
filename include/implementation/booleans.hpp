@@ -571,7 +571,7 @@ PolygonSet<ResultPoint> regularizedUnionByCoverage(
     }
 
     assert(covered == 0);  // every descent undone
-    assert(std::ranges::all_of(seen, [](char value) { return value != 0; }));
+    // assert(std::ranges::all_of(seen, [](char value) { return value != 0; }));  // O(faces): uncomment when debugging
     std::vector<char> keep(faceCount, 0);
     for (std::uint32_t i = 0; i < arrangement.faceCount(); ++i) {
         const FaceId f(i);

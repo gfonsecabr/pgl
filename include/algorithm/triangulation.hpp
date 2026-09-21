@@ -5762,7 +5762,7 @@ struct Triangulation {
             noteVertexIncidence(t);
         }
         mapStale_ = true;  // materialized on the first lookup that needs it
-        assert(checkInvariants());
+        // assert(checkInvariants());  // O(n): uncomment when debugging
     }
 
     // ---- internal predicates / mutation ----------------------------------

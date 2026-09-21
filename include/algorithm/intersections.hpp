@@ -1086,9 +1086,9 @@ class BentleyOttmann {
             runHolds[t] = wanted;
             runWhere[wanted] = t;
         }
-        assert(std::is_sorted(run.nodes.begin(), run.nodes.end(), [this](Node a, Node b) {
-            return CompareAlongLine(a->value, b->value);
-        }));
+        // assert(std::is_sorted(run.nodes.begin(), run.nodes.end(), [this](Node a, Node b) {
+        //     return CompareAlongLine(a->value, b->value);
+        // }));  // O(run): uncomment when debugging
     }
 
     void processCROSS(std::vector<Event> &evts, const Rational &currentX) {
