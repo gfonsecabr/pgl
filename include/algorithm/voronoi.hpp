@@ -29,7 +29,6 @@
  */
 
 #include <algorithm>
-#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
@@ -440,7 +439,7 @@ void labelVoronoiFaces(Arrangement<Point<Number>, Label>& diagram,
     static_assert(singleOwner || std::same_as<Label, std::vector<Element>>,
                   "a Voronoi face is labeled by its owner or by the vector of them");
     const std::size_t wanted = static_cast<std::size_t>(k);
-    assert((!singleOwner || wanted == 1) && "a single-owner label needs order 1");
+    PGL_ASSERT((!singleOwner || wanted == 1) && "a single-owner label needs order 1");
 
     std::vector<std::pair<Number, Number>> keys(sites.size());
     std::vector<std::size_t> order(sites.size());
@@ -1071,8 +1070,8 @@ Arrangement<Point<Number>, Label> voronoiCollinearDiagram(
     constexpr bool singleOwner = std::same_as<Label, Element>;
     const std::size_t n = elements.size();
     const std::size_t wanted = static_cast<std::size_t>(k);
-    assert(wanted >= 1 && wanted <= n);
-    assert((!singleOwner || wanted == 1) && "a single-owner label needs order 1");
+    PGL_ASSERT(wanted >= 1 && wanted <= n);
+    PGL_ASSERT((!singleOwner || wanted == 1) && "a single-owner label needs order 1");
 
     std::vector<std::size_t> sorted(n);
     std::iota(sorted.begin(), sorted.end(), std::size_t{0});
@@ -1169,7 +1168,7 @@ Arrangement<Point<Number>, Label> voronoiCollinearDiagram(
             along(next.template witness<Number>(halfedge)) * static_cast<Number>(2);
         const std::size_t cut = static_cast<std::size_t>(
             std::lower_bound(cuts.begin(), cuts.end(), twice) - cuts.begin());
-        assert(cut < cuts.size() && cuts[cut] == twice);
+        PGL_ASSERT(cut < cuts.size() && cuts[cut] == twice);
         const bool beyond = along(ResultPoint(-forward.y(), forward.x())) > zero;
         next.label(face) = labelOf(beyond ? startsAfter[cut] : cut == 0 ? 0 : startsAfter[cut - 1]);
     }

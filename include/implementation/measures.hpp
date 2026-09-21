@@ -295,14 +295,14 @@ constexpr auto Rectangle<PointType, LabelType>::twiceArea() const {
 
 template <class PointType, class LabelType>
 constexpr Segment<PointType> Rectangle<PointType, LabelType>::diameter() const {
-    assert(!empty());
+    PGL_ASSERT(!empty());
     return Segment<PointType>(min(), max());
 }
 
 template <class PointType, class LabelType>
 template <class ResultNumber>
 constexpr Point<ResultNumber> Rectangle<PointType, LabelType>::midpoint() const {
-    assert(!empty());
+    PGL_ASSERT(!empty());
     return Point<ResultNumber>(
         (detail::asNumber<ResultNumber>(min().x()) + detail::asNumber<ResultNumber>(max().x())) / static_cast<ResultNumber>(2),
         (detail::asNumber<ResultNumber>(min().y()) + detail::asNumber<ResultNumber>(max().y())) / static_cast<ResultNumber>(2));
@@ -316,7 +316,7 @@ constexpr Point<ResultNumber> Rectangle<PointType, LabelType>::centroid() const 
 
 template <class PointType, class LabelType>
 constexpr Disk<PointType, NoLabel> Rectangle<PointType, LabelType>::circumcircle() const {
-    assert(!empty());
+    PGL_ASSERT(!empty());
     return Disk<PointType, NoLabel>(min(), bottomRight(), max()); //Choosen arbitrarly
 }
 

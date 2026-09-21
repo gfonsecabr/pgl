@@ -11,7 +11,6 @@
  */
 
 #include <array>
-#include <cassert>
 #include <compare>
 #include <concepts>
 #include <cstddef>
@@ -208,7 +207,7 @@ struct Triangle {
      * @return Reference to the selected vertex.
      */
     constexpr const PointType& operator[](std::size_t index) const {
-        assert(index < size());
+        PGL_ASSERT(index < size());
         return points_[index];
     }
 
@@ -2076,7 +2075,7 @@ struct Triangle {
         constexpr BoundaryIterator() = default;
 
         constexpr value_type operator*() const {
-            assert(triangle != nullptr);
+            PGL_ASSERT(triangle != nullptr);
             return triangle->template boundaryAt<Oriented>(index);
         }
 
@@ -2172,7 +2171,7 @@ struct Triangle {
 
     template <bool Oriented>
     constexpr BoundaryType<Oriented> boundaryAt(std::size_t index) const {
-        assert(index < edgeCount);
+        PGL_ASSERT(index < edgeCount);
 
         switch (index) {
         case 0:

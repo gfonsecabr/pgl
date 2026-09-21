@@ -11,7 +11,6 @@
  */
 
 #include <array>
-#include <cassert>
 #include <cmath>
 #include <concepts>
 #include <cstddef>
@@ -180,7 +179,7 @@ struct Line {
      * @return Reference to the selected defining point.
      */
     constexpr const PointType& operator[](std::size_t index) const {
-        assert(index < size());
+        PGL_ASSERT(index < size());
         return points_[index];
     }
 

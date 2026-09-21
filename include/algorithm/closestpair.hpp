@@ -11,7 +11,6 @@
  */
 
 #include <algorithm>
-#include <cassert>
 #include <cstddef>
 #include <iterator>
 #include <type_traits>
@@ -338,7 +337,7 @@ void closestPairRecursive(const PointType* points, std::size_t count, PointType*
     using Coordinate = closest_pair_coordinate_t<PointType>;
     static_assert(Threshold >= 3,
                   "a range above the threshold must split into halves of at least two points");
-    assert(count >= 2);
+    PGL_ASSERT(count >= 2);
 
     // Nothing above needs a y-order, so brute force leaves the range untouched.
     if (count <= Threshold) {
@@ -377,7 +376,7 @@ closestPairDriver(const Container& input) {
                   "closestPair requires a container of pgl::Point values");
 
     std::vector<InputPoint> points(std::begin(input), std::end(input));
-    assert(points.size() >= 2);
+    PGL_ASSERT(points.size() >= 2);
 
     sortPoints(points);
     std::vector<InputPoint> scratch(points.size());

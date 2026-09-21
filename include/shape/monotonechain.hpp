@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <vector>
-#include <cassert>
 #include <compare>
 #include <concepts>
 #include <cstddef>
@@ -192,8 +191,8 @@ struct MonotoneChain {
         if (!trust) {
             normalize();
         }
-        // assert(std::is_sorted(points_.begin(), points_.end()) &&
-        //        std::adjacent_find(points_.begin(), points_.end()) == points_.end());  // O(n): uncomment when debugging
+        // PGL_ASSERT(std::is_sorted(points_.begin(), points_.end()) &&
+        //            std::adjacent_find(points_.begin(), points_.end()) == points_.end());  // O(n): uncomment when debugging
     }
 
     /**
@@ -214,8 +213,8 @@ struct MonotoneChain {
              std::constructible_from<Storage, Range&&>
     constexpr explicit MonotoneChain(Range&& points, Trust = trusted)
         : points_(std::forward<Range>(points)) {
-        // assert(std::is_sorted(points_.begin(), points_.end()) &&
-        //        std::adjacent_find(points_.begin(), points_.end()) == points_.end());  // O(n): uncomment when debugging
+        // PGL_ASSERT(std::is_sorted(points_.begin(), points_.end()) &&
+        //            std::adjacent_find(points_.begin(), points_.end()) == points_.end());  // O(n): uncomment when debugging
     }
 
     /**
@@ -232,7 +231,7 @@ struct MonotoneChain {
     constexpr explicit MonotoneChain(std::initializer_list<NumberType> coords, Trust trust = untrusted)
         requires detail::ownsChainStorage<Storage, PointType>
     {
-        assert(coords.size() % 2 == 0);
+        PGL_ASSERT(coords.size() % 2 == 0);
         points_.reserve(coords.size() / 2);
         for (auto it = coords.begin(); it != coords.end(); ) {
             NumberType x = *it++;
@@ -242,8 +241,8 @@ struct MonotoneChain {
         if (!trust) {
             normalize();
         }
-        // assert(std::is_sorted(points_.begin(), points_.end()) &&
-        //        std::adjacent_find(points_.begin(), points_.end()) == points_.end());  // O(n): uncomment when debugging
+        // PGL_ASSERT(std::is_sorted(points_.begin(), points_.end()) &&
+        //            std::adjacent_find(points_.begin(), points_.end()) == points_.end());  // O(n): uncomment when debugging
     }
 
     /**
@@ -325,7 +324,7 @@ struct MonotoneChain {
      * @return The vertex at the given index.
      */
     constexpr const PointType operator[](std::size_t index) const {
-        assert(index < size());
+        PGL_ASSERT(index < size());
         return detail::translatedVertex(points_[index], translation_);
     }
 
@@ -919,7 +918,7 @@ struct MonotoneChain {
     constexpr void erase(std::size_t index)
         requires detail::ownsChainStorage<Storage, PointType>
     {
-        assert(index < size());
+        PGL_ASSERT(index < size());
         points_.erase(points_.begin() + static_cast<std::ptrdiff_t>(index));
         resetCache();
     }
@@ -2611,7 +2610,7 @@ struct MonotoneChain {
         constexpr BoundaryIterator() = default;
 
         constexpr value_type operator*() const {
-            assert(chain != nullptr);
+            PGL_ASSERT(chain != nullptr);
             return chain->template boundaryAt<Oriented>(index);
         }
 
@@ -2750,7 +2749,7 @@ struct MonotoneChain {
 
     template <bool Oriented>
     constexpr BoundaryType<Oriented> boundaryAt(std::size_t index) const {
-        assert(index + 1 < size());
+        PGL_ASSERT(index + 1 < size());
         return BoundaryType<Oriented>((*this)[index], (*this)[index + 1]);
     }
 

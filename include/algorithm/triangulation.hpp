@@ -40,7 +40,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -1147,7 +1146,7 @@ struct Triangulation {
      * @pre `has(t)`.
      */
     [[nodiscard]] TriangleType getShape(TriId t) const {
-        assert(has(t) && "getShape(): the handle is not a triangle of the triangulation");
+        PGL_ASSERT(has(t) && "getShape(): the handle is not a triangle of the triangulation");
         return triangleValue(indexOf(t));
     }
 
@@ -1158,7 +1157,7 @@ struct Triangulation {
      * @pre `has(v)`.
      */
     [[nodiscard]] const PointType& getShape(VertexId v) const {
-        assert(has(v) && "getShape(): the handle is not a vertex of the triangulation");
+        PGL_ASSERT(has(v) && "getShape(): the handle is not a vertex of the triangulation");
         return vertices_[static_cast<std::size_t>(indexOf(v))];
     }
 
@@ -1214,7 +1213,7 @@ struct Triangulation {
      * @pre `has(t)`.
      */
     [[nodiscard]] std::array<VertexId, 3> vertices(TriId t) const {
-        assert(has(t) && "vertices(): the handle is not a triangle of the triangulation");
+        PGL_ASSERT(has(t) && "vertices(): the handle is not a triangle of the triangulation");
         const TriIndex id = indexOf(t);
         const auto& v = triangles_[static_cast<std::size_t>(id)].v;
         const int first = firstVertex(id);
@@ -1237,8 +1236,8 @@ struct Triangulation {
      * @pre `has(t)`.
      */
     [[nodiscard]] std::optional<TriId> otherTriangle(TriId t, int side) const {
-        assert(has(t) && "otherTriangle(): the handle is not a triangle of the triangulation");
-        assert(side >= 0 && side < 3 && "otherTriangle(): side is not one of 0, 1, 2");
+        PGL_ASSERT(has(t) && "otherTriangle(): the handle is not a triangle of the triangulation");
+        PGL_ASSERT(side >= 0 && side < 3 && "otherTriangle(): side is not one of 0, 1, 2");
         const TriIndex id = indexOf(t);
         const TriIndex nb = triangles_[static_cast<std::size_t>(id)].nbr[internalSide(id, side)];
         return inDomain(nb) ? std::optional<TriId>(triHandle(nb)) : std::nullopt;
@@ -1259,8 +1258,8 @@ struct Triangulation {
      * @pre `has(t)`.
      */
     [[nodiscard]] bool isConstrained(TriId t, int side) const {
-        assert(has(t) && "isConstrained(): the handle is not a triangle of the triangulation");
-        assert(side >= 0 && side < 3 && "isConstrained(): side is not one of 0, 1, 2");
+        PGL_ASSERT(has(t) && "isConstrained(): the handle is not a triangle of the triangulation");
+        PGL_ASSERT(side >= 0 && side < 3 && "isConstrained(): side is not one of 0, 1, 2");
         const TriIndex id = indexOf(t);
         return bit(triangles_[static_cast<std::size_t>(id)].constrainedMask,
                    internalSide(id, side));
@@ -1279,8 +1278,8 @@ struct Triangulation {
      * @pre `has(t)`.
      */
     void setConstrained(TriId t, int side, bool value = true) {
-        assert(has(t) && "setConstrained(): the handle is not a triangle of the triangulation");
-        assert(side >= 0 && side < 3 && "setConstrained(): side is not one of 0, 1, 2");
+        PGL_ASSERT(has(t) && "setConstrained(): the handle is not a triangle of the triangulation");
+        PGL_ASSERT(side >= 0 && side < 3 && "setConstrained(): side is not one of 0, 1, 2");
         const TriIndex id = indexOf(t);
         const Edge e{id, static_cast<std::int8_t>(internalSide(id, side))};
         setBit(triangles_[static_cast<std::size_t>(id)].constrainedMask, e.side, value);
@@ -1411,7 +1410,7 @@ struct Triangulation {
     template <class L = TriangleLabel>
         requires(detail::has_label_v<L>)
     [[nodiscard]] L& label(TriId t) {
-        assert(has(t) && "label(): the handle is not a triangle of the triangulation");
+        PGL_ASSERT(has(t) && "label(): the handle is not a triangle of the triangulation");
         return triangles_[static_cast<std::size_t>(indexOf(t))].triLabel;
     }
 
@@ -1419,7 +1418,7 @@ struct Triangulation {
     template <class L = TriangleLabel>
         requires(detail::has_label_v<L>)
     [[nodiscard]] const L& label(TriId t) const {
-        assert(has(t) && "label(): the handle is not a triangle of the triangulation");
+        PGL_ASSERT(has(t) && "label(): the handle is not a triangle of the triangulation");
         return triangles_[static_cast<std::size_t>(indexOf(t))].triLabel;
     }
 
@@ -1635,7 +1634,7 @@ struct Triangulation {
             }
             hull[hullSize++] = points[i];
         }
-        assert(hullSize >= 2);
+        PGL_ASSERT(hullSize >= 2);
         --hullSize;  // the first vertex was repeated at the end
 
         const auto isVertexOf = [&](TriIndex triangle, const PointType& point) {
@@ -2178,7 +2177,7 @@ struct Triangulation {
                     break;
                 }
             }
-            assert(start >= 0);
+            PGL_ASSERT(start >= 0);
 
             std::vector<PointType> ring;
             std::int32_t h = start;
@@ -2196,7 +2195,7 @@ struct Triangulation {
                     kept.push_back(ring[i]);
                 }
             }
-            assert(kept.size() >= 3);
+            PGL_ASSERT(kept.size() >= 3);
             std::rotate(kept.begin(), std::min_element(kept.begin(), kept.end()), kept.end());
             candidates.push_back(
                 Candidate{std::move(fusedTriangles), Convex<PointType>(kept, pgl::trusted)});
@@ -2227,7 +2226,7 @@ struct Triangulation {
                     bestGain = gain[c];
                 }
             }
-            assert(best != candidates.size() && bestGain != 0);
+            PGL_ASSERT(best != candidates.size() && bestGain != 0);
             selected[best] = 1;
             selectionOrder.push_back(best);
             for (const TriIndex t : candidates[best].triangles) {
@@ -2238,7 +2237,7 @@ struct Triangulation {
                 covered[ti] = 1;
                 --remaining;
                 for (const std::size_t c : coverers[ti]) {
-                    assert(gain[c] != 0);
+                    PGL_ASSERT(gain[c] != 0);
                     --gain[c];
                 }
             }
@@ -3626,7 +3625,7 @@ struct Triangulation {
         requires(detail::has_label_v<L>)
     [[nodiscard]] L& label(const TriangleType& t) {
         const TriIndex id = idOf(t);
-        assert(inDomain(id) && "label(): triangle is not part of the triangulation");
+        PGL_ASSERT(inDomain(id) && "label(): triangle is not part of the triangulation");
         return triangles_[id].triLabel;
     }
 
@@ -3635,7 +3634,7 @@ struct Triangulation {
         requires(detail::has_label_v<L>)
     [[nodiscard]] const L& label(const TriangleType& t) const {
         const TriIndex id = idOf(t);
-        assert(inDomain(id) && "label(): triangle is not part of the triangulation");
+        PGL_ASSERT(inDomain(id) && "label(): triangle is not part of the triangulation");
         return triangles_[id].triLabel;
     }
 
@@ -3655,7 +3654,7 @@ struct Triangulation {
         requires(detail::has_label_v<L>)
     [[nodiscard]] L& label(const SegmentType& s) {
         auto se = segmentMap().find(s);
-        assert(se != segmentMap().end() && "label(): segment is not an edge of the triangulation");
+        PGL_ASSERT(se != segmentMap().end() && "label(): segment is not an edge of the triangulation");
         return se->second.segLabel;
     }
 
@@ -3664,7 +3663,7 @@ struct Triangulation {
         requires(detail::has_label_v<L>)
     [[nodiscard]] const L& label(const SegmentType& s) const {
         auto se = segmentMap().find(s);
-        assert(se != segmentMap().end() && "label(): segment is not an edge of the triangulation");
+        PGL_ASSERT(se != segmentMap().end() && "label(): segment is not an edge of the triangulation");
         return se->second.segLabel;
     }
 
@@ -5743,8 +5742,8 @@ struct Triangulation {
                 std::swap(y, z);
                 std::swap(nbr[1], nbr[2]);  // a side is named by the vertex it faces
             }
-            assert(orientationSign(vertices_[x], vertices_[y], vertices_[z]) > 0 &&
-                   "Triangulation: degenerate triangle");
+            PGL_ASSERT(orientationSign(vertices_[x], vertices_[y], vertices_[z]) > 0 &&
+                       "Triangulation: degenerate triangle");
             triangles_.push_back(Tri{{x, y, z}, nbr, 0, 0, 0, triLabels[k]});
         }
         firstGhost_ = static_cast<TriIndex>(triangles_.size());
@@ -5762,7 +5761,7 @@ struct Triangulation {
             noteVertexIncidence(t);
         }
         mapStale_ = true;  // materialized on the first lookup that needs it
-        // assert(checkInvariants());  // O(n): uncomment when debugging
+        // PGL_ASSERT(checkInvariants());  // O(n): uncomment when debugging
     }
 
     // ---- internal predicates / mutation ----------------------------------
@@ -5838,7 +5837,7 @@ struct Triangulation {
         if (sBC >= 0) {
             triangles_[nBC].nbr[sBC] = t2;
         }
-        // assert(checkInvariants());  // O(n): uncomment when debugging
+        // PGL_ASSERT(checkInvariants());  // O(n): uncomment when debugging
         return true;
     }
 
@@ -5881,7 +5880,7 @@ struct Triangulation {
     TriIndex makeRoom(int k) {
         const TriIndex base = firstGhost_;
         const TriIndex oldSize = static_cast<TriIndex>(triangles_.size());
-        assert(oldSize - base >= k);
+        PGL_ASSERT(oldSize - base >= k);
         for (int j = 0; j < k; ++j) {
             triangles_.push_back(triangles_[base + j]);
         }
@@ -5889,7 +5888,7 @@ struct Triangulation {
             const TriIndex moved = oldSize + j;
             for (int s = 0; s < 3; ++s) {
                 TriIndex& nb = triangles_[moved].nbr[s];
-                assert(nb != NO_TRI);  // ghosts always have three neighbors
+                PGL_ASSERT(nb != NO_TRI);  // ghosts always have three neighbors
                 if (nb >= base && nb < base + k) {
                     nb = nb - base + oldSize;  // the neighbor was relocated too
                 }
@@ -5982,7 +5981,7 @@ struct Triangulation {
             reRegisterSides(x);
         }
         hint_ = t;
-        // assert(checkInvariants() && checkEdgeMap());  // O(n): uncomment when debugging
+        // PGL_ASSERT(checkInvariants() && checkEdgeMap());  // O(n): uncomment when debugging
         return {vp, t};
     }
 
@@ -6019,7 +6018,7 @@ struct Triangulation {
         SegmentLabel halfLabel{};
         {
             const auto it = segmentMap().find(SegmentType(vertices_[u], vertices_[w]));
-            assert(it != segmentMap().end());
+            PGL_ASSERT(it != segmentMap().end());
             halfLabel = it->second.segLabel;
             segmentMap().erase(it);
         }
@@ -6032,7 +6031,7 @@ struct Triangulation {
             const int j = findSide(t2, t);
             const Tri oldT2 = triangles_[t2];
             const VertexIndex apex2 = oldT2.v[j];
-            assert(oldT2.v[(j + 1) % 3] == w && oldT2.v[(j + 2) % 3] == u);
+            PGL_ASSERT(oldT2.v[(j + 1) % 3] == w && oldT2.v[(j + 2) % 3] == u);
             const TriIndex nApex2W = oldT2.nbr[(j + 2) % 3];  // across {apex2, w}
             const TriIndex nUApex2 = oldT2.nbr[(j + 1) % 3];  // across {u, apex2}
             const bool cApex2W = bit(oldT2.constrainedMask, (j + 2) % 3);
@@ -6065,7 +6064,7 @@ struct Triangulation {
             // the ghost convention v = {real, real, GHOST} with nbr[2] real.
             const TriIndex g = across;
             const Tri oldG = triangles_[g];
-            assert(oldG.v[0] == u && oldG.v[1] == w && oldG.v[2] == GHOST && oldG.nbr[2] == t);
+            PGL_ASSERT(oldG.v[0] == u && oldG.v[1] == w && oldG.v[2] == GHOST && oldG.nbr[2] == t);
             const TriIndex gw = oldG.nbr[0];  // ghost-ring neighbor across {w, ghost}
             const TriIndex gu = oldG.nbr[1];  // ghost-ring neighbor across {u, ghost}
 
@@ -6098,7 +6097,7 @@ struct Triangulation {
             segmentMap().at(SegmentType(vertices_[vp], vertices_[w])).segLabel = halfLabel;
         }
         hint_ = t;
-        // assert(checkInvariants() && checkEdgeMap());  // O(n): uncomment when debugging
+        // PGL_ASSERT(checkInvariants() && checkEdgeMap());  // O(n): uncomment when debugging
         return std::pair{vp, t};
     }
 
@@ -6121,7 +6120,7 @@ struct Triangulation {
             return detail::orientationSignOf(filteredVertex(gv[0]), filteredVertex(gv[1]), fp)
                        .value() < 0;
         };
-        assert(isGhost(g0) && visible(g0));
+        PGL_ASSERT(isGhost(g0) && visible(g0));
 
         // Rewind to the first visible ghost, then record the chain through its
         // inner anchors (r, s): ghost ids go stale across makeRoom, the inner
@@ -6147,7 +6146,7 @@ struct Triangulation {
         }
         u.push_back(triangles_[g].v[0]);  // == v[1] of the last chain ghost
         const int m = static_cast<int>(inner.size());
-        assert(m >= 1);
+        PGL_ASSERT(m >= 1);
 
         reserveExtra(vertices_, 1);
         reserveExtra(triangles_, m == 1 ? 2 : static_cast<std::size_t>(m));
@@ -6228,7 +6227,7 @@ struct Triangulation {
         }
         domainTriangleCount_ += static_cast<std::size_t>(m);
         hint_ = nr;
-        // assert(checkInvariants() && checkEdgeMap());  // O(n): uncomment when debugging
+        // PGL_ASSERT(checkInvariants() && checkEdgeMap());  // O(n): uncomment when debugging
         return {vp, nr};
     }
 
@@ -6267,7 +6266,7 @@ struct Triangulation {
                 }
             }
         }
-        assert(suspect.empty() && "Triangulation: legalization did not terminate");
+        PGL_ASSERT(suspect.empty() && "Triangulation: legalization did not terminate");
     }
 
     // Debug validation of segToEdge_: every real triangle side is registered
@@ -6413,7 +6412,7 @@ struct Triangulation {
                 }
             }
         }
-        assert(ghostEdges.empty() && "Triangulation: open boundary (input is not a triangulation)");
+        PGL_ASSERT(ghostEdges.empty() && "Triangulation: open boundary (input is not a triangulation)");
     }
 };
 

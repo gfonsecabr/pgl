@@ -61,7 +61,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <type_traits>
@@ -266,7 +265,7 @@ constexpr HausdorffOperand<W> hausdorffOperand(const ShapeType& shape) {
     }
     // Neither shape may be empty: the empty set has no Hausdorff distance to
     // anything.
-    assert(!operand.edges.empty() || !operand.points.empty());
+    PGL_ASSERT(!operand.edges.empty() || !operand.points.empty());
     bool seeded = false;
     const auto grow = [&](const Point<W>& p) {
         if (!seeded) {
@@ -634,7 +633,7 @@ private:
             }
             const W measured = siteDistance(p);
             if constexpr (!std::floating_point<W>) {
-                assert(measured == claimed);
+                PGL_ASSERT(measured == claimed);
             }
             offer(measured);
             return;
@@ -784,7 +783,7 @@ private:
         const W end = openEnd ? high : hi;
         // Every distance falls somewhere along `-u`, so some piece rises; an empty
         // list would mean the site is nearer than `piece` on the whole line.
-        assert(!rises.empty());
+        PGL_ASSERT(!rises.empty());
         if (!(start < end) || rises.empty()) {
             return Envelope::unbounded(lo, hi);
         }

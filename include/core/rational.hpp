@@ -22,7 +22,6 @@
 #include <cstdint>
 #include <utility>
 #include <concepts>
-#include <cassert>
 #include <cstddef>
 
 
@@ -381,7 +380,7 @@ public:
             den = -den;
         }
 
-        assert(den > 0);
+        PGL_ASSERT(den > 0);
         // The reduction is deferred: it happens lazily at a read, a comparison,
         // or when an arithmetic step would otherwise risk overflow. Integers are
         // already in lowest terms, so flag them normalized to skip that work.
@@ -501,7 +500,7 @@ public:
             return;
         }
         normalized_ = true;
-        assert(den != 0);
+        PGL_ASSERT(den != 0);
 
         if (num == 0) {
             den = 1;
@@ -702,12 +701,10 @@ public:
         Double result = static_cast<Double>(num) / static_cast<Double>(den);
         Float flt_result = static_cast<Float>(result);
 
-#ifndef NDEBUG
-        int i = 0;
-#endif
+        [[maybe_unused]] int i = 0;
         while (static_cast<Double>(flt_result) > result) {
             flt_result = std::nextafter(flt_result, -pgl::detail::numeric_limits<Float>::infinity());
-            assert(i++ < 10); // Normally one iteration should be enough
+            PGL_ASSERT(i++ < 10); // Normally one iteration should be enough
         }
         // The quotient is itself a rounding of the exact value, so when the
         // narrowing landed exactly on it nothing above tells which side of the
@@ -748,12 +745,10 @@ public:
         Double result = static_cast<Double>(num) / static_cast<Double>(den);
         Float flt_result = static_cast<Float>(result);
 
-#ifndef NDEBUG
-        int i = 0;
-#endif
+        [[maybe_unused]] int i = 0;
         while (static_cast<Double>(flt_result) < result) {
             flt_result = std::nextafter(flt_result, pgl::detail::numeric_limits<Float>::infinity());
-            assert(i++ < 10); // Normally one iteration should be enough
+            PGL_ASSERT(i++ < 10); // Normally one iteration should be enough
         }
         // See lowerBound: a candidate equal to the rounded quotient may still
         // be below the exact value, and one exact step settles it.
@@ -824,7 +819,7 @@ public:
     }
 
     constexpr Rational reciprocal() const {
-        assert(num != 0);
+        PGL_ASSERT(num != 0);
         // Swapping numerator and denominator preserves gcd(|num|, den), so the
         // normalization state carries over unchanged.
         return num < 0 ? Rational(-den, -num, normalized_)

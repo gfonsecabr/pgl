@@ -8,7 +8,6 @@
  */
 
 #include <algorithm>
-#include <cassert>
 #include <cstddef>
 #include <iterator>
 #include <random>
@@ -124,7 +123,7 @@ smallestEnclosingDisk(const Container& input, UniformRandomBitGenerator&& genera
     for (const auto& point : input) {
         points.emplace_back(point);
     }
-    assert(!points.empty());
+    PGL_ASSERT(!points.empty());
     std::shuffle(points.begin(), points.end(),
                  std::forward<UniformRandomBitGenerator>(generator));
 
@@ -181,7 +180,7 @@ template <class UniformRandomBitGenerator>
 Disk<Point<typename Convex<PointType, LabelType>::NumberType>>
 Convex<PointType, LabelType>::smallestEnclosingDisk(
     UniformRandomBitGenerator&& generator) const {
-    assert(!empty());
+    PGL_ASSERT(!empty());
     // Qualified: the member name would otherwise hide the free function.
     return pgl::smallestEnclosingDisk(
         *this, std::forward<UniformRandomBitGenerator>(generator));
@@ -190,7 +189,7 @@ Convex<PointType, LabelType>::smallestEnclosingDisk(
 template <class PointType, class LabelType>
 Disk<Point<typename Convex<PointType, LabelType>::NumberType>>
 Convex<PointType, LabelType>::smallestEnclosingDisk() const {
-    assert(!empty());
+    PGL_ASSERT(!empty());
     return pgl::smallestEnclosingDisk(*this);
 }
 

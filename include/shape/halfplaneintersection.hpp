@@ -15,7 +15,6 @@
  */
 
 #include <algorithm>
-#include <cassert>
 #include <compare>
 #include <concepts>
 #include <cstddef>
@@ -449,7 +448,7 @@ struct HalfplaneIntersection {
     constexpr explicit HalfplaneIntersection(const OtherLine& line) {
         const PointType a(line[0]);
         const PointType b(line[1]);
-        assert(a != b);
+        PGL_ASSERT(a != b);
         halfplanes_.push_back(HalfplaneType(a, b));
         halfplanes_.push_back(HalfplaneType(b, a));
         degenerate_ = true;
@@ -696,7 +695,7 @@ struct HalfplaneIntersection {
      * (counterclockwise pseudo-angle) order.
      */
     constexpr const HalfplaneType& operator[](std::size_t index) const {
-        assert(index < size());
+        PGL_ASSERT(index < size());
         return halfplanes_[index];
     }
 
@@ -967,10 +966,10 @@ struct HalfplaneIntersection {
      */
     template <class ResultNumber = division_result_t<NumberType>>
     constexpr Point<ResultNumber, typename PointType::LabelType> vertex(std::size_t i) const {
-        assert(vertexExists(i));
+        PGL_ASSERT(vertexExists(i));
         const auto isec = halfplanes_[i].asLine().template intersection<ResultNumber>(
             halfplanes_[nextIndex(i)].asLine());
-        assert(isec && isec->index() == 0);
+        PGL_ASSERT(isec && isec->index() == 0);
         return std::get<0>(*isec);
     }
 
@@ -1012,7 +1011,7 @@ struct HalfplaneIntersection {
                            Line<Point<ResultNumber, typename PointType::LabelType>>>
     edge(std::size_t i) const {
         using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
-        assert(!empty_ && i < size());
+        PGL_ASSERT(!empty_ && i < size());
         const std::size_t prev = prevIndex(i);
         const bool hasStart = size() >= 2 && detail::directionCross(halfplanes_[prev], halfplanes_[i]) > 0;
         const bool hasEnd = vertexExists(i);

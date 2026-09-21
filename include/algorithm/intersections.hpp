@@ -12,7 +12,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cassert>
 #include <cmath>
 #include <concepts>
 #include <cstdint>
@@ -371,7 +370,7 @@ class BentleyOttmann {
      * segments as values; after it, equality is a comparison of ranks.
      */
     void prepare(const std::vector<Segment> &segments) {
-        assert(segments.size() + extras.size() <= std::numeric_limits<Id>::max());
+        PGL_ASSERT(segments.size() + extras.size() <= std::numeric_limits<Id>::max());
         input = &segments;
         const std::size_t count = segments.size();
         const std::size_t slots = count + extras.size();
@@ -747,7 +746,7 @@ class BentleyOttmann {
             if (b.isVertical()) {
                 return a.min().y() < b.min().y();
             }
-            assert(line.x == a.min().x());
+            PGL_ASSERT(line.x == a.min().x());
             if (a.min().y() < std::min(b.min().y(),b.max().y()))
                 return true;
 
@@ -757,7 +756,7 @@ class BentleyOttmann {
             return pgl::orientationSign(b.min(), b.max(), a.min()) < 0;
         }
         if(b.isVertical()) {
-            assert(line.x == b.min().x());
+            PGL_ASSERT(line.x == b.min().x());
             if (std::max(a.min().y(),a.max().y()) < b.min().y())
                 return true;
 
@@ -899,7 +898,7 @@ class BentleyOttmann {
     }
 
     void possibleCrossing(Node ita, Node itb) {
-        assert(ita && itb && "the bbox sentinels bound every neighbour walk");
+        PGL_ASSERT(ita && itb && "the bbox sentinels bound every neighbour walk");
         const Id a = ita->value, b = itb->value;
         const Segment &sa = seg(a), &sb = seg(b);
 
@@ -926,7 +925,7 @@ class BentleyOttmann {
             // sweep having lost track of it. Dropping the event loses whatever
             // crossings it would have reported — wrong, but bounded and
             // diagnosable, where erasing a node that is not there is not.
-            assert(it1 && "RIGHT event for a segment not in the status");
+            PGL_ASSERT(it1 && "RIGHT event for a segment not in the status");
             if (!it1) {
                 continue;
             }
@@ -972,7 +971,7 @@ class BentleyOttmann {
             if (collectedAt[ev.lower->value] == step) {
                 // Already collected as part of an earlier run, and the event's
                 // other segment with it: the two meet at the same point.
-                assert(collectedAt[ev.upper->value] == step);
+                PGL_ASSERT(collectedAt[ev.upper->value] == step);
                 continue;
             }
             // The event's own two segments meet here by construction, and so
@@ -994,8 +993,8 @@ class BentleyOttmann {
             }
             Run run;
             for (Node it = first;; it = Tree::next(it)) {
-                assert(it && "the event's upper segment lies above its lower one");
-                assert(sameHeight(it->value, ev.lower->value, at));
+                PGL_ASSERT(it && "the event's upper segment lies above its lower one");
+                PGL_ASSERT(sameHeight(it->value, ev.lower->value, at));
                 run.nodes.push_back(it);
                 run.ids.push_back(it->value);
                 collectedAt[it->value] = step;
@@ -1086,7 +1085,7 @@ class BentleyOttmann {
             runHolds[t] = wanted;
             runWhere[wanted] = t;
         }
-        // assert(std::is_sorted(run.nodes.begin(), run.nodes.end(), [this](Node a, Node b) {
+        // PGL_ASSERT(std::is_sorted(run.nodes.begin(), run.nodes.end(), [this](Node a, Node b) {
         //     return CompareAlongLine(a->value, b->value);
         // }));  // O(run): uncomment when debugging
     }
@@ -1151,7 +1150,7 @@ class BentleyOttmann {
             for (std::size_t b = 0; b + 1 < run.blockCount; ++b) {
                 for (std::uint32_t i = starts[b]; i < starts[b + 1]; ++i) {
                     for (std::size_t j = starts[b + 1]; j < ids.size(); ++j) {
-                        assert(seg(ids[i]).crosses(seg(ids[j])));
+                        PGL_ASSERT(seg(ids[i]).crosses(seg(ids[j])));
                         if (addCrossing(ids[i], ids[j])) {
                             return;
                         }
@@ -1217,7 +1216,7 @@ class BentleyOttmann {
             extras[2] = Segment(top.x(), top.y(), top.x(), top.y() + 1);
             for (Node it = tree.upperBound(ev.s1); it && CompareAlongLine(it->value, probeId());
                  it = Tree::next(it)) {
-                assert(vertical.crosses(seg(it->value)));
+                PGL_ASSERT(vertical.crosses(seg(it->value)));
                 if (addCrossing(ev.s1, it->value)) {
                     return;
                 }

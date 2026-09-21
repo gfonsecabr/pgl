@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <vector>
-#include <cassert>
 #include <compare>
 #include <concepts>
 #include <cstddef>
@@ -117,7 +116,7 @@ struct Polyline {
      * @param coords Interleaved x/y coordinates of the vertices in traversal order.
      */
     constexpr explicit Polyline(std::initializer_list<NumberType> coords) {
-        assert(coords.size() % 2 == 0);
+        PGL_ASSERT(coords.size() % 2 == 0);
         points_.reserve(coords.size() / 2);
         for (auto it = coords.begin(); it != coords.end(); ) {
             NumberType x = *it++;
@@ -200,7 +199,7 @@ struct Polyline {
      * @return The vertex at the given index.
      */
     constexpr const PointType operator[](std::size_t index) const {
-        assert(index < size());
+        PGL_ASSERT(index < size());
         return detail::translatedVertex(points_[index], translation_);
     }
 
@@ -236,7 +235,7 @@ struct Polyline {
      */
     template <PointConcept OtherPoint>
     constexpr void set(std::size_t index, const OtherPoint& point) {
-        assert(index < size());
+        PGL_ASSERT(index < size());
         PointType stored(point);
         stored -= translation_;
         points_[index] = stored;
@@ -278,7 +277,7 @@ struct Polyline {
      */
     template <PointConcept OtherPoint>
     constexpr void insert(std::size_t index, const OtherPoint& point) {
-        assert(index <= size());
+        PGL_ASSERT(index <= size());
         PointType stored(point);
         stored -= translation_;
         points_.insert(points_.begin() + static_cast<std::ptrdiff_t>(index), stored);
@@ -304,7 +303,7 @@ struct Polyline {
         requires (!detail::is_point_v<std::remove_cvref_t<Range>>) &&
                  std::convertible_to<std::ranges::range_value_t<Range>, PointType>
     constexpr void insert(std::size_t index, Range&& points) {
-        assert(index <= size());
+        PGL_ASSERT(index <= size());
         std::vector<PointType> incoming;
         for (const auto& p : points) {
             PointType stored(p);
@@ -2551,7 +2550,7 @@ struct Polyline {
         constexpr BoundaryIterator() = default;
 
         constexpr value_type operator*() const {
-            assert(polyline != nullptr);
+            PGL_ASSERT(polyline != nullptr);
             return polyline->template boundaryAt<Oriented>(index);
         }
 
@@ -2659,7 +2658,7 @@ struct Polyline {
 
     template <bool Oriented>
     constexpr BoundaryType<Oriented> boundaryAt(std::size_t index) const {
-        assert(index + 1 < size());
+        PGL_ASSERT(index + 1 < size());
         return BoundaryType<Oriented>((*this)[index], (*this)[index + 1]);
     }
 

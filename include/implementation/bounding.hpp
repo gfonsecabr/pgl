@@ -165,7 +165,7 @@ constexpr typename Rectangle<PointType, LabelType>::PointType Rectangle<PointTyp
 template <class PointType, class LabelType>
 template <bool Oriented>
 constexpr typename Rectangle<PointType, LabelType>::template BoundaryType<Oriented> Rectangle<PointType, LabelType>::boundaryAt(std::size_t index) const {
-    assert(index < size());
+    PGL_ASSERT(index < size());
 
     const auto bottom_left = min();
     const auto bottom_right = bottomRight();
@@ -186,7 +186,7 @@ constexpr typename Rectangle<PointType, LabelType>::template BoundaryType<Orient
 
 template <class PointType, class LabelType>
 constexpr std::array<typename Rectangle<PointType, LabelType>::PointType, 4> Rectangle<PointType, LabelType>::vertices() const {
-    assert(!empty());
+    PGL_ASSERT(!empty());
     return {
         min(),
         bottomRight(),
@@ -197,7 +197,7 @@ constexpr std::array<typename Rectangle<PointType, LabelType>::PointType, 4> Rec
 
 template <class PointType, class LabelType>
 constexpr std::array<Segment<PointType>, 4> Rectangle<PointType, LabelType>::edges() const {
-    assert(!empty());
+    PGL_ASSERT(!empty());
     return {
         boundaryAt<false>(0),
         boundaryAt<false>(1),
@@ -208,7 +208,7 @@ constexpr std::array<Segment<PointType>, 4> Rectangle<PointType, LabelType>::edg
 
 template <class PointType, class LabelType>
 constexpr std::array<OrientedSegment<PointType>, 4> Rectangle<PointType, LabelType>::orientedEdges() const {
-    assert(!empty());
+    PGL_ASSERT(!empty());
     return {
         boundaryAt<true>(0),
         boundaryAt<true>(1),
@@ -574,7 +574,7 @@ HalfplaneIntersection<PointType, LabelType>::bbox() const {
         const auto r1 = row(pred);
         const auto r2 = row(succ);
         const C den = r1.ax * r2.ay - r1.ay * r2.ax;  // positive: bounded gaps are below pi
-        assert(den > C(0));
+        PGL_ASSERT(den > C(0));
         if (wantX) {
             return {r1.b * r2.ay - r2.b * r1.ay, den};
         }

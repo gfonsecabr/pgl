@@ -10,7 +10,6 @@
  * shapes, predicates, and algorithms are all expressed in terms of points.
  */
 
-#include <cassert>
 #include <cmath>
 #include <concepts>
 #include <cstddef>
@@ -303,12 +302,12 @@ struct Point {
      * @return Reference to the selected coordinate.
      */
     constexpr const NumberType& operator[](std::size_t index) const {
-        assert(index < size());
+        PGL_ASSERT(index < size());
         return coords_[index];
     }
     /** @copydoc operator[](std::size_t) const */
     NumberType& operator[](std::size_t index) {
-        assert(index < size());
+        PGL_ASSERT(index < size());
         return coords_[index];
     }
 

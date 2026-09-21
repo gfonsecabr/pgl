@@ -14,7 +14,6 @@
  */
 
 #include <array>
-#include <cassert>
 #include <cmath>
 #include <compare>
 #include <concepts>
@@ -230,7 +229,7 @@ struct Disk {
      * @param index Position in `[0, 3)`; out-of-range is undefined (asserted in debug).
      */
     constexpr const PointType& operator[](std::size_t index) const {
-        assert(index < size());
+        PGL_ASSERT(index < size());
         return points_[index];
     }
 
@@ -1778,7 +1777,7 @@ struct Disk {
 
         /** @brief Returns the boundary point at the current position. */
         constexpr reference operator*() const {
-            assert(disk != nullptr);
+            PGL_ASSERT(disk != nullptr);
             return (*disk)[index];
         }
 

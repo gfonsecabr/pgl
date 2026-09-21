@@ -8,7 +8,6 @@
  */
 
 #include <algorithm>
-#include <cassert>
 #include <cstddef>
 #include <functional>
 #include <iterator>
@@ -194,25 +193,25 @@ public:
     /// Inserts @p v immediately before @p h, which must not be null.
     template <class U>
     Handle insertBefore(Handle h, U &&v) {
-        assert(h && "insertBefore needs a node to insert before");
-        // assert(!prev(h) || !comp(v, prev(h)->value));  // O(log n): uncomment when debugging
-        assert(!comp(h->value, v));
+        PGL_ASSERT(h && "insertBefore needs a node to insert before");
+        // PGL_ASSERT(!prev(h) || !comp(v, prev(h)->value));  // O(log n): uncomment when debugging
+        PGL_ASSERT(!comp(h->value, v));
         return insertBeside(h, 0, std::forward<U>(v));
     }
 
     /// Inserts @p v immediately after @p h, which must not be null.
     template <class U>
     Handle insertAfter(Handle h, U &&v) {
-        assert(h && "insertAfter needs a node to insert after");
-        // assert(!next(h) || !comp(next(h)->value, v));  // O(log n): uncomment when debugging
-        assert(!comp(v, h->value));
+        PGL_ASSERT(h && "insertAfter needs a node to insert after");
+        // PGL_ASSERT(!next(h) || !comp(next(h)->value, v));  // O(log n): uncomment when debugging
+        PGL_ASSERT(!comp(v, h->value));
         return insertBeside(h, 1, std::forward<U>(v));
     }
 
     /// Inserts @p v as the tree's smallest element.
     template <class U>
     Handle insertFirst(U &&v) {
-        // assert(!root || !comp(first()->value, v));  // O(log n): uncomment when debugging
+        // PGL_ASSERT(!root || !comp(first()->value, v));  // O(log n): uncomment when debugging
         return root ? insertBeside(first(), 0, std::forward<U>(v))
                     : attachRoot(std::forward<U>(v));
     }
@@ -220,7 +219,7 @@ public:
     /// Inserts @p v as the tree's largest element.
     template <class U>
     Handle insertLast(U &&v) {
-        // assert(!root || !comp(v, last()->value));  // O(log n): uncomment when debugging
+        // PGL_ASSERT(!root || !comp(v, last()->value));  // O(log n): uncomment when debugging
         return root ? insertBeside(last(), 1, std::forward<U>(v))
                     : attachRoot(std::forward<U>(v));
     }
@@ -234,7 +233,7 @@ public:
      * Every other handle stays valid; @p h does not.
      */
     Handle erase(Handle h) {
-        assert(h && "erase needs a node");
+        PGL_ASSERT(h && "erase needs a node");
         Handle after = next(h);
         unlink(h);
         recycle(h);
@@ -258,7 +257,7 @@ public:
      * rediscover.
      */
     void swap(Handle a, Handle b) {
-        assert(a && b && "swap needs two nodes");
+        PGL_ASSERT(a && b && "swap needs two nodes");
         if (a == b) {
             return;
         }
@@ -494,7 +493,7 @@ private:
     // free, and restores the colouring.
     template <class U>
     Handle attach(Node *parent, int side, U &&v) {
-        assert(!parent->down[side]);
+        PGL_ASSERT(!parent->down[side]);
         Node *n = takeNode();
         ::new (static_cast<void *>(std::addressof(n->value))) T(std::forward<U>(v));
         n->up = parent;
@@ -602,7 +601,7 @@ private:
             const int side = parent->down[1] == x ? 1 : 0;
             Node *sibling = parent->down[1 - side];
             // A missing sibling would mean the black heights already differed.
-            assert(sibling);
+            PGL_ASSERT(sibling);
             if (sibling->red) {
                 sibling->red = false;
                 parent->red = true;

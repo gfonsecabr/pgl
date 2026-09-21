@@ -3,7 +3,6 @@
 #include "shape/halfplaneintersection.hpp"
 
 #include <algorithm>
-#include <cassert>
 #include <compare>
 #include <concepts>
 #include <cstddef>
@@ -236,7 +235,7 @@ struct PolygonWithHoles {
      * @param index The index of the hole, in canonical (sorted) order.
      */
     [[nodiscard]] constexpr const PolygonType& hole(std::size_t index) const {
-        assert(index < holes_.size());
+        PGL_ASSERT(index < holes_.size());
         return holes_[index];
     }
 
@@ -286,7 +285,7 @@ struct PolygonWithHoles {
      * @param index The index of the hole, in canonical (sorted) order.
      */
     constexpr void eraseHole(std::size_t index) {
-        assert(index < holes_.size());
+        PGL_ASSERT(index < holes_.size());
         holes_.erase(holes_.begin() + static_cast<std::ptrdiff_t>(index));
         resetCache();
     }
@@ -3207,7 +3206,7 @@ struct PolygonWithHoles {
         constexpr VertexIterator() = default;
 
         constexpr value_type operator*() const {
-            assert(region != nullptr);
+            PGL_ASSERT(region != nullptr);
             return currentRing()[index];
         }
 

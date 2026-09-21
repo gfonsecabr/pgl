@@ -3,7 +3,6 @@
 #include "shape/polygonwithholes.hpp"
 
 #include <algorithm>
-#include <cassert>
 #include <compare>
 #include <concepts>
 #include <cstddef>
@@ -311,7 +310,7 @@ struct PolygonSet {
      * @param index The index of the component, in canonical (sorted) order.
      */
     [[nodiscard]] constexpr const ComponentType& component(std::size_t index) const {
-        assert(index < components_.size());
+        PGL_ASSERT(index < components_.size());
         return components_[index];
     }
 
@@ -365,7 +364,7 @@ struct PolygonSet {
      * @param index The index of the component, in canonical (sorted) order.
      */
     constexpr void eraseComponent(std::size_t index) {
-        assert(index < components_.size());
+        PGL_ASSERT(index < components_.size());
         components_.erase(components_.begin() + static_cast<std::ptrdiff_t>(index));
         resetCache();
     }
@@ -1909,7 +1908,7 @@ struct PolygonSet {
         constexpr VertexIterator() = default;
 
         constexpr value_type operator*() const {
-            assert(set != nullptr);
+            PGL_ASSERT(set != nullptr);
             return *inner;
         }
 

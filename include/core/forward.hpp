@@ -8,6 +8,7 @@
  * forcing all definitions to be parsed immediately.
  */
 
+#include <cassert>
 #include <compare>
 #include <stdexcept>
 #include <string>
@@ -15,6 +16,18 @@
 #include <type_traits>
 #include <variant>
 #include <vector>
+
+/**
+ * @def PGL_ASSERT
+ * @brief The check behind every pgl assertion.
+ *
+ * Defaults to `assert(cond)`, so it follows `NDEBUG`. Define it before including
+ * any pgl header to route the checks elsewhere, for example to a handler that
+ * throws, or to nothing.
+ */
+#ifndef PGL_ASSERT
+#define PGL_ASSERT(cond) assert(cond)
+#endif
 
 namespace pgl {
 

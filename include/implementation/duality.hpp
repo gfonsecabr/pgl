@@ -39,7 +39,7 @@ constexpr Line<Point<ResultNumber, Label>> Point<Number, Label>::dual() const {
 template <class Number, class Label>
 template <class ResultNumber>
 constexpr Line<Point<ResultNumber, Label>> Point<Number, Label>::polar() const {
-    assert(x() != 0 || y() != 0);
+    PGL_ASSERT(x() != 0 || y() != 0);
     // Build two lines through this point that do not contain the origin.
     Point<ResultNumber, Label> p{x(), y()};
     Point<ResultNumber, Label> q1{x() + 1, y() + 1};
@@ -107,7 +107,7 @@ constexpr auto Line<PointType, LabelType>::polarCoordinates() const {
 template <class PointType, class LabelType>
 template <class ResultNumber>
 constexpr Point<ResultNumber, typename PointType::LabelType> Line<PointType, LabelType>::dual() const {
-    assert(!isVertical());
+    PGL_ASSERT(!isVertical());
 
     // Line equation: y = anum/den * x - bnum/den.
     const auto [anum, bnum, den] = dualCoordinates<ResultNumber>();
@@ -125,7 +125,7 @@ template <class ResultNumber>
 constexpr Point<ResultNumber, typename PointType::LabelType> Line<PointType, LabelType>::polar() const {
     // Line equation: anum/den * x + bnum/den y = 1.
     const auto [anum, bnum, den] = polarCoordinates<ResultNumber>();
-    assert(den != 0);
+    PGL_ASSERT(den != 0);
     return Point<ResultNumber, typename PointType::LabelType>(anum / den, bnum / den);
 }
 

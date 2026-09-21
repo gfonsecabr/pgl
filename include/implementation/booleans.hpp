@@ -47,7 +47,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cassert>
 #include <cstdint>
 #include <cstddef>
 #include <limits>
@@ -358,7 +357,7 @@ Arrangement<ExactPoint> framedArrangement(const std::vector<Segment<ExactPoint>>
     using ExactNumber = typename ExactPoint::NumberType;
     using ExactSegment = Segment<ExactPoint>;
 
-    assert(!cuts.empty());
+    PGL_ASSERT(!cuts.empty());
     ExactNumber loX = cuts.front().min().x();
     ExactNumber loY = cuts.front().min().y();
     ExactNumber hiX = loX;
@@ -570,8 +569,8 @@ PolygonSet<ResultPoint> regularizedUnionByCoverage(
         stack.push_back(Frame{next, faceEdgeBegin[next], h});
     }
 
-    assert(covered == 0);  // every descent undone
-    // assert(std::ranges::all_of(seen, [](char value) { return value != 0; }));  // O(faces): uncomment when debugging
+    PGL_ASSERT(covered == 0);  // every descent undone
+    // PGL_ASSERT(std::ranges::all_of(seen, [](char value) { return value != 0; }));  // O(faces): uncomment when debugging
     std::vector<char> keep(faceCount, 0);
     for (std::uint32_t i = 0; i < arrangement.faceCount(); ++i) {
         const FaceId f(i);
@@ -1349,7 +1348,7 @@ literalIntersection(const ShapeA& a, const ShapeB& b) {
         }
         const VertexId v(i);
         const HalfedgeId start = arrangement.outgoing(v);
-        assert(start.valid());  // every vertex here is an endpoint of some cut
+        PGL_ASSERT(start.valid());  // every vertex here is an endpoint of some cut
         bool besideKept = false;
         HalfedgeId h = start;
         do {

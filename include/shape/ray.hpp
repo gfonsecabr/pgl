@@ -11,7 +11,6 @@
  */
 
 #include <array>
-#include <cassert>
 #include <cmath>
 #include <concepts>
 #include <cstddef>
@@ -172,12 +171,12 @@ struct Ray {
      * @return Reference to the selected defining point.
      */
     constexpr const PointType& operator[](std::size_t index) const {
-        assert(index < size());
+        PGL_ASSERT(index < size());
         return points_[index];
     }
     /** @copydoc operator[](std::size_t) const */
     constexpr PointType& operator[](std::size_t index) {
-        assert(index < size());
+        PGL_ASSERT(index < size());
         return points_[index];
     }
 

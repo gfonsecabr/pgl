@@ -11,7 +11,6 @@
  */
 
 #include <array>
-#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <iterator>
@@ -294,7 +293,7 @@ struct Rectangle {
      * @return The selected corner.
      */
     constexpr PointType operator[](std::size_t index) const {
-        assert(index < size());
+        PGL_ASSERT(index < size());
         switch (index) {
             case 0: return min();
             case 1: return bottomRight();
@@ -357,7 +356,7 @@ struct Rectangle {
      * is a precondition violation.
      */
     constexpr PointType get(std::ptrdiff_t index) const {
-        assert(!empty());
+        PGL_ASSERT(!empty());
         const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(size());
         return (*this)[static_cast<std::size_t>(((index % n) + n) % n)];
     }
@@ -2419,7 +2418,7 @@ struct Rectangle {
         constexpr BoundaryIterator() = default;
 
         constexpr value_type operator*() const {
-            assert(rectangle != nullptr);
+            PGL_ASSERT(rectangle != nullptr);
             return rectangle->template boundaryAt<Oriented>(index);
         }
 

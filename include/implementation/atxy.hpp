@@ -362,7 +362,7 @@ MonotoneChain<PointType, LabelType, Storage>::indexAtX(const OtherNumber& x) con
         [&tx](const PointType& p, const OtherNumber& value) {
             return static_cast<Compare>(p.x() + tx) < detail::asNumber<Compare>(value);
         });
-    assert(it != points_.end());
+    PGL_ASSERT(it != points_.end());
     const std::size_t i = static_cast<std::size_t>(it - points_.begin());
     if (static_cast<Compare>(it->x() + tx) == detail::asNumber<Compare>(x)) {
         return i;

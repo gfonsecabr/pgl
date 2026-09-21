@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <vector>
-#include <cassert>
 #include <compare>
 #include <concepts>
 #include <cstddef>
@@ -111,7 +110,7 @@ struct Polygon {
      * @param trust @ref trusted if the points are already in canonical form.
      */
     constexpr explicit Polygon(std::initializer_list<NumberType> coords, Trust trust = untrusted) {
-        assert(coords.size() % 2 == 0);
+        PGL_ASSERT(coords.size() % 2 == 0);
         points_.reserve(coords.size() / 2);
         for (auto it = coords.begin(); it != coords.end(); ) {
             NumberType x = *it++;
@@ -198,7 +197,7 @@ struct Polygon {
      * @return The vertex at the given index.
      */
     constexpr const PointType operator[](std::size_t index) const {
-        assert(index < size());
+        PGL_ASSERT(index < size());
         return detail::translatedVertex(points_[index], translation_);
     }
 
@@ -3409,7 +3408,7 @@ struct Polygon {
         constexpr BoundaryIterator() = default;
 
         constexpr value_type operator*() const {
-            assert(polygon != nullptr);
+            PGL_ASSERT(polygon != nullptr);
             return polygon->template boundaryAt<Oriented>(index);
         }
 

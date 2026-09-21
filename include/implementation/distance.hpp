@@ -16,7 +16,6 @@
  */
 
 #include <algorithm>
-#include <cassert>
 #include <cmath>
 #include <cstddef>
 #include <ranges>
@@ -62,7 +61,7 @@ constexpr ResultNumber maxVertexSquaredDistance(const Self& self, const OtherSha
     // anything; asking for one is a precondition violation, as it is for an
     // empty Rectangle. Both operands are read — `self`'s vertices, and
     // `other`'s distance to each of them — so neither may be empty.
-    assert(nonEmptyOperand(self) && nonEmptyOperand(other));
+    PGL_ASSERT(nonEmptyOperand(self) && nonEmptyOperand(other));
     const auto self_vertices = self.vertices();
     ResultNumber worst = other.template squaredDistance<ResultNumber>(self_vertices[0]);
     for (std::size_t index = 1; index < self_vertices.size(); ++index) {
@@ -497,7 +496,7 @@ template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherPoint& point) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     const ResultNumber dx = static_cast<ResultNumber>(axisDistance(min().x(), max().x(), point.x(), point.x()));
     const ResultNumber dy = static_cast<ResultNumber>(axisDistance(min().y(), max().y(), point.y(), point.y()));
     return dx * dx + dy * dy;
@@ -508,7 +507,7 @@ template <class ResultNumber, LineConcept OtherLine>
 constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherLine& other) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -530,7 +529,7 @@ template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
 constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherOrientedLine& other) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     return this->template squaredDistance<ResultNumber>(other.asLine());
 }
 
@@ -539,7 +538,7 @@ template <class ResultNumber, SegmentConcept OtherSegment>
 constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherSegment& other) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -566,7 +565,7 @@ template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
 constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherOrientedSegment& other) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     return this->template squaredDistance<ResultNumber>(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
@@ -575,7 +574,7 @@ template <class ResultNumber, RayConcept OtherRay>
 constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherRay& other) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -597,7 +596,7 @@ template <class ResultNumber, HalfplaneConcept OtherHalfplane>
 constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherHalfplane& other) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -609,7 +608,7 @@ template <class ResultNumber, RectangleConcept OtherRectangle>
 constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherRectangle& other) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     const ResultNumber dx = static_cast<ResultNumber>(axisDistance(min().x(), max().x(), other.min().x(), other.max().x()));
     const ResultNumber dy = static_cast<ResultNumber>(axisDistance(min().y(), max().y(), other.min().y(), other.max().y()));
     return dx * dx + dy * dy;
@@ -620,7 +619,7 @@ template <class ResultNumber, RectangleConcept OtherRectangle>
 constexpr auto Rectangle<PointType, LabelType>::squaredHausdorffDistance(const OtherRectangle& other) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     const auto worst_from_this = detail::maxVertexSquaredDistance<ResultNumber>(*this, other);
     const auto worst_from_other = detail::maxVertexSquaredDistance<ResultNumber>(other, *this);
     return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;
@@ -631,7 +630,7 @@ template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Rectangle<PointType, LabelType>::squaredHausdorffDistance(const OtherPoint& point) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     return detail::maxVertexSquaredDistance<ResultNumber>(*this, point);
 }
 
@@ -640,7 +639,7 @@ template <class ResultNumber, SegmentConcept OtherSegment>
 constexpr auto Rectangle<PointType, LabelType>::squaredHausdorffDistance(const OtherSegment& other) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     const auto worst_from_this = detail::maxVertexSquaredDistance<ResultNumber>(*this, other);
     const auto worst_from_other = detail::maxVertexSquaredDistance<ResultNumber>(other, *this);
     return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;
@@ -651,7 +650,7 @@ template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
 constexpr auto Rectangle<PointType, LabelType>::squaredHausdorffDistance(const OtherOrientedSegment& other) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     const auto worst_from_this = detail::maxVertexSquaredDistance<ResultNumber>(*this, other);
     const auto worst_from_other = detail::maxVertexSquaredDistance<ResultNumber>(other, *this);
     return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;
@@ -817,7 +816,7 @@ constexpr auto Triangle<PointType, LabelType>::squaredHausdorffDistance(const Ot
 template <class PointType_, class LabelType>
 template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherPoint& point) const {
-    assert(!empty());
+    PGL_ASSERT(!empty());
     // Promoted so a query point of a different coordinate type (e.g. a Disk's
     // inherently-double center) combines safely with this polygon's own vertex
     // type, matching the promotion orientationDeterminant already applies below.
@@ -919,7 +918,7 @@ constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherPoint& 
 template <class PointType_, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>
 constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherSegment& other) const {
-    assert(!empty());
+    PGL_ASSERT(!empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -986,7 +985,7 @@ constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherOriente
 template <class PointType_, class LabelType>
 template <class ResultNumber, ConvexConcept OtherConvex>
 constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherConvex& other) const {
-    assert(!empty() && !other.empty());
+    PGL_ASSERT(!empty() && !other.empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -1028,7 +1027,7 @@ constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherRectang
 template <class PointType_, class LabelType>
 template <class ResultNumber, LineConcept OtherLine>
 constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherLine& other) const {
-    assert(!empty());
+    PGL_ASSERT(!empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -1077,7 +1076,7 @@ constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherOriente
 template <class PointType_, class LabelType>
 template <class ResultNumber, RayConcept OtherRay>
 constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherRay& other) const {
-    assert(!empty());
+    PGL_ASSERT(!empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -1243,7 +1242,7 @@ template <class ApproximateNumber, DiskConcept OtherDisk>
 detail::floating_result_t<ApproximateNumber> Convex<PointType_, LabelType>::squaredDistance(
     const OtherDisk& other) const {
     using Float = detail::floating_result_t<ApproximateNumber>;
-    assert(!empty());
+    PGL_ASSERT(!empty());
     // Beyond a few edges the per-edge test is replaced by one exact comparison:
     // the disk meets the polygon exactly when the circumcenter of its boundary
     // points is within the circumradius of it, and that distance is an O(log n)
@@ -1413,7 +1412,7 @@ template <class ResultNumber, class OtherShape>
 constexpr ResultNumber Polygon<PointType_, TLabel>::edgeMinSquaredDistance(const OtherShape& other) const {
     // The empty polygon has no edge to measure from, and no nearest point
     // to anything; the chains and polylines say the same below.
-    assert(size() >= 1);
+    PGL_ASSERT(size() >= 1);
     const auto boundaryEdges = edges();
     ResultNumber best = boundaryEdges[0].template squaredDistance<ResultNumber>(other);
     for (std::size_t index = 1; index < boundaryEdges.size(); ++index) {
@@ -1550,7 +1549,7 @@ constexpr auto Polygon<PointType_, TLabel>::squaredDistance(const OtherChain& ot
 template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, class OtherShape>
 constexpr ResultNumber MonotoneChain<PointType, LabelType, Storage>::edgeMinSquaredDistance(const OtherShape& other) const {
-    assert(size() >= 1);
+    PGL_ASSERT(size() >= 1);
     if (size() == 1) {
         // A chain collapsed to a single vertex has no edge to measure from;
         // its distance is the distance from that vertex.
@@ -1683,7 +1682,7 @@ detail::floating_result_t<ApproximateNumber> MonotoneChain<PointType, LabelType,
 template <class PointType, class LabelType>
 template <class ResultNumber, class OtherShape>
 constexpr ResultNumber Polyline<PointType, LabelType>::edgeMinSquaredDistance(const OtherShape& other) const {
-    assert(size() >= 1);
+    PGL_ASSERT(size() >= 1);
     if (size() == 1) {
         // A polyline collapsed to a single vertex has no edge to measure from;
         // its distance is the distance from that vertex.
@@ -1902,7 +1901,7 @@ constexpr auto regionHausdorffHull(const Region& region, const char* message) {
     // The empty set has no farthest point, so it has no Hausdorff distance to
     // anything; asking for one is a precondition violation, as it is for an
     // empty Rectangle.
-    assert(!region.empty());
+    PGL_ASSERT(!region.empty());
     if (!region.isBounded()) {
         throw std::logic_error(message);
     }

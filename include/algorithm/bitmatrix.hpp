@@ -10,7 +10,6 @@
 #include <algorithm>
 #include <array>
 #include <bit>
-#include <cassert>
 #include <cmath>
 #include <compare>
 #include <concepts>
@@ -987,8 +986,8 @@ public:
             const auto after = std::upper_bound(
                 runs.begin(), runs.end(), static_cast<std::int64_t>(cell.first),
                 [](std::int64_t at, const LabeledRun& run) { return at < run.x0; });
-            assert(after != runs.begin() && cell.first < std::prev(after)->x1 &&
-                   "pgl::BitMatrix::asPolygonSet: a boundary edge borders no cell");
+            PGL_ASSERT(after != runs.begin() && cell.first < std::prev(after)->x1 &&
+                       "pgl::BitMatrix::asPolygonSet: a boundary edge borders no cell");
             return std::prev(after)->component;
         };
 
@@ -2085,7 +2084,7 @@ private:
      */
     [[nodiscard]] std::int64_t nextSetInRow(const std::uint64_t* here, std::int64_t from,
                                             std::int64_t limit) const {
-        assert(from >= 0 && limit <= width_);
+        PGL_ASSERT(from >= 0 && limit <= width_);
         if (from >= limit) {
             return limit;
         }
@@ -2110,7 +2109,7 @@ private:
      *      the width is a multiple of 64, and a row pointer cannot tell.
      */
     [[nodiscard]] std::int64_t nextClearInRow(const std::uint64_t* here, std::int64_t from) const {
-        assert(from >= 0 && from < width_);
+        PGL_ASSERT(from >= 0 && from < width_);
         std::size_t w = static_cast<std::size_t>(from) / 64;
         std::uint64_t rest = ~here[w] & (~std::uint64_t(0) << (from % 64));
         while (rest == 0) {
@@ -2129,8 +2128,8 @@ private:
      * @pre `0 <= at < width_` and the cell is set, so the run it names exists.
      */
     [[nodiscard]] std::int64_t runStartInRow(const std::uint64_t* here, std::int64_t at) const {
-        assert(at >= 0 && at < width_ && ((here[static_cast<std::size_t>(at) / 64] >>
-                                           (at % 64)) & 1) != 0);
+        PGL_ASSERT(at >= 0 && at < width_ && ((here[static_cast<std::size_t>(at) / 64] >>
+                                               (at % 64)) & 1) != 0);
         std::size_t w = static_cast<std::size_t>(at) / 64;
         const int bit = static_cast<int>(at % 64);
         std::uint64_t rest = ~here[w] & (~std::uint64_t(0) >> (63 - bit));
@@ -2265,8 +2264,8 @@ private:
      *      holds the whole of it, which is how @ref latticeMinkowskiSum sizes it.
      */
     void orShifted(const BitMatrix& source, std::int64_t dx, std::int64_t dy) {
-        assert(dx >= 0 && dy >= 0);
-        assert(dy + source.height_ <= height_);
+        PGL_ASSERT(dx >= 0 && dy >= 0);
+        PGL_ASSERT(dy + source.height_ <= height_);
         const std::size_t wordShift = static_cast<std::size_t>(dx / 64);
         const int bitShift = static_cast<int>(dx % 64);
         for (int j = 0; j < source.height_; ++j) {
@@ -2580,7 +2579,7 @@ private:
                         next = (next + 1) % 4;
                     }
                 }
-                assert(hasEdge(next, y, x) && "pgl::BitMatrix: the boundary walk ran off an edge");
+                PGL_ASSERT(hasEdge(next, y, x) && "pgl::BitMatrix: the boundary walk ran off an edge");
                 direction = next;
             }
             return loop;

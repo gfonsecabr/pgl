@@ -9,7 +9,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <iterator>
@@ -289,7 +288,7 @@ public:
         for (const auto& entry : adjacency_) {
             directedEdgeCount += entry.second.size();
         }
-        assert(directedEdgeCount % 2 == 0);
+        PGL_ASSERT(directedEdgeCount % 2 == 0);
         return static_cast<int>(directedEdgeCount / 2);
     }
 
@@ -555,7 +554,7 @@ public:
                     bool foundTreeEdge = false;
 
                     do {
-                        assert(!edgeStack.empty());
+                        PGL_ASSERT(!edgeStack.empty());
                         const auto edge = std::move(edgeStack.back());
                         edgeStack.pop_back();
 
@@ -624,7 +623,7 @@ public:
                     selected = i;
                 }
             }
-            assert(selected != uncolored);
+            PGL_ASSERT(selected != uncolored);
 
             std::size_t color = 0;
             while (neighborColors[selected].contains(color)) {

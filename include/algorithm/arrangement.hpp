@@ -46,7 +46,6 @@
 #include <algorithm>
 #include <array>
 #include <bit>
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -428,7 +427,7 @@ public:
      * @param h Halfedge handle.
      */
     [[nodiscard]] HalfedgeType operator[](HalfedgeId h) const {
-        assert(h.valid() && h.index() < origin_.size());
+        PGL_ASSERT(h.valid() && h.index() < origin_.size());
         const EdgeGeometry& geometry = edgeGeometry_[h.index() / 2];
         const TLabel& label = edgeLabel_[h.index() / 2];
         if (geometry.kind == EdgeKind::segment) {
@@ -465,7 +464,7 @@ public:
      *          canonical invalid value.
      */
     [[nodiscard]] HalfedgeId twin(HalfedgeId h) const {
-        assert(h.valid() && h.index() < origin_.size());
+        PGL_ASSERT(h.valid() && h.index() < origin_.size());
         return HalfedgeId(h.index() ^ 1);
     }
 
@@ -475,7 +474,7 @@ public:
      * @param h Halfedge handle.
      */
     [[nodiscard]] HalfedgeId next(HalfedgeId h) const {
-        assert(h.valid() && h.index() < next_.size());
+        PGL_ASSERT(h.valid() && h.index() < next_.size());
         return HalfedgeId(next_[h.index()]);
     }
 
@@ -485,7 +484,7 @@ public:
      * @param h Halfedge handle.
      */
     [[nodiscard]] VertexId source(HalfedgeId h) const {
-        assert(h.valid() && h.index() < origin_.size());
+        PGL_ASSERT(h.valid() && h.index() < origin_.size());
         return VertexId(origin_[h.index()]);
     }
 
@@ -504,7 +503,7 @@ public:
      * @param h Halfedge handle.
      */
     [[nodiscard]] FaceId face(HalfedgeId h) const {
-        assert(h.valid() && h.index() < face_.size());
+        PGL_ASSERT(h.valid() && h.index() < face_.size());
         return FaceId(face_[h.index()]);
     }
 
@@ -520,7 +519,7 @@ public:
      * @param v Vertex handle.
      */
     [[nodiscard]] HalfedgeId outgoing(VertexId v) const {
-        assert(v.valid() && v.index() < outgoing_.size());
+        PGL_ASSERT(v.valid() && v.index() < outgoing_.size());
         return outgoing_[v.index()];
     }
 
@@ -535,7 +534,7 @@ public:
      * @param v Vertex handle.
      */
     [[nodiscard]] std::size_t degree(VertexId v) const {
-        assert(v.valid() && v.index() < outgoing_.size());
+        PGL_ASSERT(v.valid() && v.index() < outgoing_.size());
         const HalfedgeId start = outgoing_[v.index()];
         if (!start.valid()) {
             return 0;
@@ -559,7 +558,7 @@ public:
      * @param v Vertex handle.
      */
     [[nodiscard]] std::vector<HalfedgeId> outgoingHalfedges(VertexId v) const {
-        assert(v.valid() && v.index() < outgoing_.size());
+        PGL_ASSERT(v.valid() && v.index() < outgoing_.size());
         std::vector<HalfedgeId> halfedges;
         const HalfedgeId start = outgoing_[v.index()];
         if (!start.valid()) {
@@ -632,7 +631,7 @@ public:
      */
     template <class ResultNumber = division_result_t<NumberType>>
     [[nodiscard]] Point<ResultNumber> witness(HalfedgeId h) const {
-        assert(h.valid() && h.index() < origin_.size());
+        PGL_ASSERT(h.valid() && h.index() < origin_.size());
         const EdgeGeometry& geometry = edgeGeometry_[h.index() / 2];
         const PointType& a = geometry.a;
         const PointType& b = geometry.b;
@@ -672,7 +671,7 @@ public:
      */
     template <class ResultNumber = division_result_t<NumberType>>
     [[nodiscard]] Point<ResultNumber> witness(FaceId f) const {
-        assert(f.valid() && !isUnbounded(f));
+        PGL_ASSERT(f.valid() && !isUnbounded(f));
         if (hasSimpleBoundary(f)) {
             return ringWitness<ResultNumber>(outerCycle_[f.index()]);
         }
@@ -695,7 +694,7 @@ public:
      * @param f Face handle.
      */
     [[nodiscard]] bool hasSimpleBoundary(FaceId f) const {
-        assert(f.valid() && f.index() < outerCycle_.size());
+        PGL_ASSERT(f.valid() && f.index() < outerCycle_.size());
         if (!outerCycle_[f.index()].valid() || !innerCycles(f).empty()) {
             return false;
         }
@@ -735,7 +734,7 @@ private:
         const PointType& ahead = points_[origin_[next_[leftmost]]];
         const PointType& behind = points_[origin_[beforeLeftmost]];
         const Triangle<PointType> ear(corner, ahead, behind);
-        assert(!ear.isDegenerate());
+        PGL_ASSERT(!ear.isDegenerate());
 
         // The leftmost vertex inside the ear, skipping the ear's own corners.
         const PointType* diagonal = nullptr;
@@ -839,7 +838,7 @@ private:
         });
 
         // A bounded face confines the ray, so it is always stopped.
-        assert(hitDenominator != WideNumber(0));
+        PGL_ASSERT(hitDenominator != WideNumber(0));
         const ResultNumber scale = static_cast<ResultNumber>(two * hitDenominator);
         return Point<ResultNumber>(
             static_cast<ResultNumber>(midX * hitDenominator + hitNumerator * normalX) / scale,
@@ -872,7 +871,7 @@ public:
      * @param h Halfedge handle.
      */
     [[nodiscard]] bool isUnbounded(HalfedgeId h) const {
-        assert(h.valid() && h.index() < origin_.size());
+        PGL_ASSERT(h.valid() && h.index() < origin_.size());
         return infinity_.valid() &&
                (source(h) == infinity_ || target(h) == infinity_);
     }
@@ -883,13 +882,13 @@ public:
      * @param f Face handle.
      */
     [[nodiscard]] bool isUnbounded(FaceId f) const {
-        assert(f.valid() && f.index() < outerCycle_.size());
+        PGL_ASSERT(f.valid() && f.index() < outerCycle_.size());
         return unboundedFace_[f.index()];
     }
 
     /** @brief Tells whether a vertex is the symbolic point at infinity. */
     [[nodiscard]] bool isFictitious(VertexId v) const {
-        assert(v.valid() && v.index() < topologicalVertexCount());
+        PGL_ASSERT(v.valid() && v.index() < topologicalVertexCount());
         return infinity_.valid() && v == infinity_;
     }
 
@@ -900,7 +899,7 @@ public:
      * @param f Face handle.
      */
     [[nodiscard]] HalfedgeId outerCycle(FaceId f) const {
-        assert(f.valid() && f.index() < outerCycle_.size());
+        PGL_ASSERT(f.valid() && f.index() < outerCycle_.size());
         return outerCycle_[f.index()];
     }
 
@@ -915,7 +914,7 @@ public:
      * @param f Face handle.
      */
     [[nodiscard]] std::span<const HalfedgeId> innerCycles(FaceId f) const {
-        assert(f.valid() && f.index() + 1 < innerOffset_.size());
+        PGL_ASSERT(f.valid() && f.index() + 1 < innerOffset_.size());
         const std::size_t from = innerOffset_[f.index()];
         const std::size_t to = innerOffset_[f.index() + 1];
         return std::span<const HalfedgeId>(innerCycle_.data() + from, to - from);
@@ -933,7 +932,7 @@ public:
      * @param f Face handle.
      */
     [[nodiscard]] std::vector<HalfedgeId> boundaryOf(FaceId f) const {
-        assert(f.valid() && f.index() < outerCycle_.size());
+        PGL_ASSERT(f.valid() && f.index() < outerCycle_.size());
         std::vector<HalfedgeId> boundary;
         const auto walkCycle = [&](HalfedgeId start) {
             HalfedgeId h = start;
@@ -960,7 +959,7 @@ public:
      * @param f Face handle.
      */
     [[nodiscard]] std::vector<HalfedgeId> outerBoundaryOf(FaceId f) const {
-        assert(f.valid() && f.index() < outerCycle_.size());
+        PGL_ASSERT(f.valid() && f.index() < outerCycle_.size());
         std::vector<HalfedgeId> boundary;
         const HalfedgeId start = outerCycle_[f.index()];
         if (!start.valid()) {
@@ -984,7 +983,7 @@ public:
      * @param f Face handle.
      */
     [[nodiscard]] std::vector<std::vector<HalfedgeId>> innerBoundariesOf(FaceId f) const {
-        assert(f.valid() && f.index() < outerCycle_.size());
+        PGL_ASSERT(f.valid() && f.index() < outerCycle_.size());
         std::vector<std::vector<HalfedgeId>> boundaries;
         boundaries.reserve(innerCycles(f).size());
         for (HalfedgeId start : innerCycles(f)) {
@@ -1022,7 +1021,7 @@ public:
 
         std::vector<ExactPolygon> rings;
         collectRings(cycleRing(outerCycle_[f.index()]), rings);
-        assert(!rings.empty());
+        PGL_ASSERT(!rings.empty());
         // An outer cycle that pinches shut comes apart into several rings, and
         // the one holding the rest — the largest, since they are nested — is the
         // outer boundary.
@@ -1120,13 +1119,13 @@ public:
      * @param h Halfedge handle.
      */
     [[nodiscard]] const TLabel& label(HalfedgeId h) const {
-        assert(h.valid() && h.index() < origin_.size());
+        PGL_ASSERT(h.valid() && h.index() < origin_.size());
         return edgeLabel_[h.index() / 2];
     }
 
     /** @brief Returns the mutable label of an edge. */
     [[nodiscard]] TLabel& label(HalfedgeId h) {
-        assert(h.valid() && h.index() < origin_.size());
+        PGL_ASSERT(h.valid() && h.index() < origin_.size());
         return edgeLabel_[h.index() / 2];
     }
 
@@ -1140,13 +1139,13 @@ public:
      * @param f Face handle.
      */
     [[nodiscard]] const TLabel& label(FaceId f) const {
-        assert(f.valid() && f.index() < faceLabel_.size());
+        PGL_ASSERT(f.valid() && f.index() < faceLabel_.size());
         return faceLabel_[f.index()];
     }
 
     /** @brief Returns the mutable label of a face. */
     [[nodiscard]] TLabel& label(FaceId f) {
-        assert(f.valid() && f.index() < faceLabel_.size());
+        PGL_ASSERT(f.valid() && f.index() < faceLabel_.size());
         return faceLabel_[f.index()];
     }
 
@@ -1160,7 +1159,7 @@ public:
      * @param h Halfedge handle.
      */
     [[nodiscard]] std::span<const std::uint32_t> originsOf(HalfedgeId h) const {
-        assert(h.valid() && h.index() < origin_.size());
+        PGL_ASSERT(h.valid() && h.index() < origin_.size());
         const std::size_t edge = h.index() / 2;
         const std::size_t from = originOffset_[edge];
         const std::size_t to = originOffset_[edge + 1];
@@ -1178,7 +1177,7 @@ public:
      * @param v Vertex handle.
      */
     [[nodiscard]] std::vector<std::uint32_t> originsOf(VertexId v) const {
-        assert(v.valid() && v.index() < outgoing_.size());
+        PGL_ASSERT(v.valid() && v.index() < outgoing_.size());
         std::vector<std::uint32_t> origins;
         const HalfedgeId start = outgoing_[v.index()];
         if (!start.valid()) {
@@ -2500,8 +2499,8 @@ private:
     // other vertex's approximation — a sign the filter then proves wrong rather
     // than abstains on — so the pairing is asserted rather than trusted.
     [[nodiscard]] auto filteredVertex(std::uint32_t index) const {
-        assert(!detail::filtersSign<VertexCoordinate> ||
-               vertexApproximations_.size() == points_.size());
+        PGL_ASSERT(!detail::filtersSign<VertexCoordinate> ||
+                   vertexApproximations_.size() == points_.size());
         return detail::filtered<VertexCoordinate>(points_[index], vertexApproximations_, index);
     }
 
@@ -2688,7 +2687,7 @@ private:
     // The unbounded face a point with no edge to its west lies in, found by
     // placing a due-west ray from the point into the fan at infinity.
     [[nodiscard]] HalfedgeId infinityBoundaryAtWest(const PointType& point) const {
-        assert(!infinityFan_.empty());
+        PGL_ASSERT(!infinityFan_.empty());
         // At an end exactly collinear with the query ray, choose the sector on
         // its +y side. This is the same symbolic perturbation halfedgeLeftOf
         // uses at finite vertices.
@@ -2797,7 +2796,7 @@ private:
                 continue;
             }
             const std::uint32_t component = root(id);
-            assert(faceOfComponent[component] == none);
+            PGL_ASSERT(faceOfComponent[component] == none);
             faceOfComponent[component] = static_cast<std::uint32_t>(outerCycle_.size());
             outerCycle_.push_back(HalfedgeId(representative[id]));
             unboundedFace_.push_back(false);
@@ -2806,7 +2805,7 @@ private:
         std::vector<std::vector<HalfedgeId>> inner(outerCycle_.size());
         for (std::uint32_t id = 0; id < cycles; ++id) {
             const std::uint32_t f = faceOfComponent[root(id)];
-            assert(f != none);
+            PGL_ASSERT(f != none);
             if (!isOuter[id]) {
                 inner[f].push_back(HalfedgeId(representative[id]));
             }
@@ -2900,7 +2899,7 @@ private:
             }
             // A component holds at most one counterclockwise cycle: it is the
             // face's outer boundary, and the rest of the component is its holes.
-            assert(faceOfComponent[root(id)] == none);
+            PGL_ASSERT(faceOfComponent[root(id)] == none);
             faceOfComponent[root(id)] = static_cast<std::uint32_t>(outerCycle_.size());
             outerCycle_.push_back(HalfedgeId(representative[id]));
         }
@@ -2908,7 +2907,7 @@ private:
         std::vector<std::vector<HalfedgeId>> inner(outerCycle_.size());
         for (std::uint32_t id = 0; id < cycles; ++id) {
             const std::uint32_t f = faceOfComponent[root(id)];
-            assert(f != none);
+            PGL_ASSERT(f != none);
             if (!isOuter[id]) {
                 inner[f].push_back(HalfedgeId(representative[id]));
             }
@@ -3322,7 +3321,7 @@ private:
                 line.erase(seat[event.subject / 2]);
             } else if (event.phase == joins) {
                 const auto placed = line.insert(event.subject);
-                assert(placed.second);
+                PGL_ASSERT(placed.second);
                 seat[event.subject / 2] = placed.first;
             } else {
                 const Seat above = line.lowerBound(points_[queries[event.subject]]);
@@ -3656,7 +3655,7 @@ private:
                 node = side < 0 ? decision.low : decision.high;
             }
             const FaceId result = trapezoids_[nodes_[node].value].face;
-            assert(result.valid() && result.index() < arrangement.faceCount());
+            PGL_ASSERT(result.valid() && result.index() < arrangement.faceCount());
             return result;
         }
 
@@ -3937,7 +3936,7 @@ private:
             const Abscissa key{point, epsInfinity};
             const auto found =
                 std::lower_bound(wallXs_.begin(), wallXs_.end(), key, abscissaLess);
-            assert(found != wallXs_.end() && !abscissaLess(key, *found));
+            PGL_ASSERT(found != wallXs_.end() && !abscissaLess(key, *found));
             return Bound{0, static_cast<std::uint32_t>(found - wallXs_.begin())};
         }
 
@@ -4155,7 +4154,7 @@ private:
         // abscissa of the plane -- vertices stacked above one another -- what
         // separates them lives at the eps level, and the sample goes there.
         [[nodiscard]] SampleAbscissa sample(const Bound& left, const Bound& right) const {
-            assert(less(left, right));
+            PGL_ASSERT(less(left, right));
             const Abscissa* low = left.infinity == 0 ? &wallXs_[left.wall] : nullptr;
             const Abscissa* high = right.infinity == 0 ? &wallXs_[right.wall] : nullptr;
             if (low == nullptr && high == nullptr) {
@@ -4202,7 +4201,7 @@ private:
             const WorkPoint zero(WorkNumber(0), WorkNumber(0));
             if (dx == WorkNumber(0)) {
                 // The eps level of the abscissa is the ordinate outright.
-                assert(x.a == source.x());
+                PGL_ASSERT(x.a == source.x());
                 return DualPoint{WorkPoint(source.x(), x.b), zero};
             }
             const WorkNumber along = (x.a - source.x()) / dx;
@@ -4274,7 +4273,7 @@ private:
 
         [[nodiscard]] Node xNode(const Bound& bound, std::uint32_t left,
                                  std::uint32_t right) const {
-            assert(bound.infinity == 0);
+            PGL_ASSERT(bound.infinity == 0);
             return Node{NodeKind::x, bound.wall, left, right};
         }
 
@@ -4298,16 +4297,16 @@ private:
                 const Node& node = nodes_[nodeId];
                 if (node.kind == NodeKind::x) {
                     const int side = againstWall(point, node.value);
-                    assert(side != 0);
+                    PGL_ASSERT(side != 0);
                     nodeId = side < 0 ? node.low : node.high;
                     continue;
                 }
                 const auto side = constructionSideOf(node.value, point);
-                assert(side != 0);
+                PGL_ASSERT(side != 0);
                 nodeId = side < 0 ? node.low : node.high;
             }
             const std::uint32_t trapezoid = nodes_[nodeId].value;
-            assert(trapezoids_[trapezoid].active);
+            PGL_ASSERT(trapezoids_[trapezoid].active);
             return trapezoid;
         }
 
@@ -4324,13 +4323,13 @@ private:
 
             for (;;) {
                 const Trapezoid& trapezoid = trapezoids_[current];
-                assert(trapezoid.active && crosses(curveId, trapezoid));
+                PGL_ASSERT(trapezoid.active && crosses(curveId, trapezoid));
                 crossed.push_back(current);
 
                 if (!less(trapezoid.right, curve.right)) {
                     break;
                 }
-                assert(trapezoid.right.infinity == 0);
+                PGL_ASSERT(trapezoid.right.infinity == 0);
 
                 std::uint32_t next = none;
                 for (const std::uint32_t candidate :
@@ -4338,7 +4337,7 @@ private:
                     const Trapezoid& adjacent = trapezoids_[candidate];
                     if (adjacent.active && adjacent.left == trapezoid.right &&
                         crosses(curveId, adjacent)) {
-                        assert(next == none);
+                        PGL_ASSERT(next == none);
                         next = candidate;
                     }
                 }
@@ -4469,7 +4468,7 @@ private:
                 if (trapezoid.bottom != none) {
                     trapezoid.face = arrangement.face(curves_[trapezoid.bottom].leftToRight);
                     if (trapezoid.top != none) {
-                        assert(trapezoid.face == arrangement.face(
+                        PGL_ASSERT(trapezoid.face == arrangement.face(
                             arrangement.twin(curves_[trapezoid.top].leftToRight)));
                     }
                 } else if (trapezoid.top != none) {
@@ -4990,7 +4989,7 @@ template <TriangleConcept TriangleType, SegmentConcept SegmentType>
 template <class ResultNumber, class MakeLabel>
 auto Triangulation<TriangleType, SegmentType>::dualDiagram(MakeLabel&& labelOf) const
     -> Arrangement<Point<ResultNumber>, std::invoke_result_t<MakeLabel&, const PointType&>> {
-    assert(!empty() && "Triangulation::dualDiagram requires a nonempty triangulation");
+    PGL_ASSERT(!empty() && "Triangulation::dualDiagram requires a nonempty triangulation");
 
     using ResultPoint = Point<ResultNumber>;
     using Label = std::invoke_result_t<MakeLabel&, const PointType&>;
@@ -5070,7 +5069,7 @@ auto Triangulation<TriangleType, SegmentType>::dualDiagram(MakeLabel&& labelOf) 
     for (std::size_t h = 0; h < diagram.halfedgeCount(); h += 2) {
         const HalfedgeId halfedge(static_cast<std::uint32_t>(h));
         const std::span<const std::uint32_t> origins = diagram.originsOf(halfedge);
-        assert(!origins.empty() && "a dual edge of the arrangement has no origin");
+        PGL_ASSERT(!origins.empty() && "a dual edge of the arrangement has no origin");
         const std::array<VertexIndex, 2>& primal = dualOf[origins.front()];
         const VertexIndex left = siteLeftOf(halfedge, primal[0], primal[1]);
         const VertexIndex right = left == primal[0] ? primal[1] : primal[0];

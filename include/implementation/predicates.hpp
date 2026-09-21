@@ -1020,7 +1020,7 @@ constexpr bool Convex<PointType, LabelType>::isUndefined() const {
 
 template <class PointType, class LabelType>
 constexpr size_t Convex<PointType, LabelType>::maxIndex() const {
-    assert(size() != 0);
+    PGL_ASSERT(size() != 0);
     if (maxIndex_ >= 0) {
         return static_cast<size_t>(maxIndex_);
     }

@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <vector>
-#include <cassert>
 #include <compare>
 #include <concepts>
 #include <cstddef>
@@ -235,7 +234,7 @@ struct Convex {
      * @param trust @ref trusted if the points are already convex hull vertices starting from the leftmost and ccw.
      */
     constexpr explicit Convex(std::initializer_list<NumberType> coords, Trust trust = untrusted) {
-        assert(coords.size() % 2 == 0);
+        PGL_ASSERT(coords.size() % 2 == 0);
         std::vector<PointType> points;
         points.reserve(coords.size() / 2);
         for (auto it = coords.begin(); it != coords.end(); ) {
@@ -323,7 +322,7 @@ struct Convex {
      * @return A constant reference to the vertex at the given index.
      */
     constexpr const PointType operator[](std::size_t index) const {
-        assert(index < size());
+        PGL_ASSERT(index < size());
         return detail::translatedVertex(points_[index], translation_);
     }
 
@@ -3426,7 +3425,7 @@ struct Convex {
         constexpr BoundaryIterator() = default;
 
         constexpr value_type operator*() const {
-            assert(convex != nullptr);
+            PGL_ASSERT(convex != nullptr);
             return convex->template boundaryAt<Oriented>(index);
         }
 

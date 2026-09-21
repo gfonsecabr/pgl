@@ -2162,7 +2162,7 @@ template <SegmentConcept OldSegment, SegmentConcept NewSegment>
 constexpr Polyline<PointType, LabelType>
 Polyline<PointType, LabelType>::flipped(const OldSegment& oldEdge, const NewSegment& newEdge) const {
     auto vertices = flipVertices(oldEdge, newEdge);
-    assert(vertices.has_value());
+    PGL_ASSERT(vertices.has_value());
     return Polyline<PointType, LabelType>(std::move(*vertices));
 }
 

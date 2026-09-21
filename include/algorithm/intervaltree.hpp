@@ -7,7 +7,6 @@
  * @brief Mutable one-dimensional interval tree over projected bounded shapes.
  */
 
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -1079,14 +1078,14 @@ void Polygon<PointType, LabelType>::untangleRuntime() {
                 std::ptrdiff_t i = findEdge(flip.first);
                 std::ptrdiff_t j = findEdge(flip.second);
                 if (i < 0 || j < 0 || i == j) {
-                    assert(false && "a selected edge must survive earlier disjoint flips");
+                    PGL_ASSERT(false && "a selected edge must survive earlier disjoint flips");
                     continue;
                 }
                 if (j < i) {
                     std::swap(i, j);
                 }
                 if (!edge(i).crosses(edge(j))) {
-                    assert(false && "a selected crossing must survive earlier disjoint flips");
+                    PGL_ASSERT(false && "a selected crossing must survive earlier disjoint flips");
                     continue;
                 }
                 std::reverse(points_.begin() + (i + 1), points_.begin() + (j + 1));

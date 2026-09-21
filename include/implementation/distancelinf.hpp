@@ -107,7 +107,7 @@ constexpr ResultNumber segmentLikeDistanceLInf(const Point<ResultNumber>& a, con
 template <class ResultNumber, class Self, class OtherShape>
 constexpr ResultNumber maxVertexDistanceLInf(const Self& self, const OtherShape& other) {
     // Neither operand may be empty; see @ref maxVertexSquaredDistance.
-    assert(nonEmptyOperand(self) && nonEmptyOperand(other));
+    PGL_ASSERT(nonEmptyOperand(self) && nonEmptyOperand(other));
     const auto self_vertices = self.vertices();
     const auto distanceToVertex = [&other](const auto& vertex) -> ResultNumber {
         return other.template distanceLInf<ResultNumber>(vertex);
@@ -463,7 +463,7 @@ template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Rectangle<PointType, LabelType>::distanceLInf(const OtherPoint& point) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     const ResultNumber dx = static_cast<ResultNumber>(axisDistance(min().x(), max().x(), point.x(), point.x()));
     const ResultNumber dy = static_cast<ResultNumber>(axisDistance(min().y(), max().y(), point.y(), point.y()));
     return dx > dy ? dx : dy;
@@ -474,7 +474,7 @@ template <class ResultNumber, LineConcept OtherLine>
 constexpr auto Rectangle<PointType, LabelType>::distanceLInf(const OtherLine& other) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -496,7 +496,7 @@ template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
 constexpr auto Rectangle<PointType, LabelType>::distanceLInf(const OtherOrientedLine& other) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     return this->template distanceLInf<ResultNumber>(other.asLine());
 }
 
@@ -505,7 +505,7 @@ template <class ResultNumber, SegmentConcept OtherSegment>
 constexpr auto Rectangle<PointType, LabelType>::distanceLInf(const OtherSegment& other) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -532,7 +532,7 @@ template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
 constexpr auto Rectangle<PointType, LabelType>::distanceLInf(const OtherOrientedSegment& other) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     return this->template distanceLInf<ResultNumber>(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
@@ -541,7 +541,7 @@ template <class ResultNumber, RayConcept OtherRay>
 constexpr auto Rectangle<PointType, LabelType>::distanceLInf(const OtherRay& other) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -563,7 +563,7 @@ template <class ResultNumber, HalfplaneConcept OtherHalfplane>
 constexpr auto Rectangle<PointType, LabelType>::distanceLInf(const OtherHalfplane& other) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -575,7 +575,7 @@ template <class ResultNumber, RectangleConcept OtherRectangle>
 constexpr auto Rectangle<PointType, LabelType>::distanceLInf(const OtherRectangle& other) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     const ResultNumber dx = static_cast<ResultNumber>(axisDistance(min().x(), max().x(), other.min().x(), other.max().x()));
     const ResultNumber dy = static_cast<ResultNumber>(axisDistance(min().y(), max().y(), other.min().y(), other.max().y()));
     return dx > dy ? dx : dy;
@@ -710,7 +710,7 @@ constexpr auto Triangle<PointType, LabelType>::distanceLInf(const OtherTriangle&
 template <class PointType_, class LabelType>
 template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Convex<PointType_, LabelType>::distanceLInf(const OtherPoint& point) const {
-    assert(!empty());
+    PGL_ASSERT(!empty());
     if (contains(point)) {
         return ResultNumber{};
     }
@@ -728,7 +728,7 @@ constexpr auto Convex<PointType_, LabelType>::distanceLInf(const OtherPoint& poi
 template <class PointType_, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>
 constexpr auto Convex<PointType_, LabelType>::distanceLInf(const OtherSegment& other) const {
-    assert(!empty());
+    PGL_ASSERT(!empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -753,7 +753,7 @@ constexpr auto Convex<PointType_, LabelType>::distanceLInf(const OtherOrientedSe
 template <class PointType_, class LabelType>
 template <class ResultNumber, ConvexConcept OtherConvex>
 constexpr auto Convex<PointType_, LabelType>::distanceLInf(const OtherConvex& other) const {
-    assert(!empty() && !other.empty());
+    PGL_ASSERT(!empty() && !other.empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -791,7 +791,7 @@ constexpr auto Convex<PointType_, LabelType>::distanceLInf(const OtherRectangle&
 template <class PointType_, class LabelType>
 template <class ResultNumber, LineConcept OtherLine>
 constexpr auto Convex<PointType_, LabelType>::distanceLInf(const OtherLine& other) const {
-    assert(!empty());
+    PGL_ASSERT(!empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -814,7 +814,7 @@ constexpr auto Convex<PointType_, LabelType>::distanceLInf(const OtherOrientedLi
 template <class PointType_, class LabelType>
 template <class ResultNumber, RayConcept OtherRay>
 constexpr auto Convex<PointType_, LabelType>::distanceLInf(const OtherRay& other) const {
-    assert(!empty());
+    PGL_ASSERT(!empty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -846,7 +846,7 @@ template <class ResultNumber, class OtherShape>
 constexpr ResultNumber Polygon<PointType_, TLabel>::edgeMinDistanceLInf(const OtherShape& other) const {
     // The empty polygon has no edge to measure from, and no nearest point
     // to anything; the chains and polylines say the same below.
-    assert(size() >= 1);
+    PGL_ASSERT(size() >= 1);
     const auto boundaryEdges = edges();
     ResultNumber best = boundaryEdges[0].template distanceLInf<ResultNumber>(other);
     for (std::size_t index = 1; index < boundaryEdges.size(); ++index) {
@@ -999,7 +999,7 @@ template <class ResultNumber, RectangleConcept OtherRectangle>
 constexpr auto Rectangle<PointType, LabelType>::hausdorffDistanceLInf(const OtherRectangle& other) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     const auto worst_from_this = detail::maxVertexDistanceLInf<ResultNumber>(*this, other);
     const auto worst_from_other = detail::maxVertexDistanceLInf<ResultNumber>(other, *this);
     return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;
@@ -1010,7 +1010,7 @@ template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Rectangle<PointType, LabelType>::hausdorffDistanceLInf(const OtherPoint& point) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     return detail::maxVertexDistanceLInf<ResultNumber>(*this, point);
 }
 
@@ -1019,7 +1019,7 @@ template <class ResultNumber, SegmentConcept OtherSegment>
 constexpr auto Rectangle<PointType, LabelType>::hausdorffDistanceLInf(const OtherSegment& other) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     const auto worst_from_this = detail::maxVertexDistanceLInf<ResultNumber>(*this, other);
     const auto worst_from_other = detail::maxVertexDistanceLInf<ResultNumber>(other, *this);
     return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;
@@ -1030,7 +1030,7 @@ template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
 constexpr auto Rectangle<PointType, LabelType>::hausdorffDistanceLInf(const OtherOrientedSegment& other) const {
     // There is no nearest point of the empty set, so it has no distance to
     // anything; asking for one is a precondition violation.
-    assert(!empty());
+    PGL_ASSERT(!empty());
     const auto worst_from_this = detail::maxVertexDistanceLInf<ResultNumber>(*this, other);
     const auto worst_from_other = detail::maxVertexDistanceLInf<ResultNumber>(other, *this);
     return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;
@@ -1136,7 +1136,7 @@ constexpr auto Polygon<PointType_, TLabel>::distanceLInf(const OtherChain& other
 template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, class OtherShape>
 constexpr ResultNumber MonotoneChain<PointType, LabelType, Storage>::edgeMinDistanceLInf(const OtherShape& other) const {
-    assert(size() >= 1);
+    PGL_ASSERT(size() >= 1);
     if (size() == 1) {
         // A chain collapsed to a single vertex has no edge to measure from;
         // its distance is the distance from that vertex.
@@ -1258,7 +1258,7 @@ constexpr auto MonotoneChain<PointType, LabelType, Storage>::distanceLInf(const 
 template <class PointType, class LabelType>
 template <class ResultNumber, class OtherShape>
 constexpr ResultNumber Polyline<PointType, LabelType>::edgeMinDistanceLInf(const OtherShape& other) const {
-    assert(size() >= 1);
+    PGL_ASSERT(size() >= 1);
     if (size() == 1) {
         // A polyline collapsed to a single vertex has no edge to measure from;
         // its distance is the distance from that vertex.

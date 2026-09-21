@@ -169,12 +169,12 @@ struct OrientedSegment {
      * @return Reference to the selected endpoint.
      */
     constexpr const PointType& operator[](std::size_t index) const {
-        assert(index < size());
+        PGL_ASSERT(index < size());
         return points_[index];
     }
     /** @copydoc operator[](std::size_t) const */
     constexpr PointType& operator[](std::size_t index) {
-        assert(index < size());
+        PGL_ASSERT(index < size());
         return points_[index];
     }
 

@@ -526,7 +526,7 @@ constexpr int chainVertexSide(const ChainEnvelopeVertex<P>& vertex, const P& u1,
     const Wide sx = wide(vertex.d.x()) - wide(vertex.c.x());
     const Wide sy = wide(vertex.d.y()) - wide(vertex.c.y());
     const Wide den = rx * sy - ry * sx;
-    assert(den != Wide{} && "an envelope only ever names a crossing of two crossing lines");
+    PGL_ASSERT(den != Wide{} && "an envelope only ever names a crossing of two crossing lines");
     const Wide num =
         (wide(vertex.c.x()) - wide(vertex.a.x())) * sy - (wide(vertex.c.y()) - wide(vertex.a.y())) * sx;
 
@@ -561,7 +561,7 @@ constexpr int chainVertexXSign(const ChainEnvelopeVertex<P>& vertex, const Numbe
     const Wide sx = wide(vertex.d.x()) - wide(vertex.c.x());
     const Wide sy = wide(vertex.d.y()) - wide(vertex.c.y());
     const Wide den = rx * sy - ry * sx;
-    assert(den != Wide{} && "an envelope only ever names a crossing of two crossing lines");
+    PGL_ASSERT(den != Wide{} && "an envelope only ever names a crossing of two crossing lines");
     const Wide num =
         (wide(vertex.c.x()) - wide(vertex.a.x())) * sy - (wide(vertex.c.y()) - wide(vertex.a.y())) * sx;
 
@@ -594,7 +594,7 @@ ResultPoint chainVertexPoint(const ChainEnvelopeVertex<P>& vertex) {
     const Wide sx = wide(vertex.d.x()) - wide(vertex.c.x());
     const Wide sy = wide(vertex.d.y()) - wide(vertex.c.y());
     const Wide den = rx * sy - ry * sx;
-    assert(den != Wide{} && "an envelope only ever names a crossing of two crossing lines");
+    PGL_ASSERT(den != Wide{} && "an envelope only ever names a crossing of two crossing lines");
     const Wide num =
         (wide(vertex.c.x()) - wide(vertex.a.x())) * sy - (wide(vertex.c.y()) - wide(vertex.a.y())) * sx;
 
@@ -690,7 +690,7 @@ ChainEnvelopeArc<P> chainArcSteppedInto(const P& a, const P& b,
 template <class P>
 void chainMergeArc(std::vector<ChainEnvelopeArc<P>>& envelope, const std::vector<P>& arc,
                    bool keepHigher) {
-    assert(arc.size() >= 2 && "a piece with no span cannot bound an envelope");
+    PGL_ASSERT(arc.size() >= 2 && "a piece with no span cannot bound an envelope");
     const int keep = keepHigher ? 1 : -1;
 
     const auto plain = [&arc](std::size_t index) {
@@ -853,7 +853,7 @@ template <class P, class L>
 std::vector<P> chainPieceArc(const Convex<P, L>& piece, bool upper) {
     const std::size_t n = piece.size();
     const std::size_t top = piece.maxIndex();
-    assert(n >= 2 && "a piece with no span has no arc; an operand of no width is handled apart");
+    PGL_ASSERT(n >= 2 && "a piece with no span has no arc; an operand of no width is handled apart");
 
     std::vector<P> arc;
     if (upper) {

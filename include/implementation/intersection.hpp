@@ -8,7 +8,6 @@
  */
 
 #include <algorithm>
-#include <cassert>
 #include <map>
 #include <set>
 #include <type_traits>
@@ -3513,7 +3512,7 @@ HalfplaneIntersection<PointType, LabelType>::intersection(const OtherLine& other
     const auto crossing = [&](std::ptrdiff_t idx) {
         const auto isec = halfplanes_[static_cast<std::size_t>(idx)].asLine()
                               .template intersection<ResultNumber>(supporting);
-        assert(isec && isec->index() == 0);
+        PGL_ASSERT(isec && isec->index() == 0);
         return std::get<0>(*isec);
     };
     if (clip.entry < 0 && clip.exit < 0) {
@@ -3577,7 +3576,7 @@ HalfplaneIntersection<PointType, LabelType>::intersection(const OtherSegment& ot
     const auto crossing = [&](std::ptrdiff_t idx) {
         const auto isec = halfplanes_[static_cast<std::size_t>(idx)].asLine()
                               .template intersection<ResultNumber>(supporting);
-        assert(isec && isec->index() == 0);
+        PGL_ASSERT(isec && isec->index() == 0);
         return std::get<0>(*isec);
     };
     // Clamp the clip interval to the segment's [0, 1] parameter window; the
@@ -3646,7 +3645,7 @@ HalfplaneIntersection<PointType, LabelType>::intersection(const OtherRay& other)
     const auto crossing = [&](std::ptrdiff_t idx) {
         const auto isec = halfplanes_[static_cast<std::size_t>(idx)].asLine()
                               .template intersection<ResultNumber>(supporting);
-        assert(isec && isec->index() == 0);
+        PGL_ASSERT(isec && isec->index() == 0);
         return std::get<0>(*isec);
     };
     // Clamp the clip interval to the ray's [0, +inf) parameter window.

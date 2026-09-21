@@ -17,7 +17,6 @@
  */
 
 #include <bit>
-#include <cassert>
 #include <cmath>
 #include <compare>
 #include <concepts>
@@ -604,8 +603,8 @@ public:
     /// arithmetic or comparisons implicitly.
     template <std::floating_point Float>
     explicit BigInt(Float value) {
-        assert(std::isfinite(value)
-               && "pgl::BigInt: cannot construct from non-finite floating point");
+        PGL_ASSERT(std::isfinite(value)
+                   && "pgl::BigInt: cannot construct from non-finite floating point");
         const bool neg = value < 0;
         const Float mag = std::trunc(neg ? -value : value);  // |value|, fraction dropped
         if (mag == 0) {
