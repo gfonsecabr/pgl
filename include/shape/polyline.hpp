@@ -2137,6 +2137,32 @@ struct Polyline {
      */
     constexpr void rotate90(int k = 1);
 
+    /**
+     * @brief Returns the polyline with vertices removed, within a Hausdorff
+     *        distance of the tolerance from it.
+     *
+     * The result keeps a subsequence of the vertices, labels included, so no
+     * coordinate is constructed and the answer is exact for an exact
+     * coordinate type. Its Hausdorff distance to this polyline is at most the
+     * square root of @p squaredTolerance. With a tolerance of zero it covers
+     * the same points, the vertices dropped being ones that change nothing,
+     * such as collinear ones.
+     * The endpoints are kept, and a closed polyline stays closed. The result
+     * may self-intersect even where this polyline does not.
+     *
+     * Complexity: O(n²) for n vertices.
+     *
+     * @param squaredTolerance The square of the allowed distance, of any number
+     *        type convertible to `division_result_t<NumberType>`, where it is
+     *        compared exactly.
+     */
+    template <class Tolerance>
+    [[nodiscard]] Polyline simplified(const Tolerance& squaredTolerance) const;
+
+    /** @brief Replaces the polyline by @ref simplified with the same tolerance. */
+    template <class Tolerance>
+    void simplify(const Tolerance& squaredTolerance);
+
     /** @brief Returns the polyline with its x-coordinates multiplied by a factor. */
     template <class OtherNumber>
     [[nodiscard]] constexpr Polyline scaledUpX(const OtherNumber scalar) const;

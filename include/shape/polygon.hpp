@@ -3251,6 +3251,29 @@ struct Polygon {
      */
     constexpr void untangle();
 
+    /**
+     * @brief Returns the polygon with vertices removed, within a Hausdorff
+     *        distance of the tolerance from it.
+     *
+     * The result keeps a subsequence of the vertices, labels included, so no
+     * coordinate is constructed and the answer is exact for an exact
+     * coordinate type. Its Hausdorff distance to this polygon is at most the
+     * square root of @p squaredTolerance. With a tolerance of zero it covers
+     * the same points, the vertices dropped being ones that change nothing,
+     * such as collinear ones.
+     * The first vertex is kept, and the result is simple when this polygon is.
+     *
+     * @param squaredTolerance The square of the allowed distance, of any number
+     *        type convertible to `division_result_t<NumberType>`, where it is
+     *        compared exactly.
+     */
+    template <class Tolerance>
+    [[nodiscard]] Polygon simplified(const Tolerance& squaredTolerance) const;
+
+    /** @brief Replaces the polygon by @ref simplified with the same tolerance. */
+    template <class Tolerance>
+    void simplify(const Tolerance& squaredTolerance);
+
     /** @brief Returns the polygon with its x-coordinates multiplied by a factor. */
     template <class OtherNumber>
     [[nodiscard]] constexpr Polygon scaledUpX(const OtherNumber scalar) const;

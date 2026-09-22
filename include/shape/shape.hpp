@@ -1947,6 +1947,33 @@ struct Shape {
     }
 
     /**
+     * @brief Returns the wrapped shape with vertices removed, within a Hausdorff
+     *        distance of the tolerance from it.
+     *
+     * @param squaredTolerance The square of the allowed distance.
+     * @throws unsupported_operation for an alternative other than `Convex`,
+     *   `MonotoneChain`, `Polyline`, `Polygon`, `PolygonWithHoles` and
+     *   `PolygonSet`.
+     */
+    template <class Tolerance>
+    [[nodiscard]] Shape simplified(const Tolerance& squaredTolerance) const {
+        return visit([&squaredTolerance](const auto& value) -> Shape {
+            if constexpr (requires { value.simplified(squaredTolerance); }) {
+                return Shape(value.simplified(squaredTolerance));
+            } else {
+                throw unsupported_operation("simplified",
+                                            detail::shapeName<std::remove_cvref_t<decltype(value)>>);
+            }
+        });
+    }
+
+    /** @brief Replaces the wrapped shape by @ref simplified with the same tolerance. */
+    template <class Tolerance>
+    void simplify(const Tolerance& squaredTolerance) {
+        *this = simplified(squaredTolerance);
+    }
+
+    /**
      * @brief Returns the wrapped shape with its x-coordinates scaled up.
      *
      * @throws unsupported_operation for the `Disk` alternative, whose result

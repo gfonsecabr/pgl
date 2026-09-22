@@ -89,6 +89,7 @@
 #include "implementation/minkowskisum.hpp"
 #include "implementation/minkowskierosion.hpp"
 #include "algorithm/emptypolygons.hpp"
+#include "implementation/simplification.hpp"
 
 // -----------------------------------------------------------------------------
 // Exact convenience aliases

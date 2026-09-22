@@ -742,6 +742,30 @@ struct PolygonSet {
     [[nodiscard]] bool isValid() const;
 
     /**
+     * @brief Returns the set with vertices removed, within a Hausdorff
+     *        distance of the tolerance from it.
+     *
+     * The result keeps a subsequence of the vertices, labels included, so no
+     * coordinate is constructed and the answer is exact for an exact
+     * coordinate type. Its Hausdorff distance to this set is at most the
+     * square root of @p squaredTolerance. With a tolerance of zero it covers
+     * the same points, the vertices dropped being ones that change nothing,
+     * such as collinear ones.
+     * No ring or component is removed. The result satisfies @ref isValid when
+     * this set does, and its rings meet only where this set's rings met.
+     *
+     * @param squaredTolerance The square of the allowed distance, of any number
+     *        type convertible to `division_result_t<NumberType>`, where it is
+     *        compared exactly.
+     */
+    template <class Tolerance>
+    [[nodiscard]] PolygonSet simplified(const Tolerance& squaredTolerance) const;
+
+    /** @brief Replaces the set by @ref simplified with the same tolerance. */
+    template <class Tolerance>
+    void simplify(const Tolerance& squaredTolerance);
+
+    /**
      * @brief Tests whether the set is the closure of its own interior
      *        (`A = closure(A°)`).
      *
