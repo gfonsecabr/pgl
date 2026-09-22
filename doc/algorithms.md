@@ -17,7 +17,7 @@
 ## Algorithms
 
 - [Intersection of Line Segments](#intersection-of-line-segments) reports the intersecting, crossing or overlapping pairs of segments.
-- [Convex hull](#convex-hull) of a point set.
+- [Convex hull](#convex-hull) and convex layers of a point set.
 - [Smallest enclosing disk](#smallest-enclosing-disk) of a point set or a convex polygon.
 - [Closest pair of points](#closest-pair-of-points) of a point set.
 - [Voronoi and power diagrams](#voronoi-and-power-diagrams) of points or disks, including farthest-point and higher-order diagrams.
@@ -52,7 +52,9 @@ These functions use the same predicate conventions documented in
 
 - [`convexHull(V)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a3999bfdf73609b7ec708a4882fcaea2f "Computes the convex hull of a point container.") returns the convex hull vertices in ccw order starting from the smallest (leftmost) point. Complexity $O(n \log n)$ for $n$ input points.
 
-- [`convexHullExtended(C)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#ace788332cf5ee8db888decfb08383cda "Computes the convex hull of a point container.") returns the convex hull points in ccw order including vertices and points on edge interiors, starting from the smallest (leftmost) point. Complexity $O(n \log n)$ for $n$ input points.
+- [`convexHullExtended(V)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#ace788332cf5ee8db888decfb08383cda "Computes the convex hull of a point container.") returns the convex hull points in ccw order including vertices and points on edge interiors, starting from the smallest (leftmost) point. If all points are collinear, each is listed once, in lexicographic order. Complexity $O(n \log n)$ for $n$ input points.
+
+- [`convexLayers(V)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a86d5e5dccfd4f3c5b084f9bf3135e8cb "Computes the convex layers of a point container.") returns the convex layers of `V`, outermost first: each layer is every remaining point on the boundary of the convex hull of the points not in an earlier layer, in the order [`convexHullExtended`](https://gfonsecabr.github.io/pgl/namespacepgl.html#ace788332cf5ee8db888decfb08383cda "Computes the convex hull of a point container.") gives. Complexity $O(n \log n + nL)$ for $n$ input points and $L$ layers.
 
 ### Smallest enclosing disk
 

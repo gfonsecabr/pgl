@@ -104,6 +104,9 @@ auto hullCandidates(const Container &points_) {
  *
  * @param points Distinct points in lexicographic order.
  * @param keepCollinear Whether a point interior to a hull edge stays on the hull.
+ * @return Indices into `points` of the hull, in boundary order, each at most
+ *         once. When every point is collinear and `keepCollinear` is set, that
+ *         is all of them in lexicographic order.
  *
  * Each point is approximated once and the sign predicate reads that
  * approximation, rather than the predicate re-approximating all three of its
@@ -111,11 +114,11 @@ auto hullCandidates(const Container &points_) {
  * of what the scan costs.
  */
 template <class Point>
-std::vector<Point> grahamScanOf(const std::vector<Point> &points, bool keepCollinear) {
+std::vector<std::size_t> grahamScanIndices(const std::vector<Point> &points, bool keepCollinear) {
     using Number = typename Point::NumberType;
-    std::vector<Point> hull;
+    std::vector<std::size_t> stack;
     if (points.empty()) {
-        return hull;
+        return stack;
     }
 
     std::vector<decltype(filtered<Number>(points[0]))> approximations;
@@ -124,7 +127,6 @@ std::vector<Point> grahamScanOf(const std::vector<Point> &points, bool keepColli
         approximations.push_back(filtered<Number>(p));
     }
 
-    std::vector<std::size_t> stack;
     const auto turnsBack = [&](std::size_t candidate) {
         const auto sign = orientationSignOf(approximations[stack[stack.size() - 2]],
                                             approximations[stack.back()],
@@ -152,9 +154,23 @@ std::vector<Point> grahamScanOf(const std::vector<Point> &points, bool keepColli
     if (stack.size() >= 2) {
         stack.pop_back();
     }
+    // Every point on both chains means they are all collinear, and the upper
+    // chain only walks back over the lower one.
+    if (keepCollinear && points.size() >= 2 && stack.size() == 2 * points.size() - 2) {
+        stack.resize(points.size());
+    }
+    return stack;
+}
 
-    hull.reserve(stack.size());
-    for (std::size_t i : stack) {
+/**
+ * @brief The hull points @ref grahamScanIndices picks, in boundary order.
+ */
+template <class Point>
+std::vector<Point> grahamScanOf(const std::vector<Point> &points, bool keepCollinear) {
+    std::vector<Point> hull;
+    const std::vector<std::size_t> indices = grahamScanIndices(points, keepCollinear);
+    hull.reserve(indices.size());
+    for (std::size_t i : indices) {
         hull.push_back(points[i]);
     }
     return hull;
@@ -188,7 +204,8 @@ auto grahamScan(const Container &points_) {
  * @brief Computes the convex hull of a point container using Graham's scan.
  *
  * Collinear points on hull edges are kept, so the returned hull holds every
- * input point on its boundary, not only the extreme vertices.
+ * input point on its boundary, not only the extreme vertices. When every input
+ * point is collinear, each is listed once, in lexicographic order.
  *
  * @tparam Container Container whose value type is a pgl point type.
  * @param points_ Input points.
@@ -226,6 +243,8 @@ auto convexHull(const Container &points_) {
  *
  * Collinear points on hull edges are kept, so the returned hull holds every
  * input point on its boundary. @ref convexHull returns the vertices alone.
+ * When every input point is collinear, each is listed once, in lexicographic
+ * order.
  *
  * @tparam Container Container whose value type is a pgl point type.
  * @param points_ Input points.
@@ -234,6 +253,54 @@ auto convexHull(const Container &points_) {
 template<class Container>
 auto convexHullExtended (const Container &points_) {
     return grahamScanExtended(points_);
+}
+
+/**
+ * @brief Computes the convex layers of a point container.
+ *
+ * The first layer is every input point on the boundary of the convex hull,
+ * vertices and points on edge interiors alike; each later layer is the same
+ * for the points left once the layers before it are removed. Each layer is in
+ * counterclockwise order starting from its lexicographically smallest point,
+ * as @ref convexHullExtended returns it. Coincident input points count once.
+ *
+ * The points are sorted once; every layer is then a scan over the points
+ * still left, which removing a layer keeps in sorted order.
+ *
+ * Complexity: O(n log n + n L) for n input points and L layers.
+ *
+ * @tparam Container Container whose value type is a pgl point type.
+ * @param points_ Input points.
+ * @return The layers, outermost first.
+ */
+template<class Container>
+auto convexLayers(const Container &points_) {
+    using Point = std::remove_cvref_t<decltype(*std::begin(points_))>;
+    std::vector<Point> points(std::begin(points_), std::end(points_));
+    sortDistinctPoints(points);
+
+    std::vector<std::vector<Point>> layers;
+    std::vector<bool> onLayer;
+    while (!points.empty()) {
+        const std::vector<std::size_t> indices = detail::grahamScanIndices(points, /*keepCollinear=*/true);
+        onLayer.assign(points.size(), false);
+        std::vector<Point> layer;
+        layer.reserve(indices.size());
+        for (std::size_t i : indices) {
+            onLayer[i] = true;
+            layer.push_back(points[i]);
+        }
+        layers.push_back(std::move(layer));
+
+        std::size_t kept = 0;
+        for (std::size_t i = 0; i < points.size(); ++i) {
+            if (!onLayer[i]) {
+                points[kept++] = std::move(points[i]);
+            }
+        }
+        points.erase(points.begin() + static_cast<std::ptrdiff_t>(kept), points.end());
+    }
+    return layers;
 }
 
 namespace detail {

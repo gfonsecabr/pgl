@@ -177,3 +177,75 @@ TEST_CASE_TEMPLATE("sortPoints matches the comparison order", Number, int, long 
         }
     }
 }
+
+TEST_CASE_TEMPLATE("Extended convex hull lists collinear points once", Point, pgl::Point<int>, pgl::Point<float>, pgl::Point<pgl::Rational<int>>) {
+    const std::vector<Point> line{{3,3}, {0,0}, {2,2}, {1,1}, {2,2}};
+    CHECK(pgl::convexHullExtended(line) == std::vector<Point>{Point(0,0), Point(1,1), Point(2,2), Point(3,3)});
+    CHECK(pgl::convexHull(line) == std::vector<Point>{Point(0,0), Point(3,3)});
+
+    const std::vector<Point> vertical{{0,2}, {0,0}, {0,1}};
+    CHECK(pgl::convexHullExtended(vertical) == std::vector<Point>{Point(0,0), Point(0,1), Point(0,2)});
+
+    const std::vector<Point> pair{{1,1}, {0,0}};
+    CHECK(pgl::convexHullExtended(pair) == std::vector<Point>{Point(0,0), Point(1,1)});
+}
+
+TEST_CASE_TEMPLATE("Convex layers of grid points", Point, pgl::Point<int>, pgl::Point<float>, pgl::Point<pgl::Rational<int>>) {
+    const auto points = grid<Point>(7);
+    const auto layers = pgl::convexLayers(points);
+
+    REQUIRE(layers.size() == 4);
+    CHECK(layers[0] == pgl::convexHullExtended(points));
+    CHECK(layers[0].size() == 24);
+    CHECK(layers[1].size() == 16);
+    CHECK(layers[1].front() == Point(1,1));
+    CHECK(layers[2].size() == 8);
+    CHECK(layers[2].front() == Point(2,2));
+    CHECK(layers[3] == std::vector<Point>{Point(3,3)});
+}
+
+TEST_CASE_TEMPLATE("Convex layers of degenerate inputs", Point, pgl::Point<int>, pgl::Point<float>, pgl::Point<pgl::Rational<int>>) {
+    CHECK(pgl::convexLayers(std::vector<Point>{}).empty());
+
+    // Collinear points form one layer, each point once, even when repeated.
+    const std::vector<Point> line{{3,3}, {0,0}, {2,2}, {1,1}, {2,2}};
+    const auto layers = pgl::convexLayers(line);
+    REQUIRE(layers.size() == 1);
+    CHECK(layers[0] == std::vector<Point>{Point(0,0), Point(1,1), Point(2,2), Point(3,3)});
+
+    // A triangle around a collinear remainder.
+    const std::vector<Point> nested{{0,0}, {10,0}, {5,10}, {4,3}, {5,3}, {6,3}, {5,3}};
+    const auto inner = pgl::convexLayers(nested);
+    REQUIRE(inner.size() == 2);
+    CHECK(inner[0] == std::vector<Point>{Point(0,0), Point(10,0), Point(5,10)});
+    CHECK(inner[1] == std::vector<Point>{Point(4,3), Point(5,3), Point(6,3)});
+}
+
+// The reference peels one extended hull at a time off an unsorted set.
+TEST_CASE("Convex layers match repeated hull peeling") {
+    using PointType = pgl::Point<int>;
+    std::mt19937 rng(0x1a7e5u);
+    for (int range : {5, 30, 1000}) {
+        CAPTURE(range);
+        std::uniform_int_distribution<int> d(-range, range);
+        std::vector<PointType> points;
+        for (int i = 0; i < 600; ++i) {
+            points.emplace_back(d(rng), d(rng));
+        }
+
+        const auto layers = pgl::convexLayers(points);
+
+        std::set<PointType> left(points.begin(), points.end());
+        std::size_t k = 0;
+        while (!left.empty()) {
+            const auto want = pgl::convexHullExtended(left);
+            REQUIRE(k < layers.size());
+            CHECK(layers[k] == want);
+            for (const PointType& p : want) {
+                left.erase(p);
+            }
+            ++k;
+        }
+        CHECK(k == layers.size());
+    }
+}
