@@ -420,12 +420,12 @@ TEST_CASE("Shape dispatches squaredHausdorffDistance across wrapped shapes") {
     const Shape t2 = Triangle({10, 0}, {12, 0}, {10, 2});
     CHECK(t1.squaredHausdorffDistance<int>(t2) == static_cast<Triangle>(t1).squaredHausdorffDistance<int>(static_cast<Triangle>(t2)));
 
-    // Defined for Point/Segment/OrientedSegment/Rectangle/Triangle/Convex only:
-    // an unbounded Line, or a Polygon (no overload yet), always throws.
+    // An unbounded Line always throws; a Polygon answers in floating point: its
+    // corner (2,2) is sqrt(2) from the triangle's hypotenuse.
     const Shape line = Line({0, 0}, {1, 0});
     const Shape polygon = Polygon({Point(0, 0), Point(2, 0), Point(2, 2), Point(0, 2)});
     CHECK_THROWS_AS((void)t1.squaredHausdorffDistance<int>(line), std::logic_error);
-    CHECK_THROWS_AS((void)t1.squaredHausdorffDistance<int>(polygon), std::logic_error);
+    CHECK(t1.squaredHausdorffDistance<double>(polygon) == doctest::Approx(2.0));
 }
 
 TEST_CASE("Shape dispatches distanceL1/distanceLInf across wrapped shapes") {
@@ -724,7 +724,8 @@ TEST_CASE("Shape dispatches predicates and measures through a MonotoneChain") {
     // The nearest pair is the peak (2,4) against the segment's side.
     CHECK(shape.squaredDistance<double>(miss) == doctest::Approx(4.5));
     CHECK(shape.distanceL1<pgl::Rational<int>>(Shape(Point(1, 3))) == pgl::Rational<int>(1, 2));
-    CHECK_THROWS_AS((void)shape.squaredHausdorffDistance<double>(crossing), std::logic_error);
+    CHECK(shape.squaredHausdorffDistance<double>(crossing) ==
+          doctest::Approx(static_cast<Chain>(shape).squaredHausdorffDistance(static_cast<Segment>(crossing))));
 
     // A single-point crossing is one Point-valued piece.
     const Shape up = Chain({0, 0, 4, 4});
@@ -972,7 +973,8 @@ TEST_CASE("Shape dispatches predicates and measures through a Polyline") {
     CHECK(shape.squaredDistance<double>(miss) == doctest::Approx(4.5));
     CHECK(shape.distanceL1<pgl::Rational<int>>(Shape(Point(1, 3))) == pgl::Rational<int>(1, 2));
     CHECK(zig.distanceL1<pgl::Rational<int>>(Shape(Point(1, 3))) == pgl::Rational<int>(1, 2));
-    CHECK_THROWS_AS((void)shape.squaredHausdorffDistance<double>(crossing), std::logic_error);
+    CHECK(shape.squaredHausdorffDistance<double>(crossing) ==
+          doctest::Approx(zig.squaredHausdorffDistance(static_cast<Segment>(crossing))));
 
     // A single-point crossing is one Point-valued piece, here with both
     // operands wrapped.
@@ -1131,7 +1133,8 @@ TEST_CASE("Shape dispatches predicates, regularized intersection, and distances 
     CHECK(annulus.distanceL1<int>(farPoint) == 14);   // concrete region, Shape argument
     CHECK(annulus.distanceLInf<int>(farPoint) == 14);
     CHECK(shape.squaredDistance<int>(Shape(Triangle({20, 0}, {24, 0}, {20, 4}))) == 196);
-    CHECK_THROWS_AS((void)shape.squaredHausdorffDistance<int>(farPoint), std::logic_error);
+    // Against a point, the farthest vertex (0,0) or (0,6), exactly.
+    CHECK(shape.squaredHausdorffDistance<int>(farPoint) == 409);
 
     // Transformations preserve the alternative.
     Shape moved = shape;
@@ -1294,10 +1297,10 @@ TEST_CASE("Shape dispatches predicates, regularized intersection, and distances 
     CHECK(pair.distanceL1<int>(farPoint) == 4);  // concrete set, Shape argument
     CHECK(pair.distanceLInf<int>(farPoint) == 4);
     CHECK(shape.squaredDistance<int>(Shape(pair + Point(20, 0))) == 196);
-    // An L1 or L-infinity distance to a Disk is nowhere defined in the library,
-    // and neither is a squared Hausdorff distance to a set.
+    // An L1 or L-infinity distance to a Disk is nowhere defined in the library.
     CHECK_THROWS_AS((void)shape.distanceL1<int>(Shape(Disk(Point(20, 1), 1))), std::logic_error);
-    CHECK_THROWS_AS((void)shape.squaredHausdorffDistance<int>(farPoint), std::logic_error);
+    // Against a point, the farthest vertex (0,0) or (0,2), exactly.
+    CHECK(shape.squaredHausdorffDistance<int>(farPoint) == 101);
 
     // Transformations preserve the alternative.
     Shape moved = shape;

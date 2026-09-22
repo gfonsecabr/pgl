@@ -1732,12 +1732,28 @@ struct Segment {
      * needs `squaredHausdorffDistance` defined only once, on the higher-ranked shape.
      */
     template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
-        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Segment>)
+        requires (!detail::NonConvexPolygonalConcept<OtherShape>
+                  && (detail::shapeRank<OtherShape> > detail::shapeRank<Segment>)
                   && requires(const OtherShape& o, const Segment& self) {
                          o.template squaredHausdorffDistance<ResultNumber>(self);
                      })
     [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherShape& other) const {
         return other.template squaredHausdorffDistance<ResultNumber>(*this);
+    }
+
+    /**
+     * @brief Returns the squared Hausdorff distance to a shape that need not be
+     *        convex, approximately.
+     *
+     * The distance is generally irrational, so it is computed in floating point
+     * by the other shape's implementation, which this forwards to.
+     */
+    template <class ApproximateNumber = double, detail::NonConvexPolygonalConcept OtherShape>
+        requires requires(const OtherShape& o, const Segment& self) {
+            o.template squaredHausdorffDistance<ApproximateNumber>(self);
+        }
+    [[nodiscard]] ApproximateNumber squaredHausdorffDistance(const OtherShape& other) const {
+        return other.template squaredHausdorffDistance<ApproximateNumber>(*this);
     }
 
     /**

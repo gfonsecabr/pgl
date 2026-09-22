@@ -612,6 +612,17 @@ concept PolygonalRegionConcept =
 namespace detail {
 
 /**
+ * @brief The @ref BoundedPolygonalConcept shapes that need not be convex.
+ *
+ * Distance to one of these is not a convex function, so the Euclidean Hausdorff
+ * distance of a pair involving one is attained at points that are generally
+ * irrational, and is computed in floating point rather than exactly.
+ */
+template <class T>
+concept NonConvexPolygonalConcept = MonotoneChainConcept<T> || PolylineConcept<T> || PolygonConcept<T> ||
+                                    PolygonWithHolesConcept<T> || PolygonSetConcept<T>;
+
+/**
  * @brief Shape pairs that can name the elements realizing their distance.
  *
  * Both operands must be @ref BoundedPolygonalConcept — covered by finitely many

@@ -1563,6 +1563,31 @@ struct PolygonSet {
     [[nodiscard]] auto distanceLInf(const OtherSet& other) const;
 
     /**
+     * @brief Returns the squared Euclidean Hausdorff distance to the given point.
+     *
+     * The farthest point of the set from @p point is one of its vertices, so
+     * the distance needs no division and defaults to @ref NumberType.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherPoint& point) const;
+
+    /**
+     * @brief Returns the squared Euclidean Hausdorff distance to the given
+     *        shape, approximately.
+     *
+     * Defined for every bounded polygonal @p other. The distance is generally irrational, so it is computed in
+     * @p ApproximateNumber when that is floating point and in `double`
+     * otherwise; implementation/hausdorff.hpp explains where the farthest point
+     * is looked for.
+     *
+     * Complexity: O(N^3 2^α(N)) for N vertices over both shapes, where α is the
+     * inverse Ackermann function.
+     */
+    template <class ApproximateNumber = double, BoundedPolygonalConcept OtherShape>
+        requires(!PointConcept<OtherShape>)
+    [[nodiscard]] ApproximateNumber squaredHausdorffDistance(const OtherShape& other) const;
+
+    /**
      * @brief Returns the Manhattan (L1) Hausdorff distance to the given point.
      *
      * The farthest point of the set from @p point is one of its vertices, so

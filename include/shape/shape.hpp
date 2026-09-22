@@ -1272,6 +1272,9 @@ struct Shape {
      *
      * @throws unsupported_operation when the pair has no
      *   `squaredHausdorffDistance`.
+     * @warning A pair involving a shape that need not be convex, other than
+     *   against a point, computes in `double` and converts to @p ResultNumber,
+     *   as a @ref Disk pair does for @ref squaredDistance.
      */
     template <class ResultNumber = division_result_t<NumberType>, AnyShapeConcept Other>
     [[nodiscard]] constexpr ResultNumber squaredHausdorffDistance(const Other& other) const {

@@ -2127,6 +2127,49 @@ struct MonotoneChain {
     }
 
     /**
+     * @brief Returns the squared Euclidean Hausdorff distance to the given point.
+     *
+     * The farthest point of the chain from @p point is one of its vertices, so
+     * the distance needs no division and defaults to @ref NumberType.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherPoint& point) const;
+
+    /**
+     * @brief Returns the squared Euclidean Hausdorff distance to the given
+     *        shape, approximately.
+     *
+     * Defined for every bounded polygonal @p other ranked no higher than
+     * this shape; the overload below forwards the others to them. The distance is generally irrational, so it is computed in
+     * @p ApproximateNumber when that is floating point and in `double`
+     * otherwise; implementation/hausdorff.hpp explains where the farthest point
+     * is looked for.
+     *
+     * Complexity: O(N^3 2^α(N)) for N vertices over both shapes, where α is the
+     * inverse Ackermann function.
+     */
+    template <class ApproximateNumber = double, BoundedPolygonalConcept OtherShape>
+        requires(!PointConcept<OtherShape> &&
+                 detail::shapeRank<OtherShape> <= detail::shapeRank<MonotoneChain<PointType, LabelType, Storage>>)
+    [[nodiscard]] ApproximateNumber squaredHausdorffDistance(const OtherShape& other) const;
+
+    /**
+     * @brief Returns the squared Euclidean Hausdorff distance to the given
+     *        shape, approximately.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `squaredHausdorffDistance` defined only once, on the higher-ranked shape.
+     */
+    template <class ApproximateNumber = double, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<MonotoneChain>)
+                  && requires(const OtherShape& o, const MonotoneChain& self) {
+                         o.template squaredHausdorffDistance<ApproximateNumber>(self);
+                     })
+    [[nodiscard]] ApproximateNumber squaredHausdorffDistance(const OtherShape& other) const {
+        return other.template squaredHausdorffDistance<ApproximateNumber>(*this);
+    }
+
+    /**
      * @brief Returns the Manhattan (L1) Hausdorff distance to the given point.
      *
      * The farthest point of the chain from @p point is one of its vertices, so
