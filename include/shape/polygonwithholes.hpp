@@ -2950,7 +2950,7 @@ struct PolygonWithHoles {
      */
     template <class ApproximateNumber = double, BoundedPolygonalConcept OtherShape>
         requires(!PointConcept<OtherShape> &&
-                 detail::shapeRank<OtherShape> <= detail::shapeRank<PolygonWithHoles<PointType, LabelType>>)
+                 detail::shapeRank<OtherShape> <= detail::shapeRank<PolygonWithHoles<PointType_, TLabel>>)
     [[nodiscard]] ApproximateNumber squaredHausdorffDistance(const OtherShape& other) const;
 
     /**

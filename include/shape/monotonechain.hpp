@@ -2150,7 +2150,7 @@ struct MonotoneChain {
      */
     template <class ApproximateNumber = double, BoundedPolygonalConcept OtherShape>
         requires(!PointConcept<OtherShape> &&
-                 detail::shapeRank<OtherShape> <= detail::shapeRank<MonotoneChain<PointType, LabelType, Storage>>)
+                 detail::shapeRank<OtherShape> <= detail::shapeRank<MonotoneChain<PointType_, TLabel, Storage>>)
     [[nodiscard]] ApproximateNumber squaredHausdorffDistance(const OtherShape& other) const;
 
     /**

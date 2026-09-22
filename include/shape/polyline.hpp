@@ -1988,7 +1988,7 @@ struct Polyline {
      */
     template <class ApproximateNumber = double, BoundedPolygonalConcept OtherShape>
         requires(!PointConcept<OtherShape> &&
-                 detail::shapeRank<OtherShape> <= detail::shapeRank<Polyline<PointType, LabelType>>)
+                 detail::shapeRank<OtherShape> <= detail::shapeRank<Polyline<PointType_, TLabel>>)
     [[nodiscard]] ApproximateNumber squaredHausdorffDistance(const OtherShape& other) const;
 
     /**
