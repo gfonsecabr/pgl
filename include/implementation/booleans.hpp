@@ -414,8 +414,8 @@ PolygonSet<ResultPoint> regularizedCells(
  * @brief The regularized boolean operation @p keepCell selects, as a set of
  *        regions.
  *
- * @p keepCell is called as `keepCell(inA, inB)` with the membership of one
- * witness point per cell of the arrangement of both boundaries, and says
+ * @p keepCell is called as `keepCell(inA, inB)` with the membership of each
+ * cell of the arrangement of both boundaries, and says
  * whether that cell belongs to the result: `inA && !inB` is the difference,
  * `inA || inB` the union, `inA && inB` the intersection and `inA != inB` the
  * symmetric difference.
@@ -426,18 +426,22 @@ PolygonSet<ResultPoint> regularizedCells(
  *
  * An operand **without area is read as the empty set**, and both halves of that
  * matter. It is what regularization means — the result is `closure(A° op B°)`,
- * and a shape with empty interior contributes nothing to it. And it is what
- * keeps the cell classification sound: a zero-area operand has no edge, so
- * @ref appendCutSegments contributes no cut for it and it does not subdivide the
- * cells, yet `contains` still answers true on the points it covers. One witness
- * landing on it would then classify a whole cell by a single point of a set that
- * covers no area — which is exactly how `A ∖ point` and `A △ point` came back
- * empty instead of `A` when the arrangement happened to pick that point as the
- * witness for A's interior.
+ * and a shape with empty interior contributes nothing to it. And it keeps the
+ * cell classification from depending on how such an operand's edges happen to
+ * double back over each other.
  *
- * Complexity: `O((n + m + k)(n + m))` for operands of `n` and `m` edges, `k`
- * pairs of which meet: the arrangement has `O(n + m + k)` faces, and each pays
- * one containment test in each operand.
+ * The cells are classified by parity rather than by witness: every operand is
+ * the set of points its boundary winds round an odd number of times, so a
+ * cell's membership in `A` is its neighbour's, flipped when the edge between
+ * them carries an odd number of `A`'s boundary edges. Counting the operand's
+ * *edges*, not the operand, is what keeps a slit right: the two boundary edges
+ * running along it are two origins of the arrangement edge, and crossing it
+ * changes nothing. A witness containment test per cell would cost `O(n + m)`
+ * apiece, which a region with many holes, having a cell per hole, turns
+ * quadratic.
+ *
+ * Complexity: that of the arrangement of the `n + m` boundary edges and of
+ * @ref regularizedCellsFromKeep.
  */
 template <class ResultPoint, class ShapeA, class ShapeB, class KeepCell>
 PolygonSet<ResultPoint> regularizedBoolean(const ShapeA& a, const ShapeB& b, KeepCell keepCell) {
@@ -449,11 +453,71 @@ PolygonSet<ResultPoint> regularizedBoolean(const ShapeA& a, const ShapeB& b, Kee
 
     std::vector<Segment<ExactPoint>> cuts;
     appendCutSegments<ExactPoint>(a, cuts);
+    const std::size_t aCuts = cuts.size();
     appendCutSegments<ExactPoint>(b, cuts);
-    return regularizedCells<ResultPoint>(
-        cuts, [&a, &b, aHasArea, bHasArea, &keepCell](const ExactPoint& witness) {
-            return keepCell(aHasArea && a.contains(witness), bHasArea && b.contains(witness));
-        });
+    const std::size_t abCuts = cuts.size();
+    if (cuts.empty()) {
+        return {};  // no operand has an edge, so none has area
+    }
+
+    // The origins of an edge are positions in `cuts`, and the frame's four
+    // sides come after every operand's.
+    const Arrangement<ExactPoint> arrangement = framedArrangement(cuts);
+    using HalfedgeId = typename Arrangement<ExactPoint>::HalfedgeId;
+    const std::size_t faceCount = arrangement.faceCount();
+    const auto flipOf = [&](HalfedgeId h) {
+        unsigned flip = 0;
+        for (const std::uint32_t origin : arrangement.originsOf(h)) {
+            if (origin < aCuts) {
+                flip ^= 1u;
+            } else if (origin < abCuts) {
+                flip ^= 2u;
+            }
+        }
+        return flip;
+    };
+
+    // The halfedges bounding each face, as one pair of arrays.
+    std::vector<std::uint32_t> faceEdgeBegin(faceCount + 1, 0);
+    for (std::uint32_t i = 0; i < arrangement.halfedgeCount(); ++i) {
+        ++faceEdgeBegin[arrangement.face(HalfedgeId(i)).index() + 1];
+    }
+    for (std::size_t i = 0; i < faceCount; ++i) {
+        faceEdgeBegin[i + 1] += faceEdgeBegin[i];
+    }
+    std::vector<std::uint32_t> faceEdge(arrangement.halfedgeCount(), 0);
+    {
+        std::vector<std::uint32_t> cursor(faceEdgeBegin.begin(), faceEdgeBegin.end() - 1);
+        for (std::uint32_t i = 0; i < arrangement.halfedgeCount(); ++i) {
+            faceEdge[cursor[arrangement.face(HalfedgeId(i)).index()]++] = i;
+        }
+    }
+
+    // Face 0, the unbounded one, lies outside both operands; the face adjacency
+    // graph is connected, so a search from it reaches every face.
+    constexpr unsigned unseen = 4;
+    std::vector<unsigned char> membership(faceCount, unseen);
+    std::vector<std::uint32_t> queue{0};
+    membership[0] = 0;
+    for (std::size_t head = 0; head < queue.size(); ++head) {
+        const std::uint32_t face = queue[head];
+        for (std::uint32_t i = faceEdgeBegin[face]; i < faceEdgeBegin[face + 1]; ++i) {
+            const HalfedgeId h(faceEdge[i]);
+            const std::uint32_t across = arrangement.face(arrangement.twin(h)).index();
+            if (membership[across] == unseen) {
+                membership[across] = static_cast<unsigned char>(membership[face] ^ flipOf(h));
+                queue.push_back(across);
+            }
+        }
+    }
+
+    std::vector<char> keep(faceCount, 0);
+    for (std::size_t f = 1; f < faceCount; ++f) {
+        PGL_ASSERT(membership[f] != unseen);
+        keep[f] = static_cast<char>(keepCell(aHasArea && (membership[f] & 1u) != 0,
+                                             bHasArea && (membership[f] & 2u) != 0));
+    }
+    return regularizedCellsFromKeep<ResultPoint>(arrangement, keep);
 }
 
 /**
@@ -2292,8 +2356,8 @@ PolygonWithHoles<PointType_, TLabel>::intersection(const OtherHalfplane& other) 
 //
 // One definition per operation over every operand the engine takes, another set
 // included. There is nothing per-operand about them: the engine asks a shape for
-// its cut segments and for one containment test per cell, which a set answers
-// like anything else. Note in particular that a set operand goes in whole rather
+// its cut segments and for whether it has area, which a set answers like
+// anything else. Note in particular that a set operand goes in whole rather
 // than one component at a time — folding would build one arrangement per step.
 
 template <class PointType_, class TLabel>

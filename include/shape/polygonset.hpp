@@ -1040,8 +1040,9 @@ struct PolygonSet {
     // fed straight into the next one.
     //
     // The engine does not care that a receiver is a set: it is the arrangement
-    // of both operands' boundaries with one witness test per cell, and a set
-    // contributes its components' rings the way a region contributes its own.
+    // of both operands' boundaries with its cells classified by the parity of
+    // the boundary edges crossed to reach them, and a set contributes its
+    // components' rings the way a region contributes its own.
     // In particular the operands go in together rather than being folded over
     // one component at a time, so one arrangement settles the whole answer.
 
