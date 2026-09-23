@@ -51,7 +51,7 @@
 // and keeps the EPICK curve as an approximation, because pgl's `int` sweep is
 // exact and so has no inexact curve of its own to put against EPICK. Every
 // place that curve is drawn or quoted says it is inexact — the chart legend,
-// and the note under the table in doc/raw/cgal.md — and the EPECK curve stays
+// and the tooltip on its cell in doc/raw/cgal.md — and the EPECK curve stays
 // beside it as the one that answers the same question pgl answers. See the
 // header of segmentintersections.cpp. Nothing else in the baseline may do
 // this: a category earns a second kernel by agreeing with the first.

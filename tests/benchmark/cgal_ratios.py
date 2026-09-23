@@ -42,6 +42,7 @@ Usage (from the repo root):
 
 import argparse
 import collections
+import html
 import json
 import math
 import pathlib
@@ -146,40 +147,59 @@ ROWS = [
 # columns are independent measurements, not one scaled by the other.
 COLUMNS = (("ERational", "EPECK"), ("int", "EPICK"))
 
-# Cells the page marks with a footnote, keyed by (row label, column index). The
+# Cells the page marks with a note, keyed by (row label, column index). The
 # ratio is measured like every other, but the two sides are not answering the
-# same question and the note under the table says which. The sweep's `int`
-# column: EPICK loses intersection points there, while pgl's `int` sweep is
-# exact (see asymptotic/baseline/cgal.hpp). And the Minkowski sum, where the
-# baseline keeps CGAL's fastest method over the whole sweep rather than the
-# fastest at each size (see asymptotic/baseline/minkowskisum.cpp). The union,
-# where the fastest CGAL method differs by dataset (see
-# asymptotic/baseline/regularizedunion.cpp). And visibility's `int` column,
-# which covers the random polygon alone: EPICK fails on the SBPD polygons, so
-# the baseline runs them under EPECK only (see asymptotic/baseline/visibility.cpp).
-FOOTNOTE = {("Segment intersection", 1): "\\*", ("Minkowski sum", 0): "†",
-            ("Regularized union, two polygons", 0): "‡",
-            ("Visibility, visible vertices", 1): "§"}
-
-# The note the page prints under the table, and the ratio it quotes: pgl `int`
-# against EPECK, the kernel that computes the answer pgl computes. That ratio is
-# not a column of the table, so it is recomputed here rather than typed in by
-# hand, and the sentence is emitted with it so refreshing the note is a copy.
-# Keep NOTE's wording in step with doc/raw/cgal.md — it is the page's sentence,
-# not this script's.
+# same question and the note says which. The sweep's `int` column: EPICK loses
+# intersection points there, while pgl's `int` sweep is exact (see
+# asymptotic/baseline/cgal.hpp). And the Minkowski sum, where the baseline keeps
+# CGAL's fastest method over the whole sweep rather than the fastest at each
+# size (see asymptotic/baseline/minkowskisum.cpp). The union, where the fastest
+# CGAL method differs by dataset (see asymptotic/baseline/regularizedunion.cpp).
+# And visibility's `int` column, which covers the random polygon alone: EPICK
+# fails on the SBPD polygons, so the baseline runs them under EPECK only (see
+# asymptotic/baseline/visibility.cpp).
+#
+# Each note is the tooltip of its marker, an <abbr> after the ratio, so it is
+# plain text: a title attribute renders no Markdown or HTML. Keep the wording in
+# step with doc/raw/cgal.md — it is the page's text, not this script's.
+#
+# The segment intersection note quotes pgl `int` against EPECK, the kernel that
+# computes the answer pgl computes. That ratio is not a column of the table, so
+# it is recomputed here (FOOTNOTE_EXACT) rather than typed in by hand.
 FOOTNOTE_EXACT = ("Segment intersection", "int", "EPECK")
-NOTE = ("\\* CGAL's sweep line runs under EPICK here, which is not exact. "
-        "pgl's `int` `findIntersections` is exact and {ratio} against EPECK.")
-MINKOWSKI_NOTE = ("† CGAL runs its fastest method over the whole input range: the "
-                  "Hertel–Mehlhorn decomposition on the random polygons, where its "
-                  "reduced convolution is faster below about 150 vertices, and "
-                  "reduced convolution on fpg, spg and fpg-holes, where the "
-                  "Hertel–Mehlhorn decomposition is faster on spg at 200 vertices.")
-UNION_NOTE = ("‡ CGAL's free `join` on the random polygons and fpg-holes, and "
-              "<code>General_polygon_set_2<wbr>::join</code> on spg, the faster "
-              "of the two on each.")
-VISIBILITY_NOTE = ("§ The random polygon only. On fpg, spg and fpg-holes, EPICK "
-                   "answers wrongly or throws, so CGAL runs them under EPECK alone.")
+FOOTNOTE = {
+    ("Segment intersection", 1):
+        ("*", "CGAL's sweep line runs under EPICK here, which is not exact. "
+              "pgl's int findIntersections is exact and {ratio} against EPECK."),
+    ("Minkowski sum", 0):
+        ("†", "CGAL runs its fastest method over the whole input range: the "
+              "Hertel–Mehlhorn decomposition on the random polygons, where its "
+              "reduced convolution is faster below about 150 vertices, and "
+              "reduced convolution on fpg, spg and fpg-holes, where the "
+              "Hertel–Mehlhorn decomposition is faster on spg at 200 vertices."),
+    ("Regularized union, two polygons", 0):
+        ("‡", "CGAL's free join on the random polygons and fpg-holes, and "
+              "General_polygon_set_2::join on spg, the faster of the two on each."),
+    ("Visibility, visible vertices", 1):
+        ("§", "The random polygon only. On fpg, spg and fpg-holes, EPICK answers "
+              "wrongly or throws, so CGAL runs them under EPECK alone."),
+}
+
+
+def notes(commit, pgl, baselines):
+    """(row label, column index) → the rendered marker with its tooltip."""
+    label, pgl_number, cgal_number = FOOTNOTE_EXACT
+    row = next((r for r in ROWS if r[0] == label), None)
+    exact = row and row_ratio(row[1], commit, pgl, baselines, pgl_number, cgal_number)
+    out = {}
+    for key, (marker, text) in FOOTNOTE.items():
+        if "{ratio}" in text:
+            if not exact:
+                continue
+            text = text.format(ratio=render(exact))
+        title = html.escape(text, quote=False).replace('"', "&quot;")
+        out[key] = f'<abbr title="{title}">{marker}</abbr>'
+    return out
 
 
 # ── Loading ──────────────────────────────────────────────────────────────────
@@ -313,17 +333,17 @@ def render_colored(value):
     return f"${number}\\textsf{{ ({sig2(low)}–{sig2(high)})}}$"
 
 
-def cells(label, values):
-    """A row's two rendered ratio cells, footnote marker included."""
-    return [render_colored(v) + FOOTNOTE.get((label, i), "")
+def cells(label, values, marks):
+    """A row's two rendered ratio cells, note marker included."""
+    return [render_colored(v) + marks.get((label, i), "")
             for i, v in enumerate(values)]
 
 
-def markdown(rows):
+def markdown(rows, marks):
     out = ["| Problem | `ERational` / EPECK | `int` / EPICK | pgl | CGAL |",
            "| --- | --- | --- | --- | --- |"]
     for label, values, ours, theirs, _ in rows:
-        a, b = cells(label, values)
+        a, b = cells(label, values, marks)
         out.append(f"| {label} | {a} | {b} | {ours} | {theirs} |")
     return "\n".join(out)
 
@@ -342,11 +362,11 @@ def page_rows():
     return stated
 
 
-def check(rows):
+def check(rows, marks):
     stated = page_rows()
     stale = 0
     for label, values, _, _, _ in rows:
-        want = tuple(cells(label, values))
+        want = tuple(cells(label, values, marks))
         have = stated.get(label)
         if have is None:
             print(f"  not on the page: {label}")
@@ -398,22 +418,14 @@ def main():
             print(f"  @{i} = {machine}", file=sys.stderr)
     print(file=sys.stderr)
 
+    marks = notes(commit, pgl, baselines)
     if args.check:
-        stale = check(rows)
+        stale = check(rows, marks)
         print(f"\n{stale} of {len(rows)} recomputable rows are stale."
               if stale else f"\nAll {len(rows)} recomputable rows match the page.")
         sys.exit(1 if stale else 0)
 
-    print(markdown(rows))
-
-    label, pgl_number, cgal_number = FOOTNOTE_EXACT
-    row = next((r for r in ROWS if r[0] == label), None)
-    if row:
-        exact = row_ratio(row[1], commit, pgl, baselines, pgl_number, cgal_number)
-        if exact:
-            print("\n" + NOTE.format(ratio=render(exact)))
-    for note in (MINKOWSKI_NOTE, UNION_NOTE, VISIBILITY_NOTE):
-        print("\n" + note)
+    print(markdown(rows, marks))
 
 
 if __name__ == "__main__":
