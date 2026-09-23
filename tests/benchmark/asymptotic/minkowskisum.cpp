@@ -62,7 +62,7 @@ void sweepPolygons(const bench::Options& opt, const char* dataset,
         long long result = 0;
         const double us = bench::timeOnce(result,
             [&] { return static_cast<long long>(a.minkowskiSum(b).vertexCount()); });
-        bench::emit(kCategory, dataset, "Minkowski sum", "convex decomposition",
+        bench::emit(kCategory, dataset, "Minkowski sum", "minkowskiSum",
                     number, n, result, us);
     }
 }
@@ -79,7 +79,7 @@ void sweepConvex(const bench::Options& opt, const char* dataset,
         long long result = 0;
         const double us = bench::timeOnce(result,
             [&] { return static_cast<long long>(a.minkowskiSum(b).vertexCount()); });
-        bench::emit(kCategory, dataset, "Minkowski sum", "convolution",
+        bench::emit(kCategory, dataset, "Minkowski sum", "minkowskiSum",
                     number, n, result, us);
     }
 }
@@ -99,7 +99,7 @@ void sweepSbpd(const bench::Options& opt, const char* dataset, Load load) {
         long long result = 0;
         const double us = bench::timeOnce(result,
             [&] { return static_cast<long long>(a.minkowskiSum(b).vertexCount()); });
-        bench::emit(kCategory, dataset, "Minkowski sum", "convex decomposition",
+        bench::emit(kCategory, dataset, "Minkowski sum", "minkowskiSum",
                     number, n, result, us);
     }
 }

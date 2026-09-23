@@ -1,5 +1,5 @@
 // @desc: CGAL reference for the Intersection of line segments category:
-// CGAL's surface sweep over the same seven datasets.
+// CGAL's surface sweep over the same four datasets.
 //
 // Read the Result columns carefully: pgl counts *pairs*, CGAL counts distinct
 // *points*, and how far apart that puts them depends on the problem.
@@ -34,13 +34,6 @@
 // over the sweep's 192 cells it disagrees with EPECK on 23 of them, all on the
 // dense small-segment dataset, from −1 point at n = 3,749 up to −133 of 43,351
 // crossings and −129 of 63,338 intersection points at n = 10,000.
-// On the edges of the SBPD polygons it errs the other way, reporting crossings
-// where two edges only share a vertex: 1 to 18 of them at every size of fpg,
-// and one at 8 of spg's 13 sizes. The non-caching traits happen to get those
-// counts right under EPICK, but are no faster there -- level on fpg, about 5%
-// slower on spg -- so the traits stay chosen for speed, as below. On fpg-holes
-// they are also the faster, and there the caching traits' count would be off
-// by hundreds (724 false crossings at n = 9,993).
 //
 // It is still recorded, because the alternative is worse. pgl's `int` sweep is
 // exact — sweepFractionTier picks the narrowest fraction that stays exact, not
@@ -66,10 +59,6 @@ namespace {
 // are CGAL's default and 4-8x faster wherever segments cross. The polygon edges
 // barely meet, and there the non-caching traits are about 20% faster under
 // EPECK; under EPICK they gain nothing there and crash on the crossing datasets.
-// The SBPD polygons' edges are the same kind of input and take the same traits,
-// except that on fpg-holes the non-caching traits are the faster under EPICK
-// too, by about 7%, and take both kernels; under EPECK they are twice as fast
-// there.
 template <class K, class Traits = CGAL::Arr_segment_traits_2<K>, class Generate>
 void sweepDataset(const bench::Options& opt, const char* dataset,
                   const std::vector<int>& sizes, Generate generate) {
@@ -128,30 +117,15 @@ void run(const bench::Options& opt) {
     crossing("sheared", bench::kSegmentsSmall, bench::shearedSegments);
     crossing("large",   bench::kSegmentsLarge, bench::largeSegments);
 
-    // Polygon edges, which barely meet. `everywhere` takes the non-caching
-    // traits under EPICK too.
-    const auto edges = [&](const char* dataset, const std::vector<int>& sizes,
-                           auto generate, bool everywhere = false) {
-        if (everywhere || std::is_same_v<K, bench::cgal::Kernel>) {
-            sweepDataset<K, CGAL::Arr_non_caching_segment_traits_2<K>>(
-                opt, dataset, sizes, generate);
-        } else {
-            sweepDataset<K>(opt, dataset, sizes, generate);
-        }
-    };
+    // Polygon edges, which barely meet.
     if (bench::matches(opt.dataset, "polygon edges")) {
-        edges("polygon edges", bench::sweep(bench::kSegmentsPolygon, opt), bench::polygonEdges);
-    }
-    for (const char* dataset : bench::kSbpdDatasets) {
-        if (!bench::matches(opt.dataset, dataset)) continue;
-        edges(dataset, bench::sbpdSizes(dataset, bench::sweep(bench::kSegmentsPolygon, opt)),
-              [dataset](int n) { return bench::edgesOf(bench::sbpdPolygon(dataset, n)); });
-    }
-    for (const char* dataset : bench::kSbpdRegionDatasets) {
-        if (!bench::matches(opt.dataset, dataset)) continue;
-        edges(dataset, bench::sbpdSizes(dataset, bench::sweep(bench::kSegmentsPolygon, opt)),
-              [dataset](int n) { return bench::edgesOf(bench::sbpdRegion(dataset, n)); },
-              true);
+        const auto sizes = bench::sweep(bench::kSegmentsPolygon, opt);
+        if constexpr (std::is_same_v<K, bench::cgal::Kernel>) {
+            sweepDataset<K, CGAL::Arr_non_caching_segment_traits_2<K>>(
+                opt, "polygon edges", sizes, bench::polygonEdges);
+        } else {
+            sweepDataset<K>(opt, "polygon edges", sizes, bench::polygonEdges);
+        }
     }
 }
 

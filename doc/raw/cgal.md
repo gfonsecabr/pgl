@@ -117,7 +117,7 @@ The results below are sorted by `ERational` / EPECK ratio, from the cases where 
 
 † CGAL runs its fastest method over the whole input range: the Hertel–Mehlhorn decomposition on the random polygons, where its reduced convolution is faster below about 150 vertices, and reduced convolution on fpg, spg and fpg-holes, where the Hertel–Mehlhorn decomposition is faster on spg at 200 vertices.
 
-‡ CGAL's free `join` on the random polygons, fpg and fpg-holes, and <code>General_polygon_set_2<wbr>::join</code> on spg, the faster of the two on each.
+‡ CGAL's free `join` on the random polygons and fpg-holes, and <code>General_polygon_set_2<wbr>::join</code> on spg, the faster of the two on each.
 
 § The random polygon only. On fpg, spg and fpg-holes, EPICK answers wrongly or throws, so CGAL runs them under EPECK alone.
 

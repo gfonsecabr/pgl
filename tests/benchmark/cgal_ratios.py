@@ -65,9 +65,10 @@ def cell(driver, dataset, problem, algorithms=None):
     return Cell(driver, dataset, problem, algorithms)
 
 
-# The Salzburg Database polygons, swept by every category over a polygon.
+# The Salzburg Database polygons, swept by every category over a polygon
+# except the segment intersections, and by the union without fpg.
 SBPD_DATASETS = ("fpg", "spg", "fpg-holes")
-SEGMENT_DATASETS = ("small", "large", "sheared", "polygon edges", *SBPD_DATASETS)
+SEGMENT_DATASETS = ("small", "large", "sheared", "polygon edges")
 ARRANGEMENT_DATASETS = ("small segments", "large segments", "mixed", "voronoi")
 
 ROWS = [
@@ -93,7 +94,7 @@ ROWS = [
      [cell("arrangement", d, "build") for d in ARRANGEMENT_DATASETS],
      "`Arrangement`", "`Arrangement_2`"),
     ("Regularized union, two polygons",
-     [cell("regularizedunion", d, "union") for d in ("large + large", *SBPD_DATASETS)],
+     [cell("regularizedunion", d, "union") for d in ("large + large", "spg", "fpg-holes")],
      "`a.regularizedUnion(b)`{Polygon}",
      "`CGAL::join`"),
     ("Triangulation point location",
@@ -174,7 +175,7 @@ MINKOWSKI_NOTE = ("† CGAL runs its fastest method over the whole input range: 
                   "reduced convolution is faster below about 150 vertices, and "
                   "reduced convolution on fpg, spg and fpg-holes, where the "
                   "Hertel–Mehlhorn decomposition is faster on spg at 200 vertices.")
-UNION_NOTE = ("‡ CGAL's free `join` on the random polygons, fpg and fpg-holes, and "
+UNION_NOTE = ("‡ CGAL's free `join` on the random polygons and fpg-holes, and "
               "<code>General_polygon_set_2<wbr>::join</code> on spg, the faster "
               "of the two on each.")
 VISIBILITY_NOTE = ("§ The random polygon only. On fpg, spg and fpg-holes, EPICK "

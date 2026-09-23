@@ -17,25 +17,6 @@
 // coordinates drawn uniformly from a disk of diameter 5,000; joined in the
 // order drawn, the ring is untangled into a simple polygon by flipping crossing
 // edges, dropping the rare vertex that only touches another edge.
-// @dataset fpg: The edges of the polygon with n vertices of the Salzburg
-// Database of Polygonal Data's fpg set (triangulation perturbation), as
-// separate segments, so no two of them cross. Its coordinates, in
-// [-1500, 1500]², are scaled by 1,000 and rounded to integers. The database has
-// polygons of only some sizes; the sweep takes the nearest.
-// @dataset spg: The edges of the polygon with n vertices of the Salzburg
-// Database of Polygonal Data's spg set (line sweep and 2-opt moves on random
-// points), as separate segments, so no two of them cross. Its coordinates, in
-// the unit square with six decimals, are scaled by 1,000,000. The database has
-// polygons of only some sizes; the sweep takes the nearest.
-// @dataset fpg-holes: The edges of every ring of a polygon with holes with n
-// vertices in all, from the Salzburg Database of Polygonal Data's fpg set with
-// holes (triangulation perturbation), as separate segments, so no two of them
-// cross.
-// The database has several polygons whose outer ring has a given number of
-// vertices, with different numbers of holes; this is the one with the most.
-// Its coordinates, in [-1500, 1500]², are scaled by 100,000 and rounded to
-// integers. The database has polygons of only some sizes; the sweep takes the
-// nearest.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"
@@ -111,22 +92,6 @@ void run(const bench::Options& opt) {
     generated("sheared",       bench::kSegmentsSmall,   bench::shearedSegments);
     generated("large",         bench::kSegmentsLarge,   bench::largeSegments);
     generated("polygon edges", bench::kSegmentsPolygon, bench::polygonEdges);
-    for (const char* dataset : bench::kSbpdDatasets) {
-        if (!bench::matches(opt.dataset, dataset)) continue;
-        sweepDataset<Number>(opt, dataset,
-                             bench::sbpdSizes(dataset, bench::sweep(bench::kSegmentsPolygon, opt)),
-                             [dataset](int n) {
-                                 return bench::edgesOf(bench::sbpdPolygon(dataset, n));
-                             });
-    }
-    for (const char* dataset : bench::kSbpdRegionDatasets) {
-        if (!bench::matches(opt.dataset, dataset)) continue;
-        sweepDataset<Number>(opt, dataset,
-                             bench::sbpdSizes(dataset, bench::sweep(bench::kSegmentsPolygon, opt)),
-                             [dataset](int n) {
-                                 return bench::edgesOf(bench::sbpdRegion(dataset, n));
-                             });
-    }
 }
 
 }  // namespace

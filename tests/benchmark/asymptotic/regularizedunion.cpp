@@ -10,15 +10,10 @@
 // is drawn uniformly from a disk of diameter 5,000 and the other two are offset
 // from it by vectors drawn uniformly from a disk of the same size, so the
 // triangles overlap heavily.
-// @dataset fpg: The polygon with n vertices of the Salzburg Database of
-// Polygonal Data's fpg set (triangulation perturbation), and the same polygon
-// turned a quarter turn about the centre of its bounding box, since the
-// database has one polygon of each size. Its coordinates, in [-1500, 1500]²,
-// are scaled by 1,000 and rounded to integers. The database has polygons of
-// only some sizes; the sweep takes the nearest.
 // @dataset spg: The polygon with n vertices of the Salzburg Database of
 // Polygonal Data's spg set (line sweep and 2-opt moves on random points), and
-// the same polygon turned a quarter turn about the centre of its bounding box.
+// the same polygon turned a quarter turn about the centre of its bounding box,
+// since the database has one polygon of each size.
 // Its coordinates, in the unit square with six decimals, are scaled by
 // 1,000,000. The database has polygons of only some sizes; the sweep takes the
 // nearest.
@@ -105,9 +100,7 @@ int main(int argc, char** argv) {
     if (bench::matches(opt.type, "ERational")) {
         twoPolygons(opt);
         manyTriangles(opt);
-        for (const char* dataset : bench::kSbpdDatasets) {
-            sbpdPolygons(opt, dataset, bench::sbpdPolygon);
-        }
+        sbpdPolygons(opt, "spg", bench::sbpdPolygon);
         for (const char* dataset : bench::kSbpdRegionDatasets) {
             sbpdPolygons(opt, dataset, bench::sbpdRegion);
         }

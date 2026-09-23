@@ -90,14 +90,14 @@ constexpr std::array<int, kSamples> linearSizes(int max) {
 // the random points and euro-night, at the same sizes. Euro-night is a file of
 // 100,000 points, which no list of theirs may exceed.
 //
-// The categories over a polygon (intersection of line segments, visibility,
-// Minkowski sum, union) also sweep three polygon datasets from the Salzburg
-// Database, fpg, spg and fpg-holes, over their random polygon's list. The
-// database has polygons of only some sizes, so each size is snapped to the
-// nearest one it has (bench::sbpdSizes), and a list can come out shorter than
-// 32; and only the polygons those snapped lists reach are checked in. So kSegmentsPolygon,
-// kVisibility, kMinkowski and kUnionPair are coupled to data/sbpd-*.polygons:
-// after changing one of their maxima, rerun data/sbpd.py with the new maxima.
+// The categories over a polygon (visibility, Minkowski sum, union) also sweep
+// polygon datasets from the Salzburg Database, fpg, spg and fpg-holes (the
+// union without fpg), over their random polygon's list. The database has polygons of only some
+// sizes, so each size is snapped to the nearest one it has (bench::sbpdSizes),
+// and a list can come out shorter than 32; and only the polygons those snapped
+// lists reach are checked in. So kVisibility, kMinkowski and kUnionPair are
+// coupled to data/sbpd-*.polygons: after changing one of their maxima, rerun
+// data/sbpd.py with the new maxima.
 // The SBPD polygons cost nothing to generate, so they never set a ceiling;
 // they share the random polygon's list so that the curves span the same range.
 
