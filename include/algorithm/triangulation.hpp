@@ -4481,39 +4481,109 @@ struct Triangulation {
     // insertConstraint cannot force through. Every such vertex is spliced into
     // the loop, in order along the edge carrying it.
     //
-    // Only vertices of the *other* rings can obstruct an edge — a ring is simple,
-    // so a vertex of its own inside one of its edges would be a self-crossing —
-    // but scanning all of @p candidates is simpler. It tests every ring edge
-    // against every candidate, so it is quadratic in the ring vertices.
-    std::vector<VertexIndex> expandRing(const std::vector<VertexIndex>& ring,
-                                     const std::vector<VertexIndex>& candidates) const {
+    // The obstructing vertices are found by walking each edge through the mesh,
+    // which is the same walk collectCrossings makes when the edge is inserted,
+    // so this costs no more than inserting the constraints does.
+    std::vector<VertexIndex> expandRing(const std::vector<VertexIndex>& ring) const {
         std::vector<VertexIndex> expanded;
         expanded.reserve(ring.size());
-        std::vector<VertexIndex> onEdge;
         for (std::size_t i = 0; i < ring.size(); ++i) {
             const VertexIndex a = ring[i];
             const VertexIndex b = ring[(i + 1) % ring.size()];
             expanded.push_back(a);
-            const SegmentType edge(vertices_[a], vertices_[b]);
-            onEdge.clear();
-            for (const VertexIndex v : candidates) {
-                if (v != a && v != b && edge.contains(vertices_[v])) {
-                    onEdge.push_back(v);
-                }
-            }
-            if (onEdge.empty()) {
-                continue;
-            }
-            // The obstructing vertices are collinear with the edge, so ordering
-            // them lexicographically orders them along it, forward or backward.
-            std::sort(onEdge.begin(), onEdge.end(),
-                      [this](VertexIndex p, VertexIndex q) { return vertices_[p] < vertices_[q]; });
-            if (vertices_[b] < vertices_[a]) {
-                std::reverse(onEdge.begin(), onEdge.end());
-            }
-            expanded.insert(expanded.end(), onEdge.begin(), onEdge.end());
+            appendVerticesInside(a, b, expanded);
         }
         return expanded;
+    }
+
+    // Appends, in order from va to vb, every vertex in the relative interior of
+    // the segment va->vb. Walks the triangles the segment crosses; where it runs
+    // into a vertex instead of crossing an edge, that vertex is on it, and the
+    // walk resumes from there.
+    void appendVerticesInside(VertexIndex va, VertexIndex vb,
+                              std::vector<VertexIndex>& out) const {
+        const PointType& A = vertices_[va];
+        const PointType& B = vertices_[vb];
+        const bool increasing = A < B;
+        const auto side = [&](VertexIndex w) {
+            const auto order = orientationSign(A, B, vertices_[w]);
+            return order > 0 ? 1 : (order < 0 ? -1 : 0);
+        };
+
+        VertexIndex current = va;
+        while (current != vb) {
+            // Leaving `current`: along a fan edge that runs down the segment, or
+            // into the one fan triangle whose opposite side the segment crosses.
+            VertexIndex onEdge = GHOST;
+            TriIndex entry = NO_TRI;
+            int entrySide = 0;
+            const auto leave = [&](TriIndex k) {
+                if (onEdge != GHOST || entry != NO_TRI || k == NO_TRI || isGhost(k)) {
+                    return;
+                }
+                const auto& v = triangles_[k].v;
+                const int i = localIndex(k, current);
+                const VertexIndex clockwise = v[(i + 1) % 3];
+                const VertexIndex counter = v[(i + 2) % 3];
+                const int fromClockwise = side(clockwise);
+                const int fromCounter = side(counter);
+                // Collinear points lie along the segment in lexicographic order,
+                // so that order tells forward from backward.
+                const PointType& here = vertices_[current];
+                if (fromClockwise == 0 && (here < vertices_[clockwise]) == increasing) {
+                    onEdge = clockwise;
+                } else if (fromCounter == 0 && (here < vertices_[counter]) == increasing) {
+                    onEdge = counter;
+                } else if (fromClockwise < 0 && fromCounter > 0) {
+                    entry = k;
+                    entrySide = i;
+                }
+            };
+            const TriIndex seed = incidentTriangleOf(current);
+            if (seed != NO_TRI) {
+                visitVertexFan(seed, current, leave);
+            } else {
+                for (TriIndex k = 0; k < firstGhost_ && onEdge == GHOST && entry == NO_TRI; ++k) {
+                    const auto& v = triangles_[k].v;
+                    if (v[0] == current || v[1] == current || v[2] == current) {
+                        leave(k);
+                    }
+                }
+            }
+            if (onEdge == GHOST) {
+                if (entry == NO_TRI) {
+                    return;  // not a valid mesh around `current`
+                }
+                // Straight walk. The segment entered through the relative
+                // interior of the shared side, so the apex settles which of the
+                // other two sides it leaves by, unless it runs into the apex.
+                TriIndex tri = triangles_[entry].nbr[entrySide];
+                int back = findSide(tri, entry);
+                std::size_t guard = 0;
+                const std::size_t cap = triangles_.size() + 1;
+                for (;;) {
+                    if (tri == NO_TRI || isGhost(tri) || ++guard > cap) {
+                        return;  // not a valid mesh along the segment
+                    }
+                    const auto& v = triangles_[tri].v;
+                    const VertexIndex apex = v[back];
+                    const int fromApex = side(apex);
+                    if (fromApex == 0) {
+                        onEdge = apex;
+                        break;
+                    }
+                    const int leaving =
+                        fromApex == side(v[(back + 1) % 3]) ? (back + 1) % 3 : (back + 2) % 3;
+                    const TriIndex next = triangles_[tri].nbr[leaving];
+                    back = next == NO_TRI ? 0 : findSide(next, tri);
+                    tri = next;
+                }
+            }
+            if (onEdge != vb) {
+                out.push_back(onEdge);
+            }
+            current = onEdge;
+        }
     }
 
     // The triangle lying to the left of the directed edge a -> b, or NO_TRI when
@@ -5651,20 +5721,13 @@ struct Triangulation {
 
         // Where rings touch, one ring's vertex can sit inside another ring's
         // edge; splice those in so every constrained edge is unobstructed. Only
-        // several rings can produce them, so a lone polygon skips the scan.
+        // several rings can produce them, so a lone polygon skips the walk.
         if (!holes.empty() || outers.size() > 1) {
-            std::vector<VertexIndex> ringVertices;
-            for (const auto& ring : outerLoops) {
-                ringVertices.insert(ringVertices.end(), ring.begin(), ring.end());
-            }
-            for (const auto& ring : holeLoops) {
-                ringVertices.insert(ringVertices.end(), ring.begin(), ring.end());
-            }
             for (auto& ring : outerLoops) {
-                ring = expandRing(ring, ringVertices);
+                ring = expandRing(ring);
             }
             for (auto& ring : holeLoops) {
-                ring = expandRing(ring, ringVertices);
+                ring = expandRing(ring);
             }
         }
 
