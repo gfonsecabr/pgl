@@ -254,19 +254,6 @@ private:
         return r;
     }
 
-    /// @brief Shift a magnitude left by one bit in place.
-    static void shiftLeftOneMag(Limbs& v) {
-        pgl::int128 carry = 0;
-        for (pgl::int128& limb : v) {
-            const pgl::int128 next = limb >> (kLimbBits - 1);
-            limb = ((limb << 1) & limbMask()) | carry;
-            carry = next;
-        }
-        if (carry != 0) {
-            v.push_back(carry);
-        }
-    }
-
     /// @brief Multiply two magnitudes (schoolbook).
     static Limbs mulMag(const Limbs& a, const Limbs& b) {
         if (a.empty() || b.empty()) {
@@ -296,32 +283,15 @@ private:
         return n;
     }
 
-    /// @brief Number of bits needed to represent a magnitude (0 for zero).
-    static std::size_t bitLengthMag(const Limbs& v) {
-        if (v.empty()) {
-            return 0;
-        }
-        return (v.size() - 1) * kLimbBits + static_cast<std::size_t>(topBit(v.back())) + 1;
-    }
-
-    /// @brief Test bit @p i of a magnitude.
-    static bool testBitMag(const Limbs& v, std::size_t i) {
-        const std::size_t limb = i / kLimbBits;
-        const std::size_t off = i % kLimbBits;
-        if (limb >= v.size()) {
-            return false;
-        }
-        return ((v[limb] >> static_cast<int>(off)) & 1) != 0;
-    }
-
     /// @brief Magnitude division with remainder.
     ///
     /// The divisor must be non-zero. Returns { quotient, remainder }. A divisor
     /// of a single limb takes one 124-by-62-bit division per limb of the
     /// dividend, which is what the decimal printer and a gcd against a narrow
-    /// value run. A wider divisor is divided bit by bit, the remainder shifted
-    /// and reduced in place and the quotient bits set where they land, so no
-    /// step allocates. This only runs once a magnitude exceeds 128 bits.
+    /// value run. A wider divisor takes long division a limb at a time, so a
+    /// quotient of q limbs by a divisor of k costs O(q·k) limb operations rather
+    /// than one pass over the remainder per bit. This only runs once a
+    /// magnitude exceeds 128 bits.
     static std::pair<Limbs, Limbs> divmodMag(const Limbs& n, const Limbs& d) {
         if (cmpMag(n, d) < 0) {
             return {Limbs(), n};
@@ -343,20 +313,77 @@ private:
             }
             return {std::move(q), std::move(r)};
         }
-        Limbs r;
-        r.reserve(d.size() + 1);
-        for (std::size_t bit = bitLengthMag(n); bit-- > 0;) {
-            shiftLeftOneMag(r);
-            if (testBitMag(n, bit)) {
-                if (r.empty()) {
-                    r.push_back(pgl::int128(0));
+        // Knuth's algorithm D (TAOCP 4.3.1) in base 2^62: normalize so the
+        // divisor's top limb has its high bit set, then estimate each quotient
+        // limb from the top two limbs of the running remainder, correct it with
+        // the divisor's second limb, and multiply-subtract, adding back in the
+        // rare case the estimate was still one too large.
+        const std::size_t k = d.size();
+        const std::size_t m = n.size() - k;
+        const int shift = kLimbBits - 1 - topBit(d.back());
+        const pgl::int128 mask = limbMask();
+        const auto shifted = [&](const Limbs& v, std::size_t size) {
+            Limbs out(size, pgl::int128(0));
+            pgl::int128 carry = 0;
+            for (std::size_t i = 0; i < v.size(); ++i) {
+                const pgl::int128 wide = (v[i] << shift) | carry;
+                out[i] = wide & mask;
+                carry = wide >> kLimbBits;
+            }
+            if (v.size() < size) {
+                out[v.size()] = carry;
+            }
+            return out;
+        };
+        const Limbs v = shifted(d, k);
+        Limbs u = shifted(n, n.size() + 1);
+        const pgl::int128 b = base();
+        for (std::size_t j = m + 1; j-- > 0;) {
+            const pgl::int128 top = (u[j + k] << kLimbBits) | u[j + k - 1];
+            pgl::int128 qhat = top / v[k - 1];
+            pgl::int128 rhat = top % v[k - 1];
+            while (qhat >= b || qhat * v[k - 2] > ((rhat << kLimbBits) | u[j + k - 2])) {
+                --qhat;
+                rhat += v[k - 1];
+                if (rhat >= b) {
+                    break;
                 }
-                r[0] |= pgl::int128(1);
             }
-            if (cmpMag(r, d) >= 0) {
-                subMagInPlace(r, d);
-                q[bit / kLimbBits] |= pgl::int128(1) << static_cast<int>(bit % kLimbBits);
+            pgl::int128 carry = 0;
+            pgl::int128 borrow = 0;
+            for (std::size_t i = 0; i < k; ++i) {
+                const pgl::int128 product = qhat * v[i] + carry;
+                carry = product >> kLimbBits;
+                const pgl::int128 take = (product & mask) + borrow;
+                if (u[i + j] >= take) {
+                    u[i + j] -= take;
+                    borrow = 0;
+                } else {
+                    u[i + j] = u[i + j] + b - take;
+                    borrow = 1;
+                }
             }
+            const pgl::int128 take = carry + borrow;
+            if (u[j + k] >= take) {
+                u[j + k] -= take;
+            } else {
+                // One too many: add the divisor back, which absorbs the deficit
+                // in the top limb.
+                --qhat;
+                pgl::int128 back = 0;
+                for (std::size_t i = 0; i < k; ++i) {
+                    const pgl::int128 sum = u[i + j] + v[i] + back;
+                    u[i + j] = sum & mask;
+                    back = sum >> kLimbBits;
+                }
+                u[j + k] = u[j + k] - take + back;
+            }
+            q[j] = qhat;
+        }
+        Limbs r(k, pgl::int128(0));
+        for (std::size_t i = 0; i < k; ++i) {
+            const pgl::int128 high = i + 1 < k ? u[i + 1] : pgl::int128(0);
+            r[i] = ((u[i] >> shift) | (high << (kLimbBits - shift))) & mask;
         }
         trim(q);
         trim(r);
