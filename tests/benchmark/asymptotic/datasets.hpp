@@ -31,6 +31,14 @@
 // points, so every size of the sweep is a uniform sample of the same picture and
 // each is a prefix of the next.
 //
+// Nor are three polygon datasets taken from the Salzburg Database of Polygonal
+// Data (SBPD, release sbgdb-20200507): fpg and spg, simple polygons, and
+// fpg-holes, polygons with holes, read from data/sbpd-<name>.polygons as
+// written by data/sbpd.py. The database has one polygon per size, at sizes of
+// its own choosing, so a sweep over any of them snaps each size of its list to
+// the nearest size the file holds (sbpdSizes), and the file keeps only the
+// sizes the checked-in lists snap to.
+//
 #include "../randomshapes.hpp"
 
 #include <algorithm>
@@ -39,9 +47,12 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
+#include <map>
 #include <set>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace bench {
@@ -51,7 +62,20 @@ using IntSegment   = pgl::Segment<IntPoint>;
 using IntTriangle  = pgl::Triangle<IntPoint>;
 using IntRectangle = pgl::Rectangle<IntPoint>;
 using IntPolygon   = pgl::Polygon<IntPoint>;
+using IntRegion    = pgl::PolygonWithHoles<IntPoint>;
 using IntShape     = pgl::Shape<IntPoint>;
+
+// An `int` dataset shape over another number type: what a driver converts the
+// generated shape into.
+template <class Shape, class Number> struct Retyped;
+template <class Number> struct Retyped<IntPolygon, Number> {
+    using type = pgl::Polygon<pgl::Point<Number>>;
+};
+template <class Number> struct Retyped<IntRegion, Number> {
+    using type = pgl::PolygonWithHoles<pgl::Point<Number>>;
+};
+template <class Shape, class Number>
+using retyped_t = typename Retyped<Shape, Number>::type;
 
 // n distinct random points in the large disk.
 inline std::vector<IntPoint> randomPoints(int n) {
@@ -190,11 +214,12 @@ inline pgl::Convex<IntPoint> smallConvex() {
     return randomSmallConvexes<int>(1, 1000).front();
 }
 
-// `count` points strictly inside `polygon`, rejection-sampled from its bounding
-// box. Drawn per polygon, since a point inside one means nothing for another,
+// `count` points strictly inside `polygon` (a Polygon or a PolygonWithHoles),
+// rejection-sampled from its bounding box. Drawn per polygon, since a point inside one means nothing for another,
 // and drawn on the integer polygon so that converting gives the ERational run —
 // and the CGAL baseline — the identical queries.
-inline std::vector<IntPoint> interiorPoints(const IntPolygon& polygon, int count) {
+template <class Shape>
+std::vector<IntPoint> interiorPoints(const Shape& polygon, int count) {
     const auto box = polygon.bbox();
     Rng rng{12345};
     const int width  = box.max().x() - box.min().x();
@@ -326,16 +351,182 @@ inline const std::vector<PointDataset>& pointDatasets() {
     return datasets;
 }
 
-// The polygon's boundary as independent segments — a dataset of n segments that,
-// unlike smallSegments/largeSegments, has no crossings at all.
-inline std::vector<IntSegment> polygonEdges(int m) {
-    const IntPolygon polygon = randomPolygon(m);
+// A polygon's or a region's boundary as independent segments.
+template <class Shape>
+std::vector<IntSegment> edgesOf(const Shape& polygon) {
     std::vector<IntSegment> edges;
-    edges.reserve(polygon.vertices().size());
     for (const auto& e : polygon.edges()) {
         edges.emplace_back(e[0], e[1]);
     }
     return edges;
+}
+
+// The polygon's boundary as independent segments — a dataset of n segments that,
+// unlike smallSegments/largeSegments, has no crossings at all.
+inline std::vector<IntSegment> polygonEdges(int m) {
+    return edgesOf(randomPolygon(m));
+}
+
+// ---------------------------------------------------------------------------
+// The SBPD polygons
+// ---------------------------------------------------------------------------
+
+// The SBPD datasets of simple polygons, and of polygons with holes. Their names
+// are also their files' suffixes.
+inline constexpr const char* kSbpdDatasets[] = {"fpg", "spg"};
+inline constexpr const char* kSbpdRegionDatasets[] = {"fpg-holes"};
+
+namespace detail {
+
+// One file's polygons, keyed by total vertex count, each a list of rings with
+// the outer ring first. A file of simple polygons writes each as `polygon <n>`
+// and its vertices; a file of polygons with holes writes `region <n>`, then
+// `ring <m>` and its vertices for every ring. Read once per process, and found
+// next to this header, as euro-night is.
+using SbpdRings = std::vector<std::vector<IntPoint>>;
+
+inline const std::map<int, SbpdRings>& sbpdFile(std::string_view name) {
+    static std::map<std::string, std::map<int, SbpdRings>, std::less<>> files;
+    if (const auto it = files.find(name); it != files.end()) {
+        return it->second;
+    }
+    const auto path = std::filesystem::path(__FILE__).parent_path() / "data" /
+                      ("sbpd-" + std::string(name) + ".polygons");
+    std::ifstream in(path);
+    if (!in) {
+        std::cerr << "cannot read the SBPD dataset at " << path << "\n";
+        std::exit(3);
+    }
+    std::map<int, SbpdRings> polygons;
+    SbpdRings* current = nullptr;
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        std::istringstream fields(line);
+        std::string keyword;
+        int n = 0, x = 0, y = 0;
+        if (line.starts_with("polygon") && fields >> keyword >> n) {
+            current = &polygons[n];
+            current->emplace_back();
+        } else if (line.starts_with("region") && fields >> keyword >> n) {
+            current = &polygons[n];
+        } else if (line.starts_with("ring") && current != nullptr && fields >> keyword >> n) {
+            current->emplace_back();
+        } else if (current != nullptr && !current->empty() && fields >> x >> y) {
+            current->back().emplace_back(x, y);
+        } else {
+            std::cerr << "malformed line in " << path << ": " << line << "\n";
+            std::exit(3);
+        }
+    }
+    for (const auto& [n, rings] : polygons) {
+        std::size_t total = 0;
+        for (const auto& ring : rings) total += ring.size();
+        if (static_cast<int>(total) != n) {
+            std::cerr << path << ": polygon " << n << " has " << total << " vertices\n";
+            std::exit(3);
+        }
+    }
+    return files.emplace(std::string(name), std::move(polygons)).first->second;
+}
+
+inline const SbpdRings& sbpdRings(std::string_view name, int n) {
+    const auto& polygons = sbpdFile(name);
+    const auto it = polygons.find(n);
+    if (it == polygons.end()) {
+        std::cerr << "the SBPD dataset " << name << " has no polygon of " << n
+                  << " vertices\n";
+        std::exit(3);
+    }
+    return it->second;
+}
+
+// The map (x, y) -> (cx - (y - cy), cy + (x - cx)), a quarter turn
+// counterclockwise about the lattice point nearest the box's centre.
+inline auto quarterTurnAbout(const IntRectangle& box) {
+    const int cx = (box.min().x() + box.max().x()) / 2;
+    const int cy = (box.min().y() + box.max().y()) / 2;
+    return [cx, cy](const IntPolygon& polygon) {
+        std::vector<IntPoint> turned;
+        turned.reserve(polygon.vertices().size());
+        for (const auto& p : polygon.vertices()) {
+            turned.emplace_back(cx - (p.y() - cy), cy + (p.x() - cx));
+        }
+        return IntPolygon(turned);
+    };
+}
+
+}  // namespace detail
+
+// `sizes` snapped to the sizes the dataset's file holds: each to the nearest,
+// the smaller on a tie, with repeats dropped. data/sbpd.py snaps the same way
+// when it chooses which polygons to keep.
+inline std::vector<int> sbpdSizes(std::string_view name, const std::vector<int>& sizes) {
+    const auto& polygons = detail::sbpdFile(name);
+    std::vector<int> snapped;
+    for (const int n : sizes) {
+        auto above = polygons.lower_bound(n);
+        int best = above == polygons.end() ? std::prev(above)->first : above->first;
+        if (above != polygons.begin() && n - std::prev(above)->first <= best - n) {
+            best = std::prev(above)->first;
+        }
+        if (snapped.empty() || snapped.back() != best) {
+            snapped.push_back(best);
+        }
+    }
+    return snapped;
+}
+
+// The dataset's polygon of exactly n vertices, which must be one of its sizes.
+// Rounding the database's coordinates to integers could in principle make a
+// ring touch itself, so each is checked simple here, outside any timed region.
+inline IntPolygon sbpdPolygon(std::string_view name, int n) {
+    const auto& rings = detail::sbpdRings(name, n);
+    if (rings.size() != 1) {
+        std::cerr << "the SBPD polygon " << name << " " << n << " has holes\n";
+        std::exit(3);
+    }
+    IntPolygon polygon(rings.front());
+    if (static_cast<int>(polygon.vertices().size()) != n || !polygon.isSimple()) {
+        std::cerr << "the SBPD polygon " << name << " " << n << " is not simple\n";
+        std::exit(3);
+    }
+    return polygon;
+}
+
+// The dataset's polygon with holes of exactly n vertices in all. Checked the
+// same way: no two of its edges meet except consecutive ones of a ring at their
+// shared vertex, which is exactly n meeting pairs, so every ring is simple and
+// the rings are pairwise disjoint; a hole cannot have left the outer ring
+// without crossing it.
+inline IntRegion sbpdRegion(std::string_view name, int n) {
+    const auto& rings = detail::sbpdRings(name, n);
+    std::vector<IntPolygon> holes(rings.begin() + 1, rings.end());
+    IntRegion region(IntPolygon(rings.front()), holes);
+    if (static_cast<int>(region.vertexCount()) != n ||
+        region.holes().size() != holes.size() ||
+        static_cast<int>(pgl::findIntersections(edgesOf(region)).size()) != n) {
+        std::cerr << "the SBPD region " << name << " " << n << " is not a valid region\n";
+        std::exit(3);
+    }
+    return region;
+}
+
+// The polygon turned a quarter turn counterclockwise about the lattice point
+// nearest its bounding box's centre: the second operand of the categories that
+// take two polygons, since the database has only one polygon of each size. It
+// covers the same box, so the two overlap as heavily as two independent draws
+// would, and the turn is exact on integers.
+inline IntPolygon quarterTurn(const IntPolygon& polygon) {
+    return detail::quarterTurnAbout(polygon.bbox())(polygon);
+}
+
+// The region turned the same way, every ring about the outer ring's centre.
+inline IntRegion quarterTurn(const IntRegion& region) {
+    const auto turn = detail::quarterTurnAbout(region.bbox());
+    std::vector<IntPolygon> holes;
+    for (const auto& hole : region.holes()) holes.push_back(turn(hole));
+    return IntRegion(turn(region.outer()), holes);
 }
 
 }  // namespace bench

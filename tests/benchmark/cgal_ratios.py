@@ -65,7 +65,9 @@ def cell(driver, dataset, problem, algorithms=None):
     return Cell(driver, dataset, problem, algorithms)
 
 
-SEGMENT_DATASETS = ("small", "large", "sheared", "polygon edges")
+# The Salzburg Database polygons, swept by every category over a polygon.
+SBPD_DATASETS = ("fpg", "spg", "fpg-holes")
+SEGMENT_DATASETS = ("small", "large", "sheared", "polygon edges", *SBPD_DATASETS)
 ARRANGEMENT_DATASETS = ("small segments", "large segments", "mixed", "voronoi")
 
 ROWS = [
@@ -75,7 +77,8 @@ ROWS = [
      "`findIntersections(v)`",
      "<code>compute_<wbr>intersection_points</code>"),
     ("Minkowski sum",
-     [cell("minkowskisum", d, "Minkowski sum") for d in ("large + large", "large + small")],
+     [cell("minkowskisum", d, "Minkowski sum")
+      for d in ("large + large", "large + small", *SBPD_DATASETS)],
      "`a.minkowskiSum(b)`{Polygon}",
      "`minkowski_sum_2`"),
     ("Delaunay triangulation",
@@ -89,8 +92,8 @@ ROWS = [
     ("Arrangement build",
      [cell("arrangement", d, "build") for d in ARRANGEMENT_DATASETS],
      "`Arrangement`", "`Arrangement_2`"),
-    ("Regularized union, large + large",
-     [cell("regularizedunion", "large + large", "union")],
+    ("Regularized union, two polygons",
+     [cell("regularizedunion", d, "union") for d in ("large + large", *SBPD_DATASETS)],
      "`a.regularizedUnion(b)`{Polygon}",
      "`CGAL::join`"),
     ("Triangulation point location",
@@ -121,7 +124,7 @@ ROWS = [
      "`a.buildPointLocation()`{Arrangement}",
      "<code>Arr_trapezoid_ric_<wbr>point_location</code>"),
     ("Visibility, visible vertices",
-     [cell("visibility", "polygon", "visible vertices")],
+     [cell("visibility", d, "visible vertices") for d in ("polygon", *SBPD_DATASETS)],
      "`t.visibleVertices(p)`{Triangulation}",
      "<code>Triangular_expansion_<wbr>visibility_2</code>"),
     ("Arrangement point location query",
@@ -148,8 +151,14 @@ COLUMNS = (("ERational", "EPECK"), ("int", "EPICK"))
 # column: EPICK loses intersection points there, while pgl's `int` sweep is
 # exact (see asymptotic/baseline/cgal.hpp). And the Minkowski sum, where the
 # baseline keeps CGAL's fastest method over the whole sweep rather than the
-# fastest at each size (see asymptotic/baseline/minkowskisum.cpp).
-FOOTNOTE = {("Segment intersection", 1): "\\*", ("Minkowski sum", 0): "†"}
+# fastest at each size (see asymptotic/baseline/minkowskisum.cpp). The union,
+# where the fastest CGAL method differs by dataset (see
+# asymptotic/baseline/regularizedunion.cpp). And visibility's `int` column,
+# which covers the random polygon alone: EPICK fails on the SBPD polygons, so
+# the baseline runs them under EPECK only (see asymptotic/baseline/visibility.cpp).
+FOOTNOTE = {("Segment intersection", 1): "\\*", ("Minkowski sum", 0): "†",
+            ("Regularized union, two polygons", 0): "‡",
+            ("Visibility, visible vertices", 1): "§"}
 
 # The note the page prints under the table, and the ratio it quotes: pgl `int`
 # against EPECK, the kernel that computes the answer pgl computes. That ratio is
@@ -160,9 +169,16 @@ FOOTNOTE = {("Segment intersection", 1): "\\*", ("Minkowski sum", 0): "†"}
 FOOTNOTE_EXACT = ("Segment intersection", "int", "EPECK")
 NOTE = ("\\* CGAL's sweep line runs under EPICK here, which is not exact. "
         "pgl's `int` `findIntersections` is exact and {ratio} against EPECK.")
-MINKOWSKI_NOTE = ("† CGAL runs its fastest method over the whole input range, the "
-                  "Hertel–Mehlhorn decomposition. Its reduced convolution is "
-                  "faster below about 150 vertices.")
+MINKOWSKI_NOTE = ("† CGAL runs its fastest method over the whole input range: the "
+                  "Hertel–Mehlhorn decomposition on the random polygons, where its "
+                  "reduced convolution is faster below about 150 vertices, and "
+                  "reduced convolution on fpg, spg and fpg-holes, where the "
+                  "Hertel–Mehlhorn decomposition is faster on spg at 200 vertices.")
+UNION_NOTE = ("‡ CGAL's free `join` on the random polygons, fpg and fpg-holes, and "
+              "<code>General_polygon_set_2<wbr>::join</code> on spg, the faster "
+              "of the two on each.")
+VISIBILITY_NOTE = ("§ The random polygon only. On fpg, spg and fpg-holes, EPICK "
+                   "answers wrongly or throws, so CGAL runs them under EPECK alone.")
 
 
 # ── Loading ──────────────────────────────────────────────────────────────────
@@ -395,7 +411,8 @@ def main():
         exact = row_ratio(row[1], commit, pgl, baselines, pgl_number, cgal_number)
         if exact:
             print("\n" + NOTE.format(ratio=render(exact)))
-    print("\n" + MINKOWSKI_NOTE)
+    for note in (MINKOWSKI_NOTE, UNION_NOTE, VISIBILITY_NOTE):
+        print("\n" + note)
 
 
 if __name__ == "__main__":

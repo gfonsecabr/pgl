@@ -58,8 +58,7 @@
 //
 // EPICK — exact predicates, inexact constructions — is the analogue of pgl's
 // `int`, and is CGAL's canonical kernel for the predicate-only structures:
-// convex hulls, Delaunay triangulations, kd-trees, AABB trees, and — less
-// obviously, see visibility.cpp — triangular-expansion visibility. Nothing
+// convex hulls, Delaunay triangulations, kd-trees and AABB trees. Nothing
 // there constructs a point that is later tested; every decision is an
 // orientation, an in-circle, a coordinate comparison or a squared distance
 // evaluated on the input coordinates themselves. Those are exact under EPICK's
@@ -80,6 +79,13 @@
 // so the first time it was recorded. Segment intersections is where that check
 // fires rather than passing, which is exactly why its EPICK curve carries the
 // word inexact everywhere it appears.
+//
+// Visibility is the other place it fired. Triangular-expansion visibility was
+// taken for predicate-only, and the two kernels agree at every size of the
+// random polygon; but on the SBPD polygons EPICK differs from EPECK or throws
+// at most sizes, so the expansion does test a point it constructs. Its EPICK
+// curve is kept for the random polygon alone, and the SBPD datasets run under
+// EPECK only; see visibility.cpp.
 //
 // The difference the choice makes is not a few percent of predicate cost. An
 // EPECK `Search_traits_2` or `AABB_traits_2` stores `Lazy_exact_nt`
@@ -106,6 +112,7 @@ using Kernel      = CGAL::Exact_predicates_exact_constructions_kernel;
 using Inexact     = CGAL::Exact_predicates_inexact_constructions_kernel;
 using Point       = Kernel::Point_2;
 using PolygonType = CGAL::Polygon_2<Kernel>;
+using RegionType  = CGAL::Polygon_with_holes_2<Kernel>;
 
 // The number column of a baseline row: the kernel that produced it. EPECK is
 // the default because a driver that constructs geometry has no other choice;
@@ -161,6 +168,31 @@ inline CGAL::Polygon_2<K> polygon(const IntPolygon& in) {
         out.reverse_orientation();
     }
     return out;
+}
+
+// A region: the outer ring counter-clockwise and every hole clockwise, as
+// CGAL's Boolean and Minkowski operations want them.
+template <class K = Kernel>
+inline CGAL::Polygon_with_holes_2<K> polygonWithHoles(const IntRegion& in) {
+    CGAL::Polygon_with_holes_2<K> out(polygon<K>(in.outer()));
+    for (const auto& hole : in.holes()) {
+        auto ring = polygon<K>(hole);
+        ring.reverse_orientation();
+        out.add_hole(std::move(ring));
+    }
+    return out;
+}
+
+// Either shape of dataset, as the CGAL type that holds it.
+template <class K = Kernel>
+inline CGAL::Polygon_2<K> toCgal(const IntPolygon& in) { return polygon<K>(in); }
+template <class K = Kernel>
+inline CGAL::Polygon_with_holes_2<K> toCgal(const IntRegion& in) { return polygonWithHoles<K>(in); }
+
+/** Number of vertices of a CGAL polygon. */
+template <class K>
+inline long long vertexCount(const CGAL::Polygon_2<K>& polygon) {
+    return static_cast<long long>(polygon.size());
 }
 
 /** Total number of vertices over a CGAL region's outer ring and holes. */

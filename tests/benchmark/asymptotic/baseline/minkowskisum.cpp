@@ -13,6 +13,14 @@
 // only the polygon (Hertel–Mehlhorn, small-side angle bisector, vertical,
 // triangulation, each with Polygon_nop_decomposition_2 for the convex operand).
 //
+// The SBPD datasets sum a polygon with its own quarter turn, and there too the
+// reference is reduced convolution: summed over each dataset's sweep it beats
+// Hertel–Mehlhorn pieces of both operands by about a third on fpg and a
+// twentieth on spg, though the pieces are level on fpg and ahead on spg at the
+// top size, 200. On fpg-holes, which Hertel–Mehlhorn cannot decompose, it
+// beats the decompositions that take holes, vertical and triangulation, about
+// 25 times over.
+//
 // It reports the total number of boundary vertices, which is what pgl's driver
 // reports, and must agree with pgl at every size.
 #include "cgal.hpp"
@@ -22,23 +30,24 @@
 #include <CGAL/Polygon_with_holes_2.h>
 #include <CGAL/minkowski_sum_2.h>
 
-#include <span>
+#include <vector>
 
 namespace {
 
 using bench::cgal::PolygonType;
 using ConvexPieces = CGAL::Hertel_Mehlhorn_convex_decomposition_2<bench::cgal::Kernel>;
 
-template <class Operand, class Sum>
+template <class First, class Second, class Sum>
 void sweepDataset(const bench::Options& opt, const char* dataset,
-                  std::span<const int> sizes, const char* algorithm,
-                  Operand operand, Sum sum) {
+                  const std::vector<int>& sizes, const char* algorithm,
+                  First first, Second second, Sum sum) {
     if (!bench::matches(opt.dataset, dataset)) return;
     if (!bench::matches(opt.problem, "Minkowski sum")) return;
 
-    for (const int n : bench::sweep(sizes, opt)) {
-        const auto a = bench::cgal::polygon(bench::randomPolygon(n, 1));
-        const auto b = bench::cgal::polygon(operand(n));
+    for (const int n : sizes) {
+        const auto source = first(n);
+        const auto a = bench::cgal::toCgal(source);
+        const auto b = bench::cgal::toCgal(second(n, source));
 
         long long result = 0;
         const double us = bench::timeOnce(result,
@@ -53,7 +62,8 @@ auto byPieces(const PolygonType& a, const PolygonType& b) {
     return CGAL::minkowski_sum_2(a, b, pieces);
 }
 
-auto byReducedConvolution(const PolygonType& a, const PolygonType& b) {
+template <class Operand>
+auto byReducedConvolution(const Operand& a, const Operand& b) {
     return CGAL::minkowski_sum_by_reduced_convolution_2(a, b);
 }
 
@@ -62,15 +72,33 @@ auto byReducedConvolution(const PolygonType& a, const PolygonType& b) {
 int main(int argc, char** argv) {
     const auto opt = bench::parseOptions(argc, argv);
     bench::header();
-    sweepDataset(opt, "large + large", bench::kMinkowski,
-                 "CGAL::minkowski_sum_2 (Hertel_Mehlhorn)",
-                 [](int n) { return bench::randomPolygon(n, 2); }, byPieces);
-    sweepDataset(opt, "large + small", bench::kMinkowski,
-                 "CGAL::minkowski_sum_2 (Hertel_Mehlhorn)",
-                 [](int n) { return bench::randomSmallPolygon(n, 2); }, byPieces);
+    const auto sizes = bench::sweep(bench::kMinkowski, opt);
+    const auto random = [](int n) { return bench::randomPolygon(n, 1); };
+    sweepDataset(opt, "large + large", sizes,
+                 "CGAL::minkowski_sum_2 (Hertel_Mehlhorn)", random,
+                 [](int n, const auto&) { return bench::randomPolygon(n, 2); }, byPieces);
+    sweepDataset(opt, "large + small", sizes,
+                 "CGAL::minkowski_sum_2 (Hertel_Mehlhorn)", random,
+                 [](int n, const auto&) { return bench::randomSmallPolygon(n, 2); }, byPieces);
     const bench::IntPolygon convex = bench::smallConvex().asPolygon();
-    sweepDataset(opt, "large + convex", bench::kMinkowski,
-                 "CGAL::minkowski_sum_2 (reduced convolution)",
-                 [&](int) { return convex; }, byReducedConvolution);
+    sweepDataset(opt, "large + convex", sizes,
+                 "CGAL::minkowski_sum_2 (reduced convolution)", random,
+                 [&](int, const auto&) { return convex; }, byReducedConvolution<PolygonType>);
+    for (const char* dataset : bench::kSbpdDatasets) {
+        if (!bench::matches(opt.dataset, dataset)) continue;
+        sweepDataset(opt, dataset, bench::sbpdSizes(dataset, sizes),
+                     "CGAL::minkowski_sum_2 (reduced convolution)",
+                     [dataset](int n) { return bench::sbpdPolygon(dataset, n); },
+                     [](int, const bench::IntPolygon& a) { return bench::quarterTurn(a); },
+                     byReducedConvolution<PolygonType>);
+    }
+    for (const char* dataset : bench::kSbpdRegionDatasets) {
+        if (!bench::matches(opt.dataset, dataset)) continue;
+        sweepDataset(opt, dataset, bench::sbpdSizes(dataset, sizes),
+                     "CGAL::minkowski_sum_2 (reduced convolution)",
+                     [dataset](int n) { return bench::sbpdRegion(dataset, n); },
+                     [](int, const bench::IntRegion& a) { return bench::quarterTurn(a); },
+                     byReducedConvolution<bench::cgal::RegionType>);
+    }
     return 0;
 }

@@ -244,7 +244,7 @@ def split_initial_pairs(pairs: dict):
 # find one by name.
 DATASET_ORDER = ["random", "euro-night", "small segments", "small", "sheared", "large segments", "large",
                  "mixed", "voronoi", "polygon edges", "polygon", "large + large", "large + small",
-                 "large + convex", "triangles"]
+                 "large + convex", "triangles", "fpg", "spg", "fpg-holes"]
 PROBLEM_ORDER = ["build", "buildPointLocation", "locate", "locateFace",
                  "closest pair", "convex hull", "sort by angle", "Delaunay",
                  "kd-tree", "order 1", "order 2", "order 4", "farthest",

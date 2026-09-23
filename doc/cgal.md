@@ -84,8 +84,8 @@ The numbers come from the [asymptotic benchmarks](https://gfonsecabr.github.io/p
 
 #### Methodology
 
-- Both libraries are handed the identical input: the benchmark generates every dataset once, with `int` coordinates, and converts. The CGAL drivers live in `tests/benchmark/asymptotic/baseline/` beside the pgl ones.
-- Each ratio is pgl time divided by CGAL time, taking the best algorithm CGAL offers on average over the size range. **Below 1 means pgl is faster.** The table gives the median over the 32 sizes of the input range and, in parentheses, the full range. A row covering more than one dataset averages the per-dataset medians, and its range spans them all.
+- Both libraries are handed the identical input: the benchmark generates or reads every dataset once, with `int` coordinates, and converts. The polygon rows include fpg, spg and fpg-holes, polygons and polygons with holes from the [Salzburg Database of Polygonal Data](https://sbgdb.cs.sbg.ac.at/) scaled to integer coordinates. The CGAL drivers live in `tests/benchmark/asymptotic/baseline/` beside the pgl ones.
+- Each ratio is pgl time divided by CGAL time, taking the best algorithm CGAL offers on average over the size range. **Below 1 means pgl is faster.** The table gives the median over the sizes of the input range (32, fewer for the Salzburg Database datasets, which exist only at some sizes) and, in parentheses, the full range. A row covering more than one dataset averages the per-dataset medians, and its range spans them all.
 - The two ratio columns are independent measurements, not one scaled by the other: each races a pgl number type against a comparable CGAL kernel.
 - Rows are ordered by the like-for-like `ERational` column, the one every row has, from CGAL's widest lead to pgl's.
 - Two machines, one run each, `g++ -std=c++23 -O2 -DNDEBUG`, CGAL 6.1.2. Each machine's pgl times are divided by its own CGAL times; the ratios are averaged over the machines, and the range spans both.
@@ -104,9 +104,9 @@ The results below are sorted by `ERational` / EPECK ratio, from the cases where 
 | Triangulation point-location build | $\textsf{1.2×}\textsf{ (1.0–1.3)}$ | ${\color{#8b0000}\textsf{1.5×}}\textsf{ (1.2–1.7)}$ | [`t.buildPointLocation()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangulation.html#a669c50019ef2407fe80b553bfada6a1f "Builds the point-location index: a Kirkpatrick hierarchy over this mesh.") | <code>Triangulation_<wbr>hierarchy_2</code> |
 | Arrangement build | $\textsf{1.1×}\textsf{ (0.46–2.0)}$ | — | [`Arrangement`](https://gfonsecabr.github.io/pgl/classpgl_1_1Arrangement.html "The planar subdivision induced by a set of one-dimensional shapes.") | `Arrangement_2` |
 | Segment search, count in Triangle | $\textsf{1.1×}\textsf{ (1.0–1.5)}$ | ${\color{#006400}\textsf{0.22×}}\textsf{ (0.14–0.26)}$ | [`ShapeTree`](https://gfonsecabr.github.io/pgl/classpgl_1_1ShapeTree.html "Shape tree of bounded shapes.") | `AABB_tree` |
-| Regularized union, large + large | $\textsf{0.95×}\textsf{ (0.88–1.1)}$ | — | [`a.regularizedUnion(b)`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#a3066fa00a91b8fa642125c56b8a2d5b7 "Returns the regularized union of the two shapes (A ∪ B).") | `CGAL::join` |
+| Regularized union, two polygons | $\textsf{0.95×}\textsf{ (0.88–1.1)}$‡ | — | [`a.regularizedUnion(b)`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#a3066fa00a91b8fa642125c56b8a2d5b7 "Returns the regularized union of the two shapes (A ∪ B).") | `CGAL::join` |
 | kd-tree build | $\textsf{0.89×}\textsf{ (0.60–1.4)}$ | ${\color{#8b0000}\textsf{1.7×}}\textsf{ (1.4–2.4)}$ | [`ShapeTree`](https://gfonsecabr.github.io/pgl/classpgl_1_1ShapeTree.html "Shape tree of bounded shapes.") | `Kd_tree` |
-| Visibility, visible vertices | $\textsf{0.86×}\textsf{ (0.54–1.3)}$ | ${\color{#006400}\textsf{0.72×}}\textsf{ (0.52–0.97)}$ | [`t.visibleVertices(p)`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangulation.html#a3ec93b7700354398247e96c0ee9ba4db "The mesh vertices visible from query.") | <code>Triangular_expansion_<wbr>visibility_2</code> |
+| Visibility, visible vertices | $\textsf{0.86×}\textsf{ (0.54–1.3)}$ | ${\color{#006400}\textsf{0.72×}}\textsf{ (0.52–0.97)}$§ | [`t.visibleVertices(p)`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangulation.html#a3ec93b7700354398247e96c0ee9ba4db "The mesh vertices visible from query.") | <code>Triangular_expansion_<wbr>visibility_2</code> |
 | Nearest neighbor query | $\textsf{0.82×}\textsf{ (0.60–1.1)}$ | ${\color{#8b0000}\textsf{1.9×}}\textsf{ (1.2–2.5)}$ | [`t.nearestNeighbor(p)`](https://gfonsecabr.github.io/pgl/classpgl_1_1ShapeTree.html#ab474ac9db17611ead980ea1ff63f3446 "Returns the stored shape nearest to a query shape.") | <code>Orthogonal_k_<wbr>neighbor_search</code> |
 | Segment search, count in Rectangle | ${\color{#006400}\textsf{0.68×}}\textsf{ (0.54–0.84)}$ | ${\color{#006400}\textsf{0.52×}}\textsf{ (0.36–0.70)}$ | [`ShapeTree`](https://gfonsecabr.github.io/pgl/classpgl_1_1ShapeTree.html "Shape tree of bounded shapes.") | `AABB_tree` |
 | Arrangement point-location build | ${\color{#006400}\textsf{0.61×}}\textsf{ (0.44–0.92)}$ | — | [`a.buildPointLocation()`](https://gfonsecabr.github.io/pgl/classpgl_1_1Arrangement.html#af73b4d7888dfb82faaabaf0156b208a5 "Builds the randomized trapezoidal point-location index.") | <code>Arr_trapezoid_ric_<wbr>point_location</code> |
@@ -117,7 +117,11 @@ The results below are sorted by `ERational` / EPECK ratio, from the cases where 
 
 \* CGAL's sweep line runs under EPICK here, which is not exact. pgl's `int` [`findIntersections`](https://gfonsecabr.github.io/pgl/namespacepgl.html#adcd493466342b027a48fe7bf0718434b "Finds all intersecting segment pairs.") is exact and 0.21× (0.06–0.44) against EPECK.
 
-† CGAL runs its fastest method over the whole input range, the Hertel–Mehlhorn decomposition. Its reduced convolution is faster below about 150 vertices.
+† CGAL runs its fastest method over the whole input range: the Hertel–Mehlhorn decomposition on the random polygons, where its reduced convolution is faster below about 150 vertices, and reduced convolution on fpg, spg and fpg-holes, where the Hertel–Mehlhorn decomposition is faster on spg at 200 vertices.
+
+‡ CGAL's free `join` on the random polygons, fpg and fpg-holes, and <code>General_polygon_set_2<wbr>::join</code> on spg, the faster of the two on each.
+
+§ The random polygon only. On fpg, spg and fpg-holes, EPICK answers wrongly or throws, so CGAL runs them under EPECK alone.
 
 #### What the numbers do not say
 

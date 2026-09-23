@@ -201,4 +201,4 @@ Run `python3 tests/benchmark/run_shapepairs.py --help` for the full option list.
 | `dashboard/`        | Static frontend (`index.html`, `asymptotic.html`, `app.js`, `style.css`) |
 | `history/` *(separate repo)* | Versioned JSONL: pair records at the top level, asymptotic under `history/asymptotic/`, plus one overwritten `asymptotic-baseline/<machine>.json` per machine |
 | `asymptotic/`       | Size-sweep drivers, the fixed size lists (`sizes.hpp`), the shared harness, and the CGAL `baseline/` |
-| `asymptotic/data/`  | `euro-night-0100000.instance`, the CG:SHOP 2019 point set behind the `euro-night` dataset, its point lines shuffled once; an n-point sample is its first n points |
+| `asymptotic/data/`  | `euro-night-0100000.instance`, the CG:SHOP 2019 point set behind the `euro-night` dataset, its point lines shuffled once; an n-point sample is its first n points. `sbpd-fpg.polygons`, `sbpd-spg.polygons` and `sbpd-fpg-holes.polygons`, the Salzburg Database polygons behind the `fpg`, `spg` and `fpg-holes` datasets, scaled to integers and kept only at the sizes the sweeps snap to, which `sbpd.py` extracts |

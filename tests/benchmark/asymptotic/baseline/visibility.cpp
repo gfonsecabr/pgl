@@ -28,6 +28,17 @@
 // reference for pgl's `int` column. Measured over the checked-in sweep, the two
 // kernels agree on every query -- both the visible-vertex count and the whole
 // region's size -- at all 32 sizes.
+//
+// That agreement does not carry over to the SBPD polygons. There EPICK's count
+// differs from EPECK's, and from pgl's, at 23 of fpg's 32 sizes, 1 of spg's 13
+// and 2 of fpg-holes' 32, and it throws CGAL::Bad_object_cast at the other 7
+// sizes of fpg and 30 of fpg-holes. The size of the coordinates cannot be the
+// reason, since EPICK's predicates fall back to exact arithmetic whenever their
+// filter cannot settle a sign; so the expansion does decide something on a
+// point it constructed, and the agreement above only says that nothing went
+// wrong on the random polygon. A throw ends the whole driver, and EPECK agrees
+// with pgl at every size of all three, so the SBPD datasets are swept under
+// EPECK alone.
 #include "cgal.hpp"
 #include "../sizes.hpp"
 
@@ -36,13 +47,13 @@
 #include <CGAL/Triangular_expansion_visibility_2.h>
 
 #include <set>
+#include <type_traits>
 #include <vector>
 
 namespace {
 
-template <class K>
-void run(const bench::Options& opt) {
-    if (!bench::cgal::selected<K>(opt)) return;
+template <class K, class Generate>
+void sweepDataset(const char* dataset, const std::vector<int>& sizes, Generate generate) {
     const char* number = bench::cgal::numberName<K>;
 
     using Point       = typename K::Point_2;
@@ -50,8 +61,8 @@ void run(const bench::Options& opt) {
     using Arrangement = CGAL::Arrangement_2<Traits>;
     using Visibility  = CGAL::Triangular_expansion_visibility_2<Arrangement>;
 
-    for (const int n : bench::sweep(bench::kVisibility, opt)) {
-        const auto polygon = bench::randomPolygon(n);
+    for (const int n : sizes) {
+        const auto polygon = generate(n);
         const auto queries = bench::cgal::points<K>(
             bench::interiorPoints(polygon, bench::kVisibilityQueries));
 
@@ -70,10 +81,16 @@ void run(const bench::Options& opt) {
         CGAL::insert(boundary, edges.begin(), edges.end());
 
         // A simple polygon's boundary splits the plane in two, so its interior
-        // is the one bounded face.
-        auto interior = boundary.faces_begin();
-        while (interior != boundary.faces_end() && interior->is_unbounded()) {
-            ++interior;
+        // is the one bounded face. A region's holes are bounded faces too, and
+        // its interior is the bounded face that has them as holes, the only one
+        // with any.
+        auto interior = boundary.faces_end();
+        for (auto f = boundary.faces_begin(); f != boundary.faces_end(); ++f) {
+            if (!f->is_unbounded() &&
+                (interior == boundary.faces_end() ||
+                 f->number_of_holes() > interior->number_of_holes())) {
+                interior = f;
+            }
         }
         bench::require(interior != boundary.faces_end(),
                        "the polygon's boundary has no bounded face");
@@ -92,9 +109,29 @@ void run(const bench::Options& opt) {
             }
             return total;
         });
-        bench::emit("Visibility", "polygon", "visible vertices",
+        bench::emit("Visibility", dataset, "visible vertices",
                     "CGAL::Triangular_expansion_visibility_2", number,
                     n, result, us / bench::kVisibilityQueries);
+    }
+}
+
+template <class K>
+void run(const bench::Options& opt) {
+    if (!bench::cgal::selected<K>(opt)) return;
+    if (bench::matches(opt.dataset, "polygon")) {
+        sweepDataset<K>("polygon", bench::sweep(bench::kVisibility, opt),
+                        [](int n) { return bench::randomPolygon(n); });
+    }
+    if (!std::is_same_v<K, bench::cgal::Kernel>) return;
+    for (const char* dataset : bench::kSbpdDatasets) {
+        if (!bench::matches(opt.dataset, dataset)) continue;
+        sweepDataset<K>(dataset, bench::sbpdSizes(dataset, bench::sweep(bench::kVisibility, opt)),
+                        [dataset](int n) { return bench::sbpdPolygon(dataset, n); });
+    }
+    for (const char* dataset : bench::kSbpdRegionDatasets) {
+        if (!bench::matches(opt.dataset, dataset)) continue;
+        sweepDataset<K>(dataset, bench::sbpdSizes(dataset, bench::sweep(bench::kVisibility, opt)),
+                        [dataset](int n) { return bench::sbpdRegion(dataset, n); });
     }
 }
 
@@ -103,7 +140,6 @@ void run(const bench::Options& opt) {
 int main(int argc, char** argv) {
     const auto opt = bench::parseOptions(argc, argv);
     bench::header();
-    if (!bench::matches(opt.dataset, "polygon")) return 0;
     if (!bench::matches(opt.problem, "visible vertices")) return 0;
     run<bench::cgal::Inexact>(opt);
     run<bench::cgal::Kernel>(opt);
