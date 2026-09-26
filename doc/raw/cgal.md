@@ -90,28 +90,28 @@ The numbers come from the [asymptotic benchmarks](https://gfonsecabr.github.io/p
 
 #### Results
 
-The results below are sorted by `ERational` / EPECK ratio, from the cases where CGAL is faster to the ones where CGAL is slower. On `ERational` / EPECK ratio the range goes from CGAL being 2.7× faster to pgl being 4.4× faster. On `int` / EPICK, the ratio goes from CGAL being 1.9× faster to pgl being 4.6× faster.
+The results below are sorted by `ERational` / EPECK ratio, from the cases where CGAL is faster to the ones where CGAL is slower. On `ERational` / EPECK ratio the range goes from CGAL being 2.6× faster to pgl being 4.4× faster. On `int` / EPICK, the ratio goes from CGAL being 1.8× faster to pgl being 4.8× faster.
 
 | Problem | `ERational` / EPECK | `int` / EPICK | pgl | CGAL |
 | --- | --- | --- | --- | --- |
-| Delaunay triangulation | ${\color{#8b0000}\textsf{2.7×}}\textsf{ (2.2–3.2)}$ | ${\color{#8b0000}\textsf{1.7×}}\textsf{ (1.5–2.4)}$ | `Triangulation` | `Delaunay_triangulation_2` |
-| Point search, count in Triangle | ${\color{#8b0000}\textsf{2.5×}}\textsf{ (1.5–3.0)}$ | ${\color{#006400}\textsf{0.22×}}\textsf{ (0.14–0.29)}$ | `ShapeTree` | `Kd_tree::search` |
-| Convex hull | ${\color{#8b0000}\textsf{1.8×}}\textsf{ (1.5–2.2)}$ | ${\color{#006400}\textsf{0.51×}}\textsf{ (0.41–0.69)}$ | `convexHull(v)` | `convex_hull_2` |
-| Triangulation point location | ${\color{#8b0000}\textsf{1.7×}}\textsf{ (1.5–2.7)}$ | $\textsf{0.97×}\textsf{ (0.86–1.2)}$ | `t.locate(p)`{Triangulation} | <code>Triangulation_hierarchy_2<wbr>::locate</code> |
-| Segment search build | $\textsf{1.2×}\textsf{ (0.75–2.2)}$ | ${\color{#8b0000}\textsf{1.8×}}\textsf{ (1.4–2.9)}$ | `ShapeTree` | `AABB_tree` |
-| Triangulation point-location build | $\textsf{1.2×}\textsf{ (1.1–1.3)}$ | ${\color{#8b0000}\textsf{1.5×}}\textsf{ (1.3–1.7)}$ | `t.buildPointLocation()`{Triangulation} | <code>Triangulation_<wbr>hierarchy_2</code> |
-| Arrangement build | $\textsf{1.1×}\textsf{ (0.48–2.0)}$ | — | `Arrangement` | `Arrangement_2` |
-| Segment search, count in Triangle | $\textsf{1.1×}\textsf{ (1.0–1.5)}$ | ${\color{#006400}\textsf{0.22×}}\textsf{ (0.14–0.26)}$ | `ShapeTree` | `AABB_tree` |
-| Minkowski sum | $\textsf{1.1×}\textsf{ (0.22–5.3)}$<abbr title="CGAL runs its fastest method over the whole input range: the Hertel–Mehlhorn decomposition on the random polygons, where its reduced convolution is faster below about 150 vertices, and reduced convolution on fpg, spg and fpg-holes, where the Hertel–Mehlhorn decomposition is faster on spg at 200 vertices.">†</abbr> | — | `a.minkowskiSum(b)`{Polygon} | `minkowski_sum_2` |
+| Delaunay triangulation | ${\color{#8b0000}\textsf{2.6×}}\textsf{ (2.2–3.1)}$ | ${\color{#8b0000}\textsf{1.7×}}\textsf{ (1.5–2.1)}$ | `Triangulation` | `Delaunay_triangulation_2` |
+| Point search, count in Triangle | ${\color{#8b0000}\textsf{2.4×}}\textsf{ (1.5–2.9)}$ | ${\color{#006400}\textsf{0.21×}}\textsf{ (0.14–0.24)}$ | `ShapeTree` | `Kd_tree::search` |
+| Convex hull | ${\color{#8b0000}\textsf{1.8×}}\textsf{ (1.5–2.2)}$ | ${\color{#006400}\textsf{0.51×}}\textsf{ (0.41–0.66)}$ | `convexHull(v)` | `convex_hull_2` |
+| Minkowski sum | ${\color{#8b0000}\textsf{1.7×}}\textsf{ (0.22–6.9)}$<abbr title="CGAL runs its fastest method over the whole input range: the Hertel–Mehlhorn decomposition on the random polygons, where its reduced convolution is faster below about 150 vertices, and reduced convolution on fpg, spg and fpg-holes, where the Hertel–Mehlhorn decomposition is faster on spg at 200 vertices.">†</abbr> | — | `a.minkowskiSum(b)`{Polygon} | `minkowski_sum_2` |
+| Triangulation point location | ${\color{#8b0000}\textsf{1.7×}}\textsf{ (1.4–2.4)}$ | $\textsf{0.96×}\textsf{ (0.47–1.2)}$ | `t.locate(p)`{Triangulation} | <code>Triangulation_hierarchy_2<wbr>::locate</code> |
+| Segment search build | $\textsf{1.2×}\textsf{ (0.75–2.0)}$ | ${\color{#8b0000}\textsf{1.8×}}\textsf{ (1.4–2.9)}$ | `ShapeTree` | `AABB_tree` |
+| Triangulation point-location build | $\textsf{1.2×}\textsf{ (1.1–1.3)}$ | ${\color{#8b0000}\textsf{1.4×}}\textsf{ (1.1–1.6)}$ | `t.buildPointLocation()`{Triangulation} | <code>Triangulation_<wbr>hierarchy_2</code> |
+| Arrangement build | $\textsf{1.1×}\textsf{ (0.47–2.1)}$ | — | `Arrangement` | `Arrangement_2` |
+| Segment search, count in Triangle | $\textsf{1.1×}\textsf{ (0.97–1.5)}$ | ${\color{#006400}\textsf{0.21×}}\textsf{ (0.17–0.25)}$ | `ShapeTree` | `AABB_tree` |
 | Regularized union, two polygons | $\textsf{0.93×}\textsf{ (0.65–1.4)}$<abbr title="CGAL's free join on the random polygons and fpg-holes, and General_polygon_set_2::join on spg, the faster of the two on each.">‡</abbr> | — | `a.regularizedUnion(b)`{Polygon} | `CGAL::join` |
-| Visibility, visible vertices | $\textsf{0.90×}\textsf{ (0.53–1.3)}$ | ${\color{#006400}\textsf{0.73×}}\textsf{ (0.52–0.96)}$<abbr title="The random polygon only. On fpg, spg and fpg-holes, EPICK answers wrongly or throws, so CGAL runs them under EPECK alone.">§</abbr> | `t.visibleVertices(p)`{Triangulation} | <code>Triangular_expansion_<wbr>visibility_2</code> |
-| kd-tree build | $\textsf{0.89×}\textsf{ (0.63–1.4)}$ | ${\color{#8b0000}\textsf{1.7×}}\textsf{ (1.4–2.4)}$ | `ShapeTree` | `Kd_tree` |
-| Nearest neighbor query | $\textsf{0.82×}\textsf{ (0.63–1.1)}$ | ${\color{#8b0000}\textsf{1.9×}}\textsf{ (1.2–2.5)}$ | `t.nearestNeighbor(p)`{ShapeTree} | <code>Orthogonal_k_<wbr>neighbor_search</code> |
-| Segment search, count in Rectangle | ${\color{#006400}\textsf{0.70×}}\textsf{ (0.59–0.84)}$ | ${\color{#006400}\textsf{0.52×}}\textsf{ (0.32–0.70)}$ | `ShapeTree` | `AABB_tree` |
-| Arrangement point-location build | ${\color{#006400}\textsf{0.62×}}\textsf{ (0.46–0.92)}$ | — | `a.buildPointLocation()`{Arrangement} | <code>Arr_trapezoid_ric_<wbr>point_location</code> |
-| Segment intersection | ${\color{#006400}\textsf{0.56×}}\textsf{ (0.19–1.8)}$ | ${\color{#006400}\textsf{0.36×}}\textsf{ (0.12–0.69)}$<abbr title="CGAL's sweep line runs under EPICK here, which is not exact. pgl's int findIntersections is exact and 0.20× (0.05–0.46) against EPECK.">*</abbr> | `findIntersections(v)` | <code>compute_<wbr>intersection_points</code> |
+| Visibility, visible vertices | $\textsf{0.90×}\textsf{ (0.53–1.2)}$ | ${\color{#006400}\textsf{0.73×}}\textsf{ (0.52–0.96)}$<abbr title="The random polygon only. On fpg, spg and fpg-holes, EPICK answers wrongly or throws, so CGAL runs them under EPECK alone.">§</abbr> | `t.visibleVertices(p)`{Triangulation} | <code>Triangular_expansion_<wbr>visibility_2</code> |
+| kd-tree build | $\textsf{0.88×}\textsf{ (0.63–1.4)}$ | ${\color{#8b0000}\textsf{1.7×}}\textsf{ (1.4–2.2)}$ | `ShapeTree` | `Kd_tree` |
+| Nearest neighbor query | $\textsf{0.82×}\textsf{ (0.63–1.1)}$ | ${\color{#8b0000}\textsf{1.8×}}\textsf{ (1.2–2.4)}$ | `t.nearestNeighbor(p)`{ShapeTree} | <code>Orthogonal_k_<wbr>neighbor_search</code> |
+| Segment search, count in Rectangle | ${\color{#006400}\textsf{0.68×}}\textsf{ (0.55–0.91)}$ | ${\color{#006400}\textsf{0.51×}}\textsf{ (0.32–0.69)}$ | `ShapeTree` | `AABB_tree` |
+| Arrangement point-location build | ${\color{#006400}\textsf{0.61×}}\textsf{ (0.46–0.87)}$ | — | `a.buildPointLocation()`{Arrangement} | <code>Arr_trapezoid_ric_<wbr>point_location</code> |
+| Segment intersection | ${\color{#006400}\textsf{0.55×}}\textsf{ (0.19–1.8)}$ | ${\color{#006400}\textsf{0.35×}}\textsf{ (0.12–0.69)}$<abbr title="CGAL's sweep line runs under EPICK here, which is not exact. pgl's int findIntersections is exact and 0.20× (0.05–0.46) against EPECK.">*</abbr> | `findIntersections(v)` | <code>compute_<wbr>intersection_points</code> |
 | Arrangement point location query | ${\color{#006400}\textsf{0.46×}}\textsf{ (0.32–0.84)}$ | — | `a.locateFace(p)`{Arrangement} | <code>Arr_trapezoid_ric_<wbr>point_location<wbr>::locate</code> |
-| Regularized union, triangles | ${\color{#006400}\textsf{0.23×}}\textsf{ (0.20–0.61)}$ | — | `regularizedUnionOf(v)` | <code>General_polygon_set_2<wbr>::join</code> |
+| Regularized union, triangles | ${\color{#006400}\textsf{0.23×}}\textsf{ (0.20–0.59)}$ | — | `regularizedUnionOf(v)` | <code>General_polygon_set_2<wbr>::join</code> |
 
 #### What the numbers do not say
 
