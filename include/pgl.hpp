@@ -83,6 +83,7 @@
 #include "algorithm/bitmatrix.hpp"
 #include "algorithm/triangulation.hpp"
 #include "implementation/visibilitygraph.hpp"
+#include "implementation/optimalconvexpartition.hpp"
 #include "algorithm/arrangement.hpp"
 #include "algorithm/voronoi.hpp"
 #include "implementation/booleans.hpp"

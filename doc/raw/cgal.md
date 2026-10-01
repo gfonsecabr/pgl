@@ -34,7 +34,7 @@ Both libraries are header-only, templated on the number type, and exact when tha
 - **Regularized Boolean operations on polygonal regions** — `regularizedUnion` and its siblings / `General_polygon_set_2`.
 - **Minkowski sum of polygons** — `minkowskiSum` / `minkowski_sum_2`.
 - **Visibility by triangular expansion** — `regularizedVisiblePolygon` / `Triangular_expansion_visibility_2`.
-- **Convex partition of a polygon** — `convexPartition`, within a factor of four of the fewest pieces / `Partition_2`, which also has the optimal and the y-monotone partitions.
+- **Convex partition of a polygon** — `convexPartition`, within a factor of four of the fewest pieces, and `optimalConvexPartition`, with the fewest / `Partition_2`, which also has the optimal and the y-monotone partitions.
 - **Smallest enclosing disk, rectangle and slab** — `smallestEnclosingDisk`, `c.smallestEnclosingRectangle()`{Convex} and `c.smallestEnclosingSlab()`{Convex} / `Min_circle_2`, `min_rectangle_2` and `min_strip_2`.
 - **Spatial search structures** — `ShapeTree` and `IntervalTree` / `Kd_tree`, `AABB_tree`, `Range_tree_2` and `Segment_tree`.
 

@@ -183,9 +183,18 @@ namespace detail {
  * the hull of the vertices is the answer only for a convex operand, and a chain
  * that bends is not one. A polyline of a single vertex has no edge and is that
  * vertex, which is the one shape whose decomposition is a lone point.
+ *
+ * A simple polygon is cut the cheaper way for what follows: `wholeVertices` is
+ * the size of the operand every piece is then summed against whole, and
+ * @ref minkowskiPolygonPartition decides from it; `0` means no such operand.
  */
+template <class PolygonType>
+std::vector<Convex<typename PolygonType::PointType>> minkowskiPolygonPartition(
+    const PolygonType& polygon, std::size_t wholeVertices);
+
 template <class Shape>
-std::vector<Convex<typename Shape::PointType>> minkowskiConvexPieces(const Shape& shape) {
+std::vector<Convex<typename Shape::PointType>> minkowskiConvexPieces(const Shape& shape,
+                                                                    std::size_t wholeVertices = 0) {
     using ShapePoint = typename Shape::PointType;
     using PieceConvex = Convex<ShapePoint>;
 
@@ -212,7 +221,12 @@ std::vector<Convex<typename Shape::PointType>> minkowskiConvexPieces(const Shape
             return pieces;
         }
         // Already canonical, and already `Convex`: no Graham scan to redo.
-        pieces = shape.convexPartition();
+        if constexpr (is_polygon_v<Shape>) {
+            pieces = minkowskiPolygonPartition(shape, wholeVertices);
+        } else {
+            pieces = shape.holes().empty() ? minkowskiPolygonPartition(shape.outer(), wholeVertices)
+                                           : shape.convexPartition();
+        }
         if constexpr (is_polygon_with_holes_v<Shape>) {
             for (const auto& slit : regionSlits(shape)) {
                 addEdge(slit);
@@ -238,6 +252,55 @@ std::vector<Convex<typename Shape::PointType>> minkowskiConvexPieces(const Shape
         add(std::move(vertices));
     }
     return pieces;
+}
+
+/**
+ * @brief The convex pieces of a simple polygon whose every piece is about to be
+ *        summed against an operand of @p wholeVertices vertices, by whichever
+ *        partition makes the whole sum cheaper.
+ *
+ * Each piece costs a convolution with the whole operand and a region in the
+ * union, so a partition with fewer pieces saves in proportion to the operand's
+ * size, and the optimal one (@ref Polygon::optimalConvexPartition) typically
+ * has 7-10% fewer pieces than Hertel-Mehlhorn's on random and database polygons
+ * and up to a third fewer on small ones, at a cost of its own. Two gates, both
+ * cheap, decide:
+ *
+ * - the operand has at least a tenth as many vertices as the polygon, or the
+ *   polygon's partition cannot be paid back by the sums;
+ * - the program's work on the visibility — the sum over the reflex vertices of
+ *   their squared numbers of diagonals — is at most `100·r·wholeVertices` for
+ *   `r` reflex vertices, which fails for polygons whose reflex vertices see many
+ *   others, a star's for instance. The visibility is built one reflex vertex at
+ *   a time and abandoned as soon as the sum passes the budget.
+ *
+ * Fitted on the sums of 292 pairs of simple polygons over `ERational`, with the
+ * decomposed one of 4 to 1000 vertices and the whole one of 5 to 300 (random
+ * polygons at two scales, the fpg and spg databases against their quarter
+ * turns, and stars), both branches timed on every pair: the rule runs within
+ * 0.2% of always taking the faster, where always taking Hertel-Mehlhorn's is
+ * 5% slower (up to 1.5x on small polygons) and always taking the optimal one
+ * 41% slower (up to 18x on stars); anything from 50 to 200 in the work gate and
+ * from 1/20 to 1/5 in the size gate does as well. The polygon is triangulated
+ * once either way: a partition turned down by the second gate comes from the
+ * same triangulation.
+ */
+template <class PolygonType>
+std::vector<Convex<typename PolygonType::PointType>> minkowskiPolygonPartition(
+    const PolygonType& polygon, std::size_t wholeVertices) {
+    if (10 * wholeVertices < polygon.size()) {
+        return polygon.convexPartition();
+    }
+    const PartitionRing<PolygonType> ring(polygon);
+    if (ring.reflexCount == 0) {
+        return polygon.convexPartition();
+    }
+    const long double budget = 100.0L * static_cast<long double>(ring.reflexCount) *
+                               static_cast<long double>(wholeVertices);
+    const long long maxWork = budget >= static_cast<long double>(std::numeric_limits<long long>::max())
+                                  ? std::numeric_limits<long long>::max()
+                                  : static_cast<long long>(budget);
+    return optimalConvexPieces(ring, polygon.triangulation(), maxWork);
 }
 
 /**
@@ -1721,7 +1784,8 @@ template <class ExactPoint, class Decomposed, class Whole>
 std::vector<PolygonWithHoles<ExactPoint>> minkowskiConvolvedPieces(const Decomposed& decomposed,
                                                                    const Whole& whole) {
     std::vector<PolygonWithHoles<ExactPoint>> regions;
-    for (const auto& piece : minkowskiConvexPieces(decomposed)) {
+    for (const auto& piece :
+         minkowskiConvexPieces(decomposed, minkowskiSimpleRing(whole).size())) {
         const PolygonSet<ExactPoint> sum = piece.size() >= 3
                                                ? minkowskiConvolutionSum<ExactPoint>(whole, piece)
                                                : regularizedMinkowskiSum<ExactPoint>(whole, piece);

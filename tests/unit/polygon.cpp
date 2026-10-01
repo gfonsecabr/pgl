@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <functional>
 #include <iterator>
+#include <map>
+#include <numeric>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -1380,4 +1382,301 @@ TEST_CASE("Polygon meets Polygon in a set of regions") {
         CHECK(cup.regularizedIntersection<int>(flat).empty());
         CHECK(flat.regularizedIntersection<int>(cup).empty());
     }
+}
+
+// ---------------------------------------------------------------------------
+// optimalConvexPartition
+
+namespace {
+
+using IntPoint = pgl::Point<int>;
+using IntPolygon = pgl::Polygon<IntPoint>;
+
+// A partition of the polygon into convex pieces: each is in canonical convex
+// form, has area and lies in the polygon, no two share interior, and together
+// they have the polygon's area, so they also miss none of it.
+template <class PolygonShape, class Pieces>
+void checkConvexPartition(const PolygonShape& polygon, const Pieces& pieces) {
+    REQUIRE_FALSE(pieces.empty());
+    auto total = polygon.twiceArea();
+    total -= total;  // a zero of the area's own type
+    for (std::size_t i = 0; i < pieces.size(); ++i) {
+        const auto& piece = pieces[i];
+        using PiecePoint = std::remove_cvref_t<decltype(*piece.begin())>;
+        const std::vector<PiecePoint> verts(piece.begin(), piece.end());
+        CHECK(pgl::Convex<PiecePoint>(verts) == piece);
+        CHECK_FALSE(piece.isDegenerate());
+        CHECK(polygon.contains(piece));
+        for (std::size_t j = i + 1; j < pieces.size(); ++j) {
+            CHECK_FALSE(piece.interiorsIntersect(pieces[j]));
+        }
+        total += piece.twiceArea();
+    }
+    CHECK(total == polygon.twiceArea());
+}
+
+// The fewest convex pieces by exhaustive search, for small polygons: whatever
+// the partition, the first reflex vertex has a diagonal leaving it, and that
+// diagonal splits the polygon into two that are partitioned independently.
+class ExhaustiveConvexPartition {
+  public:
+    explicit ExhaustiveConvexPartition(const IntPolygon& polygon) {
+        for (const auto& p : polygon.vertices()) {
+            points_.push_back(p);
+        }
+    }
+
+    int count() {
+        std::vector<int> all(points_.size());
+        std::iota(all.begin(), all.end(), 0);
+        return fewest(all);
+    }
+
+  private:
+    std::vector<IntPoint> points_;
+    std::map<std::vector<int>, int> memo_;
+
+    int orient(int a, int b, int c) const {
+        const auto sign = pgl::orientationSign(points_[static_cast<std::size_t>(a)],
+                                               points_[static_cast<std::size_t>(b)],
+                                               points_[static_cast<std::size_t>(c)]);
+        return sign > 0 ? 1 : (sign < 0 ? -1 : 0);
+    }
+
+    // The open segment between ring[i] and ring[j] inside the ring's interior
+    // and through none of its vertices.
+    bool clearDiagonal(const std::vector<int>& ring, std::size_t i, std::size_t j) const {
+        const std::size_t m = ring.size();
+        const int a = ring[i];
+        const int b = ring[j];
+        const pgl::Segment<IntPoint> ab(points_[static_cast<std::size_t>(a)],
+                                        points_[static_cast<std::size_t>(b)]);
+        for (std::size_t t = 0; t < m; ++t) {
+            if (t != i && t != j && ab.contains(points_[static_cast<std::size_t>(ring[t])])) {
+                return false;
+            }
+        }
+        for (std::size_t t = 0; t < m; ++t) {
+            const int c = ring[t];
+            const int d = ring[(t + 1) % m];
+            if (orient(a, b, c) * orient(a, b, d) < 0 && orient(c, d, a) * orient(c, d, b) < 0) {
+                return false;
+            }
+        }
+        const int before = ring[(i + m - 1) % m];
+        const int after = ring[(i + 1) % m];
+        if (orient(before, a, after) >= 0) {
+            return orient(before, a, b) > 0 && orient(a, after, b) > 0;
+        }
+        return orient(before, a, b) > 0 || orient(a, after, b) > 0;
+    }
+
+    int fewest(const std::vector<int>& ring) {
+        if (const auto it = memo_.find(ring); it != memo_.end()) {
+            return it->second;
+        }
+        const std::size_t m = ring.size();
+        std::size_t r = m;
+        for (std::size_t t = 0; t < m && r == m; ++t) {
+            if (orient(ring[(t + m - 1) % m], ring[t], ring[(t + 1) % m]) < 0) {
+                r = t;
+            }
+        }
+        int best = 1;
+        if (r < m) {
+            best = static_cast<int>(m);
+            for (std::size_t t = 0; t < m; ++t) {
+                if (t == r || t == (r + 1) % m || t == (r + m - 1) % m ||
+                    !clearDiagonal(ring, r, t)) {
+                    continue;
+                }
+                std::vector<int> one;
+                std::vector<int> other;
+                for (std::size_t u = r;; u = (u + 1) % m) {
+                    one.push_back(ring[u]);
+                    if (u == t) break;
+                }
+                for (std::size_t u = t;; u = (u + 1) % m) {
+                    other.push_back(ring[u]);
+                    if (u == r) break;
+                }
+                best = std::min(best, fewest(one) + fewest(other));
+            }
+        }
+        memo_[ring] = best;
+        return best;
+    }
+};
+
+// Every lattice point on the boundary made a vertex: straight angles along
+// every side longer than one step.
+IntPolygon withLatticeVertices(const IntPolygon& polygon) {
+    std::vector<IntPoint> ring;
+    const auto& vs = polygon.vertices();
+    for (std::size_t t = 0; t < vs.size(); ++t) {
+        const IntPoint a = vs[t];
+        const IntPoint b = vs[(t + 1) % vs.size()];
+        const int g = std::gcd(std::abs(b.x() - a.x()), std::abs(b.y() - a.y()));
+        for (int s = 0; s < g; ++s) {
+            ring.emplace_back(a.x() + (b.x() - a.x()) / g * s, a.y() + (b.y() - a.y()) / g * s);
+        }
+    }
+    return IntPolygon(ring);
+}
+
+// Small polygons on a 9 x 9 grid, crowded with collinear vertices: random
+// points, untangled.
+std::vector<IntPolygon> gridPolygons(int count) {
+    std::vector<IntPolygon> result;
+    std::uint64_t state = 12345;
+    const auto draw = [&state](int bound) {
+        state = state * 6364136223846793005ULL + 1442695040888963407ULL;
+        return static_cast<int>((state >> 33) % static_cast<std::uint64_t>(bound));
+    };
+    while (static_cast<int>(result.size()) < count) {
+        const int m = 5 + draw(7);
+        std::vector<IntPoint> points;
+        for (int t = 0; t < m; ++t) {
+            const int x = draw(9);  // two statements: argument order is unspecified
+            const int y = draw(9);
+            points.emplace_back(x, y);
+        }
+        IntPolygon polygon(points);
+        polygon.untangle();
+        if (polygon.size() >= 3 && polygon.isSimple() && !polygon.isDegenerate()) {
+            result.push_back(polygon);
+        }
+    }
+    return result;
+}
+
+// Spikes on every side of a convex polygon with vertices on a parabola: its
+// reflex vertices all see one another, which is where the dense table is used.
+IntPolygon spikedParabola(int count) {
+    std::vector<IntPoint> hull;
+    for (int x = -count / 2 + 1; x <= count / 2; ++x) {
+        hull.emplace_back(x, x * x);
+    }
+    std::vector<IntPoint> ring;
+    for (std::size_t t = 0; t < hull.size(); ++t) {
+        const IntPoint a = hull[t];
+        const IntPoint b = hull[(t + 1) % hull.size()];
+        const int dx = b.x() - a.x();
+        const int dy = b.y() - a.y();
+        ring.emplace_back(4 * a.x(), 4 * a.y());
+        ring.emplace_back(2 * (a.x() + b.x()) + dy, 2 * (a.y() + b.y()) - dx);
+    }
+    return IntPolygon(ring);
+}
+
+// The piece count with the dense table forced on or off.
+int programCount(const IntPolygon& polygon, pgl::detail::DenseTable dense) {
+    std::vector<IntPoint> ring;
+    for (const auto& p : polygon.vertices()) {
+        ring.push_back(p);
+    }
+    const std::size_t n = ring.size();
+    std::vector<char> reflex(n);
+    for (std::size_t i = 0; i < n; ++i) {
+        reflex[i] = pgl::orientationSign(ring[(i + n - 1) % n], ring[i], ring[(i + 1) % n]) < 0;
+    }
+    long long work = 0;
+    const auto visible = pgl::detail::OptimalConvexPartitionBuilder::reflexVisibility(
+        polygon.triangulation(), ring, reflex, work);
+    pgl::detail::MinimumConvexPartition<IntPoint> program(ring, reflex, visible, dense);
+    return static_cast<int>(program.solve().size());
+}
+
+}  // namespace
+
+TEST_CASE_TEMPLATE("Polygon optimalConvexPartition uses the fewest convex pieces", Point,
+                   pgl::Point<int>, pgl::Point<double>, pgl::Point<pgl::Rational<int64_t>>) {
+    using PolygonShape = pgl::Polygon<Point>;
+    const auto check = [](const IntPolygon& source, std::size_t expected) {
+        const PolygonShape polygon(source);
+        const auto pieces = polygon.optimalConvexPartition();
+        CHECK(pieces.size() == expected);
+        CHECK(pieces.size() <= polygon.convexPartition().size());
+        checkConvexPartition(polygon, pieces);
+    };
+
+    SUBCASE("a convex polygon is one piece") {
+        check(IntPolygon({0, 0, 4, 0, 4, 4, 0, 4}), 1);
+        check(IntPolygon({0, 0, 2, 0, 4, 0, 4, 4, 0, 4}), 1);  // with a straight angle
+    }
+
+    SUBCASE("an L splits in two") {
+        check(IntPolygon({0, 0, 3, 0, 3, 1, 1, 1, 1, 3, 0, 3}), 2);
+    }
+
+    SUBCASE("one straight cut through two reflex vertices") {
+        // The T tetromino: the cut from (1,1) to (1,2) leaves the left piece
+        // straight at both of its ends.
+        check(IntPolygon({0, 0, 1, 0, 1, 1, 2, 1, 2, 2, 1, 2, 1, 3, 0, 3}), 2);
+        // Two columns side by side, with every lattice point a vertex.
+        check(IntPolygon({0, 0, 1, 0, 1, 1, 1, 2, 2, 2, 2, 3, 2, 4, 2, 5, 1, 5, 1, 4, 1, 3,
+                          0, 3, 0, 2, 0, 1}),
+              2);
+    }
+
+    SUBCASE("a comb") {
+        std::vector<IntPoint> verts{IntPoint(0, 0)};
+        for (int i = 0; i < 4; ++i) {
+            const int x = 4 * i;
+            verts.emplace_back(x + 1, 0);
+            verts.emplace_back(x + 1, 3);
+            verts.emplace_back(x + 3, 3);
+            verts.emplace_back(x + 3, 0);
+        }
+        verts.emplace_back(16, 0);
+        verts.emplace_back(16, 6);
+        verts.emplace_back(0, 6);
+        check(IntPolygon(verts), 6);
+    }
+
+    SUBCASE("fewer pieces than a greedy partition") {
+        check(IntPolygon({2, 3, 7, 1, 9, 2, 7, 5, 9, 8, 6, 7, 4, 5, 5, 4, 5, 2}), 3);
+        check(IntPolygon({2, 3, 3, 0, 6, 1, 7, 4, 4, 6, 3, 3, 2, 9, 2, 6}), 2);
+    }
+}
+
+TEST_CASE("Polygon optimalConvexPartition matches an exhaustive search") {
+    const auto check = [](const IntPolygon& polygon) {
+        if (polygon.size() > 16) {
+            return;  // the search is exponential
+        }
+        const auto pieces = polygon.optimalConvexPartition();
+        CHECK(static_cast<int>(pieces.size()) == ExhaustiveConvexPartition(polygon).count());
+        checkConvexPartition(polygon, pieces);
+    };
+    SUBCASE("polyominoes, whose cuts run through several reflex vertices") {
+        for (const auto& polyomino : pgl::polyominoesUpTo(6)) {
+            check(polyomino);
+            check(withLatticeVertices(polyomino));
+        }
+    }
+    SUBCASE("polygons on a small grid") {
+        for (const auto& polygon : gridPolygons(150)) {
+            check(polygon);
+        }
+    }
+}
+
+TEST_CASE("Polygon optimalConvexPartition gives the same count with and without its dense table") {
+    using pgl::detail::DenseTable;
+    for (const auto& polygon : gridPolygons(60)) {
+        CHECK(programCount(polygon, DenseTable::always) == programCount(polygon, DenseTable::never));
+    }
+    for (const auto& polyomino : pgl::polyominoesUpTo(5)) {
+        const auto dense = withLatticeVertices(polyomino);
+        CHECK(programCount(dense, DenseTable::always) == programCount(dense, DenseTable::never));
+    }
+    // Large enough for the table to be built unprompted.
+    const IntPolygon spiked = spikedParabola(100);
+    REQUIRE(spiked.isSimple());
+    const auto pieces = spiked.optimalConvexPartition();
+    CHECK(static_cast<int>(pieces.size()) == programCount(spiked, DenseTable::never));
+    CHECK(static_cast<int>(pieces.size()) == programCount(spiked, DenseTable::always));
+    CHECK(pieces.size() < spiked.convexPartition().size());
+    checkConvexPartition(spiked, pieces);
 }

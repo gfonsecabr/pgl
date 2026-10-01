@@ -1169,6 +1169,33 @@ struct Polygon {
     [[nodiscard]] std::vector<Convex<PointType>> convexPartition() const;
 
     /**
+     * @brief Cuts this polygon into the fewest convex pieces whose corners are
+     *        all corners of the polygon.
+     *
+     * The pieces' union is the polygon and their interiors are pairwise
+     * disjoint, as for @ref convexPartition, but their number is the minimum
+     * over every partition by diagonals. Allowing new corners inside the
+     * polygon can need fewer pieces still; this does not.
+     *
+     * The polygon must be simple and non-degenerate, as for
+     * @ref convexPartition. A convex polygon comes back as a single piece.
+     *
+     * Computed by the dynamic program of Keil and Snoeyink over the diagonals
+     * with a reflex end, found by one triangular expansion from each reflex
+     * vertex. A diagonal between two reflex vertices keeps the Pareto front of
+     * the angles its optimal subpartitions leave at its two ends; where such
+     * diagonals are many, a dense table of subproblem sizes restricts the
+     * expensive convexity tests to the candidates that can be optimal.
+     *
+     * Complexity: that of @ref triangulation, plus `O(n + r^2 n log n)`
+     * worst-case time and `O(n + r^2 n)` auxiliary space, for `n` vertices of
+     * which `r` are reflex. Only `O(n)` time when `r = 0`.
+     *
+     * @return The convex pieces, in canonical order.
+     */
+    [[nodiscard]] std::vector<Convex<PointType>> optimalConvexPartition() const;
+
+    /**
      * @brief Covers this polygon with convex hulls derived from triangle cliques.
      *
      * The polygon is triangulated and the paper's dual-graph BFS builds a

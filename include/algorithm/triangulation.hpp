@@ -141,6 +141,11 @@ concept TriangulationQuery =
 // Narrow access point for the paper-specific graph used by
 // Polygon::convexCovering(). Defined after Triangulation is complete.
 struct ConvexCoverBuilder;
+
+// Narrow access point for the reflex-vertex visibility used by
+// Polygon::optimalConvexPartition(). Defined in
+// implementation/optimalconvexpartition.hpp.
+struct OptimalConvexPartitionBuilder;
 }  // namespace detail
 
 /**
@@ -1595,6 +1600,7 @@ struct Triangulation {
 
   private:
     friend struct detail::ConvexCoverBuilder;
+    friend struct detail::OptimalConvexPartitionBuilder;
 
     // Full visibility of two mesh triangles needs only the new boundary edges
     // introduced by their convex hull. A hull edge whose endpoints both belong
@@ -4374,7 +4380,18 @@ struct Triangulation {
 
     // Clear-visibility adjacency indexed by vertex id (slot GHOST stays empty),
     // built by one triangular expansion per vertex.
-    [[nodiscard]] std::vector<std::vector<VertexIndex>> clearVisibleAdjacency() const;
+    [[nodiscard]] std::vector<std::vector<VertexIndex>> clearVisibleAdjacency() const {
+        return clearVisibleAdjacencyFrom([](VertexIndex) { return true; },
+                                         [](VertexIndex, std::size_t) { return true; });
+    }
+
+    // The same, expanding only from the vertices `wanted` accepts: the others'
+    // slots stay empty, and a pair of them is never reported. After each
+    // source, `goOn(source, how many it sees)` may stop the whole traversal by
+    // answering false, leaving the rest of the sources unexpanded.
+    template <class Wanted, class GoOn>
+    [[nodiscard]] std::vector<std::vector<VertexIndex>> clearVisibleAdjacencyFrom(
+        Wanted wanted, GoOn goOn) const;
 
     // clearVisibleAdjacency plus the mesh's own blocking edges — together the
     // pairs that see each other with no vertex in between — closed along

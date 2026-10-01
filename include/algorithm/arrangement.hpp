@@ -1,6 +1,6 @@
 #pragma once
 
-#include "implementation/visibilitygraph.hpp"
+#include "implementation/optimalconvexpartition.hpp"
 
 /**
  * @file arrangement.hpp

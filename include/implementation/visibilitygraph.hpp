@@ -108,8 +108,10 @@ void Triangulation<TriangleType_, SegmentType_>::expandVisibility(
 }
 
 template <TriangleConcept TriangleType_, SegmentConcept SegmentType_>
-std::vector<std::vector<typename Triangulation<TriangleType_, SegmentType_>::VertexIndex>>
-Triangulation<TriangleType_, SegmentType_>::clearVisibleAdjacency() const {
+template <class Wanted, class GoOn>
+auto Triangulation<TriangleType_, SegmentType_>::clearVisibleAdjacencyFrom(Wanted wanted,
+                                                                           GoOn goOn) const
+    -> std::vector<std::vector<VertexIndex>> {
     std::vector<std::vector<VertexIndex>> adjacency(vertices_.size());
     if (domainTriangleCount_ == 0) {
         return adjacency;
@@ -119,6 +121,9 @@ Triangulation<TriangleType_, SegmentType_>::clearVisibleAdjacency() const {
     const auto ignore = [](const VisibilityCone&) {};
 
     for (VertexIndex source = GHOST + 1; source < vertexCount; ++source) {
+        if (!wanted(source)) {
+            continue;
+        }
         const TriIndex seed = incidentTriangleOf(source);
         if (seed == NO_TRI) {
             continue;
@@ -148,6 +153,9 @@ Triangulation<TriangleType_, SegmentType_>::clearVisibleAdjacency() const {
                              {t, static_cast<std::int8_t>(i), clockwise, v[(i + 2) % 3]},
                              scratch, report, ignore);
         });
+        if (!goOn(source, visible.size())) {
+            break;
+        }
     }
     return adjacency;
 }
