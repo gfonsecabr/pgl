@@ -2105,6 +2105,59 @@ private:
         }
     }
 
+    // The carrier of a segment over BigInt fractions as `a·x + b·y = c` in lowest
+    // terms, for constructing its crossings. A segment cut from a lattice
+    // segment — every edge of a region an earlier overlay produced — keeps that
+    // lattice line's small coefficients however large its endpoints' fractions
+    // have grown, and a crossing built from two such lines is a fraction of
+    // a few machine words where one built from the endpoints is cubic in them,
+    // and costs a long multi-limb gcd to reduce.
+    static constexpr bool hasBigIntCarriers =
+        is_Rational_v<NumberType> && std::same_as<rational_int_t<NumberType>, BigInt>;
+
+    struct IntegralCarrier {
+        BigInt a, b, c;
+    };
+
+    static IntegralCarrier integralCarrier(const Segment<PointType>& segment)
+        requires hasBigIntCarriers
+    {
+        // Each endpoint in homogeneous integer coordinates (X : Y : W); the
+        // line through two of them is their cross product.
+        const auto homogeneous = [](const PointType& point) {
+            const NumberType x = point.x().simplified();
+            const NumberType y = point.y().simplified();
+            const BigInt xd = x.denominator();
+            const BigInt yd = y.denominator();
+            if (xd == yd) {
+                return std::array<BigInt, 3>{x.numerator(), y.numerator(), xd};
+            }
+            const BigInt g = detail::gcd(xd, yd);
+            const BigInt w = xd / g * yd;
+            return std::array<BigInt, 3>{x.numerator() * (w / xd), y.numerator() * (w / yd), w};
+        };
+        const auto [x1, y1, w1] = homogeneous(segment.min());
+        const auto [x2, y2, w2] = homogeneous(segment.max());
+        IntegralCarrier line{y1 * w2 - w1 * y2, w1 * x2 - x1 * w2, y1 * x2 - x1 * y2};
+        BigInt g = detail::gcd(detail::gcd(detail::abs(line.a), detail::abs(line.b)),
+                               detail::abs(line.c));
+        if (g != 1) {
+            line.a /= g;
+            line.b /= g;
+            line.c /= g;
+        }
+        return line;
+    }
+
+    // Where two carriers that are not parallel cross.
+    static PointType carrierCrossing(const IntegralCarrier& p, const IntegralCarrier& q)
+        requires hasBigIntCarriers
+    {
+        const BigInt det = p.a * q.b - q.a * p.b;
+        return PointType(NumberType(p.c * q.b - q.c * p.b, det),
+                         NumberType(p.a * q.c - q.a * p.c, det));
+    }
+
     /**
      * @brief Splits every input segment at every point where another input segment, or
      * an isolated input point, meets it, so that the pieces meet each other only
@@ -2170,6 +2223,11 @@ private:
         if constexpr (mayNeedIntegralNarrowing) {
             integral.resize(count);
         }
+        // Filled on demand: only a segment with a proper crossing needs one.
+        std::vector<std::optional<IntegralCarrier>> carriers;
+        if constexpr (hasBigIntCarriers) {
+            carriers.resize(count);
+        }
         for (std::size_t i = 0; i < count; ++i) {
             const Segment<PointType>& segment = segments[group[i]].segment;
             cuts[i].push_back(segment.min());
@@ -2200,7 +2258,13 @@ private:
                 }
                 if (const auto* point = std::get_if<0>(&*piece)) {
                     cuts[a].emplace_back(*point);
-                    cuts[b].emplace_back(*point);
+                    // Reduced before it is copied: the two cut lists would
+                    // otherwise each pay the same gcd (see the loop below).
+                    if constexpr (pgl::is_Rational_v<NumberType>) {
+                        cuts[a].back().x().simplify();
+                        cuts[a].back().y().simplify();
+                    }
+                    cuts[b].emplace_back(cuts[a].back());
                 } else {
                     const auto& overlap = std::get<1>(*piece);
                     for (const auto& end : {overlap.min(), overlap.max()}) {
@@ -2233,6 +2297,35 @@ private:
             const Segment<PointType>& q = segments[group[b]].segment;
             if (onlyAtSharedEnd(p, q)) {
                 return true;
+            }
+            // A proper crossing — each segment strictly on both sides of the
+            // other's carrier — is built from the two carriers; everything
+            // else, touching and overlapping included, by the segments.
+            if constexpr (hasBigIntCarriers) {
+                if (!p.isDegenerate() && !q.isDegenerate()) {
+                    const auto d1 = orientationSign(p.min(), p.max(), q.min());
+                    const auto d2 = orientationSign(p.min(), p.max(), q.max());
+                    if (d1 != 0 && d1 == d2) {
+                        return false;
+                    }
+                    const auto d3 = orientationSign(q.min(), q.max(), p.min());
+                    const auto d4 = orientationSign(q.min(), q.max(), p.max());
+                    if (d3 != 0 && d3 == d4) {
+                        return false;
+                    }
+                    if (d1 != 0 && d2 != 0 && d3 != 0 && d4 != 0) {
+                        const auto& carrier = [&](std::size_t i) -> const IntegralCarrier& {
+                            if (!carriers[i]) {
+                                carriers[i] = integralCarrier(segments[group[i]].segment);
+                            }
+                            return *carriers[i];
+                        };
+                        using Crossing = std::variant<PointType, Segment<PointType>>;
+                        return add(std::optional<Crossing>(
+                            std::in_place, std::in_place_index<0>,
+                            carrierCrossing(carrier(a), carrier(b))));
+                    }
+                }
             }
             return add(p.template intersection<NumberType>(q));
         };

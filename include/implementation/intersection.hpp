@@ -58,6 +58,18 @@ constexpr Point<ResultNumber, ResultLabel> carrierCrossing(
     const Coordinate determinant = rx * sy - ry * sx;
     const Coordinate along = ox * sy - oy * sx;
 
+    // Integer input and a fraction over the wide type: each coordinate is one
+    // fraction over the determinant, left for the caller to reduce once. Adding
+    // the ratio to `a1` would reduce it first and the sum again.
+    if constexpr (is_Rational_v<ResultNumber> && !is_Rational_v<InputNumber> &&
+                  !std::floating_point<InputNumber>) {
+        if constexpr (std::same_as<rational_int_t<ResultNumber>, Coordinate>) {
+            return Point<ResultNumber, ResultLabel>(
+                ResultNumber(wide(a1.x()) * determinant + along * rx, determinant),
+                ResultNumber(wide(a1.y()) * determinant + along * ry, determinant));
+        }
+    }
+
     // An integral result divides in the wide type, where the division is exact
     // for a crossing that lands on the grid; every other result type divides in
     // itself, which is where its own exactness lives.
