@@ -98,20 +98,20 @@ The results below are sorted by `ERational` / EPECK ratio, from the cases where 
 | Point search, count in Triangle | ${\color{#8b0000}\textsf{2.4×}}\textsf{ (1.5–2.9)}$ | ${\color{#006400}\textsf{0.21×}}\textsf{ (0.14–0.24)}$ | `ShapeTree` | `Kd_tree::search` |
 | Convex hull | ${\color{#8b0000}\textsf{1.8×}}\textsf{ (1.5–2.2)}$ | ${\color{#006400}\textsf{0.51×}}\textsf{ (0.41–0.66)}$ | `convexHull(v)` | `convex_hull_2` |
 | Triangulation point location | ${\color{#8b0000}\textsf{1.7×}}\textsf{ (1.4–2.4)}$ | $\textsf{0.96×}\textsf{ (0.47–1.2)}$ | `t.locate(p)`{Triangulation} | <code>Triangulation_hierarchy_2<wbr>::locate</code> |
-| Minkowski sum | ${\color{#8b0000}\textsf{1.6×}}\textsf{ (0.20–7.1)}$<abbr title="CGAL runs its fastest method over the whole input range: the Hertel–Mehlhorn decomposition on the random polygons, where its reduced convolution is faster below about 150 vertices, and reduced convolution on fpg, spg and fpg-holes, where the Hertel–Mehlhorn decomposition is faster on spg at 200 vertices.">†</abbr> | — | `a.minkowskiSum(b)`{Polygon} | `minkowski_sum_2` |
+| Minkowski sum | ${\color{#8b0000}\textsf{1.3×}}\textsf{ (0.18–4.6)}$<abbr title="CGAL runs its fastest method over the whole input range: the Hertel–Mehlhorn decomposition on the random polygons, where its reduced convolution is faster below about 150 vertices, and reduced convolution on fpg, spg and fpg-holes, where the Hertel–Mehlhorn decomposition is faster on spg at 200 vertices.">†</abbr> | — | `a.minkowskiSum(b)`{Polygon} | `minkowski_sum_2` |
 | Segment search build | $\textsf{1.2×}\textsf{ (0.75–2.0)}$ | ${\color{#8b0000}\textsf{1.8×}}\textsf{ (1.4–2.9)}$ | `ShapeTree` | `AABB_tree` |
 | Triangulation point-location build | $\textsf{1.2×}\textsf{ (1.1–1.3)}$ | ${\color{#8b0000}\textsf{1.4×}}\textsf{ (1.1–1.6)}$ | `t.buildPointLocation()`{Triangulation} | <code>Triangulation_<wbr>hierarchy_2</code> |
 | Arrangement build | $\textsf{1.1×}\textsf{ (0.47–2.1)}$ | — | `Arrangement` | `Arrangement_2` |
 | Segment search, count in Triangle | $\textsf{1.1×}\textsf{ (0.97–1.5)}$ | ${\color{#006400}\textsf{0.21×}}\textsf{ (0.17–0.25)}$ | `ShapeTree` | `AABB_tree` |
-| Regularized union, two polygons | $\textsf{0.93×}\textsf{ (0.65–1.4)}$<abbr title="CGAL's free join on the random polygons and fpg-holes, and General_polygon_set_2::join on spg, the faster of the two on each.">‡</abbr> | — | `a.regularizedUnion(b)`{Polygon} | `CGAL::join` |
+| Regularized union, two polygons | $\textsf{0.91×}\textsf{ (0.60–1.4)}$<abbr title="CGAL's free join on the random polygons and fpg-holes, and General_polygon_set_2::join on spg, the faster of the two on each.">‡</abbr> | — | `a.regularizedUnion(b)`{Polygon} | `CGAL::join` |
 | Visibility, visible vertices | $\textsf{0.90×}\textsf{ (0.53–1.2)}$ | ${\color{#006400}\textsf{0.73×}}\textsf{ (0.52–0.96)}$<abbr title="The random polygon only. On fpg, spg and fpg-holes, EPICK answers wrongly or throws, so CGAL runs them under EPECK alone.">§</abbr> | `t.visibleVertices(p)`{Triangulation} | <code>Triangular_expansion_<wbr>visibility_2</code> |
 | kd-tree build | $\textsf{0.88×}\textsf{ (0.63–1.4)}$ | ${\color{#8b0000}\textsf{1.7×}}\textsf{ (1.4–2.2)}$ | `ShapeTree` | `Kd_tree` |
 | Nearest neighbor query | $\textsf{0.82×}\textsf{ (0.63–1.1)}$ | ${\color{#8b0000}\textsf{1.8×}}\textsf{ (1.2–2.4)}$ | `t.nearestNeighbor(p)`{ShapeTree} | <code>Orthogonal_k_<wbr>neighbor_search</code> |
 | Segment search, count in Rectangle | ${\color{#006400}\textsf{0.68×}}\textsf{ (0.55–0.91)}$ | ${\color{#006400}\textsf{0.51×}}\textsf{ (0.32–0.69)}$ | `ShapeTree` | `AABB_tree` |
-| Arrangement point-location build | ${\color{#006400}\textsf{0.61×}}\textsf{ (0.46–0.87)}$ | — | `a.buildPointLocation()`{Arrangement} | <code>Arr_trapezoid_ric_<wbr>point_location</code> |
+| Arrangement point-location build | ${\color{#006400}\textsf{0.64×}}\textsf{ (0.45–0.96)}$ | — | `a.buildPointLocation()`{Arrangement} | <code>Arr_trapezoid_ric_<wbr>point_location</code> |
 | Segment intersection | ${\color{#006400}\textsf{0.55×}}\textsf{ (0.19–1.8)}$ | ${\color{#006400}\textsf{0.35×}}\textsf{ (0.12–0.69)}$<abbr title="CGAL's sweep line runs under EPICK here, which is not exact. pgl's int findIntersections is exact and 0.20× (0.05–0.46) against EPECK.">*</abbr> | `findIntersections(v)` | <code>compute_<wbr>intersection_points</code> |
-| Arrangement point location query | ${\color{#006400}\textsf{0.46×}}\textsf{ (0.32–0.84)}$ | — | `a.locateFace(p)`{Arrangement} | <code>Arr_trapezoid_ric_<wbr>point_location<wbr>::locate</code> |
-| Regularized union, triangles | ${\color{#006400}\textsf{0.23×}}\textsf{ (0.20–0.59)}$ | — | `regularizedUnionOf(v)` | <code>General_polygon_set_2<wbr>::join</code> |
+| Arrangement point location query | ${\color{#006400}\textsf{0.48×}}\textsf{ (0.32–0.82)}$ | — | `a.locateFace(p)`{Arrangement} | <code>Arr_trapezoid_ric_<wbr>point_location<wbr>::locate</code> |
+| Regularized union, triangles | ${\color{#006400}\textsf{0.23×}}\textsf{ (0.20–0.62)}$ | — | `regularizedUnionOf(v)` | <code>General_polygon_set_2<wbr>::join</code> |
 
 #### What the numbers do not say
 
