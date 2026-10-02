@@ -90,14 +90,15 @@ constexpr std::array<int, kSamples> linearSizes(int max) {
 // the random points and euro-night, at the same sizes. Euro-night is a file of
 // 100,000 points, which no list of theirs may exceed.
 //
-// The categories over a polygon (visibility, Minkowski sum, union) also sweep
-// polygon datasets from the Salzburg Database, fpg, spg and fpg-holes (the
-// union without fpg), over their random polygon's list. The database has polygons of only some
-// sizes, so each size is snapped to the nearest one it has (bench::sbpdSizes),
-// and a list can come out shorter than 32; and only the polygons those snapped
-// lists reach are checked in. So kVisibility, kMinkowski and kUnionPair are
-// coupled to data/sbpd-*.polygons: after changing one of their maxima, rerun
-// data/sbpd.py with the new maxima.
+// The categories over a polygon (visibility, Minkowski sum, union, polygon
+// partition) also sweep polygon datasets from the Salzburg Database, fpg, spg
+// and fpg-holes (the union without fpg), over their random polygon's list.
+// The database has polygons of only some sizes, so each size is snapped to the
+// nearest one it has (bench::sbpdSizes), and a list can come out shorter than
+// 32; and only the polygons those snapped lists reach are checked in. So
+// kVisibility, kMinkowski, kUnionPair and kPartition are coupled to
+// data/sbpd-*.polygons: after changing one of their maxima, rerun data/sbpd.py
+// with the new maxima.
 // The SBPD polygons cost nothing to generate, so they never set a ceiling;
 // they share the random polygon's list so that the curves span the same range.
 
@@ -223,5 +224,18 @@ constexpr auto kUnionTriangles = linearSizes(10000);
 constexpr auto kVoronoiOrder1 = linearSizes(16000);
 constexpr auto kVoronoiOrder2 = linearSizes(8000);
 constexpr auto kVoronoiOrder4 = linearSizes(4000);
+
+// ── 11. Polygon partition ───────────────────────────────────────────────────
+// One list for all three problems, which cost the same order of magnitude at a
+// given n — the optimal partition included, whose dynamic program stays far
+// from its worst case on every dataset here. Capped by generation, as
+// kVisibility is, and by a wide margin: untangling the random polygon costs
+// seconds at the top of the list and grows steeply beyond it, while the
+// slowest problem measures well under the one-second anchor. The driver
+// generates each size once and shares it between the problems and the number
+// types, and even so generation is most of the run's wall clock. The same
+// maximum as kVisibility, so the two lists coincide and the checked-in SBPD
+// polygons already cover both.
+constexpr auto kPartition = linearSizes(10000);
 
 }  // namespace bench

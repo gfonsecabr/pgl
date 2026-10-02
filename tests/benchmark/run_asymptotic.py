@@ -36,7 +36,8 @@ Options:
     --repetitions N     Runs per program; median time kept (default: 1)
     --jobs N            Parallel compile jobs (default: os.cpu_count())
     --baseline          Also build and run asymptotic/baseline/*.cpp (CGAL) and
-                        write a separate, non-historical snapshot
+                        write a separate, non-historical snapshot. The installed
+                        CGAL is built with the fixes in CGAL_PATCHES below.
     --baseline-only     Run only the CGAL baseline
     --baseline-output FILE
                         Baseline JSON (default: <build-dir>/baseline.json)
@@ -104,6 +105,68 @@ def parse_table(raw: str) -> tuple[str, list[dict]]:
         row["time"] = time
         rows.append(row)
     return unit, rows
+
+
+# Fixes to CGAL that the baseline needs and the installed release may lack,
+# each a pull request to CGAL. A baseline that runs a known-wrong CGAL measures
+# nothing, and pgl's answers would be checked against a bug.
+#
+# The fixed header is written into the build directory, never checked in: CGAL
+# is GPL and pgl is MIT. Each patch is applied to whatever CGAL the compiler
+# finds, so it follows that version rather than freezing one. A header that
+# already carries the fix is used as installed; one that carries neither the
+# old text nor the new stops the baseline, since the patch can no longer be
+# trusted to say what it fixes.
+CGAL_PATCHES = [
+    {
+        # optimal_convex_partition_2 can return more pieces than the optimum,
+        # depending on the starting vertex: popping a record overwrote the best
+        # value carried over instead of keeping the minimum.
+        "pr": "https://github.com/CGAL/cgal/pull/9685",
+        "header": "CGAL/Partition_2/Partition_opt_cvx_vertex.h",
+        "old": (
+            "       _best_so_far = _stack.back();\n"
+            "       _stack.pop_back();\n"
+        ),
+        "new": (
+            "       if (_stack.back().value() < _best_so_far.value())\n"
+            "          _best_so_far = _stack.back();\n"
+            "       _stack.pop_back();\n"
+        ),
+    },
+]
+
+
+def installed_header(cxx: str, cxxflags: list[str], header: str) -> Path:
+    """The file `#include <header>` resolves to for this compiler and flags."""
+    done = subprocess.run([cxx, *cxxflags, "-x", "c++", "-M", "-"],
+                          input=f"#include <{header}>\n", capture_output=True, text=True)
+    if done.returncode != 0:
+        sys.exit(f"cannot find the CGAL header {header}:\n{done.stderr}")
+    for token in done.stdout.replace("\\\n", " ").split():
+        if token.endswith(header):
+            return Path(token)
+    sys.exit(f"cannot find the CGAL header {header} in:\n{done.stdout}")
+
+
+def patch_cgal(cxx: str, cxxflags: list[str], patch_dir: Path) -> list[str]:
+    """Write every CGAL_PATCHES header under patch_dir; return the flags that use them."""
+    for patch in CGAL_PATCHES:
+        source = installed_header(cxx, cxxflags, patch["header"])
+        text = source.read_text()
+        target = patch_dir / patch["header"]
+        # The fix first: its text may contain the text it replaces.
+        if patch["new"] in text:
+            target.unlink(missing_ok=True)
+            print(f"  CGAL already carries {patch['pr']}", flush=True)
+        elif text.count(patch["old"]) == 1:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text.replace(patch["old"], patch["new"]))
+            print(f"  CGAL patched with {patch['pr']}", flush=True)
+        else:
+            sys.exit(f"{source} has neither the text {patch['pr']} fixes nor the fix; "
+                     "update CGAL_PATCHES in run_asymptotic.py")
+    return [f"-I{patch_dir}"]
 
 
 def compile_all(sources, cxx, cxxflags, include_dir, bench_dir, bin_dir, jobs, extra_flags):
@@ -281,8 +344,9 @@ def main() -> int:
             return 0
         baseline_bin = bin_dir / "baseline"
         baseline_bin.mkdir(parents=True, exist_ok=True)
+        patch_flags = patch_cgal(cxx, cxxflags, build_dir / "cgal-patched")
         built = compile_all(baseline_sources, cxx, cxxflags, include_dir, script_dir,
-                            baseline_bin, args.jobs, ["-lgmp", "-lmpfr"])
+                            baseline_bin, args.jobs, [*patch_flags, "-lgmp", "-lmpfr"])
         results = run_drivers(built, args.repetitions, driver_args, args.timeout)
         write_snapshot(baseline_path, meta, results, "CGAL baseline")
 

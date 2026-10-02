@@ -251,6 +251,7 @@ PROBLEM_ORDER = ["build", "buildPointLocation", "locate", "locateFace",
                  "intersections", "crossings",
                  "count in Rectangle", "count in Triangle", "nearest neighbor",
                  "visibility graph", "visible vertices",
+                 "triangulation", "convex partition", "optimal convex partition",
                  "Minkowski sum", "union"]
 # The public entry point of a category comes first, so it is the algorithm a
 # problem opens on; the named algorithms it chooses between follow.

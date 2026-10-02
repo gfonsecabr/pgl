@@ -19,8 +19,8 @@ Pangolin's performance benchmarks live here. There are two kinds:
 2. **Asymptotic benchmarks** (`asymptotic/*.cpp`) — whole algorithms measured
    against growing input, for the things that don't fit the pair model
    (triangulation, Voronoi diagrams, arrangements, segment sweeps, spatial
-   search, visibility, Minkowski sums, unions). One driver per **category**,
-   each a small cube of
+   search, visibility, polygon partitions, Minkowski sums, unions). One driver
+   per **category**, each a small cube of
 
    ```
    dataset × problem × algorithm × number-type
@@ -67,7 +67,7 @@ A cell may also carry a reference per *kernel*, and the chart picks the one the
 selected number type is entitled to: EPICK against pgl's `int` column, EPECK
 against `ERational`. Only the categories whose CGAL side never constructs a
 point it later *tests* offer both — Point constructions, Point search, Segment
-search, Triangulation and Visibility — where EPICK decides every predicate
+search, Triangulation, Visibility and Polygon partition — where EPICK decides every predicate
 exactly on this integer dataset and is what a CGAL user would actually reach
 for. A category whose constructed points feed back into its own decisions
 (Arrangement, Minkowski sum, Regularized union) has no honest EPICK curve to
@@ -78,6 +78,12 @@ wherever it is drawn: that kernel drops intersection points at the larger sizes,
 but pgl's `int` sweep is exact and has no inexact curve to put against it, so the
 alternative was charging machine-word fractions against a lazy-exact kernel.
 `baseline/cgal.hpp` carries the full rule and the evidence for it.
+
+Where the installed CGAL has a bug a baseline would run into, the runner builds
+the baseline with the fix from the CGAL pull request that makes it (the
+`CGAL_PATCHES` list in `run_asymptotic.py`): each fixed header is written into
+the build directory, from the CGAL the compiler finds, ahead of the installed
+one. A CGAL that already carries a fix is used as is.
 
 Opt-in only (`--baseline`), because CGAL is not on every dev machine or CI box.
 Never appended to the history either: a baseline is a reference point rather
