@@ -426,14 +426,15 @@ struct Triangulation {
         for (VertexIndex i = 1; i < static_cast<VertexIndex>(vertices_.size()); ++i) {
             vid.emplace(vertices_[i], i);
         }
+        std::vector<char> touched(triangles_.size(), 0);
         for (const auto& s : segments) {
             const VertexIndex a = vid.at(PointType(s[0]));
             const VertexIndex b = vid.at(PointType(s[1]));
             if (a != b) {
-                insertConstraint(a, b);
+                insertConstraint(a, b, touched);
             }
         }
-        restoreConstrainedDelaunay();
+        restoreConstrainedDelaunay(touched);
 
         // Carry each constraint segment's label onto its edge record; the
         // edges exist (constrained edges are never flipped away).
@@ -3835,11 +3836,12 @@ struct Triangulation {
         const auto [vp, start] = *inserted;
         // The suspect edges are the new vertex's link: the side opposite vp in
         // every real triangle of its fan.
-        std::vector<SegmentType> suspect;
+        std::vector<VertexEdge> suspect;
         visitVertexFan(start, vp, [&](TriIndex cur) {
             if (!isGhost(cur)) {
-                suspect.push_back(
-                    edgeSegment(Edge{cur, static_cast<std::int8_t>(localIndex(cur, vp))}));
+                const auto& v = triangles_[static_cast<std::size_t>(cur)].v;
+                const int i = localIndex(cur, vp);
+                suspect.push_back({v[(i + 1) % 3], v[(i + 2) % 3], cur});
             }
         });
         legalize(suspect);
@@ -4608,11 +4610,11 @@ struct Triangulation {
     // counterclockwise and side s spans v[s+1] -> v[s+2], so the triangle
     // carrying the edge in that direction is the one on its left.
     [[nodiscard]] TriIndex triangleLeftOf(VertexIndex a, VertexIndex b) const {
-        const auto it = segmentMap().find(SegmentType(vertices_[a], vertices_[b]));
-        if (it == segmentMap().end()) {
+        const Edge found = edgeBetween(a, b);
+        if (found.tri == NO_TRI) {
             return NO_TRI;
         }
-        for (const Edge& e : {it->second, mirror(it->second)}) {
+        for (const Edge& e : {found, mirror(found)}) {
             if (e.tri == NO_TRI) {
                 continue;
             }
@@ -5422,38 +5424,114 @@ struct Triangulation {
 
     // ---- constrained Delaunay (polygon constructor) ----------------------
 
-    // True if the open segments AB and CD cross properly (no shared endpoint,
-    // no collinear contact). Exact via orientationSign.
-    [[nodiscard]] bool properCross(const PointType& a, const PointType& b,
-                                   const PointType& c, const PointType& d) const {
-        const auto s1 = orientationSign(a, b, c);
-        const auto s2 = orientationSign(a, b, d);
-        const auto s3 = orientationSign(c, d, a);
-        const auto s4 = orientationSign(c, d, b);
-        if (s1 == 0 || s2 == 0 || s3 == 0 || s4 == 0) {
+    // True if the open segments ab and cd, between vertices, cross properly (no
+    // shared endpoint, no collinear contact). Exact, through the vertices'
+    // filtered approximations.
+    [[nodiscard]] bool properCross(VertexIndex a, VertexIndex b, VertexIndex c,
+                                   VertexIndex d) const {
+        const auto fa = filteredVertex(a);
+        const auto fb = filteredVertex(b);
+        const auto fc = filteredVertex(c);
+        const auto fd = filteredVertex(d);
+        const auto s1 = detail::orientationSignOf(fa, fb, fc).value();
+        const auto s2 = detail::orientationSignOf(fa, fb, fd).value();
+        if (s1 == 0 || s2 == 0 || (s1 > 0) == (s2 > 0)) {
             return false;
         }
-        return ((s1 > 0) != (s2 > 0)) && ((s3 > 0) != (s4 > 0));
+        const auto s3 = detail::orientationSignOf(fc, fd, fa).value();
+        const auto s4 = detail::orientationSignOf(fc, fd, fb).value();
+        return s3 != 0 && s4 != 0 && (s3 > 0) != (s4 > 0);
     }
 
-    // The current internal handle of edge {p,q}, or an invalid edge if absent.
-    [[nodiscard]] Edge edgeHandle(VertexIndex p, VertexIndex q) const {
-        auto se = segmentMap().find(SegmentType(vertices_[p], vertices_[q]));
-        return se == segmentMap().end() ? Edge{NO_TRI, 0} : se->second;
+    // An edge between two vertices, named the way the constrained build and
+    // the legalization queue it: by its endpoints, with a triangle that held it
+    // when it was queued.
+    struct VertexEdge {
+        VertexIndex p;
+        VertexIndex q;
+        TriIndex hint;
+    };
+
+    // The side of real triangle t spanning vertices p and q, or -1 when t has
+    // no such side.
+    [[nodiscard]] int sideBetween(TriIndex t, VertexIndex p, VertexIndex q) const {
+        if (t == NO_TRI || t >= firstGhost_) {
+            return -1;
+        }
+        const auto& v = triangles_[t].v;
+        for (int s = 0; s < 3; ++s) {
+            const VertexIndex a = v[(s + 1) % 3];
+            const VertexIndex b = v[(s + 2) % 3];
+            if ((a == p && b == q) || (a == q && b == p)) {
+                return s;
+            }
+        }
+        return -1;
     }
 
-    [[nodiscard]] bool edgeExists(VertexIndex p, VertexIndex q) const {
-        return segmentMap().contains(SegmentType(vertices_[p], vertices_[q]));
+    // The current handle of edge {p,q}, seen from a real triangle, or an
+    // invalid edge if absent. Tries @p hint first, then rotates around p: no
+    // segment map is read, so the constrained build can leave it unfilled.
+    [[nodiscard]] Edge edgeBetween(VertexIndex p, VertexIndex q, TriIndex hint = NO_TRI) const {
+        if (const int s = sideBetween(hint, p, q); s >= 0) {
+            return Edge{hint, static_cast<std::int8_t>(s)};
+        }
+        Edge found{NO_TRI, 0};
+        const auto check = [&](TriIndex k) {
+            if (found.tri == NO_TRI) {
+                if (const int s = sideBetween(k, p, q); s >= 0) {
+                    found = Edge{k, static_cast<std::int8_t>(s)};
+                }
+            }
+        };
+        const TriIndex seed = incidentTriangleOf(p);
+        if (seed != NO_TRI) {
+            visitVertexFan(seed, p, check);
+        } else {
+            for (TriIndex k = 0; k < firstGhost_ && found.tri == NO_TRI; ++k) {
+                check(k);
+            }
+        }
+        return found;
     }
 
-    // The interior edges that the open segment va->vb crosses, as vertex pairs,
-    // in order from va to vb. Empty when {va,vb} is already an edge. Assumes no
-    // vertex lies in the interior of the segment (true for simple-polygon edges).
-    [[nodiscard]] std::vector<std::pair<VertexIndex, VertexIndex>>
+    // Flags edge e as constrained from both of its sides.
+    void constrainEdge(Edge e) {
+        setBit(triangles_[e.tri].constrainedMask, e.side, true);
+        const Edge m = mirror(e);
+        if (m.tri != NO_TRI) {
+            setBit(triangles_[m.tri].constrainedMask, m.side, true);
+        }
+    }
+
+    // Flips the flippable edge e and keeps the indexes in step: a live segment
+    // map gets the two rewritten triangles registered again, as @ref flip does,
+    // while a map a bulk build left unfilled stays unfilled and only the
+    // vertex-incidence hints are refreshed.
+    void flipKeepingIndex(Edge e) {
+        const TriIndex t = e.tri;
+        const TriIndex t2 = mirror(e).tri;
+        if (mapStale_) {
+            flipEdge(e);
+            noteVertexIncidence(t);
+            noteVertexIncidence(t2);
+        } else {
+            const SegmentType s = edgeSegment(e);
+            flipEdge(e);
+            segToEdge_.erase(s);
+            registerSides(t);
+            registerSides(t2);
+        }
+        ++revision_;
+    }
+
+    // The interior edges that the open segment va->vb crosses, in order from va
+    // to vb, each with the triangle it was found in. Empty when {va,vb} is
+    // already an edge. Assumes no vertex lies in the interior of the segment
+    // (true for simple-polygon edges).
+    [[nodiscard]] std::vector<VertexEdge>
     collectCrossings(VertexIndex va, VertexIndex vb) const {
-        const PointType& A = vertices_[va];
-        const PointType& B = vertices_[vb];
-        std::vector<std::pair<VertexIndex, VertexIndex>> out;
+        std::vector<VertexEdge> out;
 
         // Find the triangle incident to va that the segment first enters. Only
         // va's own fan can hold it, so the search rotates around va rather than
@@ -5473,10 +5551,10 @@ struct Triangulation {
             const int i = localIndex(k, va);
             const VertexIndex p = v[(i + 1) % 3];
             const VertexIndex q = v[(i + 2) % 3];
-            if (properCross(A, B, vertices_[p], vertices_[q])) {
+            if (properCross(va, vb, p, q)) {
                 t = triangles_[k].nbr[i];
                 entry = {p, q};
-                out.push_back({p, q});
+                out.push_back({p, q, k});
             }
         };
         const TriIndex seed = incidentTriangleOf(va);
@@ -5512,10 +5590,10 @@ struct Triangulation {
                 if (sameEntry) {
                     continue;
                 }
-                if (properCross(A, B, vertices_[p], vertices_[q])) {
+                if (properCross(va, vb, p, q)) {
                     exitK = k;
                     entry = {p, q};
-                    out.push_back({p, q});
+                    out.push_back({p, q, t});
                     break;
                 }
             }
@@ -5528,7 +5606,9 @@ struct Triangulation {
     }
 
     // Inserts the segment {va,vb} as an edge by flipping the edges it crosses
-    // (Sloan's flip algorithm), then flags it constrained on both sides.
+    // (Sloan's flip algorithm), then flags it constrained on both sides. Every
+    // triangle a flip rewrites is marked in @p touched, which is indexed by
+    // triangle; @ref restoreConstrainedDelaunay reads the marks.
     //
     // A FIFO queue of crossing edges is processed front-to-back: a convex
     // crossing edge is flipped, and if its new diagonal still crosses the
@@ -5536,68 +5616,76 @@ struct Triangulation {
     // until its quad becomes convex. This ordering guarantees progress (a naive
     // "flip the first convex one" can oscillate, repeatedly flipping a diagonal
     // back and forth).
-    void insertConstraint(VertexIndex va, VertexIndex vb) {
-        if (va == vb || edgeExists(va, vb)) {
-            setConstrained(SegmentType(vertices_[va], vertices_[vb]), true);
+    void insertConstraint(VertexIndex va, VertexIndex vb, std::vector<char>& touched) {
+        if (va == vb) {
             return;
         }
-        const PointType& A = vertices_[va];
-        const PointType& B = vertices_[vb];
-        std::deque<std::pair<VertexIndex, VertexIndex>> queue;
-        for (const auto& pq : collectCrossings(va, vb)) {
-            queue.push_back(pq);
+        if (const Edge e = edgeBetween(va, vb); e.tri != NO_TRI) {
+            constrainEdge(e);
+            return;
+        }
+        std::deque<VertexEdge> queue;
+        for (const auto& crossing : collectCrossings(va, vb)) {
+            queue.push_back(crossing);
         }
         std::size_t guard = 0, cap = (queue.size() + 1) * (triangles_.size() + 1) * 4 + 64;
         while (!queue.empty() && ++guard < cap) {
-            auto [p, q] = queue.front();
+            const VertexEdge crossing = queue.front();
             queue.pop_front();
-            const Edge e = edgeHandle(p, q);
-            if (e.tri == NO_TRI || !properCross(A, B, vertices_[p], vertices_[q])) {
+            const Edge e = edgeBetween(crossing.p, crossing.q, crossing.hint);
+            if (e.tri == NO_TRI || !properCross(va, vb, crossing.p, crossing.q)) {
                 continue;  // edge gone, or no longer crosses the constraint
             }
             if (!flippableEdge(e)) {
-                queue.push_back({p, q});  // quad not yet convex; revisit later
+                queue.push_back({crossing.p, crossing.q, e.tri});  // quad not yet convex
                 continue;
             }
-            const VertexIndex r = triangles_[e.tri].v[e.side];        // apex on one side
+            const TriIndex t = e.tri;
             const Edge m = mirror(e);
-            const VertexIndex l = triangles_[m.tri].v[m.side];        // apex on the other
-            flip(SegmentType(vertices_[p], vertices_[q]));
-            if (properCross(A, B, vertices_[r], vertices_[l])) {
-                queue.push_back({r, l});  // new diagonal still crosses; re-queue
+            const VertexIndex r = triangles_[t].v[e.side];      // apex on one side
+            const VertexIndex l = triangles_[m.tri].v[m.side];  // apex on the other
+            touched[static_cast<std::size_t>(t)] = 1;
+            touched[static_cast<std::size_t>(m.tri)] = 1;
+            flipKeepingIndex(e);
+            if (properCross(va, vb, r, l)) {
+                queue.push_back({r, l, t});  // new diagonal still crosses; re-queue
             }
         }
-        setConstrained(SegmentType(vertices_[va], vertices_[vb]), true);
+        if (const Edge e = edgeBetween(va, vb); e.tri != NO_TRI) {
+            constrainEdge(e);
+        }
     }
 
-    // Restores the constrained Delaunay property: flip every non-constrained
-    // interior edge whose opposite apex lies inside the incident circumcircle,
-    // until none remain. Constrained edges are never flipped.
+    // Restores the constrained Delaunay property after constraints were forced
+    // in: flip every non-constrained interior edge whose opposite apex lies
+    // inside the incident circumcircle, until none remain. Constrained edges
+    // are never flipped.
     //
     // A triangulation is Delaunay exactly when every edge is locally Delaunay,
-    // and an edge's local test reads only its two incident triangles — so
-    // @ref legalize's work queue reaches the same fixpoint as a sweep, for the
-    // cost of the flips instead of the cost of the mesh per flip. Seeding it
-    // with every edge is what makes it a *global* restore: both callers reach
-    // here having forced constraints into a mesh whose edges have not been
-    // tested since, so none can be assumed legal.
+    // and an edge's local test reads only its two incident triangles. The mesh
+    // was Delaunay before the constraints went in, so the only edges that can
+    // fail the test are the sides of the triangles a constraint flip rewrote,
+    // marked in @p touched: @ref legalize starts from those alone and reaches
+    // the same fixpoint as a pass over every edge.
     //
-    // The edges are seeded in triangle order, each once from the lower-numbered
-    // of its two real triangles, never in the edge map's order: that follows the
-    // hash of a segment, which differs with the coordinate type and the standard
-    // library, and the order of the flips decides how the triangles end up
-    // numbered. Everything that walks the triangles by index — the convex
-    // partition first — would then answer differently for `int` and `ERational`
-    // copies of one polygon.
-    void restoreConstrainedDelaunay() {
-        std::vector<SegmentType> suspect;
-        suspect.reserve(segmentMap().size());
+    // The edges are seeded in triangle order, each once, never in the order of
+    // a hash: the order of the flips decides how the triangles end up
+    // numbered, and everything that walks the triangles by index — the convex
+    // partition first — would then answer differently for `int` and
+    // `ERational` copies of one polygon.
+    void restoreConstrainedDelaunay(const std::vector<char>& touched) {
+        std::vector<VertexEdge> suspect;
         for (TriIndex t = 0; t < firstGhost_; ++t) {
-            for (std::int8_t s = 0; s < 3; ++s) {
-                const TriIndex n = triangles_[static_cast<std::size_t>(t)].nbr[s];
-                if (n == NO_TRI || n > t) {
-                    suspect.push_back(edgeSegment(Edge{t, s}));
+            if (!touched[static_cast<std::size_t>(t)]) {
+                continue;
+            }
+            const auto& tri = triangles_[static_cast<std::size_t>(t)];
+            for (int s = 0; s < 3; ++s) {
+                const TriIndex n = tri.nbr[s];
+                if (n != NO_TRI && n < t && touched[static_cast<std::size_t>(n)]) {
+                    continue;  // seeded from n already
                 }
+                suspect.push_back({tri.v[(s + 1) % 3], tri.v[(s + 2) % 3], t});
             }
         }
         legalize(suspect);
@@ -5763,24 +5851,25 @@ struct Triangulation {
         // Constrain every outer ring, every hole ring, and every interior
         // segment, restore the constrained Delaunay property, then carve away
         // the exterior and the hole interiors.
+        std::vector<char> touched(triangles_.size(), 0);
         for (const auto& ring : outerLoops) {
             for (std::size_t i = 0; i < ring.size(); ++i) {
-                insertConstraint(ring[i], ring[(i + 1) % ring.size()]);
+                insertConstraint(ring[i], ring[(i + 1) % ring.size()], touched);
             }
         }
         for (const auto& ring : holeLoops) {
             for (std::size_t i = 0; i < ring.size(); ++i) {
-                insertConstraint(ring[i], ring[(i + 1) % ring.size()]);
+                insertConstraint(ring[i], ring[(i + 1) % ring.size()], touched);
             }
         }
         for (const auto& s : constraintSegments) {
             const VertexIndex a = vid.at(PointType(s[0]));
             const VertexIndex b = vid.at(PointType(s[1]));
             if (a != b) {
-                insertConstraint(a, b);
+                insertConstraint(a, b, touched);
             }
         }
-        restoreConstrainedDelaunay();
+        restoreConstrainedDelaunay(touched);
 
         // One seed per hole, taken from a directed ring edge: a hole ring is
         // counterclockwise, so the triangle on the left of any of its edges lies
@@ -6328,17 +6417,25 @@ struct Triangulation {
     // edge) with an apex strictly inside the opposite circumcircle, and
     // re-queues the rewritten triangles' sides. Terminates by Lawson's
     // argument; the guard is a safety net only.
-    void legalize(std::vector<SegmentType>& suspect) {
+    //
+    // An entry whose hint triangle no longer has the edge is dropped, not
+    // searched for: only a flip rewrites a triangle, and every flip here
+    // queues the surviving sides of both triangles it rewrote again, so the
+    // edge, if it still exists, is queued under a fresh hint.
+    void legalize(std::vector<VertexEdge>& suspect) {
         std::size_t guard = 0;
         const std::size_t cap = triangles_.size() * triangles_.size() + 64;
         while (!suspect.empty() && ++guard < cap) {
-            const SegmentType s = suspect.back();
+            const VertexEdge entry = suspect.back();
             suspect.pop_back();
-            const auto se = segmentMap().find(s);
-            if (se == segmentMap().end() || !flippableEdge(se->second)) {
-                continue;  // edge gone, constrained, or quad not convex
+            const int side = sideBetween(entry.hint, entry.p, entry.q);
+            if (side < 0) {
+                continue;  // stale: requeued by the flip that rewrote the hint
             }
-            const Edge e = se->second;
+            const Edge e{entry.hint, static_cast<std::int8_t>(side)};
+            if (!flippableEdge(e)) {
+                continue;  // constrained, on the hull, or quad not convex
+            }
             const Edge m = mirror(e);
             const auto& tv = triangles_[e.tri].v;
             const VertexIndex d = triangles_[m.tri].v[m.side];
@@ -6349,12 +6446,13 @@ struct Triangulation {
             }
             const TriIndex t = e.tri;
             const TriIndex t2 = m.tri;
-            flip(s);
+            flipKeepingIndex(e);
             // The rewritten triangles' sides — the four quad edges plus the new
             // diagonal, which the test above now accepts — are suspect again.
             for (const TriIndex x : {t, t2}) {
-                for (std::int8_t q = 0; q < 3; ++q) {
-                    suspect.push_back(edgeSegment(Edge{x, q}));
+                const auto& xv = triangles_[static_cast<std::size_t>(x)].v;
+                for (int q = 0; q < 3; ++q) {
+                    suspect.push_back({xv[(q + 1) % 3], xv[(q + 2) % 3], x});
                 }
             }
         }
