@@ -141,6 +141,15 @@ ROWS = [
      [cell("regularizedunion", "triangles", "union")],
      "`regularizedUnionOf(v)`",
      "<code>General_polygon_set_2<wbr>::join</code>"),
+    ("Constrained Delaunay triangulation",
+     [cell("polygonpartition", d, "triangulation") for d in ("large", *SBPD_DATASETS)],
+     "`p.triangulation()`{Polygon}",
+     "<code>Constrained_<wbr>Delaunay_<wbr>triangulation_2</code>"),
+    # CGAL partitions simple polygons only, so fpg-holes has no reference.
+    ("Convex partition",
+     [cell("polygonpartition", d, "convex partition") for d in ("large", "fpg", "spg")],
+     "`p.convexPartition()`{Polygon}",
+     "<code>approx_convex_<wbr>partition_2</code>"),
 ]
 
 # Each pgl number type races the CGAL kernel of the same strength; the two
