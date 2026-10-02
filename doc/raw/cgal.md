@@ -90,11 +90,11 @@ The numbers come from the [asymptotic benchmarks](https://gfonsecabr.github.io/p
 
 #### Results
 
-The results below are sorted by `ERational` / EPECK ratio, from the cases where CGAL is faster to the ones where CGAL is slower. On `ERational` / EPECK ratio the range goes from CGAL being 6.7× faster to pgl being 4.4× faster. On `int` / EPICK, the ratio goes from CGAL being 2.2× faster to pgl being 4.8× faster.
+The results below are sorted by `ERational` / EPECK ratio, from the cases where CGAL is faster to the ones where CGAL is slower. On `ERational` / EPECK ratio the range goes from CGAL being 3.1× faster to pgl being 4.4× faster. On `int` / EPICK, the ratio goes from CGAL being 1.8× faster to pgl being 4.8× faster.
 
 | Problem | `ERational` / EPECK | `int` / EPICK | pgl | CGAL |
 | --- | --- | --- | --- | --- |
-| Constrained Delaunay triangulation | ${\color{#8b0000}\textsf{6.7×}}\textsf{ (5.2–9.4)}$ | ${\color{#8b0000}\textsf{2.2×}}\textsf{ (1.9–2.6)}$ | `p.triangulation()`{Polygon} | <code>Constrained_<wbr>Delaunay_<wbr>triangulation_2</code> |
+| Constrained Delaunay triangulation | ${\color{#8b0000}\textsf{3.1×}}\textsf{ (2.6–3.8)}$ | ${\color{#8b0000}\textsf{1.5×}}\textsf{ (1.3–1.6)}$ | `p.triangulation()`{Polygon} | <code>Constrained_<wbr>Delaunay_<wbr>triangulation_2</code> |
 | Delaunay triangulation | ${\color{#8b0000}\textsf{2.6×}}\textsf{ (2.2–3.1)}$ | ${\color{#8b0000}\textsf{1.7×}}\textsf{ (1.5–2.1)}$ | `Triangulation` | `Delaunay_triangulation_2` |
 | Point search, count in Triangle | ${\color{#8b0000}\textsf{2.4×}}\textsf{ (1.5–2.9)}$ | ${\color{#006400}\textsf{0.21×}}\textsf{ (0.14–0.24)}$ | `ShapeTree` | `Kd_tree::search` |
 | Convex hull | ${\color{#8b0000}\textsf{1.8×}}\textsf{ (1.5–2.2)}$ | ${\color{#006400}\textsf{0.51×}}\textsf{ (0.41–0.66)}$ | `convexHull(v)` | `convex_hull_2` |
@@ -107,12 +107,12 @@ The results below are sorted by `ERational` / EPECK ratio, from the cases where 
 | Regularized union, two polygons | $\textsf{0.91×}\textsf{ (0.60–1.4)}$<abbr title="CGAL's free join on the random polygons and fpg-holes, and General_polygon_set_2::join on spg, the faster of the two on each.">‡</abbr> | — | `a.regularizedUnion(b)`{Polygon} | `CGAL::join` |
 | Visibility, visible vertices | $\textsf{0.90×}\textsf{ (0.53–1.2)}$ | ${\color{#006400}\textsf{0.73×}}\textsf{ (0.52–0.96)}$<abbr title="The random polygon only. On fpg, spg and fpg-holes, EPICK answers wrongly or throws, so CGAL runs them under EPECK alone.">§</abbr> | `t.visibleVertices(p)`{Triangulation} | <code>Triangular_expansion_<wbr>visibility_2</code> |
 | kd-tree build | $\textsf{0.88×}\textsf{ (0.63–1.4)}$ | ${\color{#8b0000}\textsf{1.7×}}\textsf{ (1.4–2.2)}$ | `ShapeTree` | `Kd_tree` |
-| Convex partition | $\textsf{0.82×}\textsf{ (0.44–1.7)}$ | ${\color{#006400}\textsf{0.50×}}\textsf{ (0.29–0.88)}$ | `p.convexPartition()`{Polygon} | <code>approx_convex_<wbr>partition_2</code> |
 | Nearest neighbor query | $\textsf{0.82×}\textsf{ (0.63–1.1)}$ | ${\color{#8b0000}\textsf{1.8×}}\textsf{ (1.2–2.4)}$ | `t.nearestNeighbor(p)`{ShapeTree} | <code>Orthogonal_k_<wbr>neighbor_search</code> |
 | Segment search, count in Rectangle | ${\color{#006400}\textsf{0.68×}}\textsf{ (0.55–0.91)}$ | ${\color{#006400}\textsf{0.51×}}\textsf{ (0.32–0.69)}$ | `ShapeTree` | `AABB_tree` |
 | Arrangement point-location build | ${\color{#006400}\textsf{0.64×}}\textsf{ (0.45–0.96)}$ | — | `a.buildPointLocation()`{Arrangement} | <code>Arr_trapezoid_ric_<wbr>point_location</code> |
 | Segment intersection | ${\color{#006400}\textsf{0.55×}}\textsf{ (0.19–1.8)}$ | ${\color{#006400}\textsf{0.35×}}\textsf{ (0.12–0.69)}$<abbr title="CGAL's sweep line runs under EPICK here, which is not exact. pgl's int findIntersections is exact and 0.20× (0.05–0.46) against EPECK.">*</abbr> | `findIntersections(v)` | <code>compute_<wbr>intersection_points</code> |
 | Arrangement point location query | ${\color{#006400}\textsf{0.48×}}\textsf{ (0.32–0.82)}$ | — | `a.locateFace(p)`{Arrangement} | <code>Arr_trapezoid_ric_<wbr>point_location<wbr>::locate</code> |
+| Convex partition | ${\color{#006400}\textsf{0.44×}}\textsf{ (0.21–0.96)}$ | ${\color{#006400}\textsf{0.35×}}\textsf{ (0.20–0.66)}$ | `p.convexPartition()`{Polygon} | <code>approx_convex_<wbr>partition_2</code> |
 | Regularized union, triangles | ${\color{#006400}\textsf{0.23×}}\textsf{ (0.20–0.62)}$ | — | `regularizedUnionOf(v)` | <code>General_polygon_set_2<wbr>::join</code> |
 
 #### What the numbers do not say
