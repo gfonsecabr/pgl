@@ -5581,12 +5581,24 @@ struct Triangulation {
     // with every edge is what makes it a *global* restore: both callers reach
     // here having forced constraints into a mesh whose edges have not been
     // tested since, so none can be assumed legal.
+    //
+    // The edges are seeded in triangle order, each once from the lower-numbered
+    // of its two real triangles, never in the edge map's order: that follows the
+    // hash of a segment, which differs with the coordinate type and the standard
+    // library, and the order of the flips decides how the triangles end up
+    // numbered. Everything that walks the triangles by index — the convex
+    // partition first — would then answer differently for `int` and `ERational`
+    // copies of one polygon.
     void restoreConstrainedDelaunay() {
         std::vector<SegmentType> suspect;
         suspect.reserve(segmentMap().size());
-        for (const auto& [seg, handle] : segmentMap()) {
-            (void)handle;
-            suspect.push_back(seg);
+        for (TriIndex t = 0; t < firstGhost_; ++t) {
+            for (std::int8_t s = 0; s < 3; ++s) {
+                const TriIndex n = triangles_[static_cast<std::size_t>(t)].nbr[s];
+                if (n == NO_TRI || n > t) {
+                    suspect.push_back(edgeSegment(Edge{t, s}));
+                }
+            }
         }
         legalize(suspect);
     }
