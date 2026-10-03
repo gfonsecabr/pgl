@@ -11,7 +11,11 @@
  */
 
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstddef>
+#include <cstdint>
+#include <limits>
 #include <type_traits>
 #include <vector>
 
@@ -234,6 +238,146 @@ void hilbertSortMedian(RandomIt begin, RandomIt end, bool xAxis, bool upX, bool 
     hilbertSortMedian(m1, m2, xAxis, upX, upY, lessX, lessY);
     hilbertSortMedian(m2, m3, xAxis, upX, upY, lessX, lessY);
     hilbertSortMedian(m3, m4, !xAxis, !upY, !upX, lessX, lessY);
+}
+
+// Spreads the low 16 bits of x to the even bit positions.
+constexpr std::uint32_t spreadBits16(std::uint32_t x) {
+    x = (x | (x << 8)) & 0x00FF00FFu;
+    x = (x | (x << 4)) & 0x0F0F0F0Fu;
+    x = (x | (x << 2)) & 0x33333333u;
+    x = (x | (x << 1)) & 0x55555555u;
+    return x;
+}
+
+// Position of cell (x, y) along the Hilbert curve through a 2^16 x 2^16 grid,
+// computed branch-free as a parallel prefix over the bit pairs.
+constexpr std::uint32_t hilbertIndex16(std::uint32_t x, std::uint32_t y) {
+    std::uint32_t A, B, C, D;
+    {
+        const std::uint32_t a = x ^ y, b = 0xFFFFu ^ a, c = 0xFFFFu ^ (x | y), d = x & (y ^ 0xFFFFu);
+        A = a | (b >> 1);
+        B = (a >> 1) ^ a;
+        C = ((c >> 1) ^ (b & (d >> 1))) ^ c;
+        D = ((a & (c >> 1)) ^ (d >> 1)) ^ d;
+    }
+    for (int shift : {2, 4}) {
+        const std::uint32_t a = A, b = B, c = C, d = D;
+        A = (a & (a >> shift)) ^ (b & (b >> shift));
+        B = (a & (b >> shift)) ^ (b & ((a ^ b) >> shift));
+        C ^= (a & (c >> shift)) ^ (b & (d >> shift));
+        D ^= (b & (c >> shift)) ^ ((a ^ b) & (d >> shift));
+    }
+    {
+        const std::uint32_t a = A, b = B, c = C, d = D;
+        C ^= (a & (c >> 8)) ^ (b & (d >> 8));
+        D ^= (b & (c >> 8)) ^ ((a ^ b) & (d >> 8));
+    }
+    const std::uint32_t a = C ^ (C >> 1), b = D ^ (D >> 1);
+    const std::uint32_t i0 = x ^ y, i1 = b | (0xFFFFu ^ (i0 | a));
+    return (spreadBits16(i1) << 1) | spreadBits16(i0);
+}
+
+// Reorders order[begin, end) — indices into xy — along the Hilbert curve drawn
+// over their bounding box at 2^16 cells a side. A run of indices that falls in
+// one cell is drawn again over its own box, so clustered input keeps its
+// locality however far apart the clusters lie; a run too short to be worth
+// that, or whose box is a single point, is put in (x, y, exact point, index)
+// order instead, which leaves equal points next to each other with the
+// earliest first.
+template <class PointType>
+void hilbertKeyOrderRange(const std::vector<PointType>& points,
+                          const std::vector<std::array<double, 2>>& xy,
+                          std::vector<std::uint32_t>& order, std::size_t begin, std::size_t end,
+                          std::vector<std::uint64_t>& records, std::vector<std::uint64_t>& scratch) {
+    constexpr std::size_t leaf = 32;
+    const auto leafOrder = [&](std::size_t from, std::size_t to) {
+        std::sort(order.begin() + static_cast<std::ptrdiff_t>(from),
+                  order.begin() + static_cast<std::ptrdiff_t>(to),
+                  [&](std::uint32_t i, std::uint32_t j) {
+                      if (xy[i][0] != xy[j][0]) return xy[i][0] < xy[j][0];
+                      if (xy[i][1] != xy[j][1]) return xy[i][1] < xy[j][1];
+                      if (const auto c = points[i] <=> points[j]; c != 0) return c < 0;
+                      return i < j;
+                  });
+    };
+    double minX = std::numeric_limits<double>::infinity(), minY = minX;
+    double maxX = -minX, maxY = -minX;
+    for (std::size_t k = begin; k < end; ++k) {
+        const auto& p = xy[order[k]];
+        if (std::isfinite(p[0]) && std::isfinite(p[1])) {
+            minX = std::min(minX, p[0]);
+            maxX = std::max(maxX, p[0]);
+            minY = std::min(minY, p[1]);
+            maxY = std::max(maxY, p[1]);
+        }
+    }
+    const double span = std::max(maxX - minX, maxY - minY);
+    if (end - begin <= leaf || !(span > 0) || !std::isfinite(span)) {
+        leafOrder(begin, end);
+        return;
+    }
+    const double scale = 65535.0 / span;
+    const auto cell = [scale](double v, double low) -> std::uint32_t {
+        const double q = (v - low) * scale;
+        return q >= 0 ? (q < 65535.0 ? static_cast<std::uint32_t>(q) : 65535u) : 0u;
+    };
+    records.resize(end - begin);
+    for (std::size_t k = begin; k < end; ++k) {
+        const std::uint32_t i = order[k];
+        records[k - begin] =
+            (std::uint64_t{hilbertIndex16(cell(xy[i][0], minX), cell(xy[i][1], minY))} << 32) | i;
+    }
+    // Stable LSD radix sort on the key, eleven bits a pass.
+    scratch.resize(records.size());
+    for (int shift = 32; shift < 64; shift += 11) {
+        std::array<std::size_t, 2049> count{};
+        for (const std::uint64_t r : records) {
+            ++count[((r >> shift) & 2047u) + 1];
+        }
+        for (std::size_t d = 0; d < 2048; ++d) {
+            count[d + 1] += count[d];
+        }
+        for (const std::uint64_t r : records) {
+            scratch[count[(r >> shift) & 2047u]++] = r;
+        }
+        records.swap(scratch);
+    }
+    std::vector<std::pair<std::size_t, std::size_t>> runs;
+    for (std::size_t k = 0; k < records.size();) {
+        std::size_t j = k + 1;
+        while (j < records.size() && (records[j] >> 32) == (records[k] >> 32)) {
+            ++j;
+        }
+        if (j - k > 1) {
+            runs.emplace_back(begin + k, begin + j);
+        }
+        k = j;
+    }
+    for (std::size_t k = 0; k < records.size(); ++k) {
+        order[begin + k] = static_cast<std::uint32_t>(records[k]);
+    }
+    for (const auto& [from, to] : runs) {
+        hilbertKeyOrderRange(points, xy, order, from, to, records, scratch);
+    }
+}
+
+// The indices of points in an order along a Hilbert curve, with every set of
+// equal points consecutive and in index order. Unlike hilbertSort this reads
+// the coordinates as doubles, which is a heuristic only: the order serves
+// locality, never correctness, and its cost is a few linear passes.
+template <class PointType>
+std::vector<std::uint32_t> hilbertKeyOrder(const std::vector<PointType>& points) {
+    std::vector<std::array<double, 2>> xy(points.size());
+    for (std::size_t i = 0; i < points.size(); ++i) {
+        xy[i] = {approximate(points[i].x()).value, approximate(points[i].y()).value};
+    }
+    std::vector<std::uint32_t> order(points.size());
+    for (std::size_t i = 0; i < order.size(); ++i) {
+        order[i] = static_cast<std::uint32_t>(i);
+    }
+    std::vector<std::uint64_t> records, scratch;
+    hilbertKeyOrderRange(points, xy, order, 0, order.size(), records, scratch);
+    return order;
 }
 
 }  // namespace detail

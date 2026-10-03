@@ -359,19 +359,30 @@ struct Triangulation {
     template <class PointRange>
         requires PointConcept<typename PointRange::value_type>
     explicit Triangulation(const PointRange& pts) {
-        std::unordered_map<PointType, VertexIndex> vid;
-        const auto idOfPoint = makeVertexInterner(vid);
-        for (const auto& p : pts) {
-            idOfPoint(PointType(p));
+        std::vector<PointType> input;
+        if constexpr (requires { pts.size(); }) {
+            input.reserve(static_cast<std::size_t>(pts.size()));
         }
-        // Store the vertices in Hilbert-curve order: spatially close points then
+        for (const auto& p : pts) {
+            input.push_back(PointType(p));
+        }
+        // Store the vertices along a Hilbert curve: spatially close points then
         // sit close together both in vertices_ and — because triangles are
         // created in insertion order — in triangles_. Each of the incremental
         // build's point-location walks is seeded from the previous insertion, so
         // that order tends to start it near its target, and it improves cache
-        // locality for later query walks too.
+        // locality for later query walks too. The order also brings every set of
+        // equal points together, earliest first, so keeping the first of each
+        // run deduplicates them as the hash-based interner of the other
+        // constructors does, without the hash.
         // Vertex order is purely internal, so this is transparent downstream.
-        hilbertSort(vertices_);
+        const auto order = detail::hilbertKeyOrder(input);
+        vertices_.reserve(input.size());
+        for (std::size_t k = 0; k < order.size(); ++k) {
+            if (k == 0 || !(input[order[k]] == input[order[k - 1]])) {
+                vertices_.push_back(input[order[k]]);
+            }
+        }
         syncVertexApproximations();
         DelaunayAdjacency adjacency;
         auto triples = delaunayTriples(vertices_, vertexApproximations_, &adjacency);
@@ -5085,27 +5096,36 @@ struct Triangulation {
         std::vector<std::array<TriIndex, 3>> ghostNbr;
     };
 
-    // Exact Delaunay triangle triples (CCW, vertex indices into `pts`) via
-    // incremental Bowyer–Watson insertion. A single symbolic "vertex at infinity"
-    // (INF) closes the convex hull instead of a containing super-triangle: every
-    // hull edge a->b carries a ghost triangle {b,a,INF} that tiles the exterior,
-    // so the working triangulation is a closed surface in which every triangle has
-    // three neighbours. No far-away coordinates are ever constructed, so every
-    // in-circle / orientation test runs on the real point coordinates at the
-    // library's normal exactness — no BigInt, and no magnitude assumption (which
-    // is why a super-triangle is unsound for rational points: its required scale
-    // is unbounded).
+    // Exact Delaunay triangle triples (CCW, vertex indices into `pts`) by
+    // incremental insertion with Lawson flips. A single symbolic "vertex at
+    // infinity" (INF) closes the convex hull instead of a containing
+    // super-triangle: every hull edge a->b carries a ghost triangle {b,a,INF}
+    // that tiles the exterior, so the working triangulation is a closed surface
+    // in which every triangle has three neighbours. No far-away coordinates are
+    // ever constructed, so every in-circle / orientation test runs on the real
+    // point coordinates at the library's normal exactness — no BigInt, and no
+    // magnitude assumption (which is why a super-triangle is unsound for
+    // rational points: its required scale is unbounded).
     //
-    // Each point is located by a visibility walk over the neighbour links (the
-    // same walk locateIndex() runs on the finished structure) and inserted by
-    // carving out the triangles whose open circumdisk contains it — found by a
-    // local flood-fill from the located triangle, not a global scan — then
-    // re-fanning the star-shaped cavity to the new vertex. Points go in the order
-    // given — Hilbert order from the constructors, not a random one — and each
-    // walk is seeded from the previously inserted triangle. Nothing bounds a walk
-    // but its O(n) step cap, a cavity can hold O(n) triangles, and pairing the
-    // spokes of a cavity with b boundary edges scans a list per edge. Points
-    // along a parabola already take Theta(n^2).
+    // Each point is located by a visibility walk seeded from the previous
+    // insertion, splits the triangle (or the edge) it lands in, and the edges
+    // facing it are flipped until every one is locally Delaunay. A ghost takes
+    // part in the flips like any other triangle, its circumdisk being the open
+    // half-plane beyond its hull edge, which is how a point outside the hull
+    // joins every hull edge it sees.
+    //
+    // `pts` is expected in a spatially coherent order (the constructors keep it
+    // along a Hilbert curve), and the points go in by levels: every 4^L-th one
+    // first, then the rest of every 4^(L-1)-th, and so on down to all of them.
+    // Each level is a sample of the whole set in curve order, which keeps the
+    // walks short as a curve order does while the coarser levels hold the mesh
+    // in shape, as a random order does; that is the biased randomized insertion
+    // order of Amenta, Choi and Rote with the sample drawn by stride. Nothing
+    // bounds a walk but its O(n) step cap, and an insertion can flip O(n)
+    // edges (each flip leaves one more edge at the new point), so O(n^2) is
+    // all that is claimed.
+    //
+    // Duplicates and points collinear with all others carry no triangle.
     static std::vector<std::array<VertexIndex, 3>>
     delaunayTriples(const std::vector<PointType>& pts,
                     const std::vector<detail::ApproximatePoint>& approximations,
@@ -5118,69 +5138,90 @@ struct Triangulation {
         const VertexIndex INF = n;  // the symbolic vertex at infinity
 
         // Every predicate below reads its operands out of `pts`, and the walk
-        // and the flood-fill revisit the same vertices over and over, so the
+        // and the flips revisit the same vertices over and over, so the
         // approximations the caller keeps are what stop each of those reads
         // from converting a coordinate to double again.
         const auto fp = [&](VertexIndex v) {
             const auto index = static_cast<std::size_t>(v);
             return detail::filtered<VertexCoordinate>(pts[index], approximations, index);
         };
-
-        // Local closed triangulation: CCW vertices (ghosts contain INF) and three
-        // neighbours each (nbr[i] is across the edge opposite v[i]). Killed
-        // triangles keep `dead` set and recycle their slots through freeList; no
-        // live triangle ever references a dead slot, so `dead` doubles as the
-        // per-insertion "already in the cavity" mark during the flood-fill.
-        struct LTri {
-            std::array<VertexIndex, 3> v{};
-            std::array<int, 3> nbr{-1, -1, -1};
-            bool dead = false;
+        const auto orient = [&](VertexIndex a, VertexIndex b, VertexIndex c) {
+            return detail::orientationSignOf(fp(a), fp(b), fp(c)).value();
         };
-        std::vector<LTri> tri;
-        std::vector<int> freeList;
 
-        auto newTri = [&](VertexIndex a, VertexIndex b, VertexIndex d) -> int {
-            int id;
-            if (!freeList.empty()) {
-                id = freeList.back();
-                freeList.pop_back();
-                tri[id] = LTri{{a, b, d}, {-1, -1, -1}, false};
-            } else {
-                id = static_cast<int>(tri.size());
-                tri.push_back(LTri{{a, b, d}, {-1, -1, -1}, false});
+        // The insertion order: levels of decreasing stride over `pts`.
+        std::vector<VertexIndex> order;
+        order.reserve(static_cast<std::size_t>(n));
+        {
+            constexpr VertexIndex base = 4, coarsest = 64;
+            VertexIndex stride = 1;
+            while (n / stride > coarsest * base) {
+                stride *= base;
             }
-            return id;
-        };
+            for (VertexIndex i = 0; i < n; i += stride) {
+                order.push_back(i);
+            }
+            for (VertexIndex level = stride / base; level >= 1; level /= base) {
+                for (VertexIndex i = level; i < n; i += level) {
+                    if (i % (level * base) != 0) {
+                        order.push_back(i);
+                    }
+                }
+            }
+        }
 
-        auto isGhost = [&](int t) {
-            const auto& q = tri[t].v;
-            return q[0] == INF || q[1] == INF || q[2] == INF;
+        // Half-edge arrays: triangle t owns half-edges 3t, 3t+1, 3t+2, half-edge
+        // e runs from V[e] to V[next(e)], so the triangle's vertices are CCW
+        // (ghosts included: a ghost's finite edge has the hull exterior on its
+        // left) and the vertex opposite e is V[prev(e)]. H[e] is the twin.
+        std::vector<VertexIndex> V;
+        std::vector<int> H;
+        V.reserve(6 * static_cast<std::size_t>(n) + 12);
+        H.reserve(6 * static_cast<std::size_t>(n) + 12);
+        const auto next = [](int e) { return e % 3 == 2 ? e - 2 : e + 1; };
+        const auto prev = [](int e) { return e % 3 == 0 ? e + 2 : e - 1; };
+        const auto link = [&](int a, int b) {
+            H[static_cast<std::size_t>(a)] = b;
+            H[static_cast<std::size_t>(b)] = a;
+        };
+        const auto newTri = [&]() {
+            const int t = static_cast<int>(V.size() / 3);
+            V.resize(V.size() + 3);
+            H.resize(H.size() + 3);
+            return t;
+        };
+        const auto setTri = [&](int t, VertexIndex a, VertexIndex b, VertexIndex c) {
+            const auto e = 3 * static_cast<std::size_t>(t);
+            V[e] = a;
+            V[e + 1] = b;
+            V[e + 2] = c;
+        };
+        // The slot of INF in triangle t, or -1 for a real triangle.
+        const auto infSlot = [&](int t) {
+            const auto e = 3 * static_cast<std::size_t>(t);
+            return V[e] == INF ? 0 : (V[e + 1] == INF ? 1 : (V[e + 2] == INF ? 2 : -1));
         };
 
         // Inside-circumdisk test, finite or ghost. The circle through two finite
         // points and INF degenerates to the line through them, so for a ghost
-        // {.,.,INF} "inside the open disk" reduces to "left of the finite directed
-        // edge" (the edge opposite INF, in CCW order so its left is the hull
-        // exterior).
+        // "inside the open disk" reduces to "left of its finite directed edge".
         //
-        // The collinear boundary case (orientation 0) is decided so the re-fan
+        // The collinear boundary case (orientation 0) is decided so a split
         // never builds a zero-area triangle: p exactly on the open hull-edge
-        // segment counts as inside, pulling the ghost into the cavity so the edge
-        // splits in two instead of spanning a degenerate {edge, p}. p on the
-        // edge's line but beyond an endpoint stays outside — the hull just extends
-        // straight along the line, no degenerate triangle either way.
-        auto inDisk = [&](int t, VertexIndex p) -> bool {
-            const auto& q = tri[t].v;
-            const int inf = q[0] == INF ? 0 : (q[1] == INF ? 1 : (q[2] == INF ? 2 : -1));
-            if (inf < 0) {
-                return detail::inCircleSignOf(fp(q[0]), fp(q[1]),
-                                              fp(q[2]), fp(p)) ==
+        // segment counts as inside, so the edge splits in two instead of
+        // spanning a degenerate {edge, p}. p on the edge's line but beyond an
+        // endpoint stays outside — the hull just extends straight along the
+        // line, no degenerate triangle either way.
+        const auto inDisk = [&](int t, VertexIndex p) -> bool {
+            const auto e = 3 * static_cast<std::size_t>(t);
+            const int k = infSlot(t);
+            if (k < 0) {
+                return detail::inCircleSignOf(fp(V[e]), fp(V[e + 1]), fp(V[e + 2]), fp(p)) ==
                        std::partial_ordering::greater;
             }
-            const VertexIndex u = q[(inf + 1) % 3];
-            const VertexIndex w = q[(inf + 2) % 3];
-            const auto side =
-                detail::orientationSignOf(fp(u), fp(w), fp(p)).value();
+            const VertexIndex u = V[e + static_cast<std::size_t>((k + 1) % 3)];
+            const VertexIndex w = V[e + static_cast<std::size_t>((k + 2) % 3)];
+            const auto side = orient(u, w, p);
             if (side > 0) {
                 return true;
             }
@@ -5195,189 +5236,204 @@ struct Triangulation {
             return false;
         };
 
-        // Seed with the first non-collinear triple, oriented CCW, plus the three
-        // ghost triangles covering its hull edges. Points 2..c-1 (if any) are
-        // collinear with 0 and 1 and get inserted in the main loop like any other.
-        VertexIndex c = 2;
-        while (c < n &&
-               detail::orientationSignOf(fp(0), fp(1), fp(c)).value() == 0) {
-            ++c;
+        // Seed with the first non-collinear triple of the order, oriented CCW,
+        // plus the three ghost triangles covering its hull edges. The points
+        // passed over on the way (equal or collinear to the first two) go in
+        // with the others.
+        const VertexIndex s0 = order[0];
+        std::size_t k1 = 1;
+        while (k1 < order.size() && pts[order[k1]] == pts[s0]) {
+            ++k1;
         }
-        if (c == n) {
+        std::size_t k2 = k1 + 1;
+        while (k2 < order.size() && orient(s0, order[k1], order[k2]) == 0) {
+            ++k2;
+        }
+        if (k2 >= order.size()) {
             return out;  // all points collinear: the Delaunay triangulation is empty
         }
-        const std::array<VertexIndex, 3> seed =
-            detail::orientationSignOf(fp(0), fp(1), fp(c)).value() > 0
-                ? std::array<VertexIndex, 3>{0, 1, c}
-                : std::array<VertexIndex, 3>{1, 0, c};
-        const int seedTris[4] = {
-            newTri(seed[0], seed[1], seed[2]),
-            newTri(seed[1], seed[0], INF),  // ghost outside edge seed0->seed1
-            newTri(seed[2], seed[1], INF),  // ghost outside edge seed1->seed2
-            newTri(seed[0], seed[2], INF),  // ghost outside edge seed2->seed0
-        };
-        // Link the seed: match each directed edge (a,b) to the neighbour carrying
-        // its reverse (b,a). The four triangles tile the sphere, so every side
-        // finds a partner.
-        for (int t : seedTris) {
-            for (int s = 0; s < 3; ++s) {
-                const VertexIndex a = tri[t].v[(s + 1) % 3];
-                const VertexIndex b = tri[t].v[(s + 2) % 3];
-                for (int u : seedTris) {
-                    for (int q = 0; q < 3; ++q) {
-                        if (tri[u].v[(q + 1) % 3] == b && tri[u].v[(q + 2) % 3] == a) {
-                            tri[t].nbr[s] = u;
-                        }
-                    }
-                }
-            }
+        VertexIndex s1 = order[k1], s2 = order[k2];
+        if (orient(s0, s1, s2) < 0) {
+            std::swap(s1, s2);
+        }
+        {
+            const int t0 = newTri(), g0 = newTri(), g1 = newTri(), g2 = newTri();
+            setTri(t0, s0, s1, s2);
+            setTri(g0, s1, s0, INF);
+            setTri(g1, s2, s1, INF);
+            setTri(g2, s0, s2, INF);
+            link(3 * t0, 3 * g0);
+            link(3 * t0 + 1, 3 * g1);
+            link(3 * t0 + 2, 3 * g2);
+            link(3 * g0 + 1, 3 * g2 + 2);  // s0->INF / INF->s0
+            link(3 * g0 + 2, 3 * g1 + 1);  // INF->s1 / s1->INF
+            link(3 * g1 + 2, 3 * g2 + 1);  // INF->s2 / s2->INF
         }
 
         // Visibility walk: from triangle t, step across whichever edge p lies
         // strictly to the right of (outside), until p is inside the current
         // triangle (no such edge) or a ghost is reached (p outside the hull). A
-        // randomised start edge guarantees termination; the step cap is a safety
-        // net only.
+        // randomised start edge guarantees termination; the step cap is a
+        // safety net only.
         std::uint64_t rngState = 0x9e3779b97f4a7c15ULL;
-        auto walk = [&](VertexIndex p, int t) -> int {
+        const auto walk = [&](VertexIndex p, int t) -> int {
+            if (const int k = infSlot(t); k >= 0) {  // start from the real side
+                t = H[3 * static_cast<std::size_t>(t) + static_cast<std::size_t>((k + 1) % 3)] / 3;
+            }
             int from = -1;
-            const int64_t cap = int64_t(3) * static_cast<int64_t>(tri.size()) + 16;
-            for (int64_t step = 0; step < cap; ++step) {
-                if (isGhost(t)) {
+            const std::int64_t cap = std::int64_t(V.size()) + 16;
+            for (std::int64_t step = 0; step < cap; ++step) {
+                if (infSlot(t) >= 0) {
                     return t;
                 }
                 rngState = rngState * 6364136223846793005ULL + 1442695040888963407ULL;
                 const int begin = static_cast<int>((rngState >> 33) % 3);
-                int next = -1;
+                int nextTri = -1;
                 for (int k = 0; k < 3; ++k) {
-                    const int s = (begin + k) % 3;
-                    if (tri[t].nbr[s] == from) {
+                    const int e = 3 * t + (begin + k) % 3;
+                    const int across = H[static_cast<std::size_t>(e)] / 3;
+                    if (across == from) {
                         continue;
                     }
-                    const VertexIndex ea = tri[t].v[(s + 1) % 3];
-                    const VertexIndex eb = tri[t].v[(s + 2) % 3];
-                    if (detail::orientationSignOf(fp(ea), fp(eb),
-                                                  fp(p)).value() < 0) {
-                        next = tri[t].nbr[s];
+                    if (orient(V[static_cast<std::size_t>(e)],
+                               V[static_cast<std::size_t>(next(e))], p) < 0) {
+                        nextTri = across;
                         break;
                     }
                 }
-                if (next < 0) {
+                if (nextTri < 0) {
                     return t;
                 }
                 from = t;
-                t = next;
+                t = nextTri;
             }
             return t;
         };
 
-        std::vector<int> cavity;
-        // A boundary edge of the cavity: its directed edge (a,b), the surviving
-        // triangle behind it, and that triangle's side facing the cavity.
-        struct Bnd {
-            VertexIndex a, b;
-            int surv, survSide;
+        // Edges awaiting a Delaunay check, each with the new point opposite it.
+        std::vector<int> suspect;
+        const auto legalize = [&](VertexIndex p) {
+            while (!suspect.empty()) {
+                const int e = suspect.back();
+                suspect.pop_back();
+                const int o = H[static_cast<std::size_t>(e)];
+                if (!inDisk(o / 3, p)) {
+                    continue;
+                }
+                // Triangle (a, b, p) on e = a->b, (b, a, d) across it; the flip
+                // leaves (a, d, p) on e and (d, b, p) on o.
+                const int en = next(e), on = next(o), op = prev(o);
+                const VertexIndex b = V[static_cast<std::size_t>(en)];
+                const VertexIndex d = V[static_cast<std::size_t>(op)];
+                const int outerAD = H[static_cast<std::size_t>(on)];
+                const int outerDB = H[static_cast<std::size_t>(op)];
+                const int outerBP = H[static_cast<std::size_t>(en)];
+                V[static_cast<std::size_t>(en)] = d;
+                V[static_cast<std::size_t>(o)] = d;
+                V[static_cast<std::size_t>(on)] = b;
+                V[static_cast<std::size_t>(op)] = p;
+                link(e, outerAD);
+                link(o, outerDB);
+                link(on, outerBP);
+                link(en, op);
+                suspect.push_back(e);
+                suspect.push_back(o);
+            }
         };
-        std::vector<Bnd> boundary;
-        // Spoke edges {vertex,p} awaiting their partner among the new triangles.
-        struct Spoke {
-            VertexIndex vertex;
-            int tri, side;
-        };
-        std::vector<Spoke> spokes;
 
-        int hint = seedTris[0];
-        for (VertexIndex i = 0; i < n; ++i) {
-            if (i == seed[0] || i == seed[1] || i == seed[2]) {
+        int hint = 0;
+        for (const VertexIndex p : order) {
+            if (p == s0 || p == s1 || p == s2) {
                 continue;
             }
-            const int start = walk(i, hint);
-            if (!inDisk(start, i)) {
-                continue;  // i lies in no open circumdisk (collinear/duplicate): skip
-            }
-
-            // Flood-fill the cavity: every triangle whose open disk contains i,
-            // reachable from `start` through neighbours. Mark them dead as we go
-            // (so they double as the visited set); record each edge where the
-            // flood meets a surviving triangle.
-            cavity.clear();
-            boundary.clear();
-            tri[start].dead = true;
-            cavity.push_back(start);
-            for (std::size_t qi = 0; qi < cavity.size(); ++qi) {
-                const int t = cavity[qi];
-                for (int s = 0; s < 3; ++s) {
-                    const int nb = tri[t].nbr[s];
-                    if (tri[nb].dead) {
-                        continue;  // already carved into the cavity this insertion
-                    }
-                    if (inDisk(nb, i)) {
-                        tri[nb].dead = true;
-                        cavity.push_back(nb);
-                    } else {
-                        const int survSide =
-                            tri[nb].nbr[0] == t ? 0 : (tri[nb].nbr[1] == t ? 1 : 2);
-                        boundary.push_back(
-                            {tri[t].v[(s + 1) % 3], tri[t].v[(s + 2) % 3], nb, survSide});
+            const int t = walk(p, hint);
+            int onEdge = -1;
+            if (infSlot(t) < 0) {
+                int zeros = 0;
+                for (int k = 0; k < 3; ++k) {
+                    const int e = 3 * t + k;
+                    if (orient(V[static_cast<std::size_t>(e)],
+                               V[static_cast<std::size_t>(next(e))], p) == 0) {
+                        ++zeros;
+                        onEdge = e;
                     }
                 }
-            }
-            for (int t : cavity) {
-                freeList.push_back(t);
-            }
-
-            // Re-fan: one new triangle {a,b,i} per boundary edge, linked across its
-            // base {a,b} to the surviving triangle and across its two spokes
-            // {b,i}/{a,i} to the adjacent new triangles, paired by shared vertex.
-            spokes.clear();
-            int newReal = -1;
-            for (const Bnd& e : boundary) {
-                const int nt = newTri(e.a, e.b, i);
-                tri[nt].nbr[2] = e.surv;  // side 2 (opposite i) is the base edge {a,b}
-                tri[e.surv].nbr[e.survSide] = nt;
-                if (newReal < 0 && !isGhost(nt)) {
-                    newReal = nt;
+                if (zeros > 1) {
+                    continue;  // p is already a vertex
                 }
-                // side 0 (opposite a) is edge {b,i}; side 1 (opposite b) is {a,i}.
-                for (const auto& [vertex, side] :
-                     {std::pair<VertexIndex, int>{e.b, 0}, std::pair<VertexIndex, int>{e.a, 1}}) {
-                    bool paired = false;
-                    for (std::size_t k = 0; k < spokes.size(); ++k) {
-                        if (spokes[k].vertex == vertex) {
-                            tri[nt].nbr[side] = spokes[k].tri;
-                            tri[spokes[k].tri].nbr[spokes[k].side] = nt;
-                            spokes[k] = spokes.back();
-                            spokes.pop_back();
-                            paired = true;
-                            break;
-                        }
-                    }
-                    if (!paired) {
-                        spokes.push_back({vertex, nt, side});
-                    }
-                }
+            } else if (!inDisk(t, p)) {
+                continue;  // unreachable: the walk only enters a ghost that sees p
             }
-            if (newReal >= 0) {
-                hint = newReal;
+            if (onEdge < 0) {
+                // Split t = (a, b, c) into (a, b, p), (b, c, p), (c, a, p).
+                const int e0 = 3 * t;
+                const VertexIndex a = V[static_cast<std::size_t>(e0)];
+                const VertexIndex b = V[static_cast<std::size_t>(e0 + 1)];
+                const VertexIndex c = V[static_cast<std::size_t>(e0 + 2)];
+                const int outerBC = H[static_cast<std::size_t>(e0 + 1)];
+                const int outerCA = H[static_cast<std::size_t>(e0 + 2)];
+                const int t1 = newTri(), t2 = newTri();
+                setTri(t, a, b, p);
+                setTri(t1, b, c, p);
+                setTri(t2, c, a, p);
+                link(3 * t1, outerBC);
+                link(3 * t2, outerCA);
+                link(e0 + 1, 3 * t1 + 2);
+                link(3 * t1 + 1, 3 * t2 + 2);
+                link(3 * t2 + 1, e0 + 2);
+                suspect.push_back(e0);
+                suspect.push_back(3 * t1);
+                suspect.push_back(3 * t2);
+            } else {
+                // Split the edge a->b of t = (a, b, c) and of u = (b, a, d), d
+                // possibly INF, into (c, a, p), (b, c, p), (a, d, p), (d, b, p).
+                const int e = onEdge, o = H[static_cast<std::size_t>(e)];
+                const int u = o / 3;
+                const VertexIndex a = V[static_cast<std::size_t>(e)];
+                const VertexIndex b = V[static_cast<std::size_t>(next(e))];
+                const VertexIndex c = V[static_cast<std::size_t>(prev(e))];
+                const VertexIndex d = V[static_cast<std::size_t>(prev(o))];
+                const int outerBC = H[static_cast<std::size_t>(next(e))];
+                const int outerCA = H[static_cast<std::size_t>(prev(e))];
+                const int outerAD = H[static_cast<std::size_t>(next(o))];
+                const int outerDB = H[static_cast<std::size_t>(prev(o))];
+                const int t1 = newTri(), u1 = newTri();
+                setTri(t, c, a, p);
+                setTri(t1, b, c, p);
+                setTri(u, a, d, p);
+                setTri(u1, d, b, p);
+                link(3 * t, outerCA);
+                link(3 * t1, outerBC);
+                link(3 * u, outerAD);
+                link(3 * u1, outerDB);
+                link(3 * t + 1, 3 * u + 2);    // a->p / p->a
+                link(3 * t + 2, 3 * t1 + 1);   // p->c / c->p
+                link(3 * t1 + 2, 3 * u1 + 1);  // p->b / b->p
+                link(3 * u + 1, 3 * u1 + 2);   // d->p / p->d
+                suspect.push_back(3 * t);
+                suspect.push_back(3 * t1);
+                suspect.push_back(3 * u);
+                suspect.push_back(3 * u1);
             }
+            legalize(p);
+            hint = t;
         }
 
-        // Number the survivors the way buildFromTriples will — reals in
+        // Number the triangles the way buildFromTriples will — reals in
         // emission order, then the ghosts — so the links below are already in
         // its numbering. The build maintained them the whole way; re-deriving
         // them from the bare triples would mean sorting three sides per
         // triangle to match each edge against its twin, which for a large
         // point set costs about as much as the insertion loop itself.
-        std::vector<TriIndex> slot(tri.size(), NO_TRI);
+        const int triangleCount = static_cast<int>(V.size() / 3);
+        std::vector<TriIndex> slot(static_cast<std::size_t>(triangleCount), NO_TRI);
         std::vector<int> ghosts;
-        for (int t = 0; t < static_cast<int>(tri.size()); ++t) {
-            if (tri[t].dead) {
-                continue;
-            }
-            const auto& q = tri[t].v;
-            if (q[0] != INF && q[1] != INF && q[2] != INF) {
+        out.reserve(static_cast<std::size_t>(triangleCount));
+        for (int t = 0; t < triangleCount; ++t) {
+            if (infSlot(t) < 0) {
+                const auto e = 3 * static_cast<std::size_t>(t);
                 slot[static_cast<std::size_t>(t)] = static_cast<TriIndex>(out.size());
-                out.push_back({q[0], q[1], q[2]});
+                out.push_back({V[e], V[e + 1], V[e + 2]});
             } else if (adjacency != nullptr) {
                 ghosts.push_back(t);
             }
@@ -5386,23 +5442,25 @@ struct Triangulation {
             return out;
         }
         for (std::size_t j = 0; j < ghosts.size(); ++j) {
-            slot[static_cast<std::size_t>(ghosts[j])] =
-                static_cast<TriIndex>(out.size() + j);
+            slot[static_cast<std::size_t>(ghosts[j])] = static_cast<TriIndex>(out.size() + j);
         }
+        // The neighbour across the side opposite slot s of triangle t, which is
+        // half-edge (s + 1) % 3.
         const auto linked = [&](int t, int s) {
-            const int nb = tri[static_cast<std::size_t>(t)].nbr[static_cast<std::size_t>(s)];
-            return nb < 0 ? NO_TRI : slot[static_cast<std::size_t>(nb)];
+            return slot[static_cast<std::size_t>(
+                H[3 * static_cast<std::size_t>(t) + static_cast<std::size_t>((s + 1) % 3)] / 3)];
         };
 
         adjacency->realNbr.resize(out.size());
         adjacency->ghostEdge.resize(ghosts.size());
         adjacency->ghostNbr.resize(ghosts.size());
-        for (int t = 0; t < static_cast<int>(tri.size()); ++t) {
-            if (tri[t].dead || tri[t].v[0] == INF || tri[t].v[1] == INF || tri[t].v[2] == INF) {
+        for (int t = 0; t < triangleCount; ++t) {
+            const TriIndex k = slot[static_cast<std::size_t>(t)];
+            if (k == NO_TRI || static_cast<std::size_t>(k) >= out.size()) {
                 continue;
             }
-            adjacency->realNbr[static_cast<std::size_t>(slot[static_cast<std::size_t>(t)])] = {
-                linked(t, 0), linked(t, 1), linked(t, 2)};
+            adjacency->realNbr[static_cast<std::size_t>(k)] = {linked(t, 0), linked(t, 1),
+                                                               linked(t, 2)};
         }
         // A ghost {u, w, INF} traverses its finite edge against the real
         // triangle behind it, so the hull edge with the mesh on its left is
@@ -5411,12 +5469,12 @@ struct Triangulation {
         // that Triangulation's ghosts carry in slots 1, 0 and 2.
         for (std::size_t j = 0; j < ghosts.size(); ++j) {
             const int t = ghosts[j];
-            const auto& q = tri[static_cast<std::size_t>(t)].v;
-            const int k = q[0] == INF ? 0 : (q[1] == INF ? 1 : 2);
+            const int k = infSlot(t);
             const int uSide = (k + 1) % 3;
             const int wSide = (k + 2) % 3;
-            adjacency->ghostEdge[j] = {q[static_cast<std::size_t>(wSide)],
-                                       q[static_cast<std::size_t>(uSide)]};
+            const auto e = 3 * static_cast<std::size_t>(t);
+            adjacency->ghostEdge[j] = {V[e + static_cast<std::size_t>(wSide)],
+                                       V[e + static_cast<std::size_t>(uSide)]};
             adjacency->ghostNbr[j] = {linked(t, wSide), linked(t, uSide), linked(t, k)};
         }
         return out;
