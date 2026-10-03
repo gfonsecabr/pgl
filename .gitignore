@@ -36,4 +36,5 @@ CTestTestfile.cmake
 *.exe
 a.out
 /CLAUDE.*
+/.claude/
 /AGENTS.md
