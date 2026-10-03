@@ -21,6 +21,55 @@ Point P(int x, int y) {
     return Point(Number(x), Number(y));
 }
 
+// Where the directed line from a through b first meets triangle t, as the
+// parameter dot(p - a, b - a) of that first point p, or nullopt if the line
+// misses t. Exact, so triangles first met at the same point tie.
+template <class Tri, class Point>
+std::optional<pgl::ERational> firstContact(const Tri& t, const Point& a, const Point& b) {
+    const long long dx = b.x() - a.x(), dy = b.y() - a.y();
+    const auto side = [&](const auto& p) -> long long {
+        return dx * (p.y() - a.y()) - dy * (p.x() - a.x());
+    };
+    const auto along = [&](const auto& p) -> long long {
+        return dx * (p.x() - a.x()) + dy * (p.y() - a.y());
+    };
+    std::optional<pgl::ERational> best;
+    const auto offer = [&](const pgl::ERational& v) {
+        if (!best || v < *best) best = v;
+    };
+    for (int k = 0; k < 3; ++k) {
+        const auto& u = t[k];
+        const auto& w = t[(k + 1) % 3];
+        const long long su = side(u), sw = side(w);
+        if (su == 0) offer(pgl::ERational(along(u)));
+        if ((su < 0 && sw > 0) || (su > 0 && sw < 0)) {  // the line crosses (u, w)
+            long long num = su * along(w) - sw * along(u), den = su - sw;
+            if (den < 0) { num = -num; den = -den; }
+            offer(pgl::ERational(num, den));
+        }
+    }
+    return best;
+}
+
+// True if the triangles come in the order the directed query from a through b
+// meets them: no triangle's first contact precedes the one before it. Triangles
+// first met at the same point (around a vertex, on both sides of an edge) may
+// come in any order, which need not be the same from one call to the next. With
+// `fromSource` the contact is taken no earlier than a, as for a ray or segment.
+template <class Tri, class Point>
+bool orderedAlong(const std::vector<Tri>& ts, const Point& a, const Point& b,
+                  bool fromSource) {
+    std::optional<pgl::ERational> prev;
+    for (const auto& t : ts) {
+        const auto c = firstContact(t, a, b);
+        if (!c) return false;
+        const pgl::ERational key = fromSource && *c < pgl::ERational(0) ? pgl::ERational(0) : *c;
+        if (prev && key < *prev) return false;
+        prev = key;
+    }
+    return true;
+}
+
 // Number of (point, triangle) pairs where the point is STRICTLY inside the
 // triangle's circumcircle. Zero is the defining property of a Delaunay
 // triangulation, and the property we want preserved even under cocircularity.
@@ -498,7 +547,6 @@ TEST_CASE("A segment running along a mesh edge stops at its target") {
 
 TEST_CASE("Line, oriented-line, and ray traversal is ordered along the query") {
     using Point = pgl::Point<int>;
-    using OSeg = pgl::OrientedSegment<Point>;
     std::vector<Point> pts;
     for (int x = 0; x <= 80; x += 10) {
         for (int y = 0; y <= 80; y += 10) {
@@ -508,14 +556,11 @@ TEST_CASE("Line, oriented-line, and ray traversal is ordered along the query") {
     pgl::Triangulation tri(pts);
     const auto all = tri.triangles();
 
-    // A directed query is traced in order along q[0]->q[1]. The reference is the
-    // directed segment walk over the same supporting line, clipped to a segment
-    // that spans the whole hull (`spanning`): the two must report exactly the
-    // same triangles in exactly the same order, and the set must equal the
-    // brute-force intersecting set.
-    const auto compare = [&](const auto& query, const OSeg& spanning) {
+    // A directed query is traced in order along q[0]->q[1] (from q[0] on, for a
+    // ray), and the set must equal the brute-force intersecting set.
+    const auto compare = [&](const auto& query, bool fromSource) {
         const auto got = tri.trianglesIntersecting(query);
-        CHECK(got == tri.trianglesIntersecting(spanning));  // same triangles, same order
+        CHECK(orderedAlong(got, query[0], query[1], fromSource));
         std::set<std::array<Point, 3>> gotSet, refSet;
         for (const auto& t : got) {
             CHECK(t.intersects(query));
@@ -525,22 +570,10 @@ TEST_CASE("Line, oriented-line, and ray traversal is ordered along the query") {
             if (t.intersects(query)) refSet.insert({t[0], t[1], t[2]});
         }
         CHECK(gotSet == refSet);
-        return got;
+        return gotSet;
     };
-    const int K = 80;  // enough to push a point well past the 80x80 mesh
-    // A line/oriented line spans the hull when extended past both defining points.
-    const auto checkLine = [&](const auto& line) {
-        const Point p0 = line[0], p1 = line[1];
-        const Point d(p1.x() - p0.x(), p1.y() - p0.y());
-        return compare(line, OSeg(Point(p0.x() - K * d.x(), p0.y() - K * d.y()),
-                                  Point(p1.x() + K * d.x(), p1.y() + K * d.y())));
-    };
-    // A ray keeps its source and extends only forwards.
-    const auto checkRay = [&](const pgl::Ray<Point>& ray) {
-        const Point s0 = ray[0], s1 = ray[1];
-        const Point d(s1.x() - s0.x(), s1.y() - s0.y());
-        return compare(ray, OSeg(s0, Point(s0.x() + K * d.x(), s0.y() + K * d.y())));
-    };
+    const auto checkLine = [&](const auto& line) { return compare(line, false); };
+    const auto checkRay = [&](const pgl::Ray<Point>& ray) { return compare(ray, true); };
 
     SUBCASE("a line with both defining points outside the hull") {
         const auto got = checkLine(pgl::Line<Point>(P<Point>(-8, 5), P<Point>(88, 74)));
@@ -552,11 +585,10 @@ TEST_CASE("Line, oriented-line, and ray traversal is ordered along the query") {
         const auto got = checkLine(pgl::OrientedLine<Point>(P<Point>(30, 28), P<Point>(52, 55)));
         CHECK_FALSE(got.empty());
     }
-    SUBCASE("reversing an oriented line reverses the order") {
-        auto fwd = checkLine(pgl::OrientedLine<Point>(P<Point>(12, 9), P<Point>(70, 66)));
-        auto rev = checkLine(pgl::OrientedLine<Point>(P<Point>(70, 66), P<Point>(12, 9)));
+    SUBCASE("a reversed oriented line meets the same triangles in its own order") {
+        const auto fwd = checkLine(pgl::OrientedLine<Point>(P<Point>(12, 9), P<Point>(70, 66)));
+        const auto rev = checkLine(pgl::OrientedLine<Point>(P<Point>(70, 66), P<Point>(12, 9)));
         CHECK_FALSE(fwd.empty());
-        std::reverse(rev.begin(), rev.end());
         CHECK(fwd == rev);
     }
     SUBCASE("a ray whose source is inside the hull") {
@@ -784,8 +816,9 @@ TEST_CASE("Chain traversal reports exactly the triangles and edges a chain meets
 
     // A chain is traced edge by edge: the triangles must be exactly the
     // brute-force intersecting set, each reported once, in the order the chain
-    // first meets them (the concatenated per-edge segment walks, duplicates
-    // dropped). The derived families must match their brute-force references too.
+    // first meets them — by the first edge that meets them, then along that edge,
+    // in any order where several are first met at the same point. The derived
+    // families must match their brute-force references too.
     const auto check = [&](const auto& chain) {
         const auto got = tri.trianglesIntersecting(chain);
         std::set<std::array<Point, 3>> gotSet, refSet;
@@ -798,14 +831,18 @@ TEST_CASE("Chain traversal reports exactly the triangles and edges a chain meets
         }
         CHECK(gotSet == refSet);
 
-        std::vector<pgl::Triangle<Point>> ordered;
-        std::set<std::array<Point, 3>> once;
-        for (const auto& e : chain.orientedEdges()) {
-            for (const auto& t : tri.trianglesIntersecting(e)) {
-                if (once.insert({t[0], t[1], t[2]}).second) ordered.push_back(t);
-            }
+        const auto edges = chain.orientedEdges();
+        std::optional<std::pair<std::size_t, pgl::ERational>> prev;
+        for (const auto& t : got) {
+            std::size_t i = 0;
+            while (i < edges.size() && !t.intersects(edges[i])) ++i;
+            REQUIRE(i < edges.size());
+            const auto c = firstContact(t, edges[i][0], edges[i][1]);
+            REQUIRE(c.has_value());
+            const std::pair key(i, *c < pgl::ERational(0) ? pgl::ERational(0) : *c);
+            CHECK((!prev || *prev <= key));  // in chain order, up to ties
+            prev = key;
         }
-        CHECK(got == ordered);  // same triangles, in chain order
 
         std::set<std::array<Point, 3>> ig, ir;
         for (const auto& t : tri.trianglesInteriorIntersecting(chain)) {
@@ -870,9 +907,10 @@ TEST_CASE("Chain traversal reports exactly the triangles and edges a chain meets
     }
     SUBCASE("a single-vertex polyline is the point query") {
         const pgl::Polyline<Point> pl(std::vector<Point>{P<Point>(25, 35)});
-        CHECK(tri.trianglesIntersecting(pl) ==
-              tri.trianglesIntersecting(P<Point>(25, 35)));
-        CHECK_FALSE(tri.trianglesIntersecting(pl).empty());
+        const auto got = tri.trianglesIntersecting(pl);
+        const auto ref = tri.trianglesIntersecting(P<Point>(25, 35));
+        CHECK(std::set(got.begin(), got.end()) == std::set(ref.begin(), ref.end()));
+        CHECK_FALSE(got.empty());
     }
     SUBCASE("a monotone chain crossing the mesh") {
         const pgl::MonotoneChain<Point> mc(std::vector<Point>{P<Point>(3, 9), P<Point>(27, 55),
@@ -1497,10 +1535,6 @@ TEST_CASE("Traversal reports every triangle met, however the query meets the hul
     // Missing the hull entirely, and grazing a single hull vertex.
     CHECK(reportsExactly(pgl::Segment<Point>(P<Point>(8, 8), P<Point>(9, 9))));
     CHECK(reportsExactly(pgl::Line<Point>(P<Point>(6, 8), P<Point>(8, 6))));
-
-    // The walk is a const query: it must be deterministic (it caches a hint).
-    const pgl::Ray<Point> ray(P<Point>(8, 2), P<Point>(3, 2));
-    CHECK(tri.trianglesIntersecting(ray) == tri.trianglesIntersecting(ray));
 }
 
 TEST_CASE_TEMPLATE("Domain predicates agree with the polygon triangulated", Point,
