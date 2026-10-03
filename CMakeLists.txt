@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.14)
 # generate the package config that makes find_package(pgl) work. Consumers who
 # prefer to pass -Iinclude by hand need none of it.
 project(pgl
-        VERSION 1.0.0
+        VERSION 1.1.0
         DESCRIPTION "Header-only C++20 library for plane computational geometry"
         HOMEPAGE_URL "https://github.com/gfonsecabr/pgl"
         LANGUAGES CXX)

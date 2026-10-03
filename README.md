@@ -208,7 +208,7 @@ include(FetchContent)
 FetchContent_Declare(
   pgl
   GIT_REPOSITORY https://github.com/gfonsecabr/pgl
-  GIT_TAG v1.0.0   # or main to track the latest, or any tag or commit
+  GIT_TAG v1.1.0   # or main to track the latest, or any tag or commit
 )
 
 FetchContent_MakeAvailable(pgl)

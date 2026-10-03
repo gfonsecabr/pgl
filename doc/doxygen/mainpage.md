@@ -199,7 +199,7 @@ include(FetchContent)
 FetchContent_Declare(
   pgl
   GIT_REPOSITORY https://github.com/gfonsecabr/pgl
-  GIT_TAG v1.0.0
+  GIT_TAG v1.1.0
 )
 
 FetchContent_MakeAvailable(pgl)
