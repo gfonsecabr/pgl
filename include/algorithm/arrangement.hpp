@@ -2354,20 +2354,8 @@ private:
             } else {
                 using UniqueSegment = std::remove_cvref_t<decltype(unique[0])>;
                 detail::BentleyOttmann<NumberType, UniqueSegment> sweep;
-                // The sweep reports pairs of segments and `unique` is in value
-                // order, so each one names its group by binary search.
-                for (const auto& pair : sweep.findIntersections(unique)) {
-                    const auto indexOf = [&](const UniqueSegment& segment) {
-                        return static_cast<std::size_t>(
-                            std::lower_bound(unique.begin(), unique.end(), segment) -
-                            unique.begin());
-                    };
-                    const std::size_t a = indexOf(pair[0]);
-                    const std::size_t b = indexOf(pair[1]);
-                    if (a != b) {
-                        meet(a, b);
-                    }
-                }
+                // `unique` holds each group once, so a position is a group.
+                sweep.visitIntersections(unique, [&](std::size_t a, std::size_t b) { meet(a, b); });
             }
         };
 

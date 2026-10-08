@@ -575,7 +575,8 @@ struct Polygon {
      * floating-point ones O((n + B) log n) for B pairs of edges whose bounding
      * boxes overlap, which is O(n^2 log n) in the worst case.
      *
-     * @tparam Rational Exact rational type used by the sweep for large polygons.
+     * @tparam Rational Exact type the sweep places crossings in over coordinates
+     *         that are not integers; integer coordinates choose their own.
      * @return `true` if no two edges meet except adjacent edges at their shared vertex.
      */
     template <class Rational = pgl::Rational<pgl::BigInt>>

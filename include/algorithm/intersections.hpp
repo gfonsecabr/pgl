@@ -18,7 +18,7 @@
 #include <functional>
 #include <limits>
 #include <numeric>
-#include <queue>
+#include <optional>
 #include <set>
 #include <stdexcept>
 #include <type_traits>
@@ -30,35 +30,80 @@
 namespace pgl::detail{
 
 /**
- * @brief The number type @ref BentleyOttmann evaluates its height expression in.
+ * @brief Sorts pair keys in place, by radix over the bits they actually use.
  *
- * That expression is a degree-three product of coordinate differences times one
- * part of the sweep abscissa. Over integer coordinates it is an integer, and
- * the type is the wider of the two operands' types, promoted once so their
- * product fits as well. Over rational coordinates the coefficients are already
- * fractions and nothing clears to integers, so the sweep's own fraction type is
- * the answer — and asking for a common type of a fraction and an integer, which
- * is what the general form does, would not even be well formed.
- *
- * @tparam Coefficient Type of the expression's coefficients.
- * @tparam Part Type of the sweep abscissa's numerator and denominator.
- * @tparam Fraction The sweep's own rational type.
+ * A key packs two ranks, each below the input size, so its high bits are
+ * mostly zero and a least-significant-digit radix sort needs only as many
+ * passes as the largest key has digits. Over a million reported pairs that is
+ * several times cheaper than a comparison sort, and the order is the same.
  */
-template <class Coefficient, class Part, class Fraction>
-struct sweepHeightNumber {
-    using type = promoted_number_t<std::common_type_t<Coefficient, Part>>;
-};
-
-template <class Int, class Part, class Fraction>
-struct sweepHeightNumber<pgl::Rational<Int>, Part, Fraction> {
-    using type = Fraction;
-};
-
-template <class Coefficient, class Part, class Fraction>
-using sweepHeightNumber_t = typename sweepHeightNumber<Coefficient, Part, Fraction>::type;
+inline void sortPairKeys(std::vector<std::uint64_t> &keys) {
+    if (keys.size() < 512) {
+        std::sort(keys.begin(), keys.end());
+        return;
+    }
+    constexpr int digitBits = 11;
+    constexpr std::size_t buckets = std::size_t(1) << digitBits;
+    const std::uint64_t largest = *std::max_element(keys.begin(), keys.end());
+    std::vector<std::uint64_t> buffer(keys.size());
+    for (int shift = 0; shift < 64 && (largest >> shift) != 0; shift += digitBits) {
+        std::array<std::size_t, buckets + 1> start{};
+        for (const std::uint64_t key : keys) {
+            ++start[((key >> shift) & (buckets - 1)) + 1];
+        }
+        for (std::size_t b = 1; b <= buckets; ++b) {
+            start[b] += start[b - 1];
+        }
+        for (const std::uint64_t key : keys) {
+            buffer[start[(key >> shift) & (buckets - 1)]++] = key;
+        }
+        keys.swap(buffer);
+    }
+}
 
 /**
- * @brief The Bentley-Ottmann sweep over exact segments.
+ * @brief Largest coordinate range at which @ref BentleyOttmann over integer
+ * coordinates places its crossings in `int64_t`.
+ *
+ * The one quantity the sweep forms beyond an orientation is
+ * `(a.x - p.x) * det + along * r.x` (see @ref BentleyOttmann::locate), a sum
+ * of two products of a coordinate difference and a 2x2 determinant of them.
+ * With every coordinate difference at most `D`, each determinant is at most
+ * `2 D^2` and the sum at most `4 D^3`, which fits an `int64_t` up to here.
+ */
+inline constexpr long long sweepInt64Range = 1321122;
+
+/**
+ * @brief Largest coordinate range at which the same quantity fits an `int128`.
+ *
+ * Every `int` input is within it: its differences are below `2^32`.
+ */
+inline constexpr long long sweepInt128Range = 3490731829165;
+
+/**
+ * @brief The Bentley-Ottmann sweep over exact segments, as Boissonnat and
+ * Preparata run it with predicates of degree three.
+ *
+ * Bentley and Ottmann order every event by its abscissa, crossings included,
+ * and comparing the abscissas of two crossings is a predicate of degree five.
+ * Boissonnat and Preparata ("Robust plane sweep for intersecting segments",
+ * SIAM J. Comput. 29(5), 2000, section 6.1) observe that only the endpoints
+ * need that order. The sweep visits the distinct endpoints in lexicographic
+ * order, and a crossing found between two neighbours of the status is filed
+ * under the endpoint it precedes, which takes comparing a crossing with an
+ * endpoint: degree three. Before each endpoint, the crossings filed under it
+ * are turned over in whatever order they come, each as it is found between
+ * two neighbours: within a stretch free of endpoints, any crossing of two
+ * neighbours can go first. When none is left, the status is in the order the
+ * segments have just past the endpoint, and the endpoint is placed in it with
+ * orientations alone. Two crossings are never compared, and no crossing is
+ * ever built as a point.
+ *
+ * Integer coordinates evaluate that degree-three quantity in an integer type
+ * chosen from their range: `int64_t` up to @ref sweepInt64Range, `int128` up
+ * to @ref sweepInt128Range, and `BigInt`, behind a floating-point filter,
+ * beyond. Other exact coordinates evaluate it in @p Rational, behind the same
+ * filter.
  *
  * For `n` segments, `findCrossings`, `findIntersections` and
  * `findInteriorIntersections` run in `O((n + k) log n)`, `k` being the number of
@@ -67,6 +112,10 @@ using sweepHeightNumber_t = typename sweepHeightNumber<Coefficient, Part, Fracti
  * `O(n log n)`. Both hold for degenerate input: many segments through one
  * point, collinear overlaps, and vertical segments touching others at an end.
  * Arithmetic operations count as `O(1)`.
+ *
+ * @tparam Rational Exact type the crossings are placed in over coordinates
+ *         that are not integers; integer coordinates choose their own.
+ * @tparam Segment Segment type of the input.
  */
 template <class Rational, SegmentConcept Segment>
 class BentleyOttmann {
@@ -76,37 +125,29 @@ class BentleyOttmann {
                   "Bentley-Ottmann requires exact (non-floating-point) input "
                   "coordinates; the sweep line's predicates are not robust under "
                   "rounding. Use integer or rational coordinates.");
-    using Rectangle = pgl::Rectangle<Point>;
-    // The point label rides along with the point type through
-    // Segment::intersection, so this must carry the input's label to name the
-    // alternative that variant actually holds. Spelling it without it made the
-    // sweep instantiable only for unlabelled points.
-    using RPoint = pgl::Point<Rational, typename Point::LabelType>;
     using CrossingPair = std::array<Segment,2>;
 
-    // Integer types the status order's arithmetic runs in. `Integer` is what
-    // the sweep abscissa's numerator and denominator are; `Wide` holds a
-    // degree-three product of coordinate differences, which is as far as the
-    // height comparison's coefficients go; `Exact` multiplies one of those by
-    // one of the abscissa's parts, and is the widest quantity the sweep forms.
-    using Integer = pgl::rational_int_t<Rational>;
+    // Integer coordinates place crossings in an integer type of their own
+    // choosing, by range; see @ref chooseWidth.
+    static constexpr bool wholeCoordinates =
+        pgl::detail::extended_integral<Number> || std::same_as<Number, pgl::BigInt>;
+    // A type holding a coordinate and the difference of any two exactly:
+    // built-in integers of up to 64 bits promote once, and anything else goes
+    // through BigInt.
+    using Range = std::conditional_t<wholeCoordinates && std::signed_integral<Number> &&
+                                         (sizeof(Number) <= 8),
+                                     pgl::detail::promoted_number_t<Number>, pgl::BigInt>;
+    // The type the endpoint filters are kept for, as the orientations read them.
     using Coordinate = pgl::detail::promoted_number_t<Number>;
-    using Wide = pgl::detail::promoted_number_t<Coordinate>;
-    using Exact = pgl::detail::sweepHeightNumber_t<Wide, Integer, Rational>;
-    static constexpr bool holdsWide =
-        pgl::detail::extended_integral<Number> && pgl::detail::extended_integral<Wide> &&
-        pgl::detail::extended_integral<Integer>;
 
     // ── Segments by number ──────────────────────────────────────────────────
     //
-    // The sweep never holds a segment. The status tree, the events, the runs
+    // The sweep never holds a segment. The status tree, the filed crossings
     // and the reported pairs all name one by an `Id`, its position in the
     // caller's vector, and read it through @ref seg. A segment is small for
     // `int` coordinates, but over exact fractions it is eight arbitrary-
-    // precision integers, and holding it by value made every tree node, event
-    // and pair a copy of those, every lookup a hash of them and every final
-    // ordering a sort by them. Over 5,000 polygon edges in `ERational`, which
-    // cross nowhere, that bookkeeping was the whole of the sweep's cost.
+    // precision integers, and holding it by value made every tree node and
+    // pair a copy of those.
     //
     // A pair is named by a `Key`, the two segments' ranks packed into one
     // integer. The rank is a segment's place in the value order of the input,
@@ -119,17 +160,8 @@ class BentleyOttmann {
 
     // The caller's segments, which outlive the sweep and stay where they are.
     const std::vector<Segment> *input = nullptr;
-    // The segments the sweep needs that the input does not have, after it in
-    // Id order: the two sentinels bounding the status below and above, and a
-    // probe the sweep builds to search the status for a point.
-    std::array<Segment, 3> extras;
-    Id bottomId() const { return static_cast<Id>(input->size()); }
-    Id topId() const { return static_cast<Id>(input->size() + 1); }
-    Id probeId() const { return static_cast<Id>(input->size() + 2); }
 
-    const Segment &seg(Id id) const {
-        return id < input->size() ? (*input)[id] : extras[id - input->size()];
-    }
+    const Segment &seg(Id id) const { return (*input)[id]; }
 
     // Each segment's rank, and one Id per rank. Duplicated values share a rank
     // and only the first of them is swept: the status tree could not hold the
@@ -150,184 +182,185 @@ class BentleyOttmann {
         return ra < rb ? (Key(ra) << 32) | rb : (Key(rb) << 32) | ra;
     }
 
-    // A plain function object rather than a std::function: the tree calls this
-    // O(log n) times per operation and millions of times per sweep, and the
-    // type-erased call cannot be inlined.
+    // ── Exact arithmetic ────────────────────────────────────────────────────
+
+    /** @brief The type crossings are placed in; see @ref locate. */
+    enum class Width : unsigned char { int64, int128, unbounded };
+    Width width = Width::unbounded;
+    // Under a machine-word width, each segment's coordinates as offsets from
+    // the lowest ones, `{min.x, min.y, max.x, max.y}` by Id, and the lowest
+    // ones themselves; see @ref chooseWidth.
+    std::vector<std::array<std::int64_t, 4>> offsets;
+    Range originX{}, originY{};
+
+    using FilteredEnd = decltype(pgl::detail::filtered<Coordinate>(std::declval<const Point&>()));
+    // Each segment's two endpoints, filtered, by Id; see @ref prepare. They
+    // refer to the segments where they stand, in the input.
+    struct Ends {
+        FilteredEnd lo, hi;
+    };
+    std::vector<Ends> endsOf;
+    // Whether each segment is vertical, horizontal, both (a point) or
+    // neither, by Id; see @ref locateIn.
+    static constexpr unsigned char vertical = 1, horizontal = 2;
+    std::vector<unsigned char> axisParallel;
+
+    static int orientation(const FilteredEnd &a, const FilteredEnd &b, const FilteredEnd &c) {
+        return pgl::detail::signOf(pgl::detail::orientationSignOf(a, b, c).value());
+    }
+
+    // ── The endpoints ───────────────────────────────────────────────────────
+    //
+    // What happens at an endpoint, in the order a point's events are taken:
+    // the segments ending there leave the status, segments of no length are
+    // looked up in it, and the segments starting there enter it.
+    enum class Kind : unsigned char { right, point, left };
+    struct Event {
+        Id id;
+        Kind kind;
+    };
+    const Point &pointOf(const Event &e) const {
+        return e.kind == Kind::right ? seg(e.id).max() : seg(e.id).min();
+    }
+    // Every event, by point and then by kind, and the distinct points: point
+    // k's events are `events[pointStart[k]]` up to `events[pointStart[k + 1]]`.
+    std::vector<Event> events;
+    std::vector<const Point *> points;
+    std::vector<std::uint32_t> pointStart;
+    // Each point's abscissa in double, as an offset under a machine-word
+    // width, where the search placing a crossing among the points starts;
+    // and, where that placement filters, both coordinates with their error
+    // bounds.
+    std::vector<double> guessX;
+    std::vector<pgl::detail::ApproximatePoint> pointApproximations;
+    // Under a machine-word width, each point's coordinates as offsets.
+    std::vector<std::array<std::int64_t, 2>> pointOffsets;
+
+    // ── The status ──────────────────────────────────────────────────────────
+    //
+    // The segments the sweep line meets, bottom to top. The tree is only ever
+    // searched at an endpoint, when the status is exactly the order just past
+    // it, and only for where that endpoint falls: the segment starting there
+    // (@ref inserting), or the point itself (a @ref PointProbe). Everything
+    // else that moves a segment knows where it is.
+
+    struct PointProbe {};
+
     struct AlongLine {
         const BentleyOttmann *sweep;
-        bool operator()(Id a, Id b) const {
-            return sweep->CompareAlongLine(a, b);
-        }
+        bool operator()(Id a, Id b) const { return sweep->insertionLess(a, b); }
+        bool operator()(Id a, PointProbe) const { return sweep->pointSide(a) > 0; }
+        bool operator()(PointProbe, Id b) const { return sweep->pointSide(b) < 0; }
     };
-    // A tree the sweep can address by node rather than by value; see
-    // @ref pgl::detail::RedBlackTree. The sweep knows where almost everything
-    // it touches already is, and every comparison it avoids asking for is a
-    // geometric predicate over exact arithmetic that does not run.
     using Tree = pgl::detail::RedBlackTree<Id, AlongLine>;
     using Node = typename Tree::Handle;
 
-    enum class EventEnum {
-        RIGHT, CROSS, VERTICAL, LEFT
-    };
-
-    struct Event {
-        Rational x;
-        // The abscissa in double, with the bound that makes it a proof. Two
-        // events are ordered by their abscissas, and the queue compares
-        // O(log n) pairs per push and per pop; comparing fractions over
-        // arbitrary-precision parts exactly, every time, costs far more than
-        // the events whose abscissas are nowhere near each other are worth.
-        pgl::detail::Approximate approx;
-        EventEnum type;
-        Id s1;
-        // A CROSS event's two segments, lower then upper in the status, by
-        // the nodes holding them; null for every other kind. Both stay in the
-        // status until the crossing, which is interior to both, and they keep
-        // that order until then, since the crossing is the only place they can
-        // exchange it. Knowing them is what lets the crossing's step skip
-        // asking whether they meet there — a question whose answer is exactly
-        // zero, which no filter can settle and exact arithmetic has to.
-        Node lower = nullptr, upper = nullptr;
-
-        Event(Rational x_, EventEnum type_, Id s1_)
-            : x(std::move(x_)), approx(pgl::detail::approximate(x)),
-              type(type_), s1(s1_) {}
-
-        Event(Rational x_, pgl::detail::Approximate approx_, Node lower_, Node upper_)
-            : x(std::move(x_)), approx(approx_),
-              type(EventEnum::CROSS), s1(lower_->value),
-              lower(lower_), upper(upper_) {}
-
-        auto operator<(const Event &other) const { // Order is backwards by x
-            const std::partial_ordering filtered =
-                pgl::detail::approximateSign(other.approx - approx);
-            if (filtered != std::partial_ordering::unordered) {
-                return filtered < 0;
-            }
-            return other.x < x;
-        }
-
-        friend std::ostream &operator<<(std::ostream &out, const Event &e) {
-            return out << static_cast<int>(e.type) << "@" << e.x << ": #" << e.s1;
-        }
-    };
-
-    std::priority_queue<Event> queue;
-    Rectangle bbox;
-
-    /**
-     * @brief A sweep abscissa, carrying the two integers the exact height test
-     * needs alongside the fraction itself.
-     *
-     * Splitting the fraction once, rather than at each of the many comparisons
-     * made at that abscissa, is the whole reason this exists: reading
-     * `numerator()` off an unreduced fraction runs a gcd of its own, and
-     * reading both parts runs two.
-     */
-    struct Abscissa {
-        Rational x;
-        Integer num{};
-        Integer den{1};
-        // The same value in double, with the bound that makes it a proof. A
-        // fraction over arbitrary-precision parts reaches double the slow way,
-        // through a long double per part, so converting it once per step rather
-        // than once per comparison is the difference between the filter paying
-        // for itself and not.
-        pgl::detail::Approximate approx{};
-    };
-
-    // Where the sweep stands. The status tree's order is the order *at this
-    // abscissa*, so moving it and putting the segments it reorders back in
-    // order are one step: nothing may search the tree in between.
-    Abscissa line;
-
-    // The status: the segments straddling the sweep line, bottom to top.
-    Tree tree;
-
-    // Where each segment of the status is, by Id, or null. The status order
-    // locates a segment in O(log n) of those predicates; this locates it in
-    // one read, which is what a RIGHT event needs. It survives a crossing
-    // untouched: turning a crossing over exchanges the nodes' places, never
-    // their segments.
+    Tree tree{AlongLine{this}};
+    // Where each segment of the status is, by Id, or null. A crossing names its
+    // two segments, and a segment ending names itself, so neither searches.
     std::vector<Node> nodeOf;
+    // The segment being inserted, and the point being looked up.
+    Id inserting = 0;
+    FilteredEnd probe{};
 
-    // This step's events, split by kind; see @ref getEvents.
-    std::array<std::vector<Event>, 4> events;
+    // Whether the point @ref probe lies above (1), on (0) or below (-1) the
+    // line of the status segment @p id, which spans it.
+    int pointSide(Id id) const {
+        return orientation(endsOf[id].lo, endsOf[id].hi, probe);
+    }
 
-    // Scratch reused across steps, for the same reason @ref events is: a sweep
-    // takes a step per event, and these are small enough that allocating them
-    // afresh costs more than what they hold. A segment is gathered into a run
-    // at this step when @ref collectedAt holds this step's @ref step.
-    std::vector<std::uint32_t> collectedAt;
-    std::uint32_t step = 0;
-    // This step's collinear blocks, every run's in turn (see @ref Run), and the
-    // permutation @ref reorderRun applies: the position each place of the run
-    // takes its node from, and which of the run's old places each place holds
-    // now and where each old place's node is.
-    std::vector<std::uint32_t> runBlocks;
-    std::vector<std::uint32_t> runTarget, runHolds, runWhere;
+    // Whether the segment being inserted at its left endpoint lies below the
+    // status segment @p b just past that endpoint. Segments through it go by
+    // the direction they leave in, a vertical one leaving straight up, and
+    // collinear ones by rank.
+    bool insertedBelow(Id b) const {
+        const Ends &s = endsOf[inserting];
+        const Ends &other = endsOf[b];
+        int side = orientation(other.lo, other.hi, s.lo);
+        if (side == 0) {
+            side = orientation(other.lo, other.hi, s.hi);
+        }
+        return side == 0 ? rank[inserting] < rank[b] : side < 0;
+    }
 
-    /**
-     * @brief One crossing's worth of the status tree: the segments meeting the
-     * sweep line at a single point, bottom to top.
-     *
-     * They occupy consecutive positions — two segments at the same height are
-     * neighbours, and every segment between two of them is at that height too —
-     * so the run is exactly a stretch of the tree, and holding its nodes says
-     * where both of its ends are without either being searched for.
-     */
-    struct Run {
-        // The run's nodes and their segments, both in tree order. After
-        // @ref reorderRun the nodes are in the run's new order, which is the
-        // same set of positions, so the run's two ends are still its two ends.
-        std::vector<Node> nodes;
-        std::vector<Id> ids;
-        // The run's maximal stretches of collinear segments, as positions in
-        // `ids`: block b is `ids[runBlocks[firstBlock + b]]` up to
-        // `ids[runBlocks[firstBlock + b + 1]]`, for b below `blockCount`. Set by
-        // @ref reorderRun. Two segments of one block overlap and two of
-        // different blocks cross, at the run's point.
-        std::size_t firstBlock = 0;
-        std::size_t blockCount = 0;
+    bool insertionLess(Id a, Id b) const {
+        if (a == b) {
+            return false;
+        }
+        if (a == inserting) {
+            return insertedBelow(b);
+        }
+        PGL_ASSERT(b == inserting && "the status only compares a segment going in");
+        return !insertedBelow(a);
+    }
+
+    // ── Filed crossings ─────────────────────────────────────────────────────
+    //
+    // A crossing of two neighbours, lower one first, filed under the point it
+    // is to be turned over before. Each point's crossings form a list through
+    // @ref filed, the head in @ref firstFiled. Nothing is unfiled when its two
+    // segments stop being neighbours: a record is checked as it comes off the
+    // list, and dropped if they no longer are. A pair crosses once, so two
+    // records of one pair never both pass that check.
+    struct Filed {
+        Id lower, upper;
+        std::int32_t next;
     };
+    std::vector<Filed> filed;
+    std::vector<std::int32_t> firstFiled;
+    // The earliest point a crossing filed now can be turned over before: the
+    // current one while its segments ending there leave, the next one once
+    // those starting there enter. A crossing at the current point itself is
+    // found only once a segment ending there has left from between its two,
+    // and must still be turned over before anything starts there.
+    std::size_t earliest = 0;
 
-    // The pairs found. Crossings are hashed, since the sweep asks whether it
-    // has already scheduled a pair; the rest are only ever added to. Either
-    // way they are put in order once, at the end, where it costs one sort of
-    // integers.
-    std::unordered_set<Key> crossingsSet;
+    // The pairs found, put in order once, at the end.
+    std::vector<Key> crossingKeys;
     std::vector<Key> intersectionKeys;
 
-    // Each key once, in order, as the pairs of segments they name.
+    // Scratch for @ref reportThrough.
+    std::vector<Id> through;
+
+    // The keys in order, each once.
+    static std::vector<Key> ordered(std::vector<Key> keys) {
+        pgl::detail::sortPairKeys(keys);
+        keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
+        return keys;
+    }
+
+    // Calls `visit(i, j)` with the input positions of the pairs of segments
+    // the ordered keys name, in their order.
     //
     // A key names two values, and a value given k times stands for k input
     // segments, so a key between two values stands for every pairing of their
     // copies and a key of a value with itself for every pair of its copies.
     // That is what the brute-force scan reports, one pair per two positions of
     // the input, and each copy comes back as itself, label included.
-    template <class Keys>
-    std::vector<CrossingPair> pairsOf(const Keys &keys) const {
-        std::vector<Key> ordered(keys.begin(), keys.end());
-        std::sort(ordered.begin(), ordered.end());
-        ordered.erase(std::unique(ordered.begin(), ordered.end()), ordered.end());
-        std::vector<CrossingPair> pairs;
-        pairs.reserve(ordered.size());
-        for (const Key key : ordered) {
+    template <class Visit>
+    void forEachPair(const std::vector<Key> &keys, Visit visit) const {
+        for (const Key key : keys) {
             const Rank ra = static_cast<Rank>(key >> 32);
             const Rank rb = static_cast<Rank>(key & 0xffffffffu);
             if (copies.empty()) {
                 if (ra != rb) {
-                    pairs.push_back({seg(byRank[ra]), seg(byRank[rb])});
+                    visit(byRank[ra], byRank[rb]);
                 }
                 continue;
             }
             for (std::uint32_t i = copiesStart[ra]; i < copiesStart[ra + 1]; ++i) {
                 for (std::uint32_t j = ra == rb ? i + 1 : copiesStart[rb];
                      j < copiesStart[rb + 1]; ++j) {
-                    pairs.push_back({seg(copies[i]), seg(copies[j])});
+                    visit(copies[i], copies[j]);
                 }
             }
         }
+    }
+
+    std::vector<CrossingPair> pairsOf(const std::vector<Key> &keys) const {
+        std::vector<CrossingPair> pairs;
+        pairs.reserve(keys.size());
+        forEachPair(keys, [this, &pairs](Id a, Id b) { pairs.push_back({seg(a), seg(b)}); });
         return pairs;
     }
 
@@ -339,11 +372,15 @@ class BentleyOttmann {
     // a stretch of positive length, which with the crossings are exactly the
     // pairs whose relative interiors meet.
     bool interiorsOnly = false;
+    // When nonzero, a point that more segments end at than this stops the
+    // sweep and sets @ref crowded: what the simplicity tests ask of a vertex.
+    std::size_t endpointLimit = 0;
+    bool crowded = false;
     bool stopNow = false;
 
     bool addCrossing(Id a, Id b) {
         if (rank[b] < rank[a]) std::swap(a, b);
-        crossingsSet.insert(keyOf(a, b));
+        crossingKeys.push_back(keyOf(a, b));
         if (onCrossing && onCrossing(seg(a), seg(b))) {
             stopNow = true;
             return true;
@@ -370,16 +407,15 @@ class BentleyOttmann {
      * segments as values; after it, equality is a comparison of ranks.
      */
     void prepare(const std::vector<Segment> &segments) {
-        PGL_ASSERT(segments.size() + extras.size() <= std::numeric_limits<Id>::max());
+        PGL_ASSERT(segments.size() <= std::numeric_limits<Id>::max());
         input = &segments;
         const std::size_t count = segments.size();
-        const std::size_t slots = count + extras.size();
 
         std::vector<Id> order(count);
         std::iota(order.begin(), order.end(), Id(0));
         std::sort(order.begin(), order.end(),
                   [&segments](Id a, Id b) { return segments[a] < segments[b]; });
-        rank.assign(slots, 0);
+        rank.assign(count, 0);
         byRank.clear();
         duplicated.clear();
         for (const Id id : order) {
@@ -413,938 +449,531 @@ class BentleyOttmann {
                 std::sort(copies.begin() + copiesStart[r], copies.begin() + copiesStart[r + 1]);
             }
         }
-        for (std::size_t i = 0; i < extras.size(); ++i) {
-            rank[count + i] = static_cast<Rank>(byRank.size() + i);
-        }
 
-        initBbox();
-        extras[0] = bbox.edges()[0]; // Bottom edge as sentinel
-        extras[1] = bbox.edges()[2]; // Top edge as sentinel
-
-        // Every endpoint approximated once, for all the comparisons that will
-        // read it. The probe is vertical and never reaches a height test.
-        endsOf.assign(slots, Ends{});
-        for (const Id id : byRank) {
-            endsOf[id] = endsFor(seg(id));
-        }
-        endsOf[bottomId()] = endsFor(extras[0]);
-        endsOf[topId()] = endsFor(extras[1]);
-
-        nodeOf.assign(slots, nullptr);
-        collectedAt.assign(slots, 0);
-        step = 0;
-    }
-
-    void initQueue() {
+        // Every endpoint approximated once, for all the orientations that will
+        // read it.
+        endsOf.assign(count, Ends{});
+        axisParallel.assign(count, 0);
         for (const Id id : byRank) {
             const Segment &s = seg(id);
-            if(s.isVertical()) {
-                queue.emplace(static_cast<Rational>(s.min().x()), EventEnum::VERTICAL, id);
+            endsOf[id] = {pgl::detail::filtered<Coordinate>(s.min()),
+                          pgl::detail::filtered<Coordinate>(s.max())};
+            axisParallel[id] = static_cast<unsigned char>(
+                (s.min().x() == s.max().x() ? vertical : 0) |
+                (s.min().y() == s.max().y() ? horizontal : 0));
+        }
+        nodeOf.assign(count, nullptr);
+    }
+
+    /**
+     * @brief Chooses the type crossings are placed in, from the coordinate
+     * range of the input: the narrowest of `int64_t`, `int128` and an
+     * unbounded type that holds every quantity @ref locate forms.
+     *
+     * Only integer coordinates have a choice. Where it is a machine word,
+     * every coordinate is written down once as its offset from the lowest one,
+     * which fits an `int64_t` within either range, so that placing a crossing
+     * reads machine words and converts nothing.
+     */
+    void chooseWidth() {
+        width = Width::unbounded;
+        if constexpr (wholeCoordinates) {
+            const Point &first = seg(byRank.front()).min();
+            const Number *minX = &first.x(), *maxX = &first.x();
+            const Number *minY = &first.y(), *maxY = &first.y();
+            for (const Id id : byRank) {
+                for (const Point *p : {&seg(id).min(), &seg(id).max()}) {
+                    if (p->x() < *minX) minX = &p->x();
+                    if (*maxX < p->x()) maxX = &p->x();
+                    if (p->y() < *minY) minY = &p->y();
+                    if (*maxY < p->y()) maxY = &p->y();
+                }
             }
-            else {
-                queue.emplace(static_cast<Rational>(s.min().x()), EventEnum::LEFT, id);
+            originX = rangeOf(*minX);
+            originY = rangeOf(*minY);
+            const Range spanX = rangeOf(*maxX) - originX;
+            const Range spanY = rangeOf(*maxY) - originY;
+            const Range span = spanX < spanY ? spanY : spanX;
+            if (static_cast<Range>(sweepInt128Range) < span) {
+                return;
+            }
+            width = static_cast<Range>(sweepInt64Range) < span ? Width::int128 : Width::int64;
+            offsets.resize(input->size());
+            for (const Id id : byRank) {
+                const Segment &s = seg(id);
+                offsets[id] = {offsetOf(s.min().x(), false), offsetOf(s.min().y(), true),
+                               offsetOf(s.max().x(), false), offsetOf(s.max().y(), true)};
             }
         }
     }
 
-    void initBbox() {
-        // Min and Max y-coordinate for sentinels
-        bbox = Rectangle(seg(byRank.front()));
+    // A coordinate in @ref Range, which holds it and any difference of two.
+    static Range rangeOf(const Number &value) {
+        return static_cast<Range>(value);
+    }
+
+    std::int64_t offsetOf(const Number &value, bool alongY) const {
+        return static_cast<std::int64_t>(rangeOf(value) - (alongY ? originY : originX));
+    }
+
+    /**
+     * @brief Lists the events by point, and the distinct points in
+     * lexicographic order.
+     *
+     * At a point, segments end before any starts. A segment of no length is
+     * never in the status: it is only an intersection to look up at its
+     * point, so a crossing search leaves it out.
+     */
+    void listEvents() {
+        events.clear();
+        events.reserve(2 * byRank.size());
         for (const Id id : byRank) {
-            bbox.insert(seg(id));
-        }
-        // Grow bbox by 1
-        bbox = Rectangle(bbox.min().x()-1, bbox.min().y()-1, bbox.max().x()+1, bbox.max().y()+1);
-    }
-
-    // ── The status order ────────────────────────────────────────────────────
-    //
-    // The tree holds the segments straddling the sweep line in the order their
-    // heights on it run, bottom to top, with segments meeting the line at one
-    // point ordered by which of them leaves that point above. What that order
-    // *is* is fixed by the geometry; everything below is about computing it
-    // without ever evaluating those heights.
-    //
-    // Evaluating them is what the direct implementation does — one `yAtX` per
-    // segment in the sweep's rational type, then a comparison — and it is what
-    // the sweep used to spend itself on. The sweep abscissa is a fraction, so
-    // each height comes out over a wider denominator still, and every one of
-    // the O(log n) comparisons a single tree operation makes builds two of them
-    // through a chain of rational operations that each reduce to lowest terms.
-    // Over 3,000 small segments that comparison alone was 62% of the whole run.
-    //
-    // The difference of the two heights is affine in x, so its sign across the
-    // x-range the two segments share is pinned by its sign at that range's two
-    // ends — and each of those is one endpoint of one segment tested against
-    // the other, an orientation over the *input* coordinates. Only when the
-    // sign differs between the two ends do the segments meet inside the shared
-    // range, and only then does where the sweep sits relative to that meeting
-    // decide anything. That case, and nothing else, touches the abscissa.
-
-    /**
-     * @brief The two segments' four endpoints, each with its approximation.
-     *
-     * The height sign and everything it defers to read these rather than the
-     * points, so the conversion behind the filter happens once per endpoint per
-     * comparison instead of once per predicate that reads it.
-     */
-    using FilteredEnd = decltype(pgl::detail::filtered<Coordinate>(std::declval<const Point&>()));
-    struct Endpoints {
-        FilteredEnd aLo, aHi, bLo, bHi;
-    };
-
-    // Each segment's two endpoints, filtered, by Id; see @ref prepare. They
-    // refer to the segments where they stand, in the input and in @ref extras.
-    struct Ends {
-        FilteredEnd lo, hi;
-    };
-    std::vector<Ends> endsOf;
-    static Ends endsFor(const Segment &s) {
-        return {pgl::detail::filtered<Coordinate>(s.min()),
-                pgl::detail::filtered<Coordinate>(s.max())};
-    }
-
-    /**
-     * @brief Sign of `b`'s height minus `a`'s height at the sweep line.
-     *
-     * Both segments must be non-vertical, and both must straddle the sweep
-     * abscissa — which is what every segment in the status tree does.
-     */
-    int heightSign(Id ia, Id ib, const Abscissa &at) const {
-        const Segment &a = seg(ia), &b = seg(ib);
-        // Four endpoints, approximated once per segment when the input was
-        // ranked. Every sign below reads the same four, and an approximation of
-        // an exact coordinate is not cheap: converting them afresh for each of
-        // the O(log n) comparisons a tree operation makes repeats the same
-        // conversions over and over.
-        const Endpoints ends{endsOf[ia].lo, endsOf[ia].hi, endsOf[ib].lo, endsOf[ib].hi};
-
-        // The height difference at each end of the shared x-range. Whichever
-        // segment contributes the end, its endpoint is tested against the other
-        // segment, and the sign flips when the endpoint is a's, since the
-        // difference is measured b minus a.
-        const int atLeft = a.min().x() < b.min().x()
-            ? pgl::detail::signOf(
-                  pgl::detail::orientationSignOf(ends.aLo, ends.aHi, ends.bLo).value())
-            : -pgl::detail::signOf(
-                  pgl::detail::orientationSignOf(ends.bLo, ends.bHi, ends.aLo).value());
-        const int atRight = b.max().x() < a.max().x()
-            ? pgl::detail::signOf(
-                  pgl::detail::orientationSignOf(ends.aLo, ends.aHi, ends.bHi).value())
-            : -pgl::detail::signOf(
-                  pgl::detail::orientationSignOf(ends.bLo, ends.bHi, ends.aHi).value());
-
-        if (atLeft == atRight) {
-            // Same sign at both ends: one segment runs clear of the other
-            // across the whole range, the sweep included. Both ends zero: an
-            // affine function with two roots is the zero function, so the two
-            // segments are collinear and the difference vanishes everywhere.
-            return atLeft;
-        }
-        if (atLeft == 0) {
-            // The segments touch at the range's left end and separate to the
-            // right of it, so all that matters is whether the sweep has left
-            // that end behind — and the end is an input coordinate.
-            return at.x > std::max(a.min().x(), b.min().x()) ? atRight : 0;
-        }
-        if (atRight == 0) {
-            return at.x < std::min(a.max().x(), b.max().x()) ? atLeft : 0;
-        }
-        return crossedHeightSign(a, b, at, ends);
-    }
-
-    /**
-     * @brief Whether two segments of the status tree meet the sweep line at the
-     * same point, which is what makes them one crossing's worth of segments.
-     */
-    bool sameHeight(Id a, Id b, const Abscissa &at) const {
-        return a == b || heightSign(a, b, at) == 0;
-    }
-
-    /**
-     * @brief The height expression's two coefficients:
-     * `(b's height - a's height) * dax * dbx == slope * x + offset`.
-     *
-     * Both x-extents are positive — neither segment is vertical, and a Segment
-     * stores its endpoints in lexicographic order — so the scaling they apply
-     * leaves the sign alone.
-     */
-    static std::pair<Wide, Wide> heightCoefficients(const Segment &a, const Segment &b) {
-        const Wide dax = static_cast<Wide>(a.max().x()) - static_cast<Wide>(a.min().x());
-        const Wide day = static_cast<Wide>(a.max().y()) - static_cast<Wide>(a.min().y());
-        const Wide dbx = static_cast<Wide>(b.max().x()) - static_cast<Wide>(b.min().x());
-        const Wide dby = static_cast<Wide>(b.max().y()) - static_cast<Wide>(b.min().y());
-
-        return {dax * dby - dbx * day,
-                dax * dbx * (static_cast<Wide>(b.min().y()) - static_cast<Wide>(a.min().y())) -
-                    dax * dby * static_cast<Wide>(b.min().x()) +
-                    dbx * day * static_cast<Wide>(a.min().x())};
-    }
-
-    /**
-     * @brief The abscissa at which two properly crossing segments meet.
-     *
-     * A crossing event is ordered by its abscissa alone, so building the whole
-     * point, as Segment::intersection does, pays for an ordinate nothing reads
-     * and for the four orientations that re-establish a crossing the caller has
-     * just tested. Over integer coordinates it also pays for a chain of fraction
-     * operations, each widening its parts and reducing them once they outgrow a
-     * machine word, where the abscissa is a single fraction,
-     * `(a1.x * cross(r, s) + cross(b1 - a1, s) * r.x) / cross(r, s)` in the terms
-     * of @ref detail::carrierCrossing. Its numerator is cubic in the
-     * coordinates, and `Wide`, two promotions of them, holds that with bits to
-     * spare. It is left unreduced:
-     * @ref abscissa reduces it once, if the sweep ever stands there.
-     *
-     * A sweep whose fractions are bounded, or not fractions at all, keeps the
-     * point's construction, which is written to respect those types' limits.
-     *
-     * @pre `a.crosses(b)`, so the two carriers are not parallel.
-     */
-    Rational crossingAbscissa(const Segment &a, const Segment &b) const {
-        if constexpr (!pgl::is_Rational_v<Rational> ||
-                      (!pgl::detail::arbitraryPrecision<Integer> && !holdsWide)) {
-            return std::get<RPoint>(*a.template intersection<Rational>(b)).x();
-        } else if constexpr (pgl::detail::extended_integral<Number>) {
-            return wholeCrossingAbscissa<Wide>(a, b, [](const Number &value) {
-                return static_cast<Wide>(value);
-            });
-        } else {
-            if constexpr (pgl::is_Rational_v<Number>) {
-                // Fractions that are whole, as integer data read into exact
-                // coordinates is, clear into one fraction just the same.
-                if (a.min().x().isInteger() && a.min().y().isInteger() &&
-                    a.max().x().isInteger() && a.max().y().isInteger() &&
-                    b.min().x().isInteger() && b.min().y().isInteger() &&
-                    b.max().x().isInteger() && b.max().y().isInteger()) {
-                    return wholeCrossingAbscissa<Integer>(a, b, [](const Number &value) {
-                        return static_cast<Integer>(value.numerator());
-                    });
+            if (seg(id).isDegenerate()) {
+                if (!onlyCrossings) {
+                    events.push_back({id, Kind::point});
                 }
-            }
-            // Fractional coordinates leave nothing to clear into one fraction;
-            // this is the carrier crossing's abscissa, in the sweep's own type.
-            const auto exact = [](const auto &value) -> decltype(auto) {
-                return pgl::detail::asNumber<Rational>(value);
-            };
-            const Rational rx = exact(a.max().x()) - exact(a.min().x());
-            const Rational ry = exact(a.max().y()) - exact(a.min().y());
-            const Rational sx = exact(b.max().x()) - exact(b.min().x());
-            const Rational sy = exact(b.max().y()) - exact(b.min().y());
-            const Rational ox = exact(b.min().x()) - exact(a.min().x());
-            const Rational oy = exact(b.min().y()) - exact(a.min().y());
-            return exact(a.min().x()) + (ox * sy - oy * sx) * rx / (rx * sy - ry * sx);
-        }
-    }
-
-    // @ref crossingAbscissa as one fraction over whole coordinates, each read
-    // as a `Whole` by `whole`.
-    template <class Whole, class Read>
-    static Rational wholeCrossingAbscissa(const Segment &a, const Segment &b, Read whole) {
-        const Whole rx = whole(a.max().x()) - whole(a.min().x());
-        const Whole ry = whole(a.max().y()) - whole(a.min().y());
-        const Whole sx = whole(b.max().x()) - whole(b.min().x());
-        const Whole sy = whole(b.max().y()) - whole(b.min().y());
-        const Whole ox = whole(b.min().x()) - whole(a.min().x());
-        const Whole oy = whole(b.min().y()) - whole(a.min().y());
-        const Whole determinant = rx * sy - ry * sx;
-        const Whole along = ox * sy - oy * sx;
-        return Rational(Integer(whole(a.min().x()) * determinant + along * rx),
-                        Integer(determinant));
-    }
-
-    /**
-     * @brief @ref heightSign for the one case its endpoint tests leave open:
-     * the two segments meet strictly inside the range they share, so which side
-     * of that meeting the sweep sits on is what decides.
-     *
-     * Scaling the height difference by the two segments' x-extents and by the
-     * abscissa's denominator — all three positive — clears every division out
-     * of it and leaves one integer expression whose sign is the answer.
-     */
-    /**
-     * @brief The height expression's sign in bounded `double` arithmetic, or
-     * `unordered` where the bound does not separate it from zero.
-     *
-     * The coefficients of @ref heightCoefficients, formed from approximations
-     * of the eight endpoint coordinates instead of exactly, each operation
-     * widening the bound by what it rounds.
-     */
-    static std::partial_ordering approximateHeightSign(const Endpoints &ends,
-                                                       const Abscissa &at) {
-        const pgl::detail::ApproximatePoint aMin = pgl::detail::approximationOf(ends.aLo);
-        const pgl::detail::ApproximatePoint aMax = pgl::detail::approximationOf(ends.aHi);
-        const pgl::detail::ApproximatePoint bMin = pgl::detail::approximationOf(ends.bLo);
-        const pgl::detail::ApproximatePoint bMax = pgl::detail::approximationOf(ends.bHi);
-        const auto axMin = aMin.x;
-        const auto ayMin = aMin.y;
-        const auto bxMin = bMin.x;
-        const auto byMin = bMin.y;
-        const auto dax = aMax.x - axMin;
-        const auto day = aMax.y - ayMin;
-        const auto dbx = bMax.x - bxMin;
-        const auto dby = bMax.y - byMin;
-
-        const auto slope = dax * dby - dbx * day;
-        const auto offset = dax * dbx * (byMin - ayMin) - dax * dby * bxMin + dbx * day * axMin;
-        return pgl::detail::approximateSign(slope * at.approx + offset);
-    }
-
-    int crossedHeightSign(const Segment &a, const Segment &b, const Abscissa &at,
-                          const Endpoints &ends) const {
-        if constexpr (pgl::detail::filtersSign<Wide>) {
-            // Where a coefficient is an arbitrary-precision fraction, forming
-            // the two of them exactly is itself most of what this costs, and
-            // the filter has to come before them rather than after: the whole
-            // expression is evaluated in bounded double arithmetic, and only a
-            // sign those bounds cannot settle pays for the exact coefficients
-            // below. Over machine-integer coefficients the trade goes the other
-            // way — forming them is a few multiplications — and the tighter
-            // filter over the exact pair is the one that runs.
-            const std::partial_ordering approximated = approximateHeightSign(ends, at);
-            if (approximated != std::partial_ordering::unordered) {
-                return pgl::detail::signOf(approximated);
-            }
-        }
-
-        const auto [slope, offset] = heightCoefficients(a, b);
-
-        if constexpr (pgl::detail::filtersSign<Exact>) {
-            // Same bargain the orientation predicates strike: a double
-            // evaluation carrying its own error bound proves the sign outright
-            // for all but the near-degenerate pairs, and only those pay below.
-            //
-            // Filtering the coefficients rather than rebuilding the whole
-            // expression in bounded double arithmetic: the expression is degree
-            // three, and propagating a bound through that many operations
-            // measured slower than forming the coefficients exactly and
-            // converting the two of them.
-            const std::partial_ordering filtered = pgl::detail::approximateSign(
-                pgl::detail::approximate(slope) * at.approx +
-                pgl::detail::approximate(offset));
-            if (filtered != std::partial_ordering::unordered) {
-                return pgl::detail::signOf(filtered);
-            }
-        }
-
-        // Scaled once more by the abscissa's denominator, which is positive,
-        // and there is nothing left to divide.
-        const Exact scaled = static_cast<Exact>(slope) * static_cast<Exact>(at.num) +
-                             static_cast<Exact>(offset) * static_cast<Exact>(at.den);
-        return scaled > Exact(0) ? 1 : (scaled < Exact(0) ? -1 : 0);
-    }
-
-    // Compare segments by intersection points vertically along line
-    bool CompareAlongLine (Id ia, Id ib) const {
-        const Segment &a = seg(ia), &b = seg(ib);
-        // Vertical segments are never stored in the set. They reach the
-        // comparator only as a probe, and only ever at their own abscissa —
-        // which is the sweep's, since a vertical segment is probed at the step
-        // its event belongs to. So the probe's own endpoint is the point whose
-        // side of the stored segment is wanted, and no height is needed at all.
-        if (a.isVertical()) {
-            if (b.isVertical()) {
-                return a.min().y() < b.min().y();
-            }
-            PGL_ASSERT(line.x == a.min().x());
-            if (a.min().y() < std::min(b.min().y(),b.max().y()))
-                return true;
-
-            if (std::max(b.min().y(),b.max().y()) < a.min().y())
-                return false;
-
-            return pgl::orientationSign(b.min(), b.max(), a.min()) < 0;
-        }
-        if(b.isVertical()) {
-            PGL_ASSERT(line.x == b.min().x());
-            if (std::max(a.min().y(),a.max().y()) < b.min().y())
-                return true;
-
-            if (b.min().y() < std::min(a.min().y(),a.max().y()))
-                return false;
-
-            return pgl::orientationSign(a.min(), a.max(), b.min()) > 0;
-        }
-
-        if (std::max(a.min().y(),a.max().y()) < std::min(b.min().y(),b.max().y()))
-            return true;
-
-        if (std::max(b.min().y(),b.max().y()) < std::min(a.min().y(),a.max().y()))
-            return false;
-
-        if (ia == ib) { // Same segment
-            return false;
-        }
-
-        const int height = heightSign(ia, ib, line);
-        if (height != 0) {
-            return height > 0;
-        }
-
-        // Segments intersecting line at same point
-        auto o = pgl::detail::orientationSignOf(endsOf[ia].lo, endsOf[ia].hi,
-                                                endsOf[ib].hi).value();
-        if (o > 0) {
-            return true;
-        }
-        if (o < 0) {
-            return false;
-        }
-        // One segment is a subset of the other
-        return rank[ia] < rank[ib];
-    }
-
-    // Splits `x` into the parts the height tests read.
-    //
-    // Reducing the fraction here, once per step, is the same work the status
-    // order would otherwise do over and over: every comparison that reaches the
-    // exact fallback reads both parts, and reading either off an unreduced
-    // fraction runs a gcd that is thrown away with the expression's locals.
-    //
-    // Unconditionally, and not @ref Rational::simplifyIfLarge: an abscissa
-    // narrow enough that no operation would reduce it still feeds every
-    // comparison at this step. Measured over a sweep of 3000 segments, gating
-    // on width left the gcd count untouched while reducing outright cut it by
-    // 41%.
-    Abscissa abscissa(Rational x) const {
-        Abscissa at;
-        at.x = std::move(x);
-        if constexpr (pgl::is_Rational_v<Rational>) {
-            at.x.simplify();
-            at.num = at.x.numerator();
-            at.den = at.x.denominator();
-        } else {
-            // pgl::arrangement runs this sweep over a plain integer when its
-            // coordinates are integral, and then the abscissa is whole.
-            at.num = at.x;
-            at.den = Integer(1);
-        }
-        at.approx = pgl::detail::approximate(at.x);
-        return at;
-    }
-
-    void initTree() {
-        tree = Tree(AlongLine{this});
-        addToTree(bottomId());
-        addToTree(topId());
-    }
-
-    // Inserts `id` into the status and records where it went.
-    Node addToTree(Id id) {
-        const Node node = tree.insert(id).first;
-        nodeOf[id] = node;
-        return node;
-    }
-
-    // Removes the node `n` from the status and forgets where it was.
-    void removeFromTree(Node n) {
-        nodeOf[n->value] = nullptr;
-        tree.erase(n);
-    }
-
-    void printTree() const {
-        std::cout << "Tree: ";
-        Id previous = tree.first()->value;
-        for(Id s : tree) {
-            if (s != tree.first()->value) {
-                if (CompareAlongLine(previous,s)) {
-                    std::cout << " < ";
-                } else if (CompareAlongLine(s,previous)) {
-                    std::cout << " _>_ ";
-                }
-                else {
-                    std::cout << " _=_ ";
-                }
-            }
-            std::cout << seg(s);
-            previous = s;
-        }
-        std::cout << std::endl;
-    };
-
-    void printCrossings() const {
-        std::cout << "Crossings: ";
-        for(const auto &[sa,sb] : pairsOf(crossingsSet)) {
-            auto p = std::get<0>(*sa.template intersection<Rational>(sb));
-            std::cout << sa << "crosses" << sb << " at " << p << "; ";
-        }
-        std::cout << std::endl;
-    }
-
-    void printQueue() const {
-        std::cout << "Queue: ";
-        auto l = queue;
-        while (!l.empty()) {
-            auto ev = l.top();
-            std::cout << ev;
-            l.pop();
-        }
-        std::cout << std::endl;
-    }
-
-    // Moves every event at `currentX` off the queue and into @ref events.
-    //
-    // The buckets are a member reused across steps rather than four fresh
-    // vectors per step: there is a step per event, and the sweep's heap traffic
-    // is worth more than the reallocation saves.
-    void getEvents(const Rational &currentX) {
-        for (std::vector<Event> &bucket : events) {
-            bucket.clear();
-        }
-        do {
-            events[static_cast<std::size_t>(queue.top().type)].push_back(queue.top());
-            queue.pop();
-        } while (!queue.empty() && queue.top().x == currentX);
-    }
-
-    void possibleCrossing(Node ita, Node itb) {
-        PGL_ASSERT(ita && itb && "the bbox sentinels bound every neighbour walk");
-        const Id a = ita->value, b = itb->value;
-        const Segment &sa = seg(a), &sb = seg(b);
-
-        if (sa.crosses(sb) && !crossingsSet.contains(keyOf(a, b))) {
-            Rational x = crossingAbscissa(sa, sb);
-            // The event needs this approximation anyway, and it settles whether
-            // the crossing is still ahead of the sweep without an exact
-            // comparison of two fractions.
-            const pgl::detail::Approximate approx = pgl::detail::approximate(x);
-            const std::partial_ordering ahead =
-                pgl::detail::approximateSign(approx - line.approx);
-            if (ahead == std::partial_ordering::unordered ? x > line.x : ahead > 0) {
-                queue.emplace(std::move(x), approx, ita, itb);
-                addCrossing(a, b);
-            }
-        }
-    }
-
-    void processRIGHT(const std::vector<Event> &evts) {
-        for (const Event &ev : evts) {
-            const Node it1 = nodeOf[ev.s1];
-            // A RIGHT event names a segment the sweep put in the status at its
-            // LEFT event and has not taken out since, so a miss here is the
-            // sweep having lost track of it. Dropping the event loses whatever
-            // crossings it would have reported — wrong, but bounded and
-            // diagnosable, where erasing a node that is not there is not.
-            PGL_ASSERT(it1 && "RIGHT event for a segment not in the status");
-            if (!it1) {
                 continue;
             }
-            // Both bbox sentinels sit in the tree, so a real segment always has
-            // a neighbour on either side of it.
-            const Node it0 = Tree::prev(it1);
-            const Node it2 = Tree::next(it1);
-            removeFromTree(it1);
+            events.push_back({id, Kind::right});
+            events.push_back({id, Kind::left});
+        }
+        std::sort(events.begin(), events.end(), [this](const Event &e, const Event &f) {
+            const Point &p = pointOf(e), &q = pointOf(f);
+            if (p < q) return true;
+            if (q < p) return false;
+            return e.kind < f.kind;
+        });
+        points.clear();
+        pointStart.clear();
+        for (std::size_t i = 0; i < events.size(); ++i) {
+            if (i == 0 || pointOf(events[i]) != *points.back()) {
+                points.push_back(&pointOf(events[i]));
+                pointStart.push_back(static_cast<std::uint32_t>(i));
+            }
+        }
+        pointStart.push_back(static_cast<std::uint32_t>(events.size()));
 
-            possibleCrossing(it0, it2);
+        guessX.resize(points.size());
+        pointApproximations.clear();
+        pointOffsets.clear();
+        bool words = false;
+        if constexpr (wholeCoordinates) {
+            words = width != Width::unbounded;
+            if (words) {
+                pointOffsets.reserve(points.size());
+                for (std::size_t k = 0; k < points.size(); ++k) {
+                    pointOffsets.push_back(
+                        {offsetOf(points[k]->x(), false), offsetOf(points[k]->y(), true)});
+                    guessX[k] = static_cast<double>(pointOffsets[k][0]);
+                }
+            }
+        }
+        if (!words) {
+            for (std::size_t k = 0; k < points.size(); ++k) {
+                guessX[k] = pgl::detail::approximate(points[k]->x()).value;
+            }
+            if (filtersPlacement()) {
+                pointApproximations.reserve(points.size());
+                for (const Point *p : points) {
+                    pointApproximations.push_back(pgl::detail::approximatePoint(*p));
+                }
+            }
+        }
+        filed.clear();
+        firstFiled.assign(points.size() + 1, -1);
+    }
+
+    // ── Placing a crossing ──────────────────────────────────────────────────
+    //
+    // Two segments `a`, below, and `b`, above, crossing ahead: `a` from `a0`
+    // along `r`, `b` from `b0` along `s`. They meet at
+    // `a0 + r * along / det`, with `det = r x s` and `along = (b0 - a0) x s`.
+    // Since `b` comes down through `a`, `det` is negative, and the crossing's
+    // abscissa lies past a point `p`'s exactly when
+    // `(a0.x - p.x) * det + along * r.x` is negative; the same over the
+    // ordinates. That is a product of a coordinate difference and a 2x2
+    // determinant of them, plus another: degree three, and nothing is divided.
+
+    template <class Exact>
+    struct Terms {
+        Exact det, along, rx, ry;
+    };
+    struct ApproximateTerms {
+        pgl::detail::ApproximatePoint origin;
+        pgl::detail::Approximate det, along, rx, ry;
+    };
+
+    // Whether placing a crossing in the unbounded type tries the filter first.
+    bool filtersPlacement() const {
+        if constexpr (wholeCoordinates) {
+            return true;
+        } else {
+            return pgl::detail::filtersSign<Rational>;
+        }
+    }
+
+    template <class Exact>
+    static Exact difference(const Number &a, const Number &b) {
+        if constexpr (std::same_as<Exact, Number>) {
+            return a - b;
+        } else if constexpr (wholeCoordinates) {
+            return static_cast<Exact>(a) - static_cast<Exact>(b);
+        } else {
+            return pgl::detail::asNumber<Exact>(a) - pgl::detail::asNumber<Exact>(b);
+        }
+    }
+
+    template <class Exact>
+    static int negatedSign(const Exact &value) {
+        return value > Exact(0) ? -1 : (value < Exact(0) ? 1 : 0);
+    }
+
+    template <class Exact>
+    Terms<Exact> termsOf(Id ia, Id ib) const {
+        const Segment &a = seg(ia), &b = seg(ib);
+        const Exact rx = difference<Exact>(a.max().x(), a.min().x());
+        const Exact ry = difference<Exact>(a.max().y(), a.min().y());
+        const Exact sx = difference<Exact>(b.max().x(), b.min().x());
+        const Exact sy = difference<Exact>(b.max().y(), b.min().y());
+        const Exact ox = difference<Exact>(b.min().x(), a.min().x());
+        const Exact oy = difference<Exact>(b.min().y(), a.min().y());
+        return {rx * sy - ry * sx, ox * sy - oy * sx, rx, ry};
+    }
+
+    ApproximateTerms approximateTermsOf(Id ia, Id ib) const {
+        const pgl::detail::ApproximatePoint a0 = pgl::detail::approximationOf(endsOf[ia].lo);
+        const pgl::detail::ApproximatePoint a1 = pgl::detail::approximationOf(endsOf[ia].hi);
+        const pgl::detail::ApproximatePoint b0 = pgl::detail::approximationOf(endsOf[ib].lo);
+        const pgl::detail::ApproximatePoint b1 = pgl::detail::approximationOf(endsOf[ib].hi);
+        const auto rx = a1.x - a0.x, ry = a1.y - a0.y;
+        const auto sx = b1.x - b0.x, sy = b1.y - b0.y;
+        const auto ox = b0.x - a0.x, oy = b0.y - a0.y;
+        return {a0, rx * sy - ry * sx, ox * sy - oy * sx, rx, ry};
+    }
+
+    /**
+     * @brief The point crossing @p ia (below) and @p ib (above) is to be
+     * turned over before: the first point it does not lie lexicographically
+     * past.
+     */
+    std::size_t locate(Id ia, Id ib) {
+        if constexpr (wholeCoordinates) {
+            switch (width) {
+            case Width::int64: return locateInWord<std::int64_t>(ia, ib);
+            case Width::int128: return locateInWord<pgl::int128>(ia, ib);
+            case Width::unbounded: break;
+            }
+            return locateIn<pgl::BigInt>(ia, ib);
+        } else {
+            return locateIn<Rational>(ia, ib);
+        }
+    }
+
+    /**
+     * @brief The first point @p notPast holds at, which it does at the last.
+     *
+     * The search starts from the point at abscissa @p guess and gallops out
+     * from it, so a good guess costs a few placements and a bad one
+     * `O(log n)`.
+     */
+    template <class NotPast>
+    std::size_t firstNotPast(double guess, NotPast notPast) const {
+        // The crossing is interior to both segments, so it comes before the
+        // last point: the answer is in range and the last point needs no test.
+        const std::size_t last = points.size() - 1;
+        std::size_t start = static_cast<std::size_t>(
+            std::lower_bound(guessX.begin(), guessX.end(), guess) - guessX.begin());
+        start = std::min(start, last);
+        // notPast is false below lo and true at hi.
+        std::size_t lo, hi;
+        if (notPast(start)) {
+            hi = start;
+            for (std::size_t step = 1;; step *= 2) {
+                if (hi < step) {
+                    lo = 0;
+                    break;
+                }
+                if (!notPast(hi - step)) {
+                    lo = hi - step + 1;
+                    break;
+                }
+                hi -= step;
+            }
+        } else {
+            lo = start + 1;
+            for (std::size_t step = 1;; step *= 2) {
+                const std::size_t probe = lo - 1 + step;
+                if (probe >= last) {
+                    hi = last;
+                    break;
+                }
+                if (notPast(probe)) {
+                    hi = probe;
+                    break;
+                }
+                lo = probe + 1;
+            }
+        }
+        while (lo < hi) {
+            const std::size_t mid = lo + (hi - lo) / 2;
+            if (notPast(mid)) {
+                hi = mid;
+            } else {
+                lo = mid + 1;
+            }
+        }
+        return lo;
+    }
+
+    // @ref locate over the coordinates' offsets, in a machine word that holds
+    // everything it forms from them; see @ref chooseWidth.
+    template <class Word>
+    std::size_t locateInWord(Id ia, Id ib) const {
+        const std::array<std::int64_t, 4> &a = offsets[ia], &b = offsets[ib];
+        const Word rx = Word(a[2]) - Word(a[0]), ry = Word(a[3]) - Word(a[1]);
+        const Word sx = Word(b[2]) - Word(b[0]), sy = Word(b[3]) - Word(b[1]);
+        const Word ox = Word(b[0]) - Word(a[0]), oy = Word(b[1]) - Word(a[1]);
+        const Word det = rx * sy - ry * sx;
+        const Word along = ox * sy - oy * sx;
+        const double guess = static_cast<double>(a[0]) + static_cast<double>(along) *
+                                                             static_cast<double>(rx) /
+                                                             static_cast<double>(det);
+        return firstNotPast(guess, [&](std::size_t k) {
+            const std::array<std::int64_t, 2> &p = pointOffsets[k];
+            const int x = negatedSign((Word(a[0]) - Word(p[0])) * det + along * rx);
+            return x != 0 ? x < 0 : negatedSign((Word(a[1]) - Word(p[1])) * det + along * ry) <= 0;
+        });
+    }
+
+    // @ref locate in an unbounded type, filtered where that type is costly.
+    template <class Exact>
+    std::size_t locateIn(Id ia, Id ib) {
+        const Segment &a = seg(ia);
+        constexpr bool filters = pgl::detail::filtersSign<Exact>;
+        std::optional<Terms<Exact>> exact;
+        ApproximateTerms approximate{};
+        double guess;
+        // Over a fraction type, the crossing's coordinates themselves, built
+        // the first time the filter cannot tell: a crossing it cannot place is
+        // nearly always one tied with a point, and every probe of the search
+        // then meets the tie again, which a comparison of two fractions settles
+        // for less than the fraction products of the polynomial below.
+        std::optional<Exact> crossX, crossY;
+        // A crossing with a vertical segment has that segment's abscissa, and
+        // one with a horizontal segment its ordinate. Those are the ties
+        // axis-parallel input is made of, and they need no arithmetic at all.
+        const Segment &b = seg(ib);
+        const Number *knownX = (axisParallel[ia] & vertical)   ? &a.min().x()
+                               : (axisParallel[ib] & vertical) ? &b.min().x()
+                                                               : nullptr;
+        const Number *knownY = (axisParallel[ia] & horizontal)   ? &a.min().y()
+                               : (axisParallel[ib] & horizontal) ? &b.min().y()
+                                                                 : nullptr;
+        if constexpr (filters) {
+            approximate = approximateTermsOf(ia, ib);
+            guess = approximate.origin.x.value +
+                    approximate.along.value * approximate.rx.value / approximate.det.value;
+        } else {
+            exact.emplace(termsOf<Exact>(ia, ib));
+            guess = pgl::detail::approximate(a.min().x()).value +
+                    static_cast<double>(exact->along) * static_cast<double>(exact->rx) /
+                        static_cast<double>(exact->det);
+        }
+
+        // The sign of the crossing's coordinate minus point k's.
+        const auto side = [&](std::size_t k, bool alongY) {
+            if constexpr (filters) {
+                const pgl::detail::ApproximatePoint &p = pointApproximations[k];
+                const pgl::detail::Approximate offset =
+                    alongY ? approximate.origin.y - p.y : approximate.origin.x - p.x;
+                const std::partial_ordering sign = pgl::detail::approximateSign(
+                    offset * approximate.det +
+                    approximate.along * (alongY ? approximate.ry : approximate.rx));
+                if (sign != std::partial_ordering::unordered) {
+                    return sign > 0 ? -1 : 1;
+                }
+                if (const Number *known = alongY ? knownY : knownX) {
+                    const Number &pc = alongY ? points[k]->y() : points[k]->x();
+                    return *known < pc ? -1 : (pc < *known ? 1 : 0);
+                }
+                if (!exact) {
+                    exact.emplace(termsOf<Exact>(ia, ib));
+                }
+            }
+            if constexpr (pgl::is_Rational_v<Exact>) {
+                std::optional<Exact> &cross = alongY ? crossY : crossX;
+                if (!cross) {
+                    const Number &ac = alongY ? a.min().y() : a.min().x();
+                    cross.emplace(pgl::detail::asNumber<Exact>(ac) +
+                                  exact->along * (alongY ? exact->ry : exact->rx) / exact->det);
+                }
+                const auto &pc = pgl::detail::asNumber<Exact>(alongY ? points[k]->y() : points[k]->x());
+                return *cross < pc ? -1 : (pc < *cross ? 1 : 0);
+            }
+            const Exact offset = alongY ? difference<Exact>(a.min().y(), points[k]->y())
+                                        : difference<Exact>(a.min().x(), points[k]->x());
+            return negatedSign(offset * exact->det +
+                               exact->along * (alongY ? exact->ry : exact->rx));
+        };
+        return firstNotPast(guess, [&side](std::size_t k) {
+            const int x = side(k, false);
+            return x != 0 ? x < 0 : side(k, true) <= 0;
+        });
+    }
+
+    /**
+     * @brief Files the crossing of two neighbours of the status, @p lower
+     * below @p upper, if they cross ahead.
+     *
+     * They do exactly when the upper one starts above the lower one's line and
+     * ends below it, and the lower one starts below the upper one's line and
+     * ends above it: four orientations over the input. Neighbours that have
+     * crossed already are in the other order, and fail the first two.
+     */
+    void consider(Node lower, Node upper) {
+        if (!lower || !upper) {
+            return;
+        }
+        const Id a = lower->value, b = upper->value;
+        const Ends &ea = endsOf[a], &eb = endsOf[b];
+        if (orientation(ea.lo, ea.hi, eb.hi) >= 0 || orientation(ea.lo, ea.hi, eb.lo) <= 0 ||
+            orientation(eb.lo, eb.hi, ea.lo) >= 0 || orientation(eb.lo, eb.hi, ea.hi) <= 0) {
+            return;
+        }
+        const std::size_t k = std::max(locate(a, b), earliest);
+        filed.push_back({a, b, firstFiled[k]});
+        firstFiled[k] = static_cast<std::int32_t>(filed.size() - 1);
+    }
+
+    // Turns over every crossing filed under point k, and every one found in
+    // doing so that belongs there too.
+    void drain(std::size_t k) {
+        while (firstFiled[k] >= 0 && !stopNow) {
+            const Filed f = filed[static_cast<std::size_t>(firstFiled[k])];
+            firstFiled[k] = f.next;
+            const Node lower = nodeOf[f.lower], upper = nodeOf[f.upper];
+            if (!lower || !upper || Tree::next(lower) != upper) {
+                continue;  // no longer neighbours, so turned over already or not yet due
+            }
+            if (addCrossing(f.lower, f.upper)) {
+                return;
+            }
+            // The two exchange places in the tree, keeping their nodes.
+            tree.swap(lower, upper);
+            consider(Tree::prev(upper), upper);
+            consider(lower, Tree::next(lower));
+        }
+    }
+
+    void removeSegment(Id id) {
+        const Node node = nodeOf[id];
+        PGL_ASSERT(node && "a segment ends that the status does not hold");
+        const Node below = Tree::prev(node), above = Tree::next(node);
+        nodeOf[id] = nullptr;
+        tree.erase(node);
+        consider(below, above);
+    }
+
+    void insertSegment(Id id) {
+        inserting = id;
+        const Node node = tree.insert(id).first;
+        nodeOf[id] = node;
+        consider(Tree::prev(node), node);
+        consider(node, Tree::next(node));
+        if (interiorsOnly) {
+            // A segment overlapping this one along a stretch of positive
+            // length is collinear with it and passes through its left
+            // endpoint, or starts there too. The status orders the segments
+            // through one point by the direction they leave in, so those
+            // collinear with this one are its neighbours on either side up to
+            // the first that is not, and nothing else needs asking.
+            const Ends &ends = endsOf[id];
+            const auto collinear = [this, &ends](Node it) {
+                if (!it) {
+                    return false;
+                }
+                const Ends &other = endsOf[it->value];
+                return orientation(ends.lo, ends.hi, other.lo) == 0 &&
+                       orientation(ends.lo, ends.hi, other.hi) == 0;
+            };
+            for (Node it = Tree::prev(node); collinear(it); it = Tree::prev(it)) {
+                if (addIntersection(it->value, id)) {
+                    return;
+                }
+            }
+            for (Node it = Tree::next(node); collinear(it); it = Tree::next(it)) {
+                if (addIntersection(it->value, id)) {
+                    return;
+                }
+            }
+        }
+    }
+
+    // Reports every segment with an endpoint at point k against every segment
+    // of the status passing through that point, which is then in the interior
+    // of the latter. Those are one stretch of the status, found by one search.
+    // `O(log n)` plus one step per pair reported.
+    void reportThrough(std::size_t k) {
+        if (tree.empty()) {
+            return;
+        }
+        probe = pgl::detail::filtered<Coordinate>(*points[k]);
+        through.clear();
+        for (Node it = tree.lowerBound(PointProbe{}); it && pointSide(it->value) == 0;
+             it = Tree::next(it)) {
+            through.push_back(it->value);
+        }
+        for (std::uint32_t e = pointStart[k]; e < pointStart[k + 1]; ++e) {
+            for (const Id other : through) {
+                if (addIntersection(events[e].id, other)) {
+                    return;
+                }
+            }
+        }
+    }
+
+    // Everything that happens at point k; see the class description.
+    void processPoint(std::size_t k) {
+        const std::uint32_t first = pointStart[k], last = pointStart[k + 1];
+        earliest = k;
+        drain(k);
+        std::uint32_t e = first;
+        for (; e < last && events[e].kind == Kind::right; ++e) {
+            removeSegment(events[e].id);
+        }
+        // Crossings at this very point between segments that one ending here
+        // kept apart.
+        drain(k);
+        if (stopNow) {
+            return;
+        }
+        if (endpointLimit != 0) {
+            std::size_t ends = 0;
+            for (std::uint32_t i = first; i < last; ++i) {
+                ends += events[i].kind != Kind::point ? 1 : 0;
+            }
+            if (ends > endpointLimit) {
+                crowded = true;
+                stopNow = true;
+                return;
+            }
+        }
+        if (!onlyCrossings) {
+            reportThrough(k);
             if (stopNow) {
                 return;
             }
         }
-
-    }
-
-    void getNewCrossEvents(std::vector<Event> &crossEvents, const Rational &currentX) {
-        while (!queue.empty() && queue.top().x == currentX) {
-            crossEvents.push_back(queue.top());
-            queue.pop();
-        }
-    }
-
-    // The segments of the status tree that meet at each of this step's crossing
-    // points, each run in tree order, the runs in no particular order.
-    //
-    // Grouping by identity of the crossing point, rather than by the point
-    // itself: what used to key this by an exact y-coordinate paid for that
-    // coordinate — one `yAtX` per event and a std::map over fractions — to
-    // express something the runs already say, since two segments meet the sweep
-    // line at the same point exactly when they are one run.
-    //
-    // Must run while the tree still holds the previous abscissa's order, which
-    // is the one that keeps each run contiguous.
-    std::vector<Run> getCrossingSegments(const std::vector<Event> &evts, const Abscissa &at) {
-        std::vector<Run> ret;
-        // A fresh stamp rather than a cleared set: there is a step per event,
-        // and clearing anything per step would cost in proportion to it.
-        ++step;
-
-        for (const Event &ev : evts) {
-            if (collectedAt[ev.lower->value] == step) {
-                // Already collected as part of an earlier run, and the event's
-                // other segment with it: the two meet at the same point.
-                PGL_ASSERT(collectedAt[ev.upper->value] == step);
-                continue;
-            }
-            // The event's own two segments meet here by construction, and so
-            // does everything the status holds between them: anything between
-            // them that missed the point would have had to cross one of them,
-            // or end, before it — an event already processed. So only the run's
-            // two ends need asking about, and in general position the segment
-            // beyond each end misses the point, a sign the filter settles.
-            // Asking about the pair itself is what this avoids: the height
-            // difference at its own crossing is exactly zero, the one answer no
-            // filter can give, so every crossing used to pay for it in exact
-            // arithmetic.
-            Node first = ev.lower, last = ev.upper;
-            while (Tree::prev(first) && sameHeight(Tree::prev(first)->value, ev.lower->value, at)) {
-                first = Tree::prev(first);
-            }
-            while (Tree::next(last) && sameHeight(Tree::next(last)->value, ev.upper->value, at)) {
-                last = Tree::next(last);
-            }
-            Run run;
-            for (Node it = first;; it = Tree::next(it)) {
-                PGL_ASSERT(it && "the event's upper segment lies above its lower one");
-                PGL_ASSERT(sameHeight(it->value, ev.lower->value, at));
-                run.nodes.push_back(it);
-                run.ids.push_back(it->value);
-                collectedAt[it->value] = step;
-                if (it == last) {
-                    break;
-                }
-            }
-            ret.push_back(std::move(run));
-        }
-
-        return ret;
-    }
-
-    /**
-     * @brief Puts a crossing's run into the order it has just past the crossing,
-     * by exchanging the places of the nodes already holding it.
-     *
-     * Every segment of the run passes through the same point, in its interior,
-     * so just before the point the run is in decreasing order of slope and just
-     * past it in increasing order: the new order is the old one reversed. The
-     * exception is segments of one slope, which are collinear, since they share
-     * the point. Those overlap rather than cross, the comparator's tie-break
-     * orders them the same way on both sides, and reversing each such block
-     * again restores it.
-     *
-     * Asking the comparator instead, as sorting the run would, is asking at the
-     * crossing abscissa, where every height difference in the run is exactly
-     * zero: the filter settles none of them and each pays for exact arithmetic
-     * before falling through to the slopes anyway. A run is nearly always two
-     * segments long, and two segments that cross have different slopes, so
-     * nearly always this is a single exchange and no predicate at all.
-     *
-     * Leaves `run.nodes` in the run's new order, which is the same stretch of
-     * the tree it occupied before, and records the run's collinear blocks in
-     * @ref runBlocks. `O(s)` for a run of `s` segments: one orientation per
-     * neighbouring pair and at most one exchange per position.
-     */
-    void reorderRun(Run &run) {
-        const std::size_t size = run.nodes.size();
-        run.firstBlock = runBlocks.size();
-        runBlocks.push_back(0);
-        for (std::size_t i = 1; i < size; ++i) {
-            // A two-segment run is the event's own crossing pair. Otherwise
-            // both pass through the crossing, and the far endpoint is not the
-            // crossing, so it lies on the other's line exactly when the two
-            // share a line.
-            if (size == 2 ||
-                pgl::detail::orientationSignOf(endsOf[run.ids[i - 1]].lo, endsOf[run.ids[i - 1]].hi,
-                                               endsOf[run.ids[i]].hi).value() != 0) {
-                runBlocks.push_back(static_cast<std::uint32_t>(i));
-            }
-        }
-        runBlocks.push_back(static_cast<std::uint32_t>(size));
-        run.blockCount = runBlocks.size() - run.firstBlock - 1;
-        if (size < 2) {
-            return;
-        }
-
-        // The new order is the blocks' order reversed, each block keeping its
-        // own: `runTarget[t]` is the old place whose node goes to place t.
-        runTarget.clear();
-        for (std::size_t b = run.blockCount; b-- > 0;) {
-            for (std::uint32_t p = runBlocks[run.firstBlock + b];
-                 p < runBlocks[run.firstBlock + b + 1]; ++p) {
-                runTarget.push_back(p);
-            }
-        }
-
-        // `run.nodes[t]` is the node at the run's t-th place as the exchanges go
-        // on, and ends up being the run's new order. Each exchange puts the
-        // right node in the next place and sends whatever was there to where
-        // that node was, which the two maps say without a search.
-        runHolds.resize(size);
-        runWhere.resize(size);
-        std::iota(runHolds.begin(), runHolds.end(), std::uint32_t(0));
-        std::iota(runWhere.begin(), runWhere.end(), std::uint32_t(0));
-        for (std::uint32_t t = 0; t < size; ++t) {
-            const std::uint32_t wanted = runTarget[t];
-            const std::uint32_t from = runWhere[wanted];
-            if (from == t) {
-                continue;
-            }
-            tree.swap(run.nodes[t], run.nodes[from]);
-            std::swap(run.nodes[t], run.nodes[from]);
-            const std::uint32_t displaced = runHolds[t];
-            runHolds[from] = displaced;
-            runWhere[displaced] = from;
-            runHolds[t] = wanted;
-            runWhere[wanted] = t;
-        }
-        // PGL_ASSERT(std::is_sorted(run.nodes.begin(), run.nodes.end(), [this](Node a, Node b) {
-        //     return CompareAlongLine(a->value, b->value);
-        // }));  // O(run): uncomment when debugging
-    }
-
-    void processCROSS(std::vector<Event> &evts, const Rational &currentX) {
-        // 3) Check possible new cross events
-        getNewCrossEvents(evts, currentX);
-
-        // Where the crossings are, split once for the whole step. Found before
-        // the abscissa becomes the sweep's own at 4): a run is contiguous under
-        // the order the tree is still holding, which is the previous abscissa's,
-        // and it is that order the walk out from each event follows.
-        const Abscissa crossing = abscissa(currentX);
-
-        std::vector<Run> crossingAt = getCrossingSegments(evts, crossing);
-
-        // 4) Move the line to currentX
-        line = crossing;
-        runBlocks.clear();
-
-        // 5) Turn each crossing over.
-        //    Past the crossing the run's segments occupy the same stretch of
-        //    the tree in a different order, and that is all that changes: the
-        //    tree's shape, and every node in it, stay as they are. So the run
-        //    is sorted among itself and its nodes exchange places, which the
-        //    tree does without a comparison. Taking the run out and putting it
-        //    back is what this replaces, and that charged a full search of the
-        //    tree — a logarithmic run of height predicates — per segment, twice
-        //    over, to rediscover an order the run already fixes.
-        for (Run &run : crossingAt) {
-            reorderRun(run);
-        }
-
-        // 6) Create all CROSS new events
-        for (const Run &run : crossingAt) {
-            // The run's own ends. Nothing outside it meets the sweep line where
-            // it does, or it would have been collected into it, so the segments
-            // that could newly become neighbours are the two just past them.
-            const Node it1 = run.nodes.front();
-            const Node it2 = run.nodes.back();
-
-            // Possible new crossings
-            possibleCrossing(Tree::prev(it1), it1);
-            possibleCrossing(it2, Tree::next(it2));
-        }
-        if (stopNow) {
-            return;
-        }
-
-        // 7) Add crossings to set
-        //    Every segment of a run has the run's point in its interior, so two
-        //    of them cross exactly when they are not collinear, which is when
-        //    they lie in different blocks. Those pairs are listed outright, in
-        //    time proportional to them; the pairs within a block overlap, and
-        //    were reported, where a mode reports them, by whichever of the two
-        //    went into the status second. Testing every pair of the run instead
-        //    cost the square of the run even where a long collinear block made
-        //    nearly all of them overlaps.
-        for (const Run &run : crossingAt) {
-            const std::vector<Id> &ids = run.ids;
-            const std::uint32_t *starts = runBlocks.data() + run.firstBlock;
-            for (std::size_t b = 0; b + 1 < run.blockCount; ++b) {
-                for (std::uint32_t i = starts[b]; i < starts[b + 1]; ++i) {
-                    for (std::size_t j = starts[b + 1]; j < ids.size(); ++j) {
-                        PGL_ASSERT(seg(ids[i]).crosses(seg(ids[j])));
-                        if (addCrossing(ids[i], ids[j])) {
-                            return;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    void processRIGHT_interior(const std::vector<Event> &evts) {
-        for (const Event &ev : evts) {
-            // Find top segment intersecting ev.s1 on line
-            // Use fake vertical segment
-            const Point &end = seg(ev.s1).max();
-            extras[2] = Segment(end.x(), end.y(), end.x(), end.y()+1);
-            Node it = tree.lowerBound(probeId());
-
-            for (; it && Tree::prev(it) && seg(it->value).contains(end); it = Tree::prev(it)) {
-            }
-            if (it) {
-                it = Tree::next(it);
-            }
-
-            for (; it && seg(it->value).contains(end); it = Tree::next(it)) {
-                if (addIntersection(ev.s1, it->value)) {
-                    return;
-                }
-            }
-        }
-    }
-
-    // The segments of the status meeting each vertical segment at this
-    // abscissa. Every one of them has the meeting point in its interior, since
-    // the segments ending here are already out and those starting here not yet
-    // in, so it meets the vertical at a point of height between the vertical's
-    // two ends, and crosses it exactly when that height is strictly between
-    // them. Reporting intersections, the walk covers the closed range of
-    // heights; reporting crossings, which is also what an interior intersection
-    // with a vertical segment is, it covers the open one, so that a stack of
-    // segments through one of the vertical's endpoints, none of which it
-    // crosses, is never walked. Either way it is `O(log n)` for the search plus
-    // one step per pair reported.
-    void processVERTICAL(const std::vector<Event> &evts) {
-        for (const Event &ev : evts) {
-            const Segment &vertical = seg(ev.s1);
-            if (!onlyCrossings) {
-                for (Node it = tree.lowerBound(ev.s1); it; it = Tree::next(it)) {
-                    if (!vertical.intersects(seg(it->value)))
-                        break;
-                    if (addCrossing(ev.s1, it->value)) {
-                        return;
-                    }
-                }
-                continue;
-            }
-            if (vertical.isDegenerate()) {
-                continue;
-            }
-            // The first segment strictly above the vertical's lower end, up to
-            // the first not strictly below its upper end, which a probe
-            // standing on that end tells.
-            const Point &top = vertical.max();
-            extras[2] = Segment(top.x(), top.y(), top.x(), top.y() + 1);
-            for (Node it = tree.upperBound(ev.s1); it && CompareAlongLine(it->value, probeId());
-                 it = Tree::next(it)) {
-                PGL_ASSERT(vertical.crosses(seg(it->value)));
-                if (addCrossing(ev.s1, it->value)) {
-                    return;
-                }
-            }
-        }
-    }
-
-    void processVERTICAL_interior(const std::vector<Event> &v_evts, const std::vector<Event> &r_evts, const std::vector<Event> &l_evts) {
-        std::vector<std::pair<Number, Id>> order;
-        for (const Event &ev : l_evts) {
-            order.emplace_back(seg(ev.s1).min().y(), ev.s1);
-        }
-        for (const Event &ev : r_evts) {
-            order.emplace_back(seg(ev.s1).max().y(), ev.s1);
-        }
-        for (const Event &ev : v_evts) {
-            order.emplace_back(seg(ev.s1).min().y(), ev.s1);
-            order.emplace_back(seg(ev.s1).max().y(), ev.s1);
-        }
-        std::sort(order.begin(),order.end());
-
-        for (const Event &ev : v_evts) {
-            const auto &y1 = seg(ev.s1).min().y();
-            const auto &y2 = seg(ev.s1).max().y();
-            for (auto it = std::lower_bound(order.begin(), order.end(), std::make_pair(y1, Id(0)));
-                 it != order.end() && it->first < y2;
-                 ++it) {
-                if (it->second != ev.s1 && addIntersection(ev.s1, it->second)) {
-                    return;
-                }
-            }
-        }
-    }
-
-    void processLEFT(const std::vector<Event> &evts) {
-        for (const Event &ev : evts) {
-            const Segment &s = seg(ev.s1);
-            const Node it1 = addToTree(ev.s1);
-            Node it0 = Tree::prev(it1);
-            Node it2 = Tree::next(it1);
-
-            queue.emplace(static_cast<Rational>(s.max().x()), EventEnum::RIGHT, ev.s1);
-            possibleCrossing(it0, it1);
-            possibleCrossing(it1, it2);
-            if (stopNow) {
-                break;
-            }
-
-            if (!onlyCrossings) {
-                while (it0 && !stopNow && seg(it0->value).contains(s.min())) {
-                    addIntersection(it0->value, ev.s1);
-                    it0 = Tree::prev(it0);
-                }
-                while (it2 && !stopNow && seg(it2->value).contains(s.min())) {
-                    addIntersection(it2->value, ev.s1);
-                    it2 = Tree::next(it2);
-                }
+        earliest = k + 1;
+        for (; e < last; ++e) {
+            if (events[e].kind == Kind::left) {
+                insertSegment(events[e].id);
                 if (stopNow) {
-                    break;
-                }
-            } else if (interiorsOnly) {
-                // A segment overlapping this one along a stretch of positive
-                // length is collinear with it and, being in the status at this
-                // abscissa, passes through its left endpoint. The status orders
-                // the segments through one point by slope, so those collinear
-                // with this one are the neighbours on either side of it until
-                // the first that is not, and nothing else needs asking. The ones
-                // that merely end here were taken out by this step's RIGHT
-                // events, and one that starts here too is met from whichever of
-                // the two goes in second.
-                const Ends &ends = endsOf[ev.s1];
-                const auto collinear = [this, &ends](Node it) {
-                    if (!it || it->value >= input->size()) {
-                        return false;
-                    }
-                    const Ends &other = endsOf[it->value];
-                    return pgl::detail::orientationSignOf(ends.lo, ends.hi, other.lo).value() == 0 &&
-                           pgl::detail::orientationSignOf(ends.lo, ends.hi, other.hi).value() == 0;
-                };
-                for (Node it = Tree::prev(it1); collinear(it) && !stopNow; it = Tree::prev(it)) {
-                    addIntersection(it->value, ev.s1);
-                }
-                for (Node it = Tree::next(it1); collinear(it) && !stopNow; it = Tree::next(it)) {
-                    addIntersection(it->value, ev.s1);
-                }
-                if (stopNow) {
-                    break;
-                }
-            }
-        }
-    }
-
-    // The vertical segments at this abscissa that overlap along a stretch of
-    // positive length. Ordered by their lower ends, each is compared with the
-    // earlier ones still reaching above that end, which it overlaps, and the
-    // ones that do not reach are dropped for good, so the work is the pairs
-    // reported plus one drop per segment.
-    void processVERTICAL_overlaps(const std::vector<Event> &evts) {
-        if (evts.size() < 2) {
-            return;
-        }
-        std::vector<Id> order;
-        for (const Event &ev : evts) {
-            if (!seg(ev.s1).isDegenerate()) {
-                order.push_back(ev.s1);
-            }
-        }
-        std::sort(order.begin(), order.end(),
-                  [this](Id a, Id b) { return seg(a).min().y() < seg(b).min().y(); });
-        std::vector<Id> reaching;
-        for (const Id id : order) {
-            const auto &bottom = seg(id).min().y();
-            std::size_t write = 0;
-            for (std::size_t read = 0; read < reaching.size(); ++read) {
-                const Id other = reaching[read];
-                if (!(bottom < seg(other).max().y())) {
-                    continue;
-                }
-                reaching[write++] = other;
-                if (addIntersection(other, id)) {
                     return;
                 }
             }
-            reaching.resize(write);
-            reaching.push_back(id);
         }
     }
-
 
     void run(const std::vector<Segment> &segments) {
         if (segments.empty())
@@ -1372,119 +1001,80 @@ class BentleyOttmann {
         if (byRank.size() <= 1)
             return;
 
-        initQueue();
-        line = abscissa(static_cast<Rational>(bbox.min().x()));
-        initTree();
-
-        while (!queue.empty()) {
-            // printTree();
-            // 1) Get all events with same x into events
-            const Rational currentX = queue.top().x;
-            getEvents(currentX);
-
-            // 2) Do all RIGHT events
-            processRIGHT(events[(size_t)EventEnum::RIGHT]);
-            // A detection stops at the first pair reported, and every phase
-            // checks: a step can hold a run or a walk as long as the input,
-            // and finishing one after the answer is known is what kept a
-            // detection from its bound.
-            if (stopNow)
-                break;
-
-            // 3) Check possible new cross events
-            // 4) Do all CROSS removals from tree
-            // 5) Move the line to currentX
-            // 6) Do all CROSS insertions to tree
-            // 7) Create all CROSS new events
-            // 8) Add new crossings to the output
-            processCROSS(events[1], currentX);
-            if (stopNow)
-                break;
-
-            if (!onlyCrossings) {
-                processRIGHT_interior(events[(size_t)EventEnum::RIGHT]);
-                if (stopNow)
-                    break;
-            }
-
-            // 10) Do all VERTICAL events
-            processVERTICAL(events[(size_t)EventEnum::VERTICAL]);
-            if (stopNow)
-                break;
-            if (interiorsOnly) {
-                processVERTICAL_overlaps(events[(size_t)EventEnum::VERTICAL]);
-                if (stopNow)
-                    break;
-            }
-            if (!onlyCrossings) {
-                processVERTICAL_interior(events[(size_t)EventEnum::VERTICAL],
-                                         events[(size_t)EventEnum::RIGHT],
-                                         events[(size_t)EventEnum::LEFT]);
-                if (stopNow)
-                    break;
-            }
-
-            // 11) Do all LEFT events
-            processLEFT(events[(size_t)EventEnum::LEFT]);
-
-            if (stopNow)
-                break;
+        chooseWidth();
+        listEvents();
+        tree.clear();
+        for (std::size_t k = 0; k < points.size() && !stopNow; ++k) {
+            processPoint(k);
         }
+    }
+
+    // Whether the segments only meet as the edges of a simple polygon or
+    // polyline: nothing crosses, no segment ends inside another, none is given
+    // twice, and no point is the end of more than two.
+    bool testSimple(const std::vector<Segment> &segments) {
+        onlyCrossings = false;
+        endpointLimit = 2;
+        bool notSimple = false;
+        onCrossing = [&notSimple](const Segment &, const Segment &) {
+            notSimple = true;
+            return true;
+        };
+        onIntersection = onCrossing;
+        run(segments);
+        return !notSimple && !crowded;
+    }
+
+    // Every pair that intersects, as ordered keys. Besides what the sweep
+    // reports, that is the segments sharing an endpoint, which the events
+    // already stand grouped by: every two at one point. A segment of no length
+    // is there once, and a duplicate was already reported with itself.
+    std::vector<Key> intersectingKeys(const std::vector<Segment> &segments) {
+        onlyCrossings = false;
+        run(segments);
+        std::vector<Key> keys = std::move(intersectionKeys);
+        keys.insert(keys.end(), crossingKeys.begin(), crossingKeys.end());
+        for (std::size_t k = 0; k + 1 < pointStart.size(); ++k) {
+            for (std::uint32_t i = pointStart[k]; i + 1 < pointStart[k + 1]; ++i) {
+                for (std::uint32_t j = i + 1; j < pointStart[k + 1]; ++j) {
+                    keys.push_back(keyOf(events[i].id, events[j].id));
+                }
+            }
+        }
+        return ordered(std::move(keys));
     }
 
 public:
     std::vector<CrossingPair> findCrossings(const std::vector<Segment> &segments) {
         onlyCrossings = true;
         run(segments);
-        return pairsOf(crossingsSet);
+        return pairsOf(ordered(std::move(crossingKeys)));
     }
 
     std::vector<CrossingPair> findIntersections(const std::vector<Segment> &segments) {
-        onlyCrossings = false;
-        run(segments);
-        if (segments.empty()) {
-            return {};
-        }
-        intersectionKeys.insert(intersectionKeys.end(), crossingsSet.begin(), crossingsSet.end());
+        return pairsOf(intersectingKeys(segments));
+    }
 
-        // Insert segments sharing an endpoint. Sorting the endpoints brings the
-        // segments at each point together; a duplicate was already reported
-        // with itself, so the distinct segments are all that need visiting.
-        std::vector<std::pair<const Point *, Rank>> ends;
-        ends.reserve(2 * byRank.size());
-        for (Rank r = 0; r < byRank.size(); ++r) {
-            ends.emplace_back(&seg(byRank[r]).min(), r);
-            // A zero-length segment's two ends are one point, and listing it
-            // twice there would pair the segment with itself.
-            if (!seg(byRank[r]).isDegenerate()) {
-                ends.emplace_back(&seg(byRank[r]).max(), r);
-            }
-        }
-        std::sort(ends.begin(), ends.end(), [](const auto &a, const auto &b) {
-            return *a.first < *b.first || (!(*b.first < *a.first) && a.second < b.second);
+    /**
+     * @brief Calls `visit(i, j)` for every intersecting pair, with the two
+     * segments' positions in @p segments, in @ref findIntersections' order.
+     *
+     * For a caller that wants the pairs by position: it spares copying them
+     * out and looking them up again.
+     */
+    template <class Visit>
+    void visitIntersections(const std::vector<Segment> &segments, Visit visit) {
+        forEachPair(intersectingKeys(segments), [&visit](Id a, Id b) {
+            visit(static_cast<std::size_t>(a), static_cast<std::size_t>(b));
         });
-        for (std::size_t first = 0; first < ends.size();) {
-            std::size_t last = first + 1;
-            while (last < ends.size() && *ends[last].first == *ends[first].first) {
-                ++last;
-            }
-            for (std::size_t i = first; i + 1 < last; ++i) {
-                for (std::size_t j = i + 1; j < last; ++j) {
-                    intersectionKeys.push_back((Key(ends[i].second) << 32) | ends[j].second);
-                }
-            }
-            first = last;
-        }
-
-        return pairsOf(intersectionKeys);
     }
 
     std::vector<CrossingPair> findInteriorIntersections(const std::vector<Segment> &segments) {
         onlyCrossings = true;
         interiorsOnly = true;
         run(segments);
-        intersectionKeys.insert(intersectionKeys.end(), crossingsSet.begin(), crossingsSet.end());
-        return pairsOf(intersectionKeys);
+        intersectionKeys.insert(intersectionKeys.end(), crossingKeys.begin(), crossingKeys.end());
+        return pairsOf(ordered(std::move(intersectionKeys)));
     }
 
     bool detectInteriorIntersections(const std::vector<Segment> &segments) {
@@ -1493,14 +1083,14 @@ public:
         onCrossing = [] (const Segment &, const Segment &) {return true;};
         onIntersection = [] (const Segment &, const Segment &) {return true;};
         run(segments);
-        return !crossingsSet.empty() || !intersectionKeys.empty();
+        return !crossingKeys.empty() || !intersectionKeys.empty();
     }
 
     bool detectCrossings(const std::vector<Segment> &segments) {
         onlyCrossings = true;
         onCrossing = [] (const Segment &, const Segment &) {return true;};
         run(segments);
-        return !crossingsSet.empty();
+        return !crossingKeys.empty();
     }
 
     bool detectIntersections(const std::vector<Segment> &segments) {
@@ -1509,7 +1099,7 @@ public:
         onIntersection = [] (const Segment &, const Segment &) {return true;};
         run(segments);
 
-        if (!crossingsSet.empty() || !intersectionKeys.empty())
+        if (!crossingKeys.empty() || !intersectionKeys.empty())
             return true;
 
         // Insert segments sharing an endpoint
@@ -1531,203 +1121,16 @@ public:
     // Tests whether the segments form a simple polygon: every vertex appears in
     // exactly 2 segments, and the only intersections are those shared vertices.
     bool testPolygon(const std::vector<Segment> &segments) {
-        onlyCrossings = false;
-        bool notSimple = false;
-        onCrossing = [&notSimple] (const Segment &, const Segment &) {notSimple = true; return true;};
-        size_t count = 0;
-        size_t n = segments.size();
-        onIntersection = [n,&count, &notSimple] (const Segment &p0, const Segment &p1) {
-                if (p0.collinear(p1) && p0.interiorsIntersect(p1)) {
-                    notSimple = true; // Collinear overlap
-                    return true;
-                }
-                const int shared = (p0.min() == p1.min()) + (p0.min() == p1.max())
-                                 + (p0.max() == p1.min()) + (p0.max() == p1.max());
-                if (!shared) {
-                    notSimple = true; // Vertex inside an edge
-                    return true;
-                }
-                count++;
-                if (count > 2*n) { // A vertex appears twice
-                    notSimple = true;
-                }
-                return notSimple;
-            };
-        run(segments);
-
-        return !notSimple;
+        return testSimple(segments);
     }
 
     // Tests if every vertex appears in exactly 2 segments
     // except for two vertices appearing only once
     // and has no intersection elsewhere
     bool testPolyLine(const std::vector<Segment> &segments) {
-        onlyCrossings = false;
-        bool notSimple = false;
-        onCrossing = [&notSimple] (const Segment &, const Segment &) {notSimple = true; return true;};
-        size_t count = 0;
-        size_t n = segments.size();
-        onIntersection = [n,&count, &notSimple] (const Segment &p0, const Segment &p1) {
-                if (p0.collinear(p1) && p0.interiorsIntersect(p1)) {
-                    notSimple = true; // Collinear overlap
-                    return true;
-                }
-                const int shared = (p0.min() == p1.min()) + (p0.min() == p1.max())
-                                 + (p0.max() == p1.min()) + (p0.max() == p1.max());
-                if (!shared) {
-                    notSimple = true; // Vertex inside an edge
-                    return true;
-                }
-                count++;
-                if (count > 2*n - 2) { // A vertex appears twice
-                    notSimple = true;
-                }
-                return notSimple;
-            };
-        run(segments);
-
-        return !notSimple;
+        return testSimple(segments);
     }
 }; // class BentleyOttmann
-
-/**
- * @brief Largest coordinate magnitude at which the sweep over `int`
- * coordinates is exact in `Rational<int64_t>`.
- *
- * A crossing's abscissa is `num / det` with `|det| <= 8 C^2`, and it lies in
- * the bounding box, so `|num| <= C |det| <= 8 C^3`, which fits an `int64_t`
- * for `C < 2^20`. Every other quantity the sweep forms is either compared in
- * the fraction's promoted type or evaluated in its own wider one.
- */
-inline constexpr long long sweepInt64Limit = (1LL << 20) - 1;
-
-/**
- * @brief Largest coordinate magnitude at which the sweep over `int`
- * coordinates is exact at all.
- *
- * The orientation predicate over `int` points evaluates in `int64_t` and
- * compares two products of coordinate differences, each up to `4 C^2`; this is
- * the largest `C` for which that stays below `2^63`. Up to here the abscissa,
- * at most `8 C^3`, fits `Rational<int128>` with room to spare.
- */
-inline constexpr long long sweepInt128Limit = 1518500249;
-
-/**
- * @brief The narrowest fraction the sweep over @p segments is exact in: 0 for
- * `Rational<int64_t>`, 1 for `Rational<int128>`, 2 for neither.
- */
-template <class Segment>
-int sweepFractionTier(const std::vector<Segment> &segments) {
-    int tier = 0;
-    const auto within = [](const auto &c, long long limit) {
-        const pgl::int128 v = static_cast<pgl::int128>(c);
-        return -static_cast<pgl::int128>(limit) <= v && v <= static_cast<pgl::int128>(limit);
-    };
-    for (const Segment &s : segments) {
-        for (const auto *p : {&s.min(), &s.max()}) {
-            for (const auto *c : {&p->x(), &p->y()}) {
-                if (tier == 0 && !within(*c, sweepInt64Limit)) {
-                    tier = 1;
-                }
-                if (!within(*c, sweepInt128Limit)) {
-                    return 2;
-                }
-            }
-        }
-    }
-    return tier;
-}
-
-template <class Segment>
-struct isPglSegment : std::false_type {};
-template <class Point, class Label>
-struct isPglSegment<pgl::Segment<Point, Label>> : std::true_type {};
-
-/**
- * @brief Runs @p body over a @ref BentleyOttmann sweep in the narrowest
- * fraction the input allows, when the caller asked for the default
- * `Rational<BigInt>` over integer coordinates.
- *
- * All three fractions compute the same exact answer wherever the narrower
- * ones are exact; they differ only in what their arithmetic costs, and a
- * machine-word fraction avoids the per-operation overhead of an
- * arbitrary-precision one. Coordinates of a wider integer type small enough
- * for the tier are narrowed to `int` for the sweep and the reported pairs
- * converted back, labels included.
- *
- * @param body Called as `body(sweep, segments)`; returns what the caller
- * returns, either a `bool` or a vector of segment pairs.
- */
-template <class Rational, class Segment, class Body>
-auto sweepInNarrowestRational(const std::vector<Segment> &segments, Body body) {
-    using Number = typename Segment::NumberType;
-    if constexpr (std::same_as<Rational, pgl::Rational<pgl::BigInt>> &&
-                  (std::signed_integral<Number> || std::same_as<Number, pgl::int128>) &&
-                  (std::same_as<Number, int> || isPglSegment<Segment>::value)) {
-        const int tier = sweepFractionTier(segments);
-        if (tier < 2) {
-            const auto run = [&]<class Narrow>(std::type_identity<Narrow>) {
-                if constexpr (std::same_as<Number, int>) {
-                    BentleyOttmann<Narrow, Segment> sweep;
-                    return body(sweep, segments);
-                } else {
-                    using IntSegment =
-                        pgl::Segment<pgl::Point<int, typename Segment::PointType::LabelType>,
-                                     typename Segment::LabelType>;
-                    const std::vector<IntSegment> narrow(segments.begin(), segments.end());
-                    BentleyOttmann<Narrow, IntSegment> sweep;
-                    auto found = body(sweep, narrow);
-                    if constexpr (std::same_as<decltype(found), bool>) {
-                        return found;
-                    } else {
-                        std::vector<std::array<Segment, 2>> pairs;
-                        pairs.reserve(found.size());
-                        for (const auto &pair : found) {
-                            pairs.push_back({Segment(pair[0]), Segment(pair[1])});
-                        }
-                        return pairs;
-                    }
-                }
-            };
-            return tier == 0 ? run(std::type_identity<pgl::Rational<std::int64_t>>{})
-                             : run(std::type_identity<pgl::Rational<pgl::int128>>{});
-        }
-    }
-    BentleyOttmann<Rational, Segment> sweep;
-    return body(sweep, segments);
-}
-
-/**
- * @brief Sorts pair keys in place, by radix over the bits they actually use.
- *
- * A key packs two ranks, each below the input size, so its high bits are
- * mostly zero and a least-significant-digit radix sort needs only as many
- * passes as the largest key has digits. Over a million reported pairs that is
- * several times cheaper than a comparison sort, and the order is the same.
- */
-inline void sortPairKeys(std::vector<std::uint64_t> &keys) {
-    if (keys.size() < 512) {
-        std::sort(keys.begin(), keys.end());
-        return;
-    }
-    constexpr int digitBits = 11;
-    constexpr std::size_t buckets = std::size_t(1) << digitBits;
-    const std::uint64_t largest = *std::max_element(keys.begin(), keys.end());
-    std::vector<std::uint64_t> buffer(keys.size());
-    for (int shift = 0; shift < 64 && (largest >> shift) != 0; shift += digitBits) {
-        std::array<std::size_t, buckets + 1> start{};
-        for (const std::uint64_t key : keys) {
-            ++start[((key >> shift) & (buckets - 1)) + 1];
-        }
-        for (std::size_t b = 1; b <= buckets; ++b) {
-            start[b] += start[b - 1];
-        }
-        for (const std::uint64_t key : keys) {
-            buffer[start[(key >> shift) & (buckets - 1)]++] = key;
-        }
-        keys.swap(buffer);
-    }
-}
 
 /**
  * @brief A double interval certain to contain an exact coordinate.
@@ -2096,15 +1499,19 @@ enum class SegmentPairMethod {
 /**
  * @brief Estimated nanoseconds per unit of work, for choosing a method.
  *
- * Measured on random, clustered, polygonal and adversarial segment sets over
- * `int` and `ERational` coordinates. Only their ratios matter, and only
- * roughly: a wrong choice near the break-even point costs little, and a badly
- * wrong one is caught by the scan's budget.
+ * Fitted to the running times of both methods on random, sheared, polygonal
+ * and adversarial segment sets over `int` and `ERational` coordinates. Only
+ * their ratios matter, and only roughly: a wrong choice near the break-even
+ * point costs little, and a badly wrong one is caught by the scan's budget.
+ * The sweep's cost per pair is fitted without axis-parallel input, on which it
+ * is several times cheaper, so that a near tie goes to the scan, which has a
+ * budget to fall back on, rather than to the sweep, which has none.
  */
 struct SegmentPairCosts {
     double scanned;       ///< Per pair overlapping along the swept axis.
     double tested;        ///< Per pair whose boxes overlap.
     double sorted;        ///< Per segment per bit of the input size, for the scan's sort.
+    double reported;      ///< Per reported pair, for the scan.
     double sweepSegment;  ///< Per segment per bit of the input size, for the sweep.
     double sweepPair;     ///< Per reported pair per bit of the input size, for the sweep.
 };
@@ -2112,8 +1519,9 @@ struct SegmentPairCosts {
 /** @brief The @ref SegmentPairCosts of an input of @p Segment. */
 template <SegmentConcept Segment>
 constexpr SegmentPairCosts segmentPairCosts() {
-    return SegmentPairScan<Segment>::filters ? SegmentPairCosts{1.5, 40.0, 3.0, 150.0, 30.0}
-                                             : SegmentPairCosts{1.5, 7.0, 3.0, 45.0, 30.0};
+    return SegmentPairScan<Segment>::filters
+               ? SegmentPairCosts{3.4, 49.0, 27.0, 240.0, 80.0, 48.0}
+               : SegmentPairCosts{3.8, 10.0, 9.5, 9.0, 28.0, 15.0};
 }
 
 /**
@@ -2190,8 +1598,8 @@ bool visitSegmentPairs(const std::vector<Segment> &segments, SegmentPairRelation
     constexpr double missedMeetings = 3.0;
     const double meetingPairs = (static_cast<double>(sample.meeting) + missedMeetings) * share;
 
-    const double scanEstimate =
-        costs.sorted * n * bits + costs.scanned * axisPairs + costs.tested * boxPairs;
+    const double scanEstimate = costs.sorted * n * bits + costs.scanned * axisPairs +
+                                costs.tested * boxPairs + costs.reported * meetingPairs;
     const double sweepSegments = costs.sweepSegment * n * bits;
     const double sweepEstimate = sweepSegments + costs.sweepPair * meetingPairs * bits;
     if (sweepEstimate < scanEstimate) {
@@ -2207,16 +1615,28 @@ bool visitSegmentPairs(const std::vector<Segment> &segments, SegmentPairRelation
     // the end of the sweep order, so the scan is also stopped outright once it
     // has spent a few times what the sweep would cost for the pairs it has
     // actually found, which keeps the whole within a constant of the sweep.
+    //
+    // It can be fooled the other way too, by work bunched up at the start: the
+    // first boxes in sweep order can be the longest ones, as on the hull of a
+    // Voronoi diagram, and a projection from the first thousandth of the boxes
+    // then prices the scan at many times what it costs. So the projection is
+    // only heeded once the scan has spent a fair share of the sweep's own
+    // cost, which bounds what waiting for that evidence can waste.
     constexpr double spendingCap = 3.0;
+    constexpr double projectionFloor = 0.25;
     const bool finished = scan.scan(alongY, visit, [&](const typename Scan::Progress &progress) {
         if (firstFound()) {
             return true;
         }
-        const double spent = costs.scanned * static_cast<double>(progress.scanned) +
-                             costs.tested * static_cast<double>(progress.tested);
         const double found = static_cast<double>(progress.found);
+        const double spent = costs.scanned * static_cast<double>(progress.scanned) +
+                             costs.tested * static_cast<double>(progress.tested) +
+                             costs.reported * found;
         if (spent > spendingCap * (sweepSegments + costs.sweepPair * found * bits)) {
             return true;
+        }
+        if (spent < projectionFloor * sweepSegments) {
+            return false;
         }
         const double share = static_cast<double>(progress.swept) / n;
         const double remaining = spent * (1 - share) / share;
@@ -2248,18 +1668,16 @@ bool detectSegmentPair(const std::vector<Segment> &segments, SegmentPairRelation
     if (scanned) {
         return found;
     }
-    return sweepInNarrowestRational<Rational>(
-        segments, [relation](auto &bentleyOttmann, const auto &input) {
-            switch (relation) {
-            case SegmentPairRelation::intersects:
-                return bentleyOttmann.detectIntersections(input);
-            case SegmentPairRelation::crosses:
-                return bentleyOttmann.detectCrossings(input);
-            case SegmentPairRelation::interiorsIntersect:
-                break;
-            }
-            return bentleyOttmann.detectInteriorIntersections(input);
-        });
+    BentleyOttmann<Rational, Segment> sweep;
+    switch (relation) {
+    case SegmentPairRelation::intersects:
+        return sweep.detectIntersections(segments);
+    case SegmentPairRelation::crosses:
+        return sweep.detectCrossings(segments);
+    case SegmentPairRelation::interiorsIntersect:
+        break;
+    }
+    return sweep.detectInteriorIntersections(segments);
 }
 
 /**
@@ -2289,18 +1707,16 @@ std::vector<std::array<Segment, 2>> findSegmentPairs(
     if (scanned) {
         return orderedSegmentPairs(segments, found);
     }
-    return sweepInNarrowestRational<Rational>(
-        segments, [relation](auto &bentleyOttmann, const auto &input) {
-            switch (relation) {
-            case SegmentPairRelation::intersects:
-                return bentleyOttmann.findIntersections(input);
-            case SegmentPairRelation::crosses:
-                return bentleyOttmann.findCrossings(input);
-            case SegmentPairRelation::interiorsIntersect:
-                break;
-            }
-            return bentleyOttmann.findInteriorIntersections(input);
-        });
+    BentleyOttmann<Rational, Segment> sweep;
+    switch (relation) {
+    case SegmentPairRelation::intersects:
+        return sweep.findIntersections(segments);
+    case SegmentPairRelation::crosses:
+        return sweep.findCrossings(segments);
+    case SegmentPairRelation::interiorsIntersect:
+        break;
+    }
+    return sweep.findInteriorIntersections(segments);
 }
 } // namespace pgl::detail
 
@@ -2316,11 +1732,11 @@ namespace pgl {
  * @ref detail::findSegmentPairs. Either way the pairs come back in the same
  * order, by the segments' places in the value order of the input.
  *
- * @tparam Rational Exact rational type used internally by the sweep line.
+ * @tparam Rational Exact type the sweep places crossings in over coordinates
+ *         that are not integers; integer coordinates choose their own.
  * @tparam Container Container of segment-like values.
  * @param segments Input segment container.
  * @return Vector of intersecting segment pairs.
- * @warning Needs rational numbers, preferably with unbonded size
  */
 template<class Rational = pgl::Rational<pgl::BigInt>, class Container>
 auto findIntersections(const Container &segments) {
@@ -2337,11 +1753,11 @@ auto findIntersections(const Container &segments) {
  * `k` is the number of reported crossing pairs, choosing its method as
  * @ref findIntersections does.
  *
- * @tparam Rational Exact rational type used internally by the sweep line.
+ * @tparam Rational Exact type the sweep places crossings in over coordinates
+ *         that are not integers; integer coordinates choose their own.
  * @tparam Container Container of segment-like values.
  * @param segments Input segment container.
  * @return Vector of crossing segment pairs.
- * @warning Needs rational numbers, preferably with unbonded size
  */
 template<class Rational = pgl::Rational<pgl::BigInt>, class Container>
 auto findCrossings(const Container &segments) {
@@ -2361,7 +1777,8 @@ auto findCrossings(const Container &segments) {
  * and `k` is the number of reported pairs, choosing its method as
  * @ref findIntersections does.
  *
- * @tparam Rational Exact rational type used internally by the sweep line.
+ * @tparam Rational Exact type the sweep places crossings in over coordinates
+ *         that are not integers; integer coordinates choose their own.
  * @tparam Container Container of segment-like values.
  * @param segments Input segment container.
  * @return Vector of segment pairs whose interiors intersect.
@@ -2381,7 +1798,8 @@ auto findInteriorIntersections(const Container &segments) {
  * Runs in `O(n log n)`, choosing its method as @ref findIntersections does and
  * stopping at the first pair found.
  *
- * @tparam Rational Exact rational type used internally by the sweep line.
+ * @tparam Rational Exact type the sweep places crossings in over coordinates
+ *         that are not integers; integer coordinates choose their own.
  * @tparam Container Container of segment-like values.
  * @param segments Input segment container.
  * @return `true` if some pair satisfies `Segment::interiorsIntersect`.
@@ -2400,11 +1818,11 @@ bool detectInteriorIntersections(const Container &segments) {
  * Runs in `O(n log n)`, choosing its method as @ref findIntersections does and
  * stopping at the first pair found.
  *
- * @tparam Rational Exact rational type used internally by the sweep line.
+ * @tparam Rational Exact type the sweep places crossings in over coordinates
+ *         that are not integers; integer coordinates choose their own.
  * @tparam Container Container of segment-like values.
  * @param segments Input segment container.
  * @return `true` if at least one intersecting pair exists.
- * @warning Needs rational numbers, preferably with unbonded size
  */
 template<class Rational = pgl::Rational<pgl::BigInt>, class Container>
 bool detectIntersections(const Container &segments) {
@@ -2420,11 +1838,11 @@ bool detectIntersections(const Container &segments) {
  * Runs in `O(n log n)`, choosing its method as @ref findIntersections does and
  * stopping at the first pair found.
  *
- * @tparam Rational Exact rational type used internally by the sweep line.
+ * @tparam Rational Exact type the sweep places crossings in over coordinates
+ *         that are not integers; integer coordinates choose their own.
  * @tparam Container Container of segment-like values.
  * @param segments Input segment container.
  * @return `true` if at least one crossing pair exists.
- * @warning Needs rational numbers, preferably with unbonded size
  */
 template<class Rational = pgl::Rational<pgl::BigInt>, class Container>
 bool detectCrossings(const Container &segments) {

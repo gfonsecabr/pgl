@@ -237,7 +237,8 @@ namespace pgl {
  * possibly meet. A polygon small enough for the pairwise scan to win takes it
  * directly.
  *
- * @tparam Rational Exact rational type used internally by the sweep line.
+ * @tparam Rational Exact type the sweep places crossings in over coordinates
+ *         that are not integers; integer coordinates choose their own.
  * @return `true` if the edges only meet at the shared endpoints of consecutive
  *         edges.
  */
@@ -306,7 +307,8 @@ bool Polygon<PointType_, LabelType>::isSimple() const {
  * ones. A closed polyline is tested as a ring, its first and last edges being
  * adjacent.
  *
- * @tparam Rational Exact rational type used internally by the sweep line.
+ * @tparam Rational Exact type the sweep places crossings in over coordinates
+ *         that are not integers; integer coordinates choose their own.
  * @return `true` if the edges only meet at the shared endpoints of consecutive
  *         edges.
  */

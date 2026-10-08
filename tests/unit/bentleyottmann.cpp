@@ -522,6 +522,45 @@ TEST_CASE("Segment pair methods agree over fractional and wide coordinates") {
     }
 }
 
+TEST_CASE("Segment pair methods agree in every width the sweep places crossings in") {
+    for (unsigned seed = 0; seed < 60; ++seed) {
+        CAPTURE(seed);
+        // A range past what int64_t holds the sweep's products for, but not
+        // int128.
+        methods::checkMethodsAgree(methods::degenerate<int>(seed, [](int c) { return c * 1000003; }));
+        // Past what int128 holds them for.
+        methods::checkMethodsAgree(methods::degenerate<long long>(
+            seed, [](int c) { return static_cast<long long>(c) << 40; }));
+        // Whole fractions, which are placed as fractions like any other.
+        methods::checkMethodsAgree(methods::degenerate<pgl::ERational>(
+            seed, [](int c) { return pgl::ERational(c) * pgl::ERational(1000003); }));
+    }
+}
+
+TEST_CASE("Sweep is exact at the edge of each width") {
+    using Segment = pgl::Segment<pgl::Point<long long>>;
+    using Point = pgl::Point<long long>;
+    for (const long long d : {pgl::detail::sweepInt64Range, pgl::detail::sweepInt64Range + 1,
+                              pgl::detail::sweepInt128Range, pgl::detail::sweepInt128Range + 1}) {
+        CAPTURE(d);
+        // Long segments across the whole range, whose crossings lie a unit
+        // or less from the corners and from each other.
+        const long long o = -d / 3;
+        const std::vector<Segment> segs = {
+            Segment(Point(o, o), Point(o + d, o + d)),
+            Segment(Point(o, o + d), Point(o + d, o)),
+            Segment(Point(o, o + 1), Point(o + d, o + d - 1)),
+            Segment(Point(o + 1, o), Point(o + d - 1, o + d)),
+            Segment(Point(o, o + d - 1), Point(o + d, o + 1)),
+            Segment(Point(o + d / 2, o), Point(o + d / 2, o + d)),
+            Segment(Point(o, o + d / 2), Point(o + d, o + d / 2 + 1)),
+            Segment(Point(o + 1, o + d), Point(o + d, o + 1)),
+        };
+        methods::checkMethodsAgree(segs);
+        CHECK(pgl::findCrossings(segs).size() == pgl::detail::bruteForceCrossings(segs).size());
+    }
+}
+
 TEST_CASE("Segment pair methods agree when a coordinate overflows double") {
     using Number = pgl::ERational;
     const pgl::BigInt huge = pgl::detail::pow2(1100);
