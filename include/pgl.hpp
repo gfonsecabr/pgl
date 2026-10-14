@@ -74,6 +74,7 @@
 #include "algorithm/redbluesweep.hpp"
 #include "algorithm/sortpoints.hpp"
 #include "algorithm/convexhull.hpp"
+#include "algorithm/dynamicconvexhull.hpp"
 #include "algorithm/mindisk.hpp"
 #include "algorithm/closestpair.hpp"
 #include "algorithm/shapetree.hpp"

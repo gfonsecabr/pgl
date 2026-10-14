@@ -16,6 +16,7 @@
 
 - [Shape Tree](#shape-tree) answers range queries over a set of bounded shapes.
 - [Interval Tree](#interval-tree) is a mutable index of shapes by the projection of their bounding boxes onto one axis.
+- [Dynamic Convex Hull](#dynamic-convex-hull) is a set of points that keeps its convex hull under insertion and erasure.
 - [Triangulation](#triangulation) stores a mutable triangulation of a polygon or a point set.
 - [Arrangement](#arrangement) is the subdivision of the plane induced by segments, rays and lines.
 - [Graph](#graph) is an undirected simple graph stored as adjacency sets.
@@ -91,6 +92,41 @@ Like `ShapeTree`, report methods return copies of the stored shapes, visitors
 receive them by const reference and may stop early by returning `true`, and
 `has`, `size`, `empty`, `shapes`, and const iterators provide container-like
 access. A tree holds at most `2^32 - 1` shapes.
+
+- Other methods:
+
+
+### Dynamic Convex Hull
+
+`DynamicConvexHull<Point>` is a set of points that keeps its convex hull as
+points are inserted and erased. A point equal to a stored one, label aside, is
+not stored twice. The hull is strictly convex and its vertices are numbered as
+those of a `Convex`: counterclockwise from the lexicographically smallest. In
+the bounds below, $n$ is the number of stored points and $h$ the number of hull
+vertices. A structure holds at most $2^{31} - 1$ points.
+
+- `DynamicConvexHull<Point>(V)` stores the points of container `V` in
+  $O(n \log n)$ time. `insert(p)` and `erase(p)` take $O(\log^2 n)$ time and
+  return whether the set changed. `has(p)` takes $O(\log n)$ time. `size`,
+  `empty`, `clear` and const iterators over the stored points, in
+  lexicographic order, provide container-like access.
+
+- `hullSize()` returns $h$ in $O(1)$ time. `vertex(i)` returns a hull vertex
+  in $O(\log n)$ time, cyclically like `Convex::get`. `index(p)` returns the
+  index of the vertex equal to `p`, or $-1$, and `verticesContain(p)` whether
+  there is one, both in $O(\log n)$ time.
+
+- `extremeVertex(d)` returns, in $O(\log n)$ time, the hull vertex maximizing
+  the dot product with `d`, the lexicographically smallest among ties. The set
+  must not be empty and `d` must not be zero.
+
+- `contains(p)`, `boundaryContains(p)` and `interiorContains(p)` answer as the
+  corresponding `Convex` methods for a point, in $O(\log n)$ time. `bbox()`
+  takes $O(\log n)$ time on a nonempty set.
+
+- `vertices()`, `lowerHull()`, `upperHull()` and `convexHull()` return the
+  hull as a vector, as monotone chains or as a `Convex`, in $O(h \log n)$
+  time.
 
 - Other methods:
 

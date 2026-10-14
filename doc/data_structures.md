@@ -18,6 +18,7 @@
 
 - [Shape Tree](#shape-tree) answers range queries over a set of bounded shapes.
 - [Interval Tree](#interval-tree) is a mutable index of shapes by the projection of their bounding boxes onto one axis.
+- [Dynamic Convex Hull](#dynamic-convex-hull) is a set of points that keeps its convex hull under insertion and erasure.
 - [Triangulation](#triangulation) stores a mutable triangulation of a polygon or a point set.
 - [Arrangement](#arrangement) is the subdivision of the plane induced by segments, rays and lines.
 - [Graph](#graph) is an undirected simple graph stored as adjacency sets.
@@ -95,6 +96,41 @@ receive them by const reference and may stop early by returning `true`, and
 access. A tree holds at most `2^32 - 1` shapes.
 
 - Other methods: [`begin`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#ae6b333ad349899856c04391d44b631f2 "Returns a constant iterator to the first stored shape."), [`cbegin`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#ab7f1b4013a67917708e3b1745a23e8f2 "Returns a constant iterator to the first stored shape."), [`cend`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#aee9c7c31e98998e24235a3e37e60e9ce "Returns a constant iterator past the last stored shape."), [`end`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#a914f9b5c65dff8048b77bd51b61e5955 "Returns a constant iterator past the last stored shape.").
+
+
+### Dynamic Convex Hull
+
+`DynamicConvexHull<Point>` is a set of points that keeps its convex hull as
+points are inserted and erased. A point equal to a stored one, label aside, is
+not stored twice. The hull is strictly convex and its vertices are numbered as
+those of a [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices."): counterclockwise from the lexicographically smallest. In
+the bounds below, $n$ is the number of stored points and $h$ the number of hull
+vertices. A structure holds at most $2^{31} - 1$ points.
+
+- `DynamicConvexHull<Point>(V)` stores the points of container `V` in
+  $O(n \log n)$ time. [`insert(p)`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#aeb4afcd4774b854d14535680f590ac04 "Stores a point.") and [`erase(p)`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#afb537ea89c02c3a7570252a6d83d0cfb "Removes the stored point equal to point.") take $O(\log^2 n)$ time and
+  return whether the set changed. [`has(p)`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#ad16497dc93309c06fd087c9920ae600c "Returns whether a point equal to point is stored.") takes $O(\log n)$ time. [`size`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#ab1205a4e627b2441da22f20ffc87b883 "Returns the number of stored points."),
+  [`empty`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#afd6b24aeb13c9682d8d6f2658d356966 "Returns whether no point is stored."), [`clear`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#ada4b36b23a2eeba899a968b1de795817 "Removes every point.") and const iterators over the stored points, in
+  lexicographic order, provide container-like access.
+
+- [`hullSize()`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#a17421b86244443211412374b1005479d "Returns the number of hull vertices.") returns $h$ in $O(1)$ time. [`vertex(i)`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#a8b9261d1a0e3e8f2738c4ecfdf0ed44c "Returns a hull vertex by index, counterclockwise from the lexicographically smallest.") returns a hull vertex
+  in $O(\log n)$ time, cyclically like `Convex::get`. [`index(p)`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#aa1c9ba818d265e66f4e1a830a0f12b2f "Returns the index of point among the hull vertices, as numbered by vertex, or -1 if it is not a hull vertex.") returns the
+  index of the vertex equal to `p`, or $-1$, and [`verticesContain(p)`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#a054cf7dfe1241ce06ce47b03ee2b3ccf "Returns whether point is a hull vertex.") whether
+  there is one, both in $O(\log n)$ time.
+
+- [`extremeVertex(d)`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#ab71545df92c205d3cdc90d4999cadd49 "Returns the hull vertex maximizing the dot product with direction, the lexicographically smallest one among ties.") returns, in $O(\log n)$ time, the hull vertex maximizing
+  the dot product with `d`, the lexicographically smallest among ties. The set
+  must not be empty and `d` must not be zero.
+
+- [`contains(p)`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#ae28b5c5a4d5e52fd514d742cd3024b2c "Returns whether point lies in the closed hull."), [`boundaryContains(p)`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#a36e6b031f14b8a70b05ef99d484025ca "Returns whether point lies on the hull's boundary.") and [`interiorContains(p)`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#a8731119ad71133f1220d9e4299295783 "Returns whether point lies in the hull's interior.") answer as the
+  corresponding [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices.") methods for a point, in $O(\log n)$ time. [`bbox()`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#a331680607c75256c2ca744993ee578ce "Returns the bounding box of the stored points.")
+  takes $O(\log n)$ time on a nonempty set.
+
+- [`vertices()`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#a6ae6971872784e8c12303a912db14331 "Returns the hull vertices, counterclockwise from the lexicographically smallest."), [`lowerHull()`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#af873177374ec2dec5d8786010557234a "Returns the lower hull, from the lexicographically smallest point to the largest; see Convex::lowerHull."), [`upperHull()`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#aeee0ee1f34be9c402b488d22d2f91d05 "Returns the upper hull, from the lexicographically smallest point to the largest; see Convex::upperHull.") and [`convexHull()`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#a7c540e764f83f92e7a4c16770bc3b41d "Returns the hull as a Convex.") return the
+  hull as a vector, as monotone chains or as a [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices."), in $O(h \log n)$
+  time.
+
+- Other methods: [`begin`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#acbe892c72edb42f74d96beba3e94d44e "Returns an iterator to the lexicographically smallest stored point."), [`cbegin`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#a39e483b4e528c2b7eee0045f23a33aa7 "Returns an iterator to the lexicographically smallest stored point."), [`cend`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#ab19a397d0ee29f8703187ebe5327c84e "Returns an iterator past the lexicographically largest stored point."), [`end`](https://gfonsecabr.github.io/pgl/classpgl_1_1DynamicConvexHull.html#aec9894c7b0612ce833ae32a434f006bc "Returns an iterator past the lexicographically largest stored point.").
 
 
 ### Triangulation

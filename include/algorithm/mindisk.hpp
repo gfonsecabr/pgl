@@ -1,6 +1,6 @@
 #pragma once
 
-#include "algorithm/convexhull.hpp"
+#include "algorithm/dynamicconvexhull.hpp"
 
 /**
  * @file mindisk.hpp
