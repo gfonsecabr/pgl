@@ -896,6 +896,9 @@ constexpr bool Convex<PointType, LabelType>::interiorContains(const OtherConvex&
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Convex<PointType, LabelType>::interiorContains(const OtherDisk& other) const {
+    if (empty()) {
+        return false;
+    }
     for (const auto& edge : orientedEdgesView()) {
         if (!edge.leftHalfplane().interiorContains(other)) {
             return false;

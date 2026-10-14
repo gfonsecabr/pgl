@@ -1199,6 +1199,9 @@ constexpr bool Convex<PointType, LabelType>::contains(const OtherConvex& other) 
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Convex<PointType, LabelType>::contains(const OtherDisk& other) const {
+    if (empty()) {
+        return false;
+    }
     if (const auto center = other.getIfPoint()) {
         // A radius-zero disk is its center. The edge loop below cannot answer
         // for it: a degenerate convex hull has no pair of bounding half-planes

@@ -194,6 +194,32 @@ TEST_CASE("Convex contains a collapsed Disk, boundary included") {
     CHECK_FALSE(vertex.contains(Disk({5, 0}, {5, 0}, {5, 0})));
 }
 
+TEST_CASE("An empty Convex contains no Disk") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    // With no edges, the half-plane loop has nothing to reject the disk with.
+    const Convex empty;
+    const Disk disk({0, 0}, 5);
+    const Disk collapsed({0, 0}, {0, 0}, {0, 0});
+
+    CHECK_FALSE(empty.contains(disk));
+    CHECK_FALSE(empty.interiorContains(disk));
+    CHECK_FALSE(empty.boundaryContains(disk));
+    CHECK_FALSE(empty.contains(collapsed));
+    CHECK_FALSE(empty.interiorContains(collapsed));
+    CHECK_FALSE(empty.boundaryContains(collapsed));
+
+    const pgl::Shape<Point> shape(empty);
+    CHECK_FALSE(shape.contains(disk));
+    CHECK_FALSE(shape.interiorContains(collapsed));
+
+    const pgl::DynamicConvexHull<Point> hull;
+    CHECK_FALSE(hull.contains(disk));
+    CHECK_FALSE(hull.interiorContains(collapsed));
+}
+
 TEST_CASE_TEMPLATE("Convex squaredDistance to a Disk is zero exactly when they intersect",
                    Point, pgl::Point<int>, pgl::Point<double>, pgl::Point<pgl::ERational>) {
     using Number = typename Point::NumberType;
