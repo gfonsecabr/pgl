@@ -2244,6 +2244,14 @@ TEST_CASE("The empty convex polygon is the well-defined empty set") {
     CHECK_FALSE(empty.intersects(square));
     CHECK_FALSE(square.intersects(empty));
 
+    // The unbounded one-dimensional shapes meet nothing in it either.
+    const Point a(0, 0), b(1, 1);
+    CHECK_FALSE(empty.intersects(pgl::Line<Point>(a, b)));
+    CHECK_FALSE(empty.intersects(pgl::OrientedLine<Point>(a, b)));
+    CHECK_FALSE(empty.intersects(pgl::Ray<Point>(a, b)));
+    CHECK_FALSE(empty.separates(pgl::Line<Point>(a, b)));
+    CHECK_FALSE(empty.crosses(pgl::Ray<Point>(a, b)));
+
     CHECK(empty.bbox().empty());
     CHECK(empty.asPolygonSet().empty());
     CHECK(empty.asHalfplaneIntersection().empty());

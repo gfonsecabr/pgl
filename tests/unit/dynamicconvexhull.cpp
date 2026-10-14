@@ -6,7 +6,9 @@
 #include <algorithm>
 #include <cstdint>
 #include <set>
+#include <sstream>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace {
@@ -133,6 +135,164 @@ void runSequence(std::uint64_t seed, int lo, int hi, int steps) {
     }
 }
 
+
+// Every alternative of pgl::Shape over [lo, hi]^2, undefined ones left out. A
+// small box makes touching, collinear and degenerate operands common.
+template <class Point>
+std::vector<pgl::Shape<Point>> shapesAround(Rng& rng, int lo, int hi) {
+    using Number = typename Point::NumberType;
+    const auto draw = [&] { return at<Point>(rng.range(lo, hi), rng.range(lo, hi)); };
+    const auto draws = [&](int count) {
+        std::vector<Point> points;
+        for (int i = 0; i < count; ++i) {
+            points.push_back(draw());
+        }
+        return points;
+    };
+    std::vector<pgl::Shape<Point>> out;
+    const auto keep = [&](const auto& shape) {
+        if (!shape.isUndefined()) {
+            out.emplace_back(shape);
+        }
+    };
+    out.emplace_back(pgl::EmptyShape<Point>());
+    out.emplace_back(draw());
+    keep(pgl::Segment<Point>(draw(), draw()));
+    keep(pgl::OrientedSegment<Point>(draw(), draw()));
+    keep(pgl::Line<Point>(draw(), draw()));
+    keep(pgl::OrientedLine<Point>(draw(), draw()));
+    keep(pgl::Ray<Point>(draw(), draw()));
+    keep(pgl::Halfplane<Point>(draw(), draw()));
+    keep(pgl::Rectangle<Point>(draw(), draw()));
+    keep(pgl::Rectangle<Point>());
+    keep(pgl::Triangle<Point>(draw(), draw(), draw()));
+    keep(pgl::Disk<Point>(draw(), draw(), draw()));
+    keep(pgl::Disk<Point>(draw(), Number(rng.range(0, 3))));
+    keep(pgl::Convex<Point>());
+    keep(pgl::Convex<Point>(draws(rng.range(1, 7))));
+    // Eight vertices: more than twice those of a triangular hull.
+    const int cx = rng.range(lo, hi), cy = rng.range(lo, hi);
+    keep(pgl::Convex<Point>(std::vector<Point>{
+        at<Point>(cx + 1, cy + 2), at<Point>(cx - 1, cy + 2), at<Point>(cx - 2, cy + 1), at<Point>(cx - 2, cy - 1),
+        at<Point>(cx - 1, cy - 2), at<Point>(cx + 1, cy - 2), at<Point>(cx + 2, cy - 1), at<Point>(cx + 2, cy + 1)}));
+    keep(pgl::MonotoneChain<Point>(draws(rng.range(1, 5))));
+    keep(pgl::Polyline<Point>(draws(rng.range(1, 5))));
+    const pgl::Convex<Point> ring(draws(rng.range(3, 7)));
+    if (!ring.empty()) {
+        keep(ring.asPolygon());
+    }
+    const pgl::Polygon<Point> simple(draws(rng.range(3, 6)));
+    if (!simple.isUndefined() && simple.isSimple()) {
+        out.emplace_back(simple);
+    }
+    if (!ring.empty() && !ring.isDegenerate()) {
+        const pgl::PolygonWithHoles<Point> region(ring.asPolygon());
+        if (region.isValid()) {
+            keep(region);
+        }
+    }
+    // A rectangle with a diamond hole touching all four sides.
+    const int left = 2 * rng.range(lo, hi / 2), bottom = 2 * rng.range(lo, hi / 2);
+    const int right = left + 2 * rng.range(1, 3), top = bottom + 2 * rng.range(1, 3);
+    const int midX = (left + right) / 2, midY = (bottom + top) / 2;
+    const pgl::PolygonWithHoles<Point> pinched(
+        pgl::Polygon<Point>({at<Point>(left, bottom), at<Point>(right, bottom), at<Point>(right, top),
+                             at<Point>(left, top)}),
+        std::vector{pgl::Polygon<Point>({at<Point>(left, midY), at<Point>(midX, top), at<Point>(right, midY),
+                                         at<Point>(midX, bottom)})});
+    if (pinched.isValid()) {
+        keep(pinched);
+    }
+    // The boolean operations build their result over int or ERational only.
+    if constexpr (std::is_same_v<Number, int> || std::is_same_v<Number, pgl::ERational>) {
+        const auto united = pgl::Rectangle<Point>(draw(), draw()).template regularizedUnion<Number>(
+            pgl::Rectangle<Point>(draw(), draw()));
+        if (united.isValid()) {
+            keep(united);
+        }
+    }
+    std::vector<pgl::Halfplane<Point>> halfplanes;
+    for (int i = rng.range(1, 3); i > 0; --i) {
+        const pgl::Halfplane<Point> h(draw(), draw());
+        if (!h.isUndefined()) {
+            halfplanes.push_back(h);
+        }
+    }
+    if (!halfplanes.empty()) {
+        keep(pgl::HalfplaneIntersection<Point>(halfplanes));
+    }
+    const pgl::Rectangle<Point> box(draw(), draw());
+    if (!box.empty()) {
+        keep(pgl::HalfplaneIntersection<Point>(box));
+    }
+    return out;
+}
+
+template <class T>
+std::string describe(const T& value) {
+    std::ostringstream out;
+    if constexpr (requires { out << value; }) {
+        out << value;
+    } else {
+        out << "the empty shape";
+    }
+    return out.str();
+}
+
+// The shapes the hull answers without building its Convex. Convex itself
+// does not compile against every other alternative for every coordinate type
+// (HalfplaneIntersection over long long, for one), so those types are checked
+// on these only.
+template <class Shape>
+concept AnsweredNatively =
+    pgl::EmptyShapeConcept<Shape> || pgl::PointConcept<Shape> || pgl::SegmentConcept<Shape> ||
+    pgl::OrientedSegmentConcept<Shape> || pgl::LineConcept<Shape> || pgl::OrientedLineConcept<Shape> ||
+    pgl::RayConcept<Shape> || pgl::HalfplaneConcept<Shape> || pgl::RectangleConcept<Shape> ||
+    pgl::TriangleConcept<Shape> || pgl::ConvexConcept<Shape>;
+
+// Asks every predicate of hulls over random points, degenerate ones included,
+// against every shape alternative, and compares with the rebuilt Convex.
+template <class Point, bool Everything>
+void checkPredicatesAgainstConvex(std::uint64_t seed, int rounds) {
+    Rng rng{seed};
+    for (int round = 0; round < rounds; ++round) {
+        const bool large = round % 4 == 3;
+        const int lo = large ? -12 : -3, hi = large ? 12 : 3;
+        const bool collinear = round % 5 == 0;
+        pgl::DynamicConvexHull<Point> hull;
+        for (int i = rng.range(0, large ? 60 : 9); i > 0; --i) {
+            const int x = rng.range(lo, hi);
+            hull.insert(at<Point>(x, collinear ? 1 - x : rng.range(lo, hi)));
+        }
+        const pgl::Convex<Point> expected = hull.convexHull();
+        for (const pgl::Shape<Point>& shape : shapesAround<Point>(rng, lo - 1, hi + 1)) {
+            std::visit([&](const auto& other) {
+                if constexpr (Everything || AnsweredNatively<std::remove_cvref_t<decltype(other)>>) {
+                INFO(describe(expected), " against ", describe(other));
+                CHECK(hull.contains(other) == expected.contains(other));
+                CHECK(hull.boundaryContains(other) == expected.boundaryContains(other));
+                CHECK(hull.interiorContains(other) == expected.interiorContains(other));
+                CHECK(hull.intersects(other) == expected.intersects(other));
+                CHECK(hull.interiorsIntersect(other) == expected.interiorsIntersect(other));
+                CHECK(hull.separates(other) == expected.separates(other));
+                CHECK(hull.crosses(other) == expected.crosses(other));
+                }
+            }, shape.variant());
+            if constexpr (!Everything) {
+                continue;
+            } else {
+            CHECK(hull.contains(shape) == expected.contains(shape));
+            CHECK(hull.boundaryContains(shape) == expected.boundaryContains(shape));
+            CHECK(hull.interiorContains(shape) == expected.interiorContains(shape));
+            CHECK(hull.intersects(shape) == expected.intersects(shape));
+            CHECK(hull.interiorsIntersect(shape) == expected.interiorsIntersect(shape));
+            CHECK(hull.separates(shape) == expected.separates(shape));
+            CHECK(hull.crosses(shape) == expected.crosses(shape));
+            }
+        }
+    }
+}
+
 }  // namespace
 
 TEST_CASE_TEMPLATE("DynamicConvexHull agrees with a rebuilt Convex over random updates", Point,
@@ -224,4 +384,25 @@ TEST_CASE("DynamicConvexHull breaks extreme ties toward the lexicographically sm
     CHECK(hull.extremeVertex(Point(-1, 0)) == Point(0, 0));
     CHECK(hull.extremeVertex(Point(0, 1)) == Point(0, 2));
     CHECK(hull.extremeVertex(Point(0, -1)) == Point(0, 0));
+}
+
+TEST_CASE_TEMPLATE("DynamicConvexHull predicates agree with its Convex against every shape", Point,
+                   pgl::Point<int>, pgl::Point<pgl::ERational>) {
+    checkPredicatesAgainstConvex<Point, true>(11, 600);
+}
+
+TEST_CASE_TEMPLATE("DynamicConvexHull predicates agree with its Convex for other coordinates", Point,
+                   pgl::Point<long long>, pgl::Point<double>) {
+    checkPredicatesAgainstConvex<Point, false>(13, 600);
+}
+
+TEST_CASE("DynamicConvexHull predicates on a hull of labelled points") {
+    using Point = pgl::Point<int, std::string>;
+    const pgl::DynamicConvexHull<Point> hull{Point(0, 0, "a"), Point(4, 0, "b"), Point(0, 4, "c")};
+    CHECK(hull.intersects(pgl::Segment<pgl::Point<int>>(pgl::Point<int>(-1, 1), pgl::Point<int>(5, 1))));
+    CHECK(hull.crosses(pgl::Line<pgl::Point<int>>(pgl::Point<int>(0, 1), pgl::Point<int>(1, 1))));
+    CHECK(hull.boundaryContains(pgl::Segment<pgl::Point<int>>(pgl::Point<int>(1, 3), pgl::Point<int>(3, 1))));
+    // The half-plane left of the hypotenuse, run from (0, 4) to (4, 0), faces away.
+    CHECK_FALSE(hull.interiorsIntersect(pgl::Halfplane<pgl::Point<int>>(pgl::Point<int>(0, 4), pgl::Point<int>(4, 0))));
+    CHECK(hull.intersects(pgl::Halfplane<pgl::Point<int>>(pgl::Point<int>(0, 4), pgl::Point<int>(4, 0))));
 }

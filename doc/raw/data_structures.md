@@ -120,9 +120,22 @@ vertices. A structure holds at most $2^{31} - 1$ points.
   the dot product with `d`, the lexicographically smallest among ties. The set
   must not be empty and `d` must not be zero.
 
-- `contains(p)`, `boundaryContains(p)` and `interiorContains(p)` answer as the
-  corresponding `Convex` methods for a point, in $O(\log n)$ time. `bbox()`
-  takes $O(\log n)$ time on a nonempty set.
+- `contains`, `boundaryContains`, `interiorContains`, `intersects`,
+  `interiorsIntersect`, `separates` and `crosses` accept every shape, a `Shape`
+  included, and answer as the same predicate on `convexHull()`. With $k$ the
+  number of vertices of the other shape (of its outer boundaries, for a
+  region), they take:
+  - $O(\log n)$ time against the empty shape, a point, a segment, a line or a
+    ray (oriented or not), a half-plane, a rectangle or a triangle, and
+    `boundaryContains` against a disk, a `Convex` or a `Polygon`;
+  - $O(k \log n)$ time against a `Convex`, `contains` and `interiorContains`
+    against a polygon, a polyline, a monotone chain, a polygon with holes or a
+    polygon set, and `boundaryContains` against a polyline or a monotone
+    chain;
+  - otherwise $O(h \log n)$ time plus that of the same predicate on
+    `convexHull()`.
+
+- `bbox()` takes $O(\log n)$ time on a nonempty set.
 
 - `vertices()`, `lowerHull()`, `upperHull()` and `convexHull()` return the
   hull as a vector, as monotone chains or as a `Convex`, in $O(h \log n)$

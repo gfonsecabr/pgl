@@ -659,6 +659,9 @@ constexpr bool Convex<PointType, LabelType>::intersects(const OtherOrientedSegme
 template <class PointType, class LabelType>
 template<LineConcept OtherLine>
 constexpr bool Convex<PointType, LabelType>::intersects(const OtherLine& other) const {
+    if (size() == 0) {
+        return false;
+    }
     auto translatedOther = other - translation_;
     auto it1 = detail::cyclicMaxOrPositive(points_.begin(), points_.end(), [&translatedOther](const PointType& a) {
         return orientationDeterminant(translatedOther[0], translatedOther[1], a);
@@ -679,6 +682,9 @@ constexpr bool Convex<PointType, LabelType>::intersects(const OtherOrientedLine&
 template <class PointType, class LabelType>
 template<RayConcept OtherRay>
 constexpr bool Convex<PointType, LabelType>::intersects(const OtherRay& other) const {
+    if (size() == 0) {
+        return false;
+    }
     if (contains(other.source())) {
         return true;
     }

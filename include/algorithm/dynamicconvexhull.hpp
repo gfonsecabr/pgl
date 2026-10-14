@@ -32,6 +32,7 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
@@ -41,6 +42,7 @@
 #include <ranges>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
 
@@ -407,45 +409,6 @@ class DynamicConvexHull {
     }
 
     /**
-     * @brief Returns whether `point` lies in the closed hull.
-     *
-     * Complexity: `O(log n)`.
-     */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] bool contains(const OtherPoint& point) const {
-        const auto [upper, lower] = sides(point);
-        return upper <= 0 && lower <= 0;
-    }
-
-    /**
-     * @brief Returns whether `point` lies on the hull's boundary.
-     *
-     * Complexity: `O(log n)`.
-     */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] bool boundaryContains(const OtherPoint& point) const {
-        if (hullSize() <= 2) {
-            return !empty() && convexHull().boundaryContains(point);
-        }
-        const auto [upper, lower] = sides(point);
-        return upper <= 0 && lower <= 0 && (upper == 0 || lower == 0);
-    }
-
-    /**
-     * @brief Returns whether `point` lies in the hull's interior.
-     *
-     * Complexity: `O(log n)`.
-     */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] bool interiorContains(const OtherPoint& point) const {
-        if (hullSize() <= 2) {
-            return !empty() && convexHull().interiorContains(point);
-        }
-        const auto [upper, lower] = sides(point);
-        return upper < 0 && lower < 0;
-    }
-
-    /**
      * @brief Returns the hull vertices, counterclockwise from the
      *        lexicographically smallest.
      *
@@ -499,6 +462,925 @@ class DynamicConvexHull {
      */
     [[nodiscard]] Convex<PointType> convexHull() const {
         return Convex<PointType>(vertices(), pgl::trusted);
+    }
+
+    // ---- predicates ---------------------------------------------------------
+    //
+    // Every predicate answers as the same predicate on convexHull(). A hull of
+    // at most two vertices is a point or a segment, built in O(log n), so the
+    // overloads whose geometry needs a proper polygon hand such a hull over to
+    // convexHull(). The overloads documented as answering through convexHull()
+    // build it whatever its size.
+
+    /**
+     * @brief Returns whether the closed hull contains `point`.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] bool contains(const OtherPoint& point) const {
+        const auto [upper, lower] = sides(point);
+        return upper <= 0 && lower <= 0;
+    }
+
+    /**
+     * @brief Returns whether the closed hull contains `other`.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <class OtherSegment>
+        requires SegmentConcept<OtherSegment> || OrientedSegmentConcept<OtherSegment>
+    [[nodiscard]] bool contains(const OtherSegment& other) const {
+        return contains(other[0]) && contains(other[1]);
+    }
+
+    /** @brief Returns false: the hull is bounded and `other` is not. */
+    template <class OtherShape>
+        requires LineConcept<OtherShape> || OrientedLineConcept<OtherShape> ||
+                 RayConcept<OtherShape> || HalfplaneConcept<OtherShape>
+    [[nodiscard]] bool contains(const OtherShape&) const {
+        return false;
+    }
+
+    /**
+     * @brief Returns whether the closed hull contains `other`.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <RectangleConcept OtherRectangle>
+    [[nodiscard]] bool contains(const OtherRectangle& other) const {
+        return other.empty() || containsAll(std::array{other[0], other[1], other[2], other[3]});
+    }
+
+    /**
+     * @brief Returns whether the closed hull contains `other`.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <TriangleConcept OtherTriangle>
+    [[nodiscard]] bool contains(const OtherTriangle& other) const {
+        return containsAll(std::array{other[0], other[1], other[2]});
+    }
+
+    /**
+     * @brief Returns whether the closed hull contains `other`.
+     *
+     * Complexity: `O(k log n)` for `k` vertices of `other`.
+     */
+    template <class OtherShape>
+        requires ConvexConcept<OtherShape> || PolygonConcept<OtherShape> ||
+                 PolylineConcept<OtherShape> || MonotoneChainConcept<OtherShape>
+    [[nodiscard]] bool contains(const OtherShape& other) const {
+        return containsAll(other);
+    }
+
+    /**
+     * @brief Returns whether the closed hull contains `other`.
+     *
+     * Complexity: `O(k log n)` for `k` vertices on the outer boundary of `other`.
+     */
+    template <PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] bool contains(const OtherRegion& other) const {
+        return contains(other.outer());
+    }
+
+    /**
+     * @brief Returns whether the closed hull contains `other`.
+     *
+     * Complexity: `O(k log n)` for `k` vertices on the outer boundaries of
+     * `other`'s components.
+     */
+    template <PolygonSetConcept OtherSet>
+    [[nodiscard]] bool contains(const OtherSet& other) const {
+        for (const auto& component : other) {
+            if (!contains(component)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @brief Returns whether the closed hull contains `other`; answered through
+     *        @ref convexHull.
+     *
+     * Complexity: `O(h log n)` plus that of the same predicate on @ref convexHull.
+     */
+    template <class OtherShape>
+        requires DiskConcept<OtherShape> || HalfplaneIntersectionConcept<OtherShape>
+    [[nodiscard]] bool contains(const OtherShape& other) const {
+        return convexHull().contains(other);
+    }
+
+    /** @brief Returns true: every set contains the empty set. */
+    template <class EmptyPoint>
+    [[nodiscard]] bool contains(const EmptyShape<EmptyPoint>&) const {
+        return true;
+    }
+
+    /** @brief Answers for the shape `other` holds, as the overload for that shape. */
+    template <ShapeConcept OtherShape>
+    [[nodiscard]] bool contains(const OtherShape& other) const {
+        return std::visit([this](const auto& shape) { return this->contains(shape); }, other.variant());
+    }
+
+    /**
+     * @brief Returns whether the hull's interior contains `point`.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] bool interiorContains(const OtherPoint& point) const {
+        if (hullSize() <= 2) {
+            return !empty() && convexHull().interiorContains(point);
+        }
+        const auto [upper, lower] = sides(point);
+        return upper < 0 && lower < 0;
+    }
+
+    /**
+     * @brief Returns whether the hull's interior contains `other`.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <class OtherSegment>
+        requires SegmentConcept<OtherSegment> || OrientedSegmentConcept<OtherSegment>
+    [[nodiscard]] bool interiorContains(const OtherSegment& other) const {
+        return interiorContains(other[0]) && interiorContains(other[1]);
+    }
+
+    /** @brief Returns false: the hull is bounded and `other` is not. */
+    template <class OtherShape>
+        requires LineConcept<OtherShape> || OrientedLineConcept<OtherShape> ||
+                 RayConcept<OtherShape> || HalfplaneConcept<OtherShape>
+    [[nodiscard]] bool interiorContains(const OtherShape&) const {
+        return false;
+    }
+
+    /**
+     * @brief Returns whether the hull's interior contains `other`.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <RectangleConcept OtherRectangle>
+    [[nodiscard]] bool interiorContains(const OtherRectangle& other) const {
+        return other.empty() ||
+               interiorContainsAll(std::array{other[0], other[1], other[2], other[3]});
+    }
+
+    /**
+     * @brief Returns whether the hull's interior contains `other`.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <TriangleConcept OtherTriangle>
+    [[nodiscard]] bool interiorContains(const OtherTriangle& other) const {
+        return interiorContainsAll(std::array{other[0], other[1], other[2]});
+    }
+
+    /**
+     * @brief Returns whether the hull's interior contains `other`.
+     *
+     * Complexity: `O(k log n)` for `k` vertices of `other`.
+     */
+    template <class OtherShape>
+        requires ConvexConcept<OtherShape> || PolygonConcept<OtherShape> ||
+                 PolylineConcept<OtherShape> || MonotoneChainConcept<OtherShape>
+    [[nodiscard]] bool interiorContains(const OtherShape& other) const {
+        if (hullSize() <= 2) {
+            return convexHull().interiorContains(other);
+        }
+        return interiorContainsAll(other);
+    }
+
+    /**
+     * @brief Returns whether the hull's interior contains `other`.
+     *
+     * Complexity: `O(k log n)` for `k` vertices on the outer boundary of `other`.
+     */
+    template <PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] bool interiorContains(const OtherRegion& other) const {
+        return interiorContains(other.outer());
+    }
+
+    /**
+     * @brief Returns whether the hull's interior contains `other`.
+     *
+     * Complexity: `O(k log n)` for `k` vertices on the outer boundaries of
+     * `other`'s components.
+     */
+    template <PolygonSetConcept OtherSet>
+    [[nodiscard]] bool interiorContains(const OtherSet& other) const {
+        for (const auto& component : other) {
+            if (!interiorContains(component)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @brief Returns whether the hull's interior contains `other`; answered
+     *        through @ref convexHull.
+     *
+     * Complexity: `O(h log n)` plus that of the same predicate on @ref convexHull.
+     */
+    template <class OtherShape>
+        requires DiskConcept<OtherShape> || HalfplaneIntersectionConcept<OtherShape>
+    [[nodiscard]] bool interiorContains(const OtherShape& other) const {
+        return convexHull().interiorContains(other);
+    }
+
+    /** @brief Returns true: every set contains the empty set. */
+    template <class EmptyPoint>
+    [[nodiscard]] bool interiorContains(const EmptyShape<EmptyPoint>&) const {
+        return true;
+    }
+
+    /** @brief Answers for the shape `other` holds, as the overload for that shape. */
+    template <ShapeConcept OtherShape>
+    [[nodiscard]] bool interiorContains(const OtherShape& other) const {
+        return std::visit([this](const auto& shape) { return this->interiorContains(shape); }, other.variant());
+    }
+
+    /**
+     * @brief Returns whether the hull's boundary contains `point`.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] bool boundaryContains(const OtherPoint& point) const {
+        if (hullSize() <= 2) {
+            return !empty() && convexHull().boundaryContains(point);
+        }
+        const auto [upper, lower] = sides(point);
+        return upper <= 0 && lower <= 0 && (upper == 0 || lower == 0);
+    }
+
+    /**
+     * @brief Returns whether the hull's boundary contains `other`.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <class OtherSegment>
+        requires SegmentConcept<OtherSegment> || OrientedSegmentConcept<OtherSegment>
+    [[nodiscard]] bool boundaryContains(const OtherSegment& other) const {
+        if (other[0] == other[1]) {
+            return boundaryContains(other[0]);
+        }
+        if (hullSize() <= 2) {
+            return convexHull().boundaryContains(other);
+        }
+        // A segment in the hull lies on its boundary exactly when its line
+        // leaves the whole hull on one side.
+        return contains(other[0]) && contains(other[1]) &&
+               (orientationSign(other[0], other[1], farthestLeftOf(other[0], other[1])) <= 0 ||
+                orientationSign(other[1], other[0], farthestLeftOf(other[1], other[0])) <= 0);
+    }
+
+    /**
+     * @brief Returns whether the hull's boundary contains `other`: only a
+     *        degenerate line, which is a point, may lie on it.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <LineConcept OtherLine>
+    [[nodiscard]] bool boundaryContains(const OtherLine& other) const {
+        return other.isDegenerate() && boundaryContains(other.min());
+    }
+
+    /**
+     * @brief Returns whether the hull's boundary contains `other`: only a
+     *        degenerate shape, which is a point, may lie on it.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <class OtherShape>
+        requires OrientedLineConcept<OtherShape> || RayConcept<OtherShape> ||
+                 HalfplaneConcept<OtherShape>
+    [[nodiscard]] bool boundaryContains(const OtherShape& other) const {
+        return other.isDegenerate() && boundaryContains(other.source());
+    }
+
+    /**
+     * @brief Returns whether the hull's boundary contains `other`.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <RectangleConcept OtherRectangle>
+    [[nodiscard]] bool boundaryContains(const OtherRectangle& other) const {
+        if (other.empty()) {
+            return true;
+        }
+        if (!other.isDegenerate()) {
+            return false;
+        }
+        if (other.min() == other.max()) {
+            return boundaryContains(other.min());
+        }
+        return boundaryContains(Segment<typename OtherRectangle::PointType>(other.min(), other.max()));
+    }
+
+    /**
+     * @brief Returns whether the hull's boundary contains `other`.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <TriangleConcept OtherTriangle>
+    [[nodiscard]] bool boundaryContains(const OtherTriangle& other) const {
+        if (!other.isDegenerate()) {
+            return false;
+        }
+        if (other.a() == other.c()) {
+            return boundaryContains(other.a());
+        }
+        return boundaryContains(Segment<typename OtherTriangle::PointType>(other.a(), other.c()));
+    }
+
+    /**
+     * @brief Returns whether the hull's boundary contains `other`: only one of
+     *        at most two vertices may lie on it.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <class OtherShape>
+        requires ConvexConcept<OtherShape> || PolygonConcept<OtherShape>
+    [[nodiscard]] bool boundaryContains(const OtherShape& other) const {
+        if (other.size() == 0) {
+            return true;
+        }
+        if (other.size() == 1) {
+            return boundaryContains(other[0]);
+        }
+        if (other.size() == 2) {
+            return boundaryContains(Segment<typename OtherShape::PointType>(other[0], other[1]));
+        }
+        return false;
+    }
+
+    /**
+     * @brief Returns whether the hull's boundary contains `other`.
+     *
+     * Complexity: `O(k log n)` for `k` vertices of `other`.
+     */
+    template <class OtherChain>
+        requires PolylineConcept<OtherChain> || MonotoneChainConcept<OtherChain>
+    [[nodiscard]] bool boundaryContains(const OtherChain& other) const {
+        if (other.empty()) {
+            return true;
+        }
+        if (other.size() == 1) {
+            return boundaryContains(other[0]);
+        }
+        for (std::size_t i = 0; i + 1 < other.size(); ++i) {
+            if (!boundaryContains(Segment<typename OtherChain::PointType>(other[i], other[i + 1]))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @brief Returns whether the hull's boundary contains `other`: only a
+     *        zero-radius disk, which is a point, may lie on it.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <DiskConcept OtherDisk>
+    [[nodiscard]] bool boundaryContains(const OtherDisk& other) const {
+        if (other[0] == other[1] && other[0] == other[2]) {
+            return boundaryContains(other[0]);
+        }
+        return false;
+    }
+
+    /**
+     * @brief Returns whether the hull's boundary contains `other`; a degenerate
+     *        region is answered through @ref convexHull.
+     *
+     * Complexity: `O(1)` unless `other` is degenerate and not empty, and
+     * otherwise `O(h log n)` plus that of the same predicate on
+     * @ref convexHull.
+     */
+    template <HalfplaneIntersectionConcept OtherRegion>
+    [[nodiscard]] bool boundaryContains(const OtherRegion& other) const {
+        if (other.empty()) {
+            return true;
+        }
+        if (!other.isDegenerate()) {
+            return false;
+        }
+        return convexHull().boundaryContains(other);
+    }
+
+    /**
+     * @brief Returns whether the hull's boundary contains `other`; answered
+     *        through @ref convexHull.
+     *
+     * Complexity: `O(h log n)` plus that of the same predicate on @ref convexHull.
+     */
+    template <class OtherShape>
+        requires PolygonWithHolesConcept<OtherShape> || PolygonSetConcept<OtherShape>
+    [[nodiscard]] bool boundaryContains(const OtherShape& other) const {
+        return convexHull().boundaryContains(other);
+    }
+
+    /** @brief Returns true: every set contains the empty set. */
+    template <class EmptyPoint>
+    [[nodiscard]] bool boundaryContains(const EmptyShape<EmptyPoint>&) const {
+        return true;
+    }
+
+    /** @brief Answers for the shape `other` holds, as the overload for that shape. */
+    template <ShapeConcept OtherShape>
+    [[nodiscard]] bool boundaryContains(const OtherShape& other) const {
+        return std::visit([this](const auto& shape) { return this->boundaryContains(shape); }, other.variant());
+    }
+
+    /**
+     * @brief Returns whether `point` meets the closed hull.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] bool intersects(const OtherPoint& point) const {
+        return contains(point);
+    }
+
+    /**
+     * @brief Returns whether `other` meets the closed hull.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <class OtherSegment>
+        requires SegmentConcept<OtherSegment> || OrientedSegmentConcept<OtherSegment>
+    [[nodiscard]] bool intersects(const OtherSegment& other) const {
+        if (hullSize() <= 2) {
+            return convexHull().intersects(other);
+        }
+        if (contains(other[0]) || contains(other[1])) {
+            return true;
+        }
+        return chordAcross(other[0], other[1]).intersects(other);
+    }
+
+    /**
+     * @brief Returns whether `other` meets the closed hull.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <class OtherLine>
+        requires LineConcept<OtherLine> || OrientedLineConcept<OtherLine>
+    [[nodiscard]] bool intersects(const OtherLine& other) const {
+        if (hullSize() <= 2) {
+            return convexHull().intersects(other);
+        }
+        return orientationSign(other[0], other[1], farthestLeftOf(other[0], other[1])) >= 0 &&
+               orientationSign(other[1], other[0], farthestLeftOf(other[1], other[0])) >= 0;
+    }
+
+    /**
+     * @brief Returns whether `other` meets the closed hull.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <RayConcept OtherRay>
+    [[nodiscard]] bool intersects(const OtherRay& other) const {
+        if (hullSize() <= 2) {
+            return convexHull().intersects(other);
+        }
+        if (contains(other.source())) {
+            return true;
+        }
+        return chordAcross(other[0], other[1]).intersects(other);
+    }
+
+    /**
+     * @brief Returns whether `other` meets the closed hull.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] bool intersects(const OtherHalfplane& other) const {
+        if (empty()) {
+            return false;
+        }
+        if (other.isDegenerate()) {
+            return contains(other.source());
+        }
+        return other.contains(farthestLeftOf(other.source(), other.target()));
+    }
+
+    /**
+     * @brief Returns whether `other` meets the closed hull.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <RectangleConcept OtherRectangle>
+    [[nodiscard]] bool intersects(const OtherRectangle& other) const {
+        return !other.empty() && intersectsConvexShape(other, other.edges());
+    }
+
+    /**
+     * @brief Returns whether `other` meets the closed hull.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <TriangleConcept OtherTriangle>
+    [[nodiscard]] bool intersects(const OtherTriangle& other) const {
+        return intersectsConvexShape(other, other.edges());
+    }
+
+    /**
+     * @brief Returns whether `other` meets the closed hull.
+     *
+     * Complexity: `O(k log n)` for `k` vertices of `other`.
+     */
+    template <ConvexConcept OtherConvex>
+    [[nodiscard]] bool intersects(const OtherConvex& other) const {
+        return !other.empty() && intersectsConvexShape(other, other.edgesView());
+    }
+
+    /**
+     * @brief Returns whether `other` meets the closed hull; answered through
+     *        @ref convexHull.
+     *
+     * Complexity: `O(h log n)` plus that of the same predicate on @ref convexHull.
+     */
+    template <class OtherShape>
+        requires DiskConcept<OtherShape> || PolygonConcept<OtherShape> ||
+                 PolylineConcept<OtherShape> || MonotoneChainConcept<OtherShape> ||
+                 HalfplaneIntersectionConcept<OtherShape> ||
+                 PolygonWithHolesConcept<OtherShape> || PolygonSetConcept<OtherShape>
+    [[nodiscard]] bool intersects(const OtherShape& other) const {
+        return convexHull().intersects(other);
+    }
+
+    /** @brief Returns false: nothing meets the empty set. */
+    template <class EmptyPoint>
+    [[nodiscard]] bool intersects(const EmptyShape<EmptyPoint>&) const {
+        return false;
+    }
+
+    /** @brief Answers for the shape `other` holds, as the overload for that shape. */
+    template <ShapeConcept OtherShape>
+    [[nodiscard]] bool intersects(const OtherShape& other) const {
+        return std::visit([this](const auto& shape) { return this->intersects(shape); }, other.variant());
+    }
+
+    /**
+     * @brief Returns whether `point` meets the hull's interior.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] bool interiorsIntersect(const OtherPoint& point) const {
+        return interiorContains(point);
+    }
+
+    /**
+     * @brief Returns whether the interiors of the hull and `other` meet.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <class OtherSegment>
+        requires SegmentConcept<OtherSegment> || OrientedSegmentConcept<OtherSegment>
+    [[nodiscard]] bool interiorsIntersect(const OtherSegment& other) const {
+        if (hullSize() <= 2) {
+            return convexHull().interiorsIntersect(other);
+        }
+        if (other[0] == other[1]) {
+            return false;
+        }
+        if (interiorContains(other[0]) || interiorContains(other[1])) {
+            return true;
+        }
+        return triangleAcross(other[0], other[1]).interiorsIntersect(other);
+    }
+
+    /**
+     * @brief Returns whether the interiors of the hull and `other` meet.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <class OtherLine>
+        requires LineConcept<OtherLine> || OrientedLineConcept<OtherLine>
+    [[nodiscard]] bool interiorsIntersect(const OtherLine& other) const {
+        if (hullSize() <= 2) {
+            return convexHull().interiorsIntersect(other);
+        }
+        if (other.isDegenerate()) {
+            return interiorContains(other.min());
+        }
+        // Hull vertices strictly on both sides.
+        return orientationSign(other[0], other[1], farthestLeftOf(other[0], other[1])) > 0 &&
+               orientationSign(other[1], other[0], farthestLeftOf(other[1], other[0])) > 0;
+    }
+
+    /**
+     * @brief Returns whether the interiors of the hull and `other` meet.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <RayConcept OtherRay>
+    [[nodiscard]] bool interiorsIntersect(const OtherRay& other) const {
+        if (hullSize() <= 2) {
+            return convexHull().interiorsIntersect(other);
+        }
+        if (other.isDegenerate()) {
+            return false;
+        }
+        if (interiorContains(other.source())) {
+            return true;
+        }
+        return triangleAcross(other[0], other[1]).interiorsIntersect(other);
+    }
+
+    /**
+     * @brief Returns whether the interiors of the hull and `other` meet.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] bool interiorsIntersect(const OtherHalfplane& other) const {
+        if (hullSize() <= 2) {
+            return convexHull().interiorsIntersect(other);
+        }
+        if (other.isDegenerate()) {
+            return false;
+        }
+        return other.interiorContains(farthestLeftOf(other.source(), other.target()));
+    }
+
+    /**
+     * @brief Returns whether the interiors of the hull and `other` meet.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <RectangleConcept OtherRectangle>
+    [[nodiscard]] bool interiorsIntersect(const OtherRectangle& other) const {
+        return !other.empty() && interiorsIntersectConvexShape(other, other.edges());
+    }
+
+    /**
+     * @brief Returns whether the interiors of the hull and `other` meet.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <TriangleConcept OtherTriangle>
+    [[nodiscard]] bool interiorsIntersect(const OtherTriangle& other) const {
+        return interiorsIntersectConvexShape(other, other.edges());
+    }
+
+    /**
+     * @brief Returns whether the interiors of the hull and `other` meet.
+     *
+     * Complexity: `O(k log n)` for `k` vertices of `other`.
+     */
+    template <ConvexConcept OtherConvex>
+    [[nodiscard]] bool interiorsIntersect(const OtherConvex& other) const {
+        return interiorsIntersectConvexShape(other, other.edgesView());
+    }
+
+    /**
+     * @brief Returns whether the interiors of the hull and `other` meet;
+     *        answered through @ref convexHull.
+     *
+     * Complexity: `O(h log n)` plus that of the same predicate on @ref convexHull.
+     */
+    template <class OtherShape>
+        requires DiskConcept<OtherShape> || PolygonConcept<OtherShape> ||
+                 PolylineConcept<OtherShape> || MonotoneChainConcept<OtherShape> ||
+                 HalfplaneIntersectionConcept<OtherShape> ||
+                 PolygonWithHolesConcept<OtherShape> || PolygonSetConcept<OtherShape>
+    [[nodiscard]] bool interiorsIntersect(const OtherShape& other) const {
+        return convexHull().interiorsIntersect(other);
+    }
+
+    /** @brief Returns false: the empty set has no interior. */
+    template <class EmptyPoint>
+    [[nodiscard]] bool interiorsIntersect(const EmptyShape<EmptyPoint>&) const {
+        return false;
+    }
+
+    /** @brief Answers for the shape `other` holds, as the overload for that shape. */
+    template <ShapeConcept OtherShape>
+    [[nodiscard]] bool interiorsIntersect(const OtherShape& other) const {
+        return std::visit([this](const auto& shape) { return this->interiorsIntersect(shape); }, other.variant());
+    }
+
+    /** @brief Returns false: removing the hull never disconnects a point. */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] bool separates(const OtherPoint&) const {
+        return false;
+    }
+
+    /**
+     * @brief Returns whether removing the hull disconnects `other`.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <class OtherSegment>
+        requires SegmentConcept<OtherSegment> || OrientedSegmentConcept<OtherSegment>
+    [[nodiscard]] bool separates(const OtherSegment& other) const {
+        return !(other[0] == other[1]) && !contains(other[0]) && !contains(other[1]) && intersects(other);
+    }
+
+    /**
+     * @brief Returns whether removing the hull disconnects `other`.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <class OtherLine>
+        requires LineConcept<OtherLine> || OrientedLineConcept<OtherLine>
+    [[nodiscard]] bool separates(const OtherLine& other) const {
+        return !other.isDegenerate() && intersects(other);
+    }
+
+    /**
+     * @brief Returns whether removing the hull disconnects `other`.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <RayConcept OtherRay>
+    [[nodiscard]] bool separates(const OtherRay& other) const {
+        if (hullSize() <= 2) {
+            return convexHull().separates(other);
+        }
+        return !other.isDegenerate() && !contains(other.source()) && intersects(other);
+    }
+
+    /** @brief Returns false: a half-plane minus a bounded set stays connected. */
+    template <HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] bool separates(const OtherHalfplane&) const {
+        return false;
+    }
+
+    /**
+     * @brief Returns whether removing the hull disconnects `other`.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <RectangleConcept OtherRectangle>
+    [[nodiscard]] bool separates(const OtherRectangle& other) const {
+        return !other.empty() && separatesConvex(other.asConvex());
+    }
+
+    /**
+     * @brief Returns whether removing the hull disconnects `other`.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <TriangleConcept OtherTriangle>
+    [[nodiscard]] bool separates(const OtherTriangle& other) const {
+        return separatesConvex(other.asConvex());
+    }
+
+    /**
+     * @brief Returns whether removing the hull disconnects `other`.
+     *
+     * Complexity: `O(k log n)` for `k` vertices of `other`.
+     */
+    template <ConvexConcept OtherConvex>
+    [[nodiscard]] bool separates(const OtherConvex& other) const {
+        return separatesConvex(other);
+    }
+
+    /**
+     * @brief Returns whether removing the hull disconnects `other`; answered
+     *        through @ref convexHull.
+     *
+     * Complexity: `O(h log n)` plus that of the same predicate on @ref convexHull.
+     */
+    template <class OtherShape>
+        requires DiskConcept<OtherShape> || PolygonConcept<OtherShape> ||
+                 PolylineConcept<OtherShape> || MonotoneChainConcept<OtherShape> ||
+                 HalfplaneIntersectionConcept<OtherShape> ||
+                 PolygonWithHolesConcept<OtherShape> || PolygonSetConcept<OtherShape>
+    [[nodiscard]] bool separates(const OtherShape& other) const {
+        return convexHull().separates(other);
+    }
+
+    /** @brief Returns false: the empty set has no pieces. */
+    template <class EmptyPoint>
+    [[nodiscard]] bool separates(const EmptyShape<EmptyPoint>&) const {
+        return false;
+    }
+
+    /** @brief Answers for the shape `other` holds, as the overload for that shape. */
+    template <ShapeConcept OtherShape>
+    [[nodiscard]] bool separates(const OtherShape& other) const {
+        return std::visit([this](const auto& shape) { return this->separates(shape); }, other.variant());
+    }
+
+    /** @brief Returns false: the hull and a point never disconnect each other. */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] bool crosses(const OtherPoint&) const {
+        return false;
+    }
+
+    /**
+     * @brief Returns whether the hull and `other` disconnect each other.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <class OtherSegment>
+        requires SegmentConcept<OtherSegment> || OrientedSegmentConcept<OtherSegment>
+    [[nodiscard]] bool crosses(const OtherSegment& other) const {
+        if (hullSize() <= 2) {
+            return convexHull().crosses(other);
+        }
+        return separates(other) && segmentSeparates(other);
+    }
+
+    /**
+     * @brief Returns whether the hull and `other` disconnect each other.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <class OtherLine>
+        requires LineConcept<OtherLine> || OrientedLineConcept<OtherLine>
+    [[nodiscard]] bool crosses(const OtherLine& other) const {
+        if (hullSize() <= 2) {
+            return convexHull().crosses(other);
+        }
+        return separates(other) && interiorsIntersect(other);
+    }
+
+    /**
+     * @brief Returns whether the hull and `other` disconnect each other.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <RayConcept OtherRay>
+    [[nodiscard]] bool crosses(const OtherRay& other) const {
+        if (hullSize() <= 2) {
+            return convexHull().crosses(other);
+        }
+        return separates(other) && !interiorContains(other.source()) && interiorsIntersect(other);
+    }
+
+    /** @brief Returns false: a half-plane minus a bounded set stays connected. */
+    template <HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] bool crosses(const OtherHalfplane&) const {
+        return false;
+    }
+
+    /**
+     * @brief Returns whether the hull and `other` disconnect each other.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <RectangleConcept OtherRectangle>
+    [[nodiscard]] bool crosses(const OtherRectangle& other) const {
+        return !other.empty() && crossesConvex(other.asConvex());
+    }
+
+    /**
+     * @brief Returns whether the hull and `other` disconnect each other.
+     *
+     * Complexity: `O(log n)`.
+     */
+    template <TriangleConcept OtherTriangle>
+    [[nodiscard]] bool crosses(const OtherTriangle& other) const {
+        return crossesConvex(other.asConvex());
+    }
+
+    /**
+     * @brief Returns whether the hull and `other` disconnect each other.
+     *
+     * Complexity: `O(k log n)` for `k` vertices of `other`.
+     */
+    template <ConvexConcept OtherConvex>
+    [[nodiscard]] bool crosses(const OtherConvex& other) const {
+        return crossesConvex(other);
+    }
+
+    /**
+     * @brief Returns whether the hull and `other` disconnect each other;
+     *        answered through @ref convexHull.
+     *
+     * Complexity: `O(h log n)` plus that of the same predicate on @ref convexHull.
+     */
+    template <class OtherShape>
+        requires DiskConcept<OtherShape> || PolygonConcept<OtherShape> ||
+                 PolylineConcept<OtherShape> || MonotoneChainConcept<OtherShape> ||
+                 HalfplaneIntersectionConcept<OtherShape> ||
+                 PolygonWithHolesConcept<OtherShape> || PolygonSetConcept<OtherShape>
+    [[nodiscard]] bool crosses(const OtherShape& other) const {
+        return convexHull().crosses(other);
+    }
+
+    /** @brief Returns false: the empty set disconnects nothing. */
+    template <class EmptyPoint>
+    [[nodiscard]] bool crosses(const EmptyShape<EmptyPoint>&) const {
+        return false;
+    }
+
+    /** @brief Answers for the shape `other` holds, as the overload for that shape. */
+    template <ShapeConcept OtherShape>
+    [[nodiscard]] bool crosses(const OtherShape& other) const {
+        return std::visit([this](const auto& shape) { return this->crosses(shape); }, other.variant());
     }
 
     /** @brief Draws the hull and the stored points. */
@@ -840,6 +1722,180 @@ class DynamicConvexHull {
             return {1, 1};
         }
         return {side<+1>(point), side<-1>(point)};
+    }
+
+    // The hull vertex maximizing orientation(p, q, .), for a nonempty set: the
+    // one extreme along the left normal of p -> q, found as extremeVertex finds
+    // it, without forming the normal. The left normal points up, or left when
+    // vertical, exactly when p precedes q.
+    template <class OtherPoint>
+    PointType farthestLeftOf(const OtherPoint& p, const OtherPoint& q) const {
+        const int k = p < q ? 0 : 1;
+        Index v = root_;
+        while (!isLeaf(v)) {
+            const Chain& c = nodes_[v].chain[k];
+            v = select(v, crossSign(p, q, c.a, c.b) > 0);
+        }
+        return nodes_[v].point;
+    }
+
+    // A chord of the hull joining its farthest vertices on either side of the
+    // line pq. A segment or ray along that line with no endpoint in the hull
+    // meets the hull exactly when it meets this chord.
+    template <class OtherPoint>
+    Segment<PointType> chordAcross(const OtherPoint& p, const OtherPoint& q) const {
+        return Segment<PointType>(farthestLeftOf(p, q), farthestLeftOf(q, p));
+    }
+
+    // For a hull of at least three vertices, a triangle on its vertices with
+    // one strictly on each side of the line pq when any hull vertex is. A
+    // segment or ray along that line with no endpoint in the hull's interior
+    // meets that interior exactly when it meets the triangle's: it then spans
+    // the whole of the line's open chord through the hull.
+    template <class OtherPoint>
+    Triangle<PointType> triangleAcross(const OtherPoint& p, const OtherPoint& q) const {
+        const PointType a = farthestLeftOf(p, q);
+        const PointType b = farthestLeftOf(q, p);
+        const std::ptrdiff_t i = index(a);
+        PointType c = vertex(i - 1);
+        if (c == b) {
+            c = vertex(i + 1);
+        }
+        return Triangle<PointType>(a, b, c);
+    }
+
+    template <class Vertices>
+    bool containsAll(const Vertices& vertices) const {
+        for (const auto& vertex : vertices) {
+            if (!contains(vertex)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    template <class Vertices>
+    bool interiorContainsAll(const Vertices& vertices) const {
+        for (const auto& vertex : vertices) {
+            if (!interiorContains(vertex)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // A nonempty bounded convex shape meets the hull when either holds a point
+    // of the other or one of its edges meets the hull.
+    template <class OtherShape, class Edges>
+    bool intersectsConvexShape(const OtherShape& other, Edges edges) const {
+        if (empty()) {
+            return false;
+        }
+        if (contains(other[0]) || other.contains(vertex(0))) {
+            return true;
+        }
+        for (const auto& edge : edges) {
+            if (intersects(edge)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // A bounded convex shape of nonempty interior meets the hull's interior
+    // when one of its edges does, or else when the hull's interior lies inside
+    // it, which a triangle on three hull vertices witnesses.
+    template <class OtherShape, class Edges>
+    bool interiorsIntersectConvexShape(const OtherShape& other, Edges edges) const {
+        if (hullSize() <= 2) {
+            return convexHull().interiorsIntersect(other);
+        }
+        if (other.isDegenerate()) {
+            return false;
+        }
+        for (const auto& edge : edges) {
+            if (interiorsIntersect(edge)) {
+                return true;
+            }
+        }
+        return other.interiorsIntersect(Triangle<PointType>(vertex(0), vertex(1), vertex(2)));
+    }
+
+    // Whether removing the segment s disconnects a hull of at least three
+    // vertices: s must run across the interior from outside to outside.
+    template <class OtherSegment>
+    bool segmentSeparates(const OtherSegment& s) const {
+        return !(s[0] == s[1]) && !interiorContains(s[0]) && !interiorContains(s[1]) &&
+               interiorsIntersect(s);
+    }
+
+    // Whether removing the hull disconnects the convex polygon `other`: its
+    // boundary leaves the hull along two arcs or more, as Convex counts them.
+    template <class OtherConvex>
+    bool separatesConvex(const OtherConvex& other) const {
+        if (other.isDegenerate()) {
+            if (const auto spanned = other.getIfSegment()) {
+                return separates(*spanned);
+            }
+            return false;
+        }
+        if (hullSize() <= 2) {
+            return convexHull().separates(other);
+        }
+        using OtherPoint = typename OtherConvex::PointType;
+        const std::ptrdiff_t m = static_cast<std::ptrdiff_t>(other.size());
+        int arcs = 0;
+        bool previous = contains(other.get(m - 1));
+        for (std::ptrdiff_t i = 0; i < m; ++i) {
+            const bool current = contains(other.get(i));
+            if (!current && (previous || intersects(Segment<OtherPoint>(other.get(i - 1), other.get(i))))) {
+                if (++arcs >= 2) {
+                    return true;
+                }
+            }
+            previous = current;
+        }
+        return false;
+    }
+
+    // Whether removing the convex polygon `other` disconnects a hull of at
+    // least three vertices, by the same count over other's boundary.
+    template <class OtherConvex>
+    bool convexSeparates(const OtherConvex& other) const {
+        using OtherPoint = typename OtherConvex::PointType;
+        if (other.isDegenerate()) {
+            if (const auto spanned = other.getIfSegment()) {
+                return segmentSeparates(*spanned);
+            }
+            return false;
+        }
+        const std::ptrdiff_t m = static_cast<std::ptrdiff_t>(other.size());
+        int arcs = 0;
+        bool previous = interiorContains(other.get(m - 1));
+        for (std::ptrdiff_t i = 0; i < m; ++i) {
+            const bool current = interiorContains(other.get(i));
+            if (!current && (previous || segmentSeparates(Segment<OtherPoint>(other.get(i - 1), other.get(i))))) {
+                if (++arcs >= 2) {
+                    return true;
+                }
+            }
+            previous = current;
+        }
+        return false;
+    }
+
+    template <class OtherConvex>
+    bool crossesConvex(const OtherConvex& other) const {
+        if (other.empty()) {
+            return false;  // the empty set disconnects nothing
+        }
+        if (hullSize() <= 2) {
+            return convexHull().crosses(other);
+        }
+        if (bbox().crosses(other.bbox())) {
+            return true;
+        }
+        return separatesConvex(other) && convexSeparates(other);
     }
 
     // Appends the vertices of chain k below v that lie in [*lo, *hi] (a null
