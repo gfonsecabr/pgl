@@ -630,7 +630,7 @@ public:
         return static_cast<long double>(num) / static_cast<long double>(den);
     }
 
-    /// @brief Convert (truncating toward zero) to `int`.
+    /// @brief Convert (truncating toward zero) to an integral type.
     ///
     /// The division happens in `Int` and only the quotient is narrowed. Doing it
     /// the other way round — narrowing `num` and `den` and dividing those —
@@ -639,29 +639,28 @@ public:
     /// numbers far past `int`, and narrowing each of them independently turns
     /// the quotient into noise. The exact value fits or it does not; the parts
     /// it happens to be written with are not the caller's business.
-    explicit constexpr operator int() const {
+    ///
+    /// Written over the concept rather than as one operator per type for the
+    /// reason the conversion of @ref BigInt to an integer is: `int`, `long`
+    /// and `long long` are three distinct types, and a fixed list leaves one
+    /// of them without a conversion on every data model. `bool` is left out,
+    /// so that a fraction is never tested for truth by truncating it.
+    template <class Target>
+        requires(pgl::detail::extended_integral<Target> && !std::same_as<Target, bool>)
+    explicit constexpr operator Target() const {
         if (den == Int(1)) {
-            return static_cast<int>(num);
+            return static_cast<Target>(num);
         }
-        return static_cast<int>(num / den);
-    }
-
-    /// @brief Convert (truncating toward zero) to `int64_t`. Divides first, for
-    /// the reason given on @ref operator int() const.
-    explicit constexpr operator int64_t() const {
-        if (den == Int(1)) {
-            return static_cast<int64_t>(num);
-        }
-        return static_cast<int64_t>(num / den);
+        return static_cast<Target>(num / den);
     }
 
     /// @brief Convert (truncating toward zero) to the numerator integer type,
-    /// for `Int` types not already covered by `operator int`/`operator int64_t`
-    /// above, such as BigInt. `den > 0` is an invariant, so the truncating
-    /// division `num / den` matches truncating the exact value regardless of
-    /// whether the fraction is stored reduced.
+    /// for `Int` types the conversion to an integral type above does not cover,
+    /// such as BigInt. `den > 0` is an invariant, so the truncating division
+    /// `num / den` matches truncating the exact value regardless of whether the
+    /// fraction is stored reduced.
     explicit constexpr operator Int() const
-        requires(!std::same_as<Int, int> && !std::same_as<Int, int64_t>) {
+        requires(!pgl::detail::extended_integral<Int>) {
         if (den == Int(1)) {
             return num;
         }
@@ -1296,6 +1295,42 @@ struct DivisionResult {
 /** @brief Convenience alias for @ref DivisionResult. */
 template <class Number>
 using division_result_t = typename DivisionResult<Number>::type;
+
+namespace detail {
+
+/**
+ * @brief The coordinate as an exact fraction over ::pgl::BigInt.
+ *
+ * The denominator is positive and the pair is exactly the coordinate: a
+ * floating-point value is the dyadic fraction it actually stands for, however
+ * large its exponent, not a rounding of it.
+ */
+template <class Number>
+[[nodiscard]] std::array<BigInt, 2> exactFraction(const Number& value) {
+    if constexpr (is_Rational_v<Number>) {
+        const Number reduced = value.simplified();
+        return {BigInt(reduced.numerator()), BigInt(reduced.denominator())};
+    } else if constexpr (std::is_floating_point_v<Number>) {
+        if (!std::isfinite(value)) {
+            throw std::logic_error("pgl: a coordinate is not finite");
+        }
+        // A finite float is exactly significand * 2^shift, with the significand
+        // a whole number of at most `digits` bits.
+        int exponent = 0;
+        const Number fraction = std::frexp(value, &exponent);
+        const int digits = numeric_limits<Number>::digits;
+        const BigInt significand(std::ldexp(fraction, digits));
+        const int shift = exponent - digits;
+        if (shift >= 0) {
+            return {significand * pow2(shift), BigInt(1)};
+        }
+        return {significand, pow2(-shift)};
+    } else {
+        return {BigInt(value), BigInt(1)};
+    }
+}
+
+} // namespace detail
 
 }// pgl
 

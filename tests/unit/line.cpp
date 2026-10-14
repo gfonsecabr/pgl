@@ -390,3 +390,27 @@ TEST_CASE("Line converts to a degenerate line half-plane intersection") {
     CHECK(region.contains(Point(-3, -3)));
     CHECK(!region.contains(Point(1, 0)));
 }
+
+TEST_CASE_TEMPLATE("Line hashing is consistent with equality for floating-point coordinates", Number,
+                   float, double, long double) {
+    using Point = pgl::Point<Number>;
+    using Line = pgl::Line<Point>;
+
+    // Same geometric line y = x/4 + 1/8, two different defining point pairs;
+    // every coordinate is a dyadic fraction, so equality is exact.
+    const Line first(Point(Number(0), Number(0.125)), Point(Number(0.5), Number(0.25)));
+    const Line second(Point(Number(-2), Number(-0.375)), Point(Number(4), Number(1.125)));
+    const Line different(Point(Number(0), Number(0)), Point(Number(1), Number(1)));
+    // A line at a scale far below one, where few fraction bits would round.
+    const Line tiny(Point(Number(0), Number(0)), Point(Number(std::ldexp(1.0, -40)), Number(std::ldexp(3.0, -41))));
+    const Line tinyAgain(Point(Number(std::ldexp(2.0, -40)), Number(std::ldexp(3.0, -40))),
+                         Point(Number(std::ldexp(4.0, -40)), Number(std::ldexp(6.0, -40))));
+
+    REQUIRE(first == second);
+    REQUIRE(tiny == tinyAgain);
+    CHECK(std::hash<Line>{}(first) == std::hash<Line>{}(second));
+    CHECK(std::hash<Line>{}(tiny) == std::hash<Line>{}(tinyAgain));
+
+    std::unordered_set<Line> unordered_set{first, second, different, tiny, tinyAgain};
+    CHECK(unordered_set.size() == 3);
+}

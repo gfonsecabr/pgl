@@ -132,38 +132,6 @@ template <class Int, class Number>
     }
 }
 
-/**
- * @brief The coordinate as an exact fraction over ::pgl::BigInt.
- *
- * The denominator is positive and the pair is exactly the coordinate: a
- * floating-point value is the dyadic fraction it actually stands for, however
- * large its exponent, not a rounding of it.
- */
-template <class Number>
-[[nodiscard]] std::array<BigInt, 2> exactFraction(const Number& value) {
-    if constexpr (is_Rational_v<Number>) {
-        const Number reduced = value.simplified();
-        return {BigInt(reduced.numerator()), BigInt(reduced.denominator())};
-    } else if constexpr (std::is_floating_point_v<Number>) {
-        if (!std::isfinite(value)) {
-            throw std::logic_error("pgl::latticePoints: a coordinate is not finite");
-        }
-        // A finite float is exactly significand * 2^shift, with the significand
-        // a whole number of at most `digits` bits.
-        int exponent = 0;
-        const Number fraction = std::frexp(value, &exponent);
-        const int digits = numeric_limits<Number>::digits;
-        const BigInt significand(std::ldexp(fraction, digits));
-        const int shift = exponent - digits;
-        if (shift >= 0) {
-            return {significand * pow2(shift), BigInt(1)};
-        }
-        return {significand, pow2(-shift)};
-    } else {
-        return {BigInt(value), BigInt(1)};
-    }
-}
-
 /** @brief The number of integers in `[first, last]`, or throws if no vector holds them. */
 template <class Integer>
 [[nodiscard]] std::size_t latticeCount(const Integer& first, const Integer& last) {

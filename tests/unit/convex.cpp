@@ -2566,3 +2566,22 @@ TEST_CASE("Convex meets Convex in a convex region") {
         CHECK(collapsed.regularizedIntersection<int>(square).empty());
     }
 }
+
+TEST_CASE("Convex::separates keeps its own vertices exact against a coarser operand") {
+    // With more than twice its vertices in the operand, separates walks its
+    // own edges. They were built over the operand's point type, which cut the
+    // fractions off this triangle's vertices and changed the answer.
+    using E = pgl::ERational;
+    using ExactPoint = pgl::Point<E>;
+    using Point = pgl::Point<int>;
+    const pgl::Convex<ExactPoint> triangle(std::vector<ExactPoint>{
+        ExactPoint(E(-3), E(-3)), ExactPoint(E(7) / E(4), E(5) / E(4)), ExactPoint(E(-1) / E(2), E(2))});
+    const std::vector<Point> corners{{1, 2}, {-1, 2}, {-2, 1}, {-2, -1}, {-1, -2}, {1, -2}, {2, -1}, {2, 1}};
+    const pgl::Convex<Point> octagon(corners);
+    std::vector<ExactPoint> exactCorners;
+    for (const Point& p : corners) {
+        exactCorners.emplace_back(E(p.x()), E(p.y()));
+    }
+    REQUIRE(triangle.separates(pgl::Convex<ExactPoint>(exactCorners)));
+    CHECK(triangle.separates(octagon));
+}

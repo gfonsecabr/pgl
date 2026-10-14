@@ -1092,3 +1092,19 @@ TEST_CASE("Rectangle meets Rectangle in a rectangle") {
         CHECK(flat.regularizedIntersection<int>(flat).empty());
     }
 }
+
+TEST_CASE_TEMPLATE("Rectangle unites with Rectangle over every coordinate type", Number,
+                   short, int, long, long long, pgl::int128, pgl::BigInt, float, double, long double,
+                   pgl::Rational<int64_t>, pgl::ERational) {
+    using Point = pgl::Point<Number>;
+    const pgl::Rectangle<Point> first(Point(Number(0), Number(0)), Point(Number(4), Number(4)));
+    const pgl::Rectangle<Point> second(Point(Number(2), Number(2)), Point(Number(6), Number(6)));
+
+    const auto result = first.template regularizedUnion<Number>(second);
+    static_assert(std::is_same_v<decltype(result), const pgl::PolygonSet<Point>>);
+    REQUIRE(result.componentCount() == 1);
+    CHECK(result.component(0).outer() ==
+          pgl::Polygon<Point>({Point(Number(0), Number(0)), Point(Number(4), Number(0)), Point(Number(4), Number(2)),
+                               Point(Number(6), Number(2)), Point(Number(6), Number(6)), Point(Number(2), Number(6)),
+                               Point(Number(2), Number(4)), Point(Number(0), Number(4))}));
+}

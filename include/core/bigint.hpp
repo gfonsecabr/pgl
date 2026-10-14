@@ -720,7 +720,8 @@ public:
         return lowBitsInt128();
     }
 
-    /// @brief Convert to any narrower signed integer (low bits, with sign).
+    /// @brief Convert to any narrower integer (low bits; with sign for a signed
+    ///        type, modulo its range for an unsigned one).
     ///
     /// Written over the concept rather than as one overload per fixed-width
     /// alias for the reason @ref pgl::detail::_promote is: `int`, `long` and
@@ -728,7 +729,8 @@ public:
     /// name changes with the data model, so naming aliases leaves the third
     /// without a conversion on every platform. That gap is only reachable from
     /// a coordinate type that promotes this far, which is how it stayed hidden.
-    template <std::signed_integral T>
+    template <std::integral T>
+        requires(!std::same_as<T, bool>)
     explicit operator T() const {
         return static_cast<T>(static_cast<pgl::int128>(*this));
     }

@@ -1559,7 +1559,7 @@ constexpr bool Convex<PointType, LabelType>::separates(const OtherConvex& other)
             const bool cur_in = other.interiorContains((*this)[i]);
             if (!prev_in && !cur_in) {
                 // Both endpoints are out, but maybe the edge went through this
-                Segment<typename OtherConvex::PointType> edge(get(i-1),(*this)[i]);
+                Segment<PointType> edge(get(i-1),(*this)[i]);
                 if (edge.separates(other)) {
                     ++arcs;
                     if (arcs >= 2) {

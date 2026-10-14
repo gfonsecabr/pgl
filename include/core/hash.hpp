@@ -147,6 +147,23 @@ namespace std {
                     pgl::detail::hashCombine(seed, anum / den);
                     pgl::detail::hashCombine(seed, bnum / den);
                 }
+                else if constexpr (std::is_floating_point_v<N>) {
+                    // A floating-point line is hashed by the exact dual of the
+                    // values its coordinates stand for: rounding them first, as
+                    // the integer branch below would, can split equal lines.
+                    // Equality compares in a wider floating type, so two lines
+                    // equal only up to its rounding may still hash apart.
+                    using E = pgl::Rational<pgl::BigInt>;
+                    const auto exact = [](const auto& point) {
+                        const auto x = pgl::detail::exactFraction(point.x());
+                        const auto y = pgl::detail::exactFraction(point.y());
+                        return pgl::Point<E>(E(x[0], x[1]), E(y[0], y[1]));
+                    };
+                    const pgl::Line<pgl::Point<E>> exactLine(exact(line.min()), exact(line.max()));
+                    const auto [anum,bnum,den] = exactLine.template dualCoordinates<E>();
+                    pgl::detail::hashCombine(seed, anum / den);
+                    pgl::detail::hashCombine(seed, bnum / den);
+                }
                 else {
                     // Match the precision used by Line::operator<=> (see
                     // predicates.hpp): dualCoordinates computes bnum = anum*px - py*den,

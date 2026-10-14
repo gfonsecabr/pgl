@@ -203,13 +203,10 @@ std::vector<pgl::Shape<Point>> shapesAround(Rng& rng, int lo, int hi) {
     if (pinched.isValid()) {
         keep(pinched);
     }
-    // The boolean operations build their result over int or ERational only.
-    if constexpr (std::is_same_v<Number, int> || std::is_same_v<Number, pgl::ERational>) {
-        const auto united = pgl::Rectangle<Point>(draw(), draw()).template regularizedUnion<Number>(
-            pgl::Rectangle<Point>(draw(), draw()));
-        if (united.isValid()) {
-            keep(united);
-        }
+    const auto united = pgl::Rectangle<Point>(draw(), draw()).template regularizedUnion<Number>(
+        pgl::Rectangle<Point>(draw(), draw()));
+    if (united.isValid()) {
+        keep(united);
     }
     std::vector<pgl::Halfplane<Point>> halfplanes;
     for (int i = rng.range(1, 3); i > 0; --i) {
@@ -239,20 +236,9 @@ std::string describe(const T& value) {
     return out.str();
 }
 
-// The shapes the hull answers without building its Convex. Convex itself
-// does not compile against every other alternative for every coordinate type
-// (HalfplaneIntersection over long long, for one), so those types are checked
-// on these only.
-template <class Shape>
-concept AnsweredNatively =
-    pgl::EmptyShapeConcept<Shape> || pgl::PointConcept<Shape> || pgl::SegmentConcept<Shape> ||
-    pgl::OrientedSegmentConcept<Shape> || pgl::LineConcept<Shape> || pgl::OrientedLineConcept<Shape> ||
-    pgl::RayConcept<Shape> || pgl::HalfplaneConcept<Shape> || pgl::RectangleConcept<Shape> ||
-    pgl::TriangleConcept<Shape> || pgl::ConvexConcept<Shape>;
-
 // Asks every predicate of hulls over random points, degenerate ones included,
 // against every shape alternative, and compares with the rebuilt Convex.
-template <class Point, bool Everything>
+template <class Point>
 void checkPredicatesAgainstConvex(std::uint64_t seed, int rounds) {
     Rng rng{seed};
     for (int round = 0; round < rounds; ++round) {
@@ -267,7 +253,6 @@ void checkPredicatesAgainstConvex(std::uint64_t seed, int rounds) {
         const pgl::Convex<Point> expected = hull.convexHull();
         for (const pgl::Shape<Point>& shape : shapesAround<Point>(rng, lo - 1, hi + 1)) {
             std::visit([&](const auto& other) {
-                if constexpr (Everything || AnsweredNatively<std::remove_cvref_t<decltype(other)>>) {
                 INFO(describe(expected), " against ", describe(other));
                 CHECK(hull.contains(other) == expected.contains(other));
                 CHECK(hull.boundaryContains(other) == expected.boundaryContains(other));
@@ -276,11 +261,7 @@ void checkPredicatesAgainstConvex(std::uint64_t seed, int rounds) {
                 CHECK(hull.interiorsIntersect(other) == expected.interiorsIntersect(other));
                 CHECK(hull.separates(other) == expected.separates(other));
                 CHECK(hull.crosses(other) == expected.crosses(other));
-                }
             }, shape.variant());
-            if constexpr (!Everything) {
-                continue;
-            } else {
             CHECK(hull.contains(shape) == expected.contains(shape));
             CHECK(hull.boundaryContains(shape) == expected.boundaryContains(shape));
             CHECK(hull.interiorContains(shape) == expected.interiorContains(shape));
@@ -288,7 +269,6 @@ void checkPredicatesAgainstConvex(std::uint64_t seed, int rounds) {
             CHECK(hull.interiorsIntersect(shape) == expected.interiorsIntersect(shape));
             CHECK(hull.separates(shape) == expected.separates(shape));
             CHECK(hull.crosses(shape) == expected.crosses(shape));
-            }
         }
     }
 }
@@ -387,13 +367,8 @@ TEST_CASE("DynamicConvexHull breaks extreme ties toward the lexicographically sm
 }
 
 TEST_CASE_TEMPLATE("DynamicConvexHull predicates agree with its Convex against every shape", Point,
-                   pgl::Point<int>, pgl::Point<pgl::ERational>) {
-    checkPredicatesAgainstConvex<Point, true>(11, 600);
-}
-
-TEST_CASE_TEMPLATE("DynamicConvexHull predicates agree with its Convex for other coordinates", Point,
-                   pgl::Point<long long>, pgl::Point<double>) {
-    checkPredicatesAgainstConvex<Point, false>(13, 600);
+                   pgl::Point<int>, pgl::Point<long long>, pgl::Point<double>, pgl::Point<pgl::ERational>) {
+    checkPredicatesAgainstConvex<Point>(11, 600);
 }
 
 TEST_CASE("DynamicConvexHull predicates on a hull of labelled points") {

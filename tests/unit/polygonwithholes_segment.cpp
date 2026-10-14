@@ -622,3 +622,26 @@ TEST_CASE("PolygonWithHoles intersection with a Segment: fractional crossings") 
     CHECK(pieces[0] == RatPiece(RatSegment({Rat(0), Rat(1)}, {Rat(4), Rat(3)})));
     CHECK(pieces[1] == RatPiece(RatSegment({Rat(7), Rat(9, 2)}, {Rat(10), Rat(6)})));
 }
+
+TEST_CASE("PolygonWithHoles is cut over double coordinates as over int") {
+    // Cutting a region builds an arrangement, whose map keyed by lines did not
+    // compile for floating-point coordinates.
+    const auto cuts = [](auto zero) {
+        using Number = decltype(zero);
+        using P = pgl::Point<Number>;
+        const auto at = [](int x, int y) { return P(Number(x), Number(y)); };
+        const pgl::PolygonWithHoles<P> region(
+            pgl::Polygon<P>({at(0, 0), at(10, 0), at(10, 10), at(0, 10)}),
+            std::vector{pgl::Polygon<P>({at(3, 3), at(7, 3), at(7, 7), at(3, 7)})});
+        const pgl::Convex<P> band(std::vector<P>{at(-1, 4), at(11, 4), at(11, 6), at(-1, 6)});
+        return std::vector<bool>{
+            pgl::Segment<P>(at(-1, 5), at(11, 5)).separates(region),
+            pgl::Segment<P>(at(-1, 1), at(5, 1)).separates(region),
+            band.separates(region),
+            band.crosses(region),
+        };
+    };
+    const std::vector<bool> overInt = cuts(0);
+    CHECK(overInt == std::vector<bool>{true, false, true, true});
+    CHECK(cuts(0.0) == overInt);
+}

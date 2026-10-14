@@ -152,3 +152,16 @@ TEST_CASE("Hausdorff distance to a convex polygon") {
 
     CHECK_THROWS_AS((void)vslab().hausdorffDistanceL1(beyond), std::logic_error);
 }
+
+TEST_CASE_TEMPLATE("A region with fractional vertices separates a convex polygon exactly", Number, int, long long) {
+    // The region is clipped to an exact Convex with fractional vertices, which
+    // then walked its own edges over the operand's integer points: an all-int
+    // call answered true here, and long long coordinates did not compile.
+    using P = pgl::Point<Number>;
+    const pgl::HalfplaneIntersection<P> region(std::vector<pgl::Halfplane<P>>{
+        pgl::Halfplane<P>(P(-4, -4), P(-2, 0)), pgl::Halfplane<P>(P(2, 6), P(-4, -1)),
+        pgl::Halfplane<P>(P(-5, 2), P(6, -6))});
+    const pgl::Convex<P> octagon(std::vector<P>{P(1, 2), P(-1, 2), P(-2, 1), P(-2, -1), P(-1, -2), P(1, -2), P(2, -1), P(2, 1)});
+    CHECK_FALSE(region.separates(octagon));
+    CHECK_FALSE(octagon.crosses(region));
+}

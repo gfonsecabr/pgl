@@ -71,7 +71,7 @@ TEST_CASE("Constructor from a BigInt numerator and truncating conversion back") 
     }
     {
         // Conversion to the numerator type truncates toward zero, matching
-        // the built-in operator int / operator int64_t conversions.
+        // the conversions to the built-in integral types.
         pgl::Rational<pgl::BigInt> a(pgl::BigInt(7), pgl::BigInt(2));
         CHECK(static_cast<pgl::BigInt>(a) == 3);
         pgl::Rational<pgl::BigInt> b(pgl::BigInt(-7), pgl::BigInt(2));
@@ -677,4 +677,25 @@ TEST_CASE_TEMPLATE("An integer minus a rational subtracts in that order", Int, i
     CHECK(Int(0) - third == -third);
     CHECK(Int(-2) - pgl::Rational<Int>(Int(-5), Int(2)) == pgl::Rational<Int>(Int(1), Int(2)));
     CHECK(3 - third == pgl::Rational<Int>(Int(8), Int(3)));
+}
+
+TEST_CASE_TEMPLATE("Truncating conversion reaches every signed integral type", Target,
+                   signed char, short, int, long, long long, pgl::int128) {
+    // int, long and long long are three distinct types, and a conversion
+    // spelled for int and int64_t left one of them out on every data model.
+    const pgl::Rational<pgl::BigInt> exact(pgl::BigInt(-7), pgl::BigInt(2));
+    CHECK(static_cast<Target>(exact) == Target(-3));
+    const pgl::Rational<int64_t> fixed(7, 2);
+    CHECK(static_cast<Target>(fixed) == Target(3));
+    const pgl::Rational<pgl::int128> wide(pgl::int128(-9), pgl::int128(4));
+    CHECK(static_cast<Target>(wide) == Target(-2));
+}
+
+TEST_CASE_TEMPLATE("Truncating conversion reaches every unsigned integral type", Target,
+                   unsigned char, unsigned short, unsigned, unsigned long, unsigned long long) {
+    const pgl::Rational<pgl::BigInt> exact(pgl::BigInt(7), pgl::BigInt(2));
+    CHECK(static_cast<Target>(exact) == Target(3));
+    const pgl::Rational<int64_t> fixed(9, 4);
+    CHECK(static_cast<Target>(fixed) == Target(2));
+    CHECK(static_cast<Target>(pgl::BigInt(5)) == Target(5));
 }
