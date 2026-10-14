@@ -90,12 +90,23 @@ Every example writes its figures into the current directory. [`example1.cpp`](ex
 <td width="33%" valign="top" align="center">
 <a href="example_shapetree.cpp"><img src="figures/example_shapetree_triangles.svg" width="100%"/></a>
 </td>
-<td width="33%"></td>
 </tr>
 <tr>
 <td valign="top"><a href="example_arrangement.cpp"><code>arrangement</code></a>  Builds an <a href="../doc/data_structures.md"><code>Arrangement</code></a> and walks the boundary of its largest bounded face.</td>
 <td valign="top"><a href="example_dual_arrangement.cpp"><code>dual_arrangement</code></a>  Point-line <a href="../doc/shape_methods.md"><code>dual</code></a> <a href="../doc/data_structures.md"><code>arrangement</code></a> used to detect collinear points.</td>
 <td valign="top"><a href="example_shapetree.cpp"><code>shapetree</code></a>  A <a href="../doc/data_structures.md"><code>ShapeTree</code></a> indexes triangles to answer queries with another triangle.</td>
+</tr>
+
+<tr>
+<td width="33%" valign="top" align="center">
+<a href="example_convexlayers.cpp"><img src="figures/example_convexlayers.svg" width="100%"/></a>
+</td>
+<td width="33%"></td>
+<td width="33%"></td>
+</tr>
+<tr>
+<td valign="top"><a href="example_convexlayers.cpp"><code>convexlayers</code></a>  Peels the convex layers of a point set by erasing hull vertices from a <a href="../doc/data_structures.md#dynamic-convex-hull"><code>DynamicConvexHull</code></a>.</td>
+<td></td>
 <td></td>
 </tr>
 </table>
