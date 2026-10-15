@@ -4,7 +4,8 @@
 
 /**
  * @file emptypolygons.hpp
- * @brief Empty triangles and quadrilaterals of a point set.
+ * @brief Empty triangles and quadrilaterals of a point set, and its largest
+ *        empty convex polygon.
  *
  * A polygon is *empty* with respect to a point set when its vertices belong to
  * the set and no other point of the set lies in the closed polygon: a point on
@@ -21,6 +22,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <iterator>
 #include <type_traits>
 #include <utility>
@@ -934,6 +936,773 @@ auto findEmptyConvexQuadrilaterals(const Container& points) {
     std::vector<Convex<detail::empty_polygons_point_t<Container>>> out;
     visitEmptyConvexQuadrilaterals(points, [&out](const auto& q) { out.push_back(q); });
     return out;
+}
+
+namespace detail {
+
+// Scores of the largest empty convex polygon search. A convex polygon is the
+// fan of triangles p q_i q_{i+1} from its lexicographically smallest vertex p,
+// its anchor, and both measures are a start value plus a gain per fan
+// triangle: twice the area, or 2 plus one vertex per triangle.
+template <class PointType>
+struct EmptyConvexAreaScore {
+    using Value = decltype(orientationDeterminant(std::declval<const PointType&>(),
+                                                  std::declval<const PointType&>(),
+                                                  std::declval<const PointType&>()));
+    static Value start() { return Value(0); }
+    static Value gain(const PointType& p, const PointType& a, const PointType& b) {
+        return orientationDeterminant(p, a, b);
+    }
+};
+
+template <class PointType>
+struct EmptyConvexVertexScore {
+    using Value = std::size_t;
+    static Value start() { return 2; }
+    static Value gain(const PointType&, const PointType&, const PointType&) { return 1; }
+};
+
+inline constexpr std::uint32_t emptyConvexNone = UINT32_MAX;
+
+// Scratch space of the search, reused from one anchor to the next. q holds the
+// fan of the anchor (the points after it, counterclockwise, the nearest of each
+// ray only) and ids their indices in the sorted point set.
+template <class PointType, class Value>
+struct EmptyConvexWork {
+    struct InPair {
+        std::uint32_t first;
+        std::uint32_t parent;  // first index of the best pair before, or emptyConvexNone
+        Value value;
+    };
+    std::vector<PointType> q;
+    std::vector<std::uint32_t> ids;
+    std::vector<std::vector<InPair>> incoming;
+    std::vector<std::uint32_t> head, bestArg;
+    std::vector<Value> bestAt, pre, suf, cum;
+    std::vector<std::pair<std::uint32_t, std::uint32_t>> pending, pairs, tmp, aItems, bItems, chords;
+    std::vector<std::uint32_t> stack, kpos, inner, outer, bList, count, outStart, inStart, inFill;
+    std::vector<std::uint8_t> cls, aFlag, bFlag;
+    std::vector<InPair> in;
+    // The best pair of the last anchor run in rebuild mode, and whether the
+    // anchor ran the plain scan (pairs in incoming) or the restricted path
+    // (pairs in in, by inStart and inFill).
+    bool scanned = false, topFound = false;
+    std::uint32_t topI = 0, topJ = 0;
+    Value top{};
+};
+
+// The fan of pts[a]: the points after it, counterclockwise around it (they
+// span less than half a turn, since pts[a] is the smallest), keeping only the
+// nearest point of each ray, which blocks the farther ones.
+template <class PointType, class Value>
+void emptyConvexFan(const std::vector<PointType>& pts, std::size_t a,
+                    EmptyConvexWork<PointType, Value>& w) {
+    const PointType& p = pts[a];
+    w.ids.resize(pts.size() - a - 1);
+    for (std::size_t i = 0; i < w.ids.size(); ++i)
+        w.ids[i] = static_cast<std::uint32_t>(a + 1 + i);
+    std::sort(w.ids.begin(), w.ids.end(), [&](std::uint32_t u, std::uint32_t v) {
+        const auto turn = orientationSign(p, pts[u], pts[v]);
+        if (turn != 0)
+            return turn > 0;
+        return u < v;  // Along a ray from p the order is lexicographic.
+    });
+    std::size_t kept = 0;
+    for (std::size_t i = 0; i < w.ids.size(); ++i)
+        if (kept == 0 || orientationSign(p, pts[w.ids[kept - 1]], pts[w.ids[i]]) != 0)
+            w.ids[kept++] = w.ids[i];
+    w.ids.resize(kept);
+    w.q.resize(kept);
+    for (std::size_t i = 0; i < kept; ++i)
+        w.q[i] = pts[w.ids[i]];
+}
+
+/*
+ * The fan scan of Dobkin, Edelsbrunner and Overmars (see scanEmptyFan) with
+ * the dynamic program for the best polygon folded in:
+ *
+ *   f(i, j) = gain(p, q_i, q_j) + max(start, max { f(k, i) : turn(q_k, q_i, q_j) > 0 })
+ *
+ * over the empty triangles p q_i q_j. If every p q_k q_i is empty, the angle
+ * q_k q_i p grows with k, and if every p q_i q_j is empty, the angle p q_i q_j
+ * shrinks as j grows; so the k with a convex turn at q_i are a prefix of the
+ * pairs ending at i, growing with j. Before it reports (i, j) the scan advances
+ * head[i] over exactly that prefix, so the max rides along with it.
+ *
+ * keep(i, j) may drop pairs as long as it drops every pair derived from a
+ * dropped one. onPair(i, j, f) sees every pair kept; incoming[j] then holds the
+ * pairs ending at j by increasing first index, with the first index of the
+ * pair before each in its best polygon.
+ */
+template <class Score, class PointType, class Value, class OnPair, class Keep>
+void emptyConvexScan(const PointType& p, EmptyConvexWork<PointType, Value>& w, OnPair&& onPair,
+                     Keep&& keep) {
+    const std::vector<PointType>& q = w.q;
+    const std::size_t m = q.size();
+    if (w.incoming.size() < m)
+        w.incoming.resize(m);
+    for (std::size_t i = 0; i < m; ++i)
+        w.incoming[i].clear();
+    w.head.assign(m, 0);
+    w.bestAt.assign(m, Score::start());
+    w.bestArg.assign(m, emptyConvexNone);
+    for (std::uint32_t first = 0; first + 1 < m; ++first) {
+        if (keep(first, first + 1))
+            w.pending.emplace_back(first, first + 1);
+        while (!w.pending.empty()) {
+            const auto [i, j] = w.pending.back();
+            const auto& queue = w.incoming[i];
+            if (w.head[i] < queue.size()) {
+                const std::uint32_t k = queue[w.head[i]].first;
+                if (orientationSign(q[k], q[i], q[j]) > 0) {
+                    if (w.bestAt[i] < queue[w.head[i]].value) {
+                        w.bestAt[i] = queue[w.head[i]].value;
+                        w.bestArg[i] = k;
+                    }
+                    ++w.head[i];
+                    if (keep(k, j))
+                        w.pending.emplace_back(k, j);
+                    continue;
+                }
+            }
+            w.pending.pop_back();
+            const Value v = Score::gain(p, q[i], q[j]) + w.bestAt[i];
+            onPair(i, j, v);
+            w.incoming[j].push_back({i, w.bestArg[i], v});
+        }
+    }
+}
+
+/*
+ * Upper bounds on the two halves of a polygon at the anchor around a pair
+ * (i, j): a polygon with the edge q_i q_j scores at most pre[i] + gain + suf[j].
+ * For the area, pre[i] is twice the area of the hull of p, q_0, ..., q_i (the
+ * fan triangles of Graham's stack, which holds every prefix hull in turn) and
+ * suf[j] that of p, q_j, ..., q_{m-1}; for the vertex count, i + 2 and
+ * m - 1 - j. If q_i lies between q_k and q_j beyond the segment q_k q_j, the
+ * bound of (k, j) is at most those of (k, i) and (i, j); the scan derives
+ * (k, j) from exactly such a pair, so dropping the pairs whose bound cannot
+ * beat the best found drops whole subtrees and keeps the scan exact.
+ */
+template <class Score, class PointType, class Value>
+void emptyConvexPairBounds(const PointType& p, EmptyConvexWork<PointType, Value>& w) {
+    const std::vector<PointType>& q = w.q;
+    const std::uint32_t m = static_cast<std::uint32_t>(q.size());
+    w.pre.resize(m);
+    w.suf.resize(m);
+    if constexpr (std::is_same_v<Score, EmptyConvexVertexScore<PointType>>) {
+        for (std::uint32_t i = 0; i < m; ++i) {
+            w.pre[i] = i + 2;
+            w.suf[i] = m - 1 - i;
+        }
+    } else {
+        auto& st = w.stack;
+        auto& cum = w.cum;
+        st.clear();
+        cum.clear();
+        for (std::uint32_t i = 0; i < m; ++i) {
+            while (st.size() >= 2 && !(orientationSign(q[st[st.size() - 2]], q[st.back()], q[i]) > 0)) {
+                st.pop_back();
+                cum.pop_back();
+            }
+            cum.push_back(st.empty() ? Value(0) : cum.back() + orientationDeterminant(p, q[st.back()], q[i]));
+            st.push_back(i);
+            w.pre[i] = cum.back();
+        }
+        st.clear();
+        cum.clear();
+        for (std::uint32_t j = m; j-- > 0;) {
+            while (st.size() >= 2 && !(orientationSign(q[st[st.size() - 2]], q[st.back()], q[j]) < 0)) {
+                st.pop_back();
+                cum.pop_back();
+            }
+            cum.push_back(st.empty() ? Value(0) : cum.back() + orientationDeterminant(p, q[j], q[st.back()]));
+            st.push_back(j);
+            w.suf[j] = cum.back();
+        }
+    }
+}
+
+// Stable counting sort of index pairs by their first or second index.
+template <bool BySecond>
+void countingSortPairs(std::vector<std::pair<std::uint32_t, std::uint32_t>>& v,
+                       std::vector<std::pair<std::uint32_t, std::uint32_t>>& tmp,
+                       std::vector<std::uint32_t>& count, std::size_t m) {
+    count.assign(m + 1, 0);
+    for (const auto& e : v)
+        ++count[(BySecond ? e.second : e.first) + 1];
+    for (std::size_t i = 0; i < m; ++i)
+        count[i + 1] += count[i];
+    tmp.resize(v.size());
+    for (const auto& e : v)
+        tmp[count[BySecond ? e.second : e.first]++] = e;
+    v.swap(tmp);
+}
+
+/*
+ * The best polygon at one anchor, raising best (with found set) when it beats
+ * it. Exact for the anchor of the optimum; elsewhere it may settle for less.
+ *
+ * Pocket lemma: if z a b c are consecutive vertices of an optimal polygon, no
+ * point lies beyond the line ab where inserting it between a and b keeps the
+ * polygon convex (turn(z, a, x) > 0 and turn(x, b, c) > 0): the one nearest
+ * to the line would span an empty triangle a x b, and inserting it gives a
+ * larger empty convex polygon.
+ *
+ * Hull theorem: let K be the hull of p and any of the fan points; every point
+ * is a corner (strict vertex of K), inner (in K) or outer (outside K). If ab is
+ * an edge of the optimal polygon at p with a and b corners not adjacent on K,
+ * then z or c is outer. For if z is in K, the line za meets the boundary of K
+ * again only past every corner from a to b, so turn(z, a, b-) > 0 for the
+ * corner b- before b; and if c is in K, it lies left of the edge b- b and not
+ * on it, so turn(b-, b, c) > 0; then b- is in the pocket of ab.
+ *
+ * So with few points off K, the dynamic program only needs the edges of K, the
+ * pairs with an inner or outer endpoint, and the chords between corners next
+ * to an outer vertex: for z outer before a blocking b- (the sign of
+ * turn(z, a, .) along K switches once, so b is unique: a binary search), the
+ * mirror case for c outer after b, and z blocking a+ while c blocks b-, cut by
+ * the pair bound, which only falls as b moves along K. With many points off K
+ * (random-like input), the anchor runs the plain scan.
+ */
+//
+// In rebuild mode best is the final score: the anchor keeps the pairs whose
+// bound reaches it (those of the optimal polygon among them) and records its
+// own best pair in w.top*, with the parents to trace the polygon back.
+template <class Score, class PointType, class Value>
+void largestEmptyConvexAtAnchor(const PointType& p, EmptyConvexWork<PointType, Value>& w,
+                                bool usePairBound, bool alwaysRestrict,
+                                const std::vector<std::uint8_t>& isOuter, Value& best, bool& found,
+                                bool rebuild = false) {
+    const std::vector<PointType>& q = w.q;
+    const std::uint32_t m = static_cast<std::uint32_t>(q.size());
+    if (usePairBound)
+        emptyConvexPairBounds<Score>(p, w);
+    auto keep = [&](std::uint32_t i, std::uint32_t j) {
+        if (!usePairBound)
+            return true;
+        const Value bound = w.pre[i] + Score::gain(p, q[i], q[j]) + w.suf[j];
+        return rebuild ? !(bound < best) : best < bound;
+    };
+    auto record = [&](std::uint32_t i, std::uint32_t j, const Value& v) {
+        if (rebuild) {
+            if (!w.topFound || w.top < v) {
+                w.top = v;
+                w.topI = i;
+                w.topJ = j;
+                w.topFound = true;
+            }
+        } else if (!found || best < v) {
+            best = v;
+            found = true;
+        }
+    };
+    w.scanned = false;
+    w.topFound = false;
+    auto scan = [&] {
+        w.scanned = true;
+        emptyConvexScan<Score>(p, w, record, keep);
+    };
+
+    // K, by Graham's scan over the fan without the outer points (p is
+    // extreme): its corners in counterclockwise order are kv[1..r], kv[0]
+    // standing for p. Every fan point off K costs a sweep; once more than an
+    // eighth are off, give up on K (unless alwaysRestrict, for the tests).
+    auto& kv = w.stack;
+    auto at = [&](std::uint32_t i) -> const PointType& { return i == emptyConvexNone ? p : q[i]; };
+    const std::uint32_t maxOff = alwaysRestrict ? m : m / 8;
+    std::uint32_t off = 0;
+    kv.clear();
+    kv.push_back(emptyConvexNone);
+    for (std::uint32_t i = 0; i < m; ++i) {
+        if (isOuter[w.ids[i]]) {
+            ++off;
+            continue;
+        }
+        while (kv.size() >= 2 && !(orientationSign(at(kv[kv.size() - 2]), at(kv.back()), q[i]) > 0)) {
+            kv.pop_back();
+            ++off;
+        }
+        if (off > maxOff)
+            return scan();
+        kv.push_back(i);
+    }
+    const std::uint32_t r = static_cast<std::uint32_t>(kv.size()) - 1;
+    if (r < 2)
+        return scan();
+    w.kpos.assign(m, 0);
+    for (std::uint32_t t = 1; t <= r; ++t)
+        w.kpos[kv[t]] = t;
+
+    // Classes: 0 inner, 1 corner, 2 outer. A point outer for the whole set can
+    // still fall inside this K.
+    w.cls.assign(m, 0);
+    w.inner.clear();
+    w.outer.clear();
+    for (std::uint32_t i = 0, t = 0; i < m; ++i) {
+        if (t < r && kv[t + 1] == i) {
+            ++t;
+            w.cls[i] = 1;
+            continue;
+        }
+        const bool outside = isOuter[w.ids[i]] &&
+                             (t == 0 || t == r || orientationSign(q[kv[t]], q[kv[t + 1]], q[i]) < 0);
+        w.cls[i] = outside ? 2 : 0;
+        (outside ? w.outer : w.inner).push_back(i);
+    }
+    auto& innerBefore = w.count;  // inner points with fan index < i
+    innerBefore.assign(m + 1, 0);
+    for (std::uint32_t i = 0; i < m; ++i)
+        innerBefore[i + 1] = innerBefore[i] + (w.cls[i] == 0 ? 1 : 0);
+
+    w.pairs.clear();
+    w.aItems.clear();
+    w.bItems.clear();
+    auto add = [&](std::uint32_t i, std::uint32_t j) {
+        if (keep(i, j))
+            w.pairs.emplace_back(i, j);
+    };
+    // Edges of K with no inner point between their ends (outer ones lie beyond).
+    for (std::uint32_t t = 1; t < r; ++t)
+        if (innerBefore[kv[t + 1]] == innerBefore[kv[t] + 1])
+            add(kv[t], kv[t + 1]);
+    // Every empty pair with an inner or outer endpoint: p q_u q_j is empty when
+    // q_j is strictly left of the most counterclockwise ray q_u q_l, u < l < j
+    // (and mirrored for the pairs ending at u, first endpoints on K only).
+    auto sweep = [&](std::uint32_t u) {
+        const bool outer = w.cls[u] == 2;
+        for (std::uint32_t j = u + 1, b = u + 1; j < m; ++j) {
+            if (j > u + 1 && !(orientationSign(q[u], q[b], q[j]) > 0))
+                continue;
+            b = j;
+            if (keep(u, j)) {
+                w.pairs.emplace_back(u, j);
+                if (outer && w.cls[j] == 1)
+                    w.aItems.emplace_back(u, j);
+            }
+        }
+        if (u == 0)
+            return;
+        for (std::uint32_t k = u, b = u - 1; k-- > 0;) {
+            if (k + 1 < u && !(orientationSign(q[u], q[b], q[k]) < 0))
+                continue;
+            b = k;
+            if (w.cls[k] == 1 && keep(k, u)) {
+                w.pairs.emplace_back(k, u);
+                if (outer)
+                    w.bItems.emplace_back(k, u);
+            }
+        }
+    };
+    for (const std::uint32_t u : w.inner)
+        sweep(u);
+    for (const std::uint32_t u : w.outer)
+        sweep(u);
+
+    // Each item below costs a binary search; past m^2 / log m of them that
+    // would exceed the plain scan's O(m^2), so run that instead.
+    std::size_t logM = 1;
+    while ((std::size_t(1) << logM) < m)
+        ++logM;
+    if ((w.aItems.size() + w.bItems.size()) * logM > std::size_t(m) * m)
+        return scan();
+
+    if (!w.outer.empty()) {
+        w.chords.clear();
+        w.aFlag.assign(r + 2, 0);
+        w.bFlag.assign(r + 2, 0);
+        // z outer before a: the corners after a that z blocks are a prefix,
+        // and b is the first corner past it.
+        for (const auto& [z, a] : w.aItems) {
+            const std::uint32_t ta = w.kpos[a];
+            if (ta >= r || orientationSign(q[z], q[a], q[kv[ta + 1]]) > 0)
+                continue;
+            w.aFlag[ta] = 1;
+            std::uint32_t lo = ta + 1, hi = r + 1;
+            while (lo + 1 < hi) {
+                const std::uint32_t mid = lo + (hi - lo) / 2;
+                if (orientationSign(q[z], q[a], q[kv[mid]]) > 0)
+                    hi = mid;
+                else
+                    lo = mid;
+            }
+            if (hi <= r)
+                w.chords.emplace_back(ta, hi);
+        }
+        // c outer after b: the corners before b that c blocks are a suffix,
+        // and a is the last corner before it.
+        for (const auto& [b, c] : w.bItems) {
+            const std::uint32_t tb = w.kpos[b];
+            if (tb <= 1 || orientationSign(q[kv[tb - 1]], q[b], q[c]) > 0)
+                continue;
+            w.bFlag[tb] = 1;
+            std::uint32_t lo = 0, hi = tb - 1;
+            while (lo + 1 < hi) {
+                const std::uint32_t mid = lo + (hi - lo) / 2;
+                if (orientationSign(q[kv[mid]], q[b], q[c]) > 0)
+                    lo = mid;
+                else
+                    hi = mid;
+            }
+            if (lo >= 1)
+                w.chords.emplace_back(lo, tb);
+        }
+        // Both ends blocked from outside: b runs along K while the bound can win.
+        w.bList.clear();
+        for (std::uint32_t t = 1; t <= r; ++t)
+            if (w.bFlag[t])
+                w.bList.push_back(t);
+        for (std::uint32_t ta = 1; ta <= r; ++ta) {
+            if (!w.aFlag[ta])
+                continue;
+            for (auto it = std::lower_bound(w.bList.begin(), w.bList.end(), ta + 2);
+                 it != w.bList.end() && keep(kv[ta], kv[*it]); ++it)
+                w.chords.emplace_back(ta, *it);
+        }
+        // Only inner points between its ends can lie in front of a chord.
+        // Chords from one corner are checked against them while that costs at
+        // most m steps in all, else by the corner's row sweep, in O(m).
+        countingSortPairs<true>(w.chords, w.tmp, w.outStart, r + 1);
+        countingSortPairs<false>(w.chords, w.tmp, w.outStart, r + 1);
+        w.chords.erase(std::unique(w.chords.begin(), w.chords.end()), w.chords.end());
+        for (std::size_t g = 0; g < w.chords.size();) {
+            const std::uint32_t ta = w.chords[g].first, a = kv[ta];
+            std::size_t gEnd = g;
+            std::size_t cost = 0;
+            for (; gEnd < w.chords.size() && w.chords[gEnd].first == ta; ++gEnd)
+                cost += innerBefore[kv[w.chords[gEnd].second]] - innerBefore[a + 1];
+            if (cost <= m) {
+                for (std::size_t e = g; e < gEnd; ++e) {
+                    const std::uint32_t b = kv[w.chords[e].second];
+                    if (w.chords[e].second < ta + 2 || !keep(a, b))
+                        continue;
+                    // inner is sorted, so innerBefore gives the range in it.
+                    bool empty = true;
+                    for (std::uint32_t x = innerBefore[a + 1]; empty && x < innerBefore[b]; ++x)
+                        empty = orientationSign(q[a], q[b], q[w.inner[x]]) < 0;
+                    if (empty)
+                        w.pairs.emplace_back(a, b);
+                }
+            } else {
+                std::size_t e = g;
+                for (std::uint32_t j = a + 1, b = a + 1; j < m && e < gEnd; ++j) {
+                    const bool empty = j == a + 1 || orientationSign(q[a], q[b], q[j]) > 0;
+                    if (empty)
+                        b = j;
+                    while (e < gEnd && kv[w.chords[e].second] < j)
+                        ++e;
+                    if (e < gEnd && kv[w.chords[e].second] == j) {
+                        if (empty && w.chords[e].second >= ta + 2 && keep(a, j))
+                            w.pairs.emplace_back(a, j);
+                        ++e;
+                    }
+                }
+            }
+            g = gEnd;
+        }
+    }
+
+    // The dynamic program of the scan over these pairs, with explicit lists:
+    // the convex-turn prefix property holds for any set of empty pairs.
+    countingSortPairs<true>(w.pairs, w.tmp, w.count, m);
+    countingSortPairs<false>(w.pairs, w.tmp, w.count, m);
+    w.pairs.erase(std::unique(w.pairs.begin(), w.pairs.end()), w.pairs.end());
+    w.outStart.assign(m + 1, 0);
+    w.inStart.assign(m + 1, 0);
+    for (const auto& [i, j] : w.pairs) {
+        ++w.outStart[i + 1];
+        ++w.inStart[j + 1];
+    }
+    for (std::uint32_t i = 0; i < m; ++i) {
+        w.outStart[i + 1] += w.outStart[i];
+        w.inStart[i + 1] += w.inStart[i];
+    }
+    w.inFill.assign(w.inStart.begin(), w.inStart.end() - 1);
+    w.in.resize(w.pairs.size());
+    for (std::uint32_t i = 0; i < m; ++i) {
+        const std::uint32_t inEnd = w.inFill[i];
+        std::uint32_t t = w.inStart[i];
+        Value bestAt = Score::start();
+        std::uint32_t bestArg = emptyConvexNone;
+        for (std::uint32_t e = w.outStart[i]; e < w.outStart[i + 1]; ++e) {
+            const std::uint32_t j = w.pairs[e].second;
+            while (t < inEnd && orientationSign(q[w.in[t].first], q[i], q[j]) > 0) {
+                if (bestAt < w.in[t].value) {
+                    bestAt = w.in[t].value;
+                    bestArg = w.in[t].first;
+                }
+                ++t;
+            }
+            const Value v = Score::gain(p, q[i], q[j]) + bestAt;
+            record(i, j, v);
+            w.in[w.inFill[j]++] = {i, bestArg, v};
+        }
+    }
+}
+
+// Twice the area of the hull of pts[a..n) for every a, pts sorted: adding the
+// points from the right, each new point is the leftmost and extends both
+// monotone chains like a stack. The chains are measured as fans from the
+// rightmost point. O(n).
+template <class PointType, class Value>
+std::vector<Value> suffixHullTwiceAreas(const std::vector<PointType>& pts) {
+    const std::size_t n = pts.size();
+    std::vector<Value> out(n, Value(0));
+    if (n == 0)
+        return out;
+    const PointType& o = pts.back();
+    std::vector<std::uint32_t> lo, up;
+    std::vector<Value> loSum, upSum;
+    for (std::size_t a = n; a-- > 0;) {
+        const auto p = static_cast<std::uint32_t>(a);
+        while (lo.size() >= 2 && !(orientationSign(pts[p], pts[lo.back()], pts[lo[lo.size() - 2]]) > 0)) {
+            lo.pop_back();
+            loSum.pop_back();
+        }
+        loSum.push_back(lo.empty() ? Value(0) : loSum.back() + orientationDeterminant(o, pts[p], pts[lo.back()]));
+        lo.push_back(p);
+        while (up.size() >= 2 && !(orientationSign(pts[p], pts[up.back()], pts[up[up.size() - 2]]) < 0)) {
+            up.pop_back();
+            upSum.pop_back();
+        }
+        upSum.push_back(up.empty() ? Value(0) : upSum.back() + orientationDeterminant(o, pts[up.back()], pts[p]));
+        up.push_back(p);
+        out[a] = loSum.back() + upSum.back();
+    }
+    return out;
+}
+
+/*
+ * Outer points: vertices of the hull that hide other points (strictly beyond
+ * or on the chord between their two hull neighbours), peeled round after
+ * round, biggest hiders first and never two neighbours in one round, while
+ * each round grows the hull by at least as many points as it peels (random
+ * input stops at once). Only the speed depends on this choice.
+ */
+template <class PointType>
+std::vector<std::uint8_t> emptyConvexOuterPoints(const std::vector<PointType>& pts) {
+    const std::size_t n = pts.size();
+    std::vector<std::uint8_t> isOuter(n, 0);
+    std::vector<std::uint32_t> hull, lower, upper, peeled, order, hides;
+    std::vector<std::uint8_t> onHull(n), taken;
+    std::size_t lastHull = 0;
+    for (int round = 0; round <= 64; ++round) {
+        lower.clear();
+        upper.clear();
+        for (std::uint32_t i = 0; i < n; ++i) {
+            if (isOuter[i])
+                continue;
+            while (lower.size() >= 2 &&
+                   !(orientationSign(pts[lower[lower.size() - 2]], pts[lower.back()], pts[i]) > 0))
+                lower.pop_back();
+            lower.push_back(i);
+            while (upper.size() >= 2 &&
+                   !(orientationSign(pts[upper[upper.size() - 2]], pts[upper.back()], pts[i]) < 0))
+                upper.pop_back();
+            upper.push_back(i);
+        }
+        if (lower.size() < 2)
+            break;
+        hull = lower;
+        for (std::size_t t = upper.size() - 1; t-- > 1;)
+            hull.push_back(upper[t]);
+        const std::size_t h = hull.size();
+        if (round > 0 && h < lastHull + peeled.size()) {
+            for (const std::uint32_t v : peeled)
+                isOuter[v] = 0;
+            break;
+        }
+        lastHull = h;
+        if (h < 4 || round == 64)
+            break;
+        std::fill(onHull.begin(), onHull.end(), 0);
+        for (const std::uint32_t v : hull)
+            onHull[v] = 1;
+        // The hull vertex v whose neighbours' chord a point y is beyond is an
+        // end of the hull edge that the ray from hull[0] through y leaves by,
+        // or hull[0] itself.
+        hides.assign(h, 0);
+        auto hiddenBy = [&](std::size_t t, std::uint32_t y) {
+            return !(orientationSign(pts[hull[(t + h - 1) % h]], pts[hull[(t + 1) % h]], pts[y]) > 0);
+        };
+        for (std::uint32_t y = 0; y < n; ++y) {
+            if (isOuter[y] || onHull[y])
+                continue;
+            std::size_t lo = 1, hi = h - 1;  // last t with y left of hull[0] -> hull[t]
+            while (lo + 1 < hi) {
+                const std::size_t mid = lo + (hi - lo) / 2;
+                if (orientationSign(pts[hull[0]], pts[hull[mid]], pts[y]) >= 0)
+                    lo = mid;
+                else
+                    hi = mid;
+            }
+            for (const std::size_t t : {std::size_t(0), lo, lo + 1})
+                if (hiddenBy(t, y))
+                    ++hides[t];
+        }
+        order.resize(h);
+        for (std::uint32_t t = 0; t < h; ++t)
+            order[t] = t;
+        std::sort(order.begin(), order.end(),
+                  [&](std::uint32_t s, std::uint32_t t) { return hides[s] > hides[t]; });
+        taken.assign(h, 0);
+        peeled.clear();
+        for (const std::uint32_t t : order) {
+            if (hides[t] == 0 || taken[(t + h - 1) % h] || taken[(t + 1) % h])
+                continue;
+            taken[t] = 1;
+            isOuter[hull[t]] = 1;
+            peeled.push_back(hull[t]);
+        }
+        if (peeled.empty())
+            break;
+    }
+    return isOuter;
+}
+
+// pts sorted and distinct. alwaysRestrict takes the restricted path at every
+// anchor, however many points are off K: slower, but it lets small tests reach
+// every case of it.
+template <class Score, class PointType>
+Convex<PointType> largestEmptyConvex(const std::vector<PointType>& pts,
+                                                    bool alwaysRestrict = false) {
+    using Value = typename Score::Value;
+    const std::size_t n = pts.size();
+    // With no triangle (fewer than three points, or all collinear), the
+    // answer is the longest empty segment: the two consecutive points of the
+    // sorted set farthest apart, or the single point, or nothing.
+    auto noTriangle = [&pts] {
+        if (pts.size() < 2)
+            return Convex<PointType>(pts, trusted);
+        std::size_t best = 0;
+        for (std::size_t i = 1; i + 1 < pts.size(); ++i)
+            if (pts[best].squaredDistance(pts[best + 1]) < pts[i].squaredDistance(pts[i + 1]))
+                best = i;
+        return Convex<PointType>(std::vector<PointType>{pts[best], pts[best + 1]}, trusted);
+    };
+    if (n < 3)
+        return noTriangle();
+
+    // Anchors in lexicographic order. Anchor a's polygons lie in the hull of
+    // pts[a..n), so twice its area, or n - a vertices, bounds them; the bound
+    // never grows with a, so the loop stops at the first that cannot win.
+    std::vector<Value> bound;
+    if constexpr (std::is_same_v<Score, EmptyConvexVertexScore<PointType>>) {
+        bound.resize(n);
+        for (std::size_t a = 0; a < n; ++a)
+            bound[a] = n - a;
+    } else {
+        bound = suffixHullTwiceAreas<PointType, Value>(pts);
+    }
+    const std::vector<std::uint8_t> isOuter = emptyConvexOuterPoints(pts);
+    EmptyConvexWork<PointType, Value> w;
+    Value best = Score::start();
+    bool found = false;
+    std::size_t bestAnchor = n;
+    for (std::size_t a = 0; a + 2 < n; ++a) {
+        if (found && !(best < bound[a]))
+            break;
+        emptyConvexFan(pts, a, w);
+        if (w.q.size() < 2)
+            continue;
+        // The pair bound prunes nothing while the best polygon is small next
+        // to what the anchor could hold; skip its cost then.
+        const bool usePairBound = found && bound[a] < best * Value(4);
+        const Value before = best;
+        const bool foundBefore = found;
+        largestEmptyConvexAtAnchor<Score>(pts[a], w, usePairBound, alwaysRestrict, isOuter, best,
+                                          found);
+        if (found && (!foundBefore || before < best))
+            bestAnchor = a;
+    }
+    if (!found)
+        return noTriangle();
+
+    // Rebuild the polygon: run the best anchor again, keeping every pair whose
+    // bound reaches the best score, then follow the best predecessors back
+    // from its best pair. The pairs ending at j are sorted by first index.
+    emptyConvexFan(pts, bestAnchor, w);
+    const PointType& p = pts[bestAnchor];
+    largestEmptyConvexAtAnchor<Score>(p, w, true, alwaysRestrict, isOuter, best, found, true);
+    PGL_ASSERT(w.topFound);
+    auto parentOf = [&w](std::uint32_t i, std::uint32_t j) {
+        auto byFirst = [](const auto& e, std::uint32_t f) { return e.first < f; };
+        if (w.scanned) {
+            const auto& list = w.incoming[j];
+            return std::lower_bound(list.begin(), list.end(), i, byFirst)->parent;
+        }
+        const auto begin = w.in.begin() + w.inStart[j], end = w.in.begin() + w.inFill[j];
+        return std::lower_bound(begin, end, i, byFirst)->parent;
+    };
+    std::vector<PointType> ring{w.q[w.topJ]};
+    for (std::uint32_t i = w.topI, j = w.topJ;;) {
+        ring.push_back(w.q[i]);
+        const std::uint32_t k = parentOf(i, j);
+        if (k == emptyConvexNone)
+            break;
+        j = i;
+        i = k;
+    }
+    ring.push_back(p);
+    std::reverse(ring.begin(), ring.end());
+    return Convex<PointType>(ring, trusted);
+}
+
+}  // namespace detail
+
+/**
+ * @brief Returns an empty convex polygon of @p points with the largest area.
+ *
+ * The polygon has its vertices in @p points, no other point of @p points in
+ * it or on its boundary, and no straight angle. Ties are broken arbitrarily.
+ * For floating-point coordinates the areas are compared approximately.
+ *
+ * The search runs the dynamic program of Dobkin, Edelsbrunner and Overmars
+ * ("Searching for empty convex polygons", 1990) from each lexicographically
+ * smallest vertex in turn, restricted to the edges an optimal polygon can use:
+ * an optimal polygon admits no point that would keep it convex, so its edges
+ * between two vertices of the hull of the remaining points are hull edges
+ * unless a neighbouring vertex lies outside that hull. Bounds from the hulls of
+ * the points still ahead prune vertices and edges that cannot win.
+ *
+ * @complexity O(n^3) time and O(n^2) space for `n` points.
+ *
+ * @param points Container of points.
+ * @return The polygon. If @p points has no three non-collinear points, the
+ *         longest empty segment: two consecutive points of @p points along
+ *         its line (one point if there is only one, none if @p points is
+ *         empty).
+ */
+template <class Container>
+    requires detail::EmptyPolygonsPointRange<Container>
+Convex<detail::empty_polygons_point_t<Container>>
+maximumAreaEmptyConvex(const Container& points) {
+    using PointType = detail::empty_polygons_point_t<Container>;
+    return detail::largestEmptyConvex<detail::EmptyConvexAreaScore<PointType>>(
+        detail::distinctPointsOf(points));
+}
+
+/**
+ * @brief Returns an empty convex polygon of @p points with the most vertices.
+ *
+ * As @ref maximumAreaEmptyConvex, maximizing the number of vertices instead of
+ * the area.
+ *
+ * @complexity O(n^3) time and O(n^2) space for `n` points.
+ *
+ * @param points Container of points.
+ * @return The polygon. If @p points has no three non-collinear points, the
+ *         longest empty segment: two consecutive points of @p points along
+ *         its line (one point if there is only one, none if @p points is
+ *         empty).
+ */
+template <class Container>
+    requires detail::EmptyPolygonsPointRange<Container>
+Convex<detail::empty_polygons_point_t<Container>>
+maximumVerticesEmptyConvex(const Container& points) {
+    using PointType = detail::empty_polygons_point_t<Container>;
+    return detail::largestEmptyConvex<detail::EmptyConvexVertexScore<PointType>>(
+        detail::distinctPointsOf(points));
 }
 
 }  // namespace pgl

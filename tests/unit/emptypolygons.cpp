@@ -500,3 +500,296 @@ TEST_CASE("visiting empty quadrilaterals stops on true") {
     CHECK_FALSE(pgl::visitEmptyConvexQuadrilaterals(points, [&count](const auto&) { ++count; }));
     CHECK(count == pgl::findEmptyConvexQuadrilaterals(points).size());
 }
+
+namespace {
+
+// Largest empty convex polygon: twice the area and the vertex count of the best
+// one, by brute force over every subset of the distinct points. A subset counts
+// when its hull keeps all of it (strict vertices only), has positive area, and
+// holds no other point, boundary included.
+template <class PointType>
+std::pair<long long, std::size_t> bruteLargestEmptyConvex(std::vector<PointType> points) {
+    std::sort(points.begin(), points.end());
+    points.erase(std::unique(points.begin(), points.end()), points.end());
+    const std::size_t n = points.size();
+    REQUIRE(n <= 16);
+    long long bestArea = 0;
+    std::size_t bestCount = 0;
+    for (std::uint32_t mask = 0; mask < (1u << n); ++mask) {
+        std::vector<PointType> subset;
+        for (std::size_t i = 0; i < n; ++i)
+            if (mask >> i & 1)
+                subset.push_back(points[i]);
+        if (subset.size() < 3)
+            continue;
+        const pgl::Convex<PointType> hull(subset);
+        if (hull.size() != subset.size() || hull.twiceArea() == 0)
+            continue;
+        bool empty = true;
+        for (std::size_t i = 0; i < n && empty; ++i)
+            if (!(mask >> i & 1) && hull.contains(points[i]))
+                empty = false;
+        if (!empty)
+            continue;
+        bestArea = std::max(bestArea, static_cast<long long>(hull.twiceArea()));
+        bestCount = std::max(bestCount, subset.size());
+    }
+    return {bestArea, bestCount};
+}
+
+// The same values by the textbook dynamic program: for each anchor (smallest
+// vertex), the points after it by angle (nearest of each ray), emptiness of
+// each fan triangle by a scan of all points, and the best chain ending with
+// each fan edge. O(n^4) on top of the emptiness tests; for larger inputs than
+// the subsets allow.
+template <class PointType>
+std::pair<long long, std::size_t> referenceLargestEmptyConvex(std::vector<PointType> points) {
+    std::sort(points.begin(), points.end());
+    points.erase(std::unique(points.begin(), points.end()), points.end());
+    long long bestArea = 0;
+    std::size_t bestCount = 0;
+    for (std::size_t a = 0; a < points.size(); ++a) {
+        const PointType p = points[a];
+        std::vector<PointType> fan(points.begin() + static_cast<std::ptrdiff_t>(a) + 1, points.end());
+        std::sort(fan.begin(), fan.end(), [&p](const PointType& u, const PointType& v) {
+            const auto turn = pgl::orientationSign(p, u, v);
+            return turn != 0 ? turn > 0 : u < v;
+        });
+        std::vector<PointType> q;
+        for (const PointType& u : fan)
+            if (q.empty() || pgl::orientationSign(p, q.back(), u) != 0)
+                q.push_back(u);
+        const std::size_t m = q.size();
+        std::vector<std::vector<bool>> empty(m, std::vector<bool>(m, false));
+        for (std::size_t i = 0; i < m; ++i)
+            for (std::size_t j = i + 1; j < m; ++j) {
+                const pgl::Triangle<PointType> t(p, q[i], q[j]);
+                bool ok = true;
+                for (const PointType& s : points)
+                    if (s != p && s != q[i] && s != q[j] && t.contains(s))
+                        ok = false;
+                empty[i][j] = ok;
+            }
+        std::vector<std::vector<long long>> area(m, std::vector<long long>(m, -1));
+        std::vector<std::vector<std::size_t>> count(m, std::vector<std::size_t>(m, 0));
+        for (std::size_t j = 0; j < m; ++j)
+            for (std::size_t i = 0; i < j; ++i) {
+                if (!empty[i][j])
+                    continue;
+                long long beforeArea = 0;
+                std::size_t beforeCount = 2;
+                for (std::size_t k = 0; k < i; ++k)
+                    if (empty[k][i] && pgl::orientationSign(q[k], q[i], q[j]) > 0) {
+                        beforeArea = std::max(beforeArea, area[k][i]);
+                        beforeCount = std::max(beforeCount, count[k][i]);
+                    }
+                area[i][j] = beforeArea + static_cast<long long>(pgl::orientationDeterminant(p, q[i], q[j]));
+                count[i][j] = beforeCount + 1;
+                bestArea = std::max(bestArea, area[i][j]);
+                bestCount = std::max(bestCount, count[i][j]);
+            }
+    }
+    return {bestArea, bestCount};
+}
+
+// The returned polygon is one of the points' empty convex polygons: vertices
+// from the set, a strictly convex counterclockwise ring, nothing else inside
+// or on it.
+template <class PointType>
+void checkEmptyConvex(const std::vector<PointType>& points, const pgl::Convex<PointType>& c) {
+    const std::size_t k = c.size();
+    REQUIRE(k >= 3);
+    for (std::size_t i = 0; i < k; ++i) {
+        CHECK(std::find(points.begin(), points.end(), c[i]) != points.end());
+        const bool convexTurn = pgl::orientationSign(c[i], c[(i + 1) % k], c[(i + 2) % k]) > 0;
+        CHECK(convexTurn);
+    }
+    for (const PointType& s : points) {
+        bool vertex = false;
+        for (std::size_t i = 0; i < k; ++i)
+            vertex = vertex || c[i] == s;
+        if (!vertex)
+            CHECK_FALSE(c.contains(s));
+    }
+}
+
+// Both measures, as tuned and with the restricted path at every anchor,
+// against the expected (twice area, vertex count).
+template <class PointType>
+void checkLargestEmptyConvex(const std::vector<PointType>& points,
+                             std::pair<long long, std::size_t> expected) {
+    std::vector<PointType> sorted = points;
+    std::sort(sorted.begin(), sorted.end());
+    sorted.erase(std::unique(sorted.begin(), sorted.end()), sorted.end());
+    for (const bool always : {false, true}) {
+        CAPTURE(always);
+        const auto byArea = always ? pgl::detail::largestEmptyConvex<
+                                         pgl::detail::EmptyConvexAreaScore<PointType>>(sorted, true)
+                                   : pgl::maximumAreaEmptyConvex(points);
+        const auto byCount = always ? pgl::detail::largestEmptyConvex<
+                                          pgl::detail::EmptyConvexVertexScore<PointType>>(sorted, true)
+                                    : pgl::maximumVerticesEmptyConvex(points);
+        if (expected.second == 0) {
+            // No triangle: two consecutive points farthest apart (or the one
+            // point, or nothing).
+            for (const auto& c : {byArea, byCount}) {
+                REQUIRE(c.size() == std::min<std::size_t>(sorted.size(), 2));
+                if (c.size() < 2)
+                    continue;
+                const auto at = std::find(sorted.begin(), sorted.end(), c[0]) - sorted.begin();
+                REQUIRE(at + 1 < static_cast<std::ptrdiff_t>(sorted.size()));
+                CHECK(sorted[static_cast<std::size_t>(at) + 1] == c[1]);
+                for (std::size_t i = 0; i + 1 < sorted.size(); ++i)
+                    CHECK(sorted[i].squaredDistance(sorted[i + 1]) <= c[0].squaredDistance(c[1]));
+            }
+            continue;
+        }
+        checkEmptyConvex(points, byArea);
+        checkEmptyConvex(points, byCount);
+        CHECK(static_cast<long long>(byArea.twiceArea()) == expected.first);
+        CHECK(byCount.size() == expected.second);
+    }
+}
+
+// A convex polygon (the hull of random points in a box), sometimes with a
+// point on one of its edges, and a few pollutants in a slightly larger box:
+// inside it, outside it, or on its boundary.
+template <class PointType>
+std::vector<PointType> pollutedConvex(int n, std::uint64_t seed, int size, int pollutants) {
+    Rng rng{seed};
+    const auto hull = pgl::Convex<PointType>(makePoints<PointType>(3 * n, seed, 0, size));
+    std::vector<PointType> points;
+    for (std::size_t i = 0; i < hull.size(); ++i)
+        points.push_back(hull[i]);
+    if (rng.range(0, 2) == 0 && points.size() >= 2) {
+        const PointType a = points[0], b = points[1];
+        if ((a.x() + b.x()) % 2 == 0 && (a.y() + b.y()) % 2 == 0)
+            points.emplace_back((a.x() + b.x()) / 2, (a.y() + b.y()) / 2);
+    }
+    for (int i = 0; i < pollutants; ++i)
+        points.emplace_back(rng.range(-size / 4, size + size / 4), rng.range(-size / 4, size + size / 4));
+    return points;
+}
+
+}  // namespace
+
+TEST_CASE_TEMPLATE("largest empty convex polygon agrees with brute force on random points", Number,
+                   int, long long, pgl::ERational) {
+    using PointType = pgl::Point<Number>;
+    const std::uint64_t seeds = std::is_same_v<Number, pgl::ERational> ? 15 : 60;
+    for (std::uint64_t seed = 1; seed <= seeds; ++seed) {
+        CAPTURE(seed);
+        const auto points = makePoints<PointType>(1 + static_cast<int>(seed % 12), seed, -1000, 1000);
+        checkLargestEmptyConvex(points, bruteLargestEmptyConvex(points));
+    }
+}
+
+TEST_CASE("largest empty convex polygon agrees with brute force on grids full of collinear points") {
+    using PointType = pgl::Point<int>;
+    for (std::uint64_t seed = 1; seed <= 120; ++seed) {
+        CAPTURE(seed);
+        const int side = 2 + static_cast<int>(seed % 4);
+        const auto points = makePoints<PointType>(4 + static_cast<int>(seed % 9), seed, 0, side);
+        checkLargestEmptyConvex(points, bruteLargestEmptyConvex(points));
+    }
+}
+
+TEST_CASE("largest empty convex polygon of convex polygons with pollutants") {
+    using PointType = pgl::Point<int>;
+    for (std::uint64_t seed = 1; seed <= 120; ++seed) {
+        CAPTURE(seed);
+        const int size = seed % 3 == 0 ? 12 : 1000;
+        const auto points =
+            pollutedConvex<PointType>(8 + static_cast<int>(seed % 20), seed, size, static_cast<int>(seed % 5));
+        CAPTURE(points);
+        checkLargestEmptyConvex(points, referenceLargestEmptyConvex(points));
+    }
+}
+
+TEST_CASE("largest empty convex polygon next to pollutants outside the hull") {
+    // Polygons near a circle with pollutants just outside it, found by a
+    // randomized search: each optimum (with the hull-restricted search forced
+    // at every anchor) needs a chord between two hull vertices that are not
+    // neighbours, next to an outside pollutant after it (the first three) or
+    // on both sides (the last three).
+    using PointType = pgl::Point<int>;
+    const std::vector<std::vector<PointType>> cases = {
+        {{769, 985}, {771, 964}, {783, 919}, {785, 913}, {850, 824}, {887, 798}, {1230, 1017}, {985, 1230},
+         {852, 1178}, {849, 1175}, {811, 1133}, {795, 1107}, {776, 1058}, {775, 1052}, {658, 1107}, {997, 664}},
+        {{933, 1002}, {950, 954}, {959, 946}, {1046, 951}, {1058, 1032}, {1021, 1063}, {997, 1066},
+         {962, 1055}, {934, 1014}, {1011, 1086}, {934, 974}, {925, 1063}, {984, 953}},
+        {{770, 945}, {782, 908}, {854, 813}, {887, 792}, {1166, 832}, {1196, 869}, {1150, 1181}, {1143, 1187},
+         {1027, 1234}, {968, 1233}, {837, 1170}, {777, 1079}, {1055, 659}, {909, 1324}, {983, 981}},
+        {{921, 1113}, {979, 863}, {1015, 862}, {1118, 929}, {1130, 1044}, {1123, 1061}, {982, 1136},
+         {926, 1116}, {1154, 1147}, {867, 1107}, {931, 840}, {899, 1159}},
+        {{933, 993}, {936, 979}, {937, 976}, {963, 943}, {978, 936}, {1008, 933}, {1025, 938}, {1028, 1060},
+         {988, 1066}, {976, 1062}, {937, 1024}, {1083, 945}, {1075, 1066}, {938, 949}, {1077, 1031}},
+        {{835, 1136}, {964, 788}, {977, 787}, {1033, 788}, {1099, 810}, {1166, 865}, {1210, 960}, {1212, 972},
+         {1213, 993}, {1213, 1014}, {1211, 1034}, {1035, 1211}, {1033, 1211}, {1299, 931}, {813, 1274},
+         {1262, 1161}, {861, 745}},
+    };
+    for (const auto& points : cases) {
+        CAPTURE(points);
+        checkLargestEmptyConvex(points, referenceLargestEmptyConvex(points));
+    }
+}
+
+TEST_CASE("largest empty convex polygon of small and degenerate inputs") {
+    using PointType = pgl::Point<int>;
+    // No triangle: the longest empty segment, the one point, or nothing.
+    CHECK(pgl::maximumAreaEmptyConvex(std::vector<PointType>{}).size() == 0);
+    const auto single = pgl::maximumAreaEmptyConvex(std::vector<PointType>{{3, 4}, {3, 4}});
+    REQUIRE(single.size() == 1);
+    CHECK(single[0] == PointType(3, 4));
+    const auto two = pgl::maximumAreaEmptyConvex(std::vector<PointType>{{3, 4}, {1, 2}});
+    REQUIRE(two.size() == 2);
+    CHECK(two[0] == PointType(1, 2));
+    CHECK(two[1] == PointType(3, 4));
+    const std::vector<PointType> line{{2, 2}, {0, 0}, {5, 5}, {1, 1}};
+    for (const auto& c : {pgl::maximumAreaEmptyConvex(line), pgl::maximumVerticesEmptyConvex(line)}) {
+        REQUIRE(c.size() == 2);
+        CHECK(c[0] == PointType(2, 2));
+        CHECK(c[1] == PointType(5, 5));
+    }
+    // Repeated points count once.
+    const std::vector<PointType> triangle{{0, 0}, {4, 0}, {0, 0}, {0, 3}, {4, 0}};
+    const auto t = pgl::maximumAreaEmptyConvex(triangle);
+    CHECK(t.size() == 3);
+    CHECK(t.twiceArea() == 12);
+}
+
+TEST_CASE("largest empty convex polygon of points in convex position is their hull") {
+    using PointType = pgl::Point<int>;
+    std::vector<PointType> points;
+    for (int x = 0; x < 40; ++x)
+        points.emplace_back(x, x * x);
+    std::reverse(points.begin(), points.end());
+    for (const auto& c : {pgl::maximumAreaEmptyConvex(points), pgl::maximumVerticesEmptyConvex(points)}) {
+        CHECK(c.size() == points.size());
+        CHECK(c == pgl::Convex<PointType>(points));
+    }
+}
+
+TEST_CASE("largest empty convex polygon of a square around its center") {
+    // Any three corners put the center on an edge, and opposite corners are
+    // collinear with it: the best are two adjacent corners and the center.
+    using PointType = pgl::Point<int>;
+    const std::vector<PointType> points{{0, 0}, {4, 0}, {4, 4}, {0, 4}, {2, 2}};
+    const auto byArea = pgl::maximumAreaEmptyConvex(points);
+    CHECK(byArea.twiceArea() == 8);
+    const auto byCount = pgl::maximumVerticesEmptyConvex(points);
+    CHECK(byCount.size() == 3);
+}
+
+TEST_CASE("largest empty convex polygon accepts any container and keeps labels") {
+    using PointType = pgl::Point<int, int>;
+    const std::list<PointType> points{PointType(0, 0, 1), PointType(6, 0, 2), PointType(6, 6, 3),
+                                      PointType(0, 6, 4), PointType(1, 5, 5)};
+    const auto c = pgl::maximumVerticesEmptyConvex(points);
+    CHECK(c.size() == 4);
+    for (std::size_t i = 0; i < c.size(); ++i) {
+        const auto it = std::find(points.begin(), points.end(), c[i]);
+        REQUIRE(it != points.end());
+        CHECK(c[i].label() == it->label());
+    }
+}

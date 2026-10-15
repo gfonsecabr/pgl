@@ -20,7 +20,7 @@
 - [Closest pair of points](#closest-pair-of-points) of a point set.
 - [Voronoi and power diagrams](#voronoi-and-power-diagrams) of points or disks, including farthest-point and higher-order diagrams.
 - [Sorting points](#sorting-points) lexicographically, around a center, or along a Hilbert curve.
-- [Empty polygons](#empty-polygons) enumerates the empty triangles and quadrilaterals of a point set.
+- [Empty polygons](#empty-polygons) enumerates the empty triangles and quadrilaterals of a point set, and finds its largest empty convex polygon.
 - [Polyominoes](#polyominoes) enumerates the free polyominoes of given sizes.
 - [Visibility](#visibility) builds visibility graphs inside polygons and triangulations.
 - [Boolean Operations, Minkowski Sum and Erosion](#boolean-operations-minkowski-sum-and-erosion) points to their documentation among the shape methods.
@@ -105,6 +105,10 @@ A polygon is empty with respect to a container of points `V` when its vertices a
 - `visitEmptyConvexQuadrilaterals(V, p, f)`, `visitEmptyConvexQuadrilaterals(V, e, f)` and `visitEmptyConvexQuadrilaterals(V, f)` visit the convex ones among them, as `Convex`. Complexity $O(n \log n + t + k)$ with $t$ counting the empty triangles with vertex `p`, $O(n \log n + k)$, and $O(n^2 \log n + t + k)$.
 
 - `findEmptyTriangles`, `findEmptyQuadrilaterals` and `findEmptyConvexQuadrilaterals` take the same arguments without `f` and return the same polygons in a `std::vector`.
+
+- `maximumAreaEmptyConvex(V)` returns an empty convex polygon of `V` with the largest area, as a `Convex`. When `V` has no three non-collinear points, it returns the longest empty segment instead. Complexity $O(n^3)$ time and $O(n^2)$ space.
+
+- `maximumVerticesEmptyConvex(V)` does the same for the most vertices. Complexity $O(n^3)$ time and $O(n^2)$ space.
 
 ### Polyominoes
 
