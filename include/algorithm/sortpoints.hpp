@@ -4,7 +4,8 @@
 
 /**
  * @file sortpoints.hpp
- * @brief Reorderings of a list of points: lexicographic, angular, spatial.
+ * @brief Reorderings of a list of points: lexicographic, angular, directional,
+ *        spatial.
  *
  * Algorithm headers sit above the shape API and express reusable geometry
  * procedures in terms of the public primitives.
@@ -190,6 +191,78 @@ void sortAround(std::vector<Point<Number, Label>>& points,
                        .value() > 0;
         });
     std::rotate(first, start, last);
+}
+
+namespace detail {
+
+// Sorts points by their projection onto the direction tail -> head, ties broken
+// by their projection onto that direction turned a quarter counterclockwise.
+// Both keys are linear in the point and together injective for a nonzero
+// direction, so this is a strict total order on distinct points.
+template <class Number, class Label, class TailPoint, class HeadPoint>
+void sortAlongDirection(std::vector<Point<Number, Label>>& points, const TailPoint& tail,
+                        const HeadPoint& head) {
+    PGL_ASSERT(tail != head);
+    std::sort(points.begin(), points.end(), [&tail, &head](const auto& a, const auto& b) {
+        const auto along = dotSign(a, b, tail, head);
+        if (along != 0)
+            return along > 0;  // b lies ahead of a along the direction.
+        return crossSign(tail, head, a, b) > 0;
+    });
+}
+
+}  // namespace detail
+
+/**
+ * @brief Sorts points in place along a direction vector.
+ *
+ * Points come in increasing order of their projection onto @p direction, so the
+ * first point is the farthest back and the last the farthest ahead. Points that
+ * tie, lying on a common line perpendicular to @p direction, come in increasing
+ * order along @p direction turned a quarter counterclockwise. Direction `(1, 0)`
+ * therefore gives exactly the lexicographic order of @ref sortPoints. Points
+ * sharing both coordinates are interchangeable, and which of them ends up first
+ * is unspecified.
+ *
+ * Only the exact @ref dotSign and @ref crossSign predicates are used, so the
+ * order stays exact for integer coordinates.
+ *
+ * @pre @p direction is not the zero vector.
+ *
+ * @tparam Number Coordinate type of the points being sorted.
+ * @tparam Label Label type of the points being sorted.
+ * @tparam DirectionNumber Coordinate type of the direction vector.
+ * @tparam DirectionLabel Label type of the direction vector.
+ * @param points Points to reorder in place.
+ * @param direction Vector the points are sorted along.
+ */
+template <class Number, class Label, class DirectionNumber, class DirectionLabel>
+void sortAlong(std::vector<Point<Number, Label>>& points,
+               const Point<DirectionNumber, DirectionLabel>& direction) {
+    detail::sortAlongDirection(points, Point<DirectionNumber>(DirectionNumber(0), DirectionNumber(0)),
+                               direction);
+}
+
+/**
+ * @brief Sorts points in place along the direction of an oriented shape.
+ *
+ * As @ref sortAlong with the vector from @p shape's source to its target: the
+ * direction an @ref OrientedSegment, @ref OrientedLine or @ref Ray points in.
+ * Only the direction matters, not where @p shape lies.
+ *
+ * @pre @p shape's source and target differ.
+ *
+ * @tparam Number Coordinate type of the points being sorted.
+ * @tparam Label Label type of the points being sorted.
+ * @tparam Directed An oriented segment, oriented line or ray.
+ * @param points Points to reorder in place.
+ * @param shape Shape whose direction the points are sorted along.
+ */
+template <class Number, class Label, class Directed>
+    requires(OrientedSegmentConcept<Directed> || OrientedLineConcept<Directed> ||
+             RayConcept<Directed>)
+void sortAlong(std::vector<Point<Number, Label>>& points, const Directed& shape) {
+    detail::sortAlongDirection(points, shape.source(), shape.target());
 }
 
 namespace detail {

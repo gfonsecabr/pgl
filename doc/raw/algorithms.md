@@ -84,6 +84,8 @@ These functions use the same predicate conventions documented in
 
 - `sortAround(points, p)` reorders `points` in place counterclockwise around the center `p`, starting from the lexicographically smallest point and breaking ties by putting farther points first. Points equal to `p` have no direction to sort by and end up last. When `p` lies strictly inside the convex hull of `points`, connecting the result in order traces a simple star-shaped polygon whose kernel contains `p`. Relies only on exact orientation and squared-distance comparisons. Complexity $O(n \log n)$ for $n$ points.
 
+- `sortAlong(points, d)` reorders `points` in place by increasing projection onto the direction `d`: a `Point` read as a vector, or an `OrientedSegment`, `OrientedLine` or `Ray`, whose direction runs from source to target. Points tied on a line perpendicular to `d` come in increasing order along `d` turned a quarter counterclockwise, so `d = (1, 0)` gives the lexicographic order of `sortPoints`. Points sharing both coordinates tie, and which comes first is unspecified. `d` must not be the zero vector, nor a shape with equal source and target. Relies only on exact dot and cross product signs. Complexity $O(n \log n)$ for $n$ points.
+
 - `hilbertSort(points)` reorders `points` in place along a Hilbert space-filling curve, so points close in the plane stay close in the sequence — a useful preprocessing step for incremental algorithms. Uses only coordinate comparisons (exact for integer coordinates).
 
 ### Empty polygons

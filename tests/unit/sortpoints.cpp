@@ -239,6 +239,100 @@ TEST_CASE("sortAround closes along the supporting line for a center on the hull"
     CHECK(PolygonShape(ring, pgl::trusted).isSimple());
 }
 
+namespace {
+
+// The documented order spelled out directly: the projection onto d, then onto d
+// turned a quarter counterclockwise. Written to check sortAlong's output.
+bool isSortedAlong(const std::vector<Point>& points, const Point& d) {
+    const auto key = [&d](const Point& p) {
+        return std::pair{static_cast<long long>(p.x()) * d.x() + static_cast<long long>(p.y()) * d.y(),
+                         static_cast<long long>(p.y()) * d.x() - static_cast<long long>(p.x()) * d.y()};
+    };
+    for (std::size_t i = 1; i < points.size(); ++i) {
+        if (key(points[i]) < key(points[i - 1])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+}  // namespace
+
+TEST_CASE("sortAlong the x axis is the lexicographic order") {
+    const std::vector<Point> input = makePoints(300, 11, -20, 20);
+    std::vector<Point> sorted = input;
+    pgl::sortAlong(sorted, Point(1, 0));
+    std::vector<Point> expected = input;
+    std::sort(expected.begin(), expected.end());
+    CHECK(sorted == expected);
+
+    pgl::sortAlong(sorted, Point(7, 0));
+    CHECK(sorted == expected);
+}
+
+TEST_CASE("sortAlong breaks ties counterclockwise of the direction") {
+    std::vector<Point> points{{0, 1}, {2, 1}, {1, 0}, {-1, 1}, {1, 2}};
+    pgl::sortAlong(points, Point(0, 1));
+    CHECK(points == std::vector<Point>{{1, 0}, {2, 1}, {0, 1}, {-1, 1}, {1, 2}});
+
+    pgl::sortAlong(points, Point(-1, 0));
+    CHECK(points == std::vector<Point>{{2, 1}, {1, 2}, {1, 0}, {0, 1}, {-1, 1}});
+}
+
+TEST_CASE("sortAlong permutes its input into the documented order") {
+    for (const Point d : {Point(1, 0), Point(0, -1), Point(3, 2), Point(-2, 5), Point(-4, -4)}) {
+        for (int n : {0, 1, 2, 7, 100, 400}) {
+            const std::vector<Point> input = makePoints(n, static_cast<std::uint64_t>(n) + 1, -30, 30);
+            std::vector<Point> sorted = input;
+            pgl::sortAlong(sorted, d);
+            CHECK(samePoints(sorted, input));
+            CHECK(isSortedAlong(sorted, d));
+        }
+    }
+}
+
+TEST_CASE("sortAlong follows the direction of an oriented shape") {
+    const std::vector<Point> input = makePoints(200, 13, -25, 25);
+    std::vector<Point> expected = input;
+    pgl::sortAlong(expected, Point(2, -3));
+
+    std::vector<Point> sorted = input;
+    pgl::sortAlong(sorted, pgl::OrientedSegment(Point(5, 5), Point(9, -1)));
+    CHECK(sorted == expected);
+
+    sorted = input;
+    pgl::sortAlong(sorted, pgl::OrientedLine(Point(-1, 0), Point(1, -3)));
+    CHECK(sorted == expected);
+
+    sorted = input;
+    pgl::sortAlong(sorted, pgl::Ray(Point(0, 3), Point(2, 0)));
+    CHECK(sorted == expected);
+
+    // Reversing the shape reverses the order along it, ties included.
+    sorted = input;
+    pgl::sortAlong(sorted, pgl::OrientedSegment(Point(9, -1), Point(5, 5)));
+    std::vector<Point> reversed = expected;
+    std::reverse(reversed.begin(), reversed.end());
+    CHECK(isSortedAlong(sorted, Point(-2, 3)));
+    CHECK(samePoints(sorted, reversed));
+}
+
+TEST_CASE("sortAlong stays exact for coordinates and directions of any type") {
+    // Projections that differ by one in about 2^61: no double can tell them
+    // apart, and int products would overflow.
+    constexpr int big = 1 << 30;
+    std::vector<Point> points{{big, big - 1}, {big - 1, big}, {-big, -big}, {big, big}};
+    pgl::sortAlong(points, Point(big, big - 1));
+    CHECK(points == std::vector<Point>{{-big, -big}, {big - 1, big}, {big, big - 1}, {big, big}});
+
+    std::vector<PointR> rational{{pgl::Rational<int>(1, 3), 0}, {pgl::Rational<int>(1, 4), 1},
+                                 {0, pgl::Rational<int>(1, 2)}};
+    pgl::sortAlong(rational, pgl::Point<long long>(3, 1));
+    CHECK(rational == std::vector<PointR>{{0, pgl::Rational<int>(1, 2)},
+                                          {pgl::Rational<int>(1, 3), 0},
+                                          {pgl::Rational<int>(1, 4), 1}});
+}
+
 TEST_CASE("hilbertSort permutes its input") {
     for (int n : {0, 1, 2, 5, 64, 300}) {
         const std::vector<Point> input = makePoints(n, 3, -50, 50);
