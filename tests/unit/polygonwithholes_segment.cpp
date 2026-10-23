@@ -142,6 +142,13 @@ TEST_CASE("PolygonWithHoles interiorContainsInterior allows ring endpoints only"
 
     CHECK(region.interiorContainsInterior(Segment({3, 5}, {3, 5})));
     CHECK_FALSE(region.interiorContainsInterior(Segment({5, 5}, {5, 5})));
+
+    // The hole's corner (5,5) is the larger end of both its edges.
+    const Region pointed(PolygonShape({0, 0, 10, 0, 10, 10, 0, 10}),
+                         std::vector{PolygonShape({2, 4, 5, 5, 2, 6})});
+    CHECK(pointed.contains(Segment({5, 1}, {5, 9})));
+    CHECK_FALSE(pointed.interiorContainsInterior(Segment({5, 1}, {5, 9})));
+    CHECK(pointed.interiorContainsInterior(Segment({6, 1}, {6, 9})));
 }
 
 TEST_CASE("PolygonWithHoles vs Segment: a chord touching the hole tangentially") {

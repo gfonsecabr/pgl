@@ -955,10 +955,12 @@ constexpr bool Polygon<PointType, LabelType>::interiorContainsInterior(const Oth
     // Reject precisely the contacts between the polygon boundary and the open
     // segment. Segment::interiorsIntersect catches crossings and positive-length
     // overlaps in edge interiors; the vertex test catches a boundary contact at
-    // an edge endpoint. Both are exact orientation/order predicates and do not
-    // construct intersection coordinates.
+    // an edge endpoint. Both ends are tested, since a vertex that is the larger
+    // end of both its edges is the smaller end of neither. Both are exact
+    // orientation/order predicates and do not construct intersection coordinates.
     for (const auto& edge : edgesView()) {
-        if (edge.interiorsIntersect(other) || other.interiorContains(edge.min())) {
+        if (edge.interiorsIntersect(other) || other.interiorContains(edge.min()) ||
+            other.interiorContains(edge.max())) {
             return false;
         }
     }
@@ -2230,7 +2232,8 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContainsInterior(
     }
     for (const auto& hole : holes_) {
         for (const auto& edge : hole.edgesView()) {
-            if (edge.interiorsIntersect(other) || other.interiorContains(edge.min())) {
+            if (edge.interiorsIntersect(other) || other.interiorContains(edge.min()) ||
+                other.interiorContains(edge.max())) {
                 return false;
             }
         }

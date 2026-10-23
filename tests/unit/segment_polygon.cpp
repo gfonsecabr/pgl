@@ -679,6 +679,12 @@ TEST_CASE("Polygon interiorContainsInterior allows boundary endpoints only") {
     CHECK(ell.contains(Segment({1, 5}, {5, 1})));
     CHECK_FALSE(ell.interiorContainsInterior(Segment({1, 5}, {5, 1})));
     CHECK(ell.interiorContainsInterior(Segment({3, 3}, {1, 1})));
+
+    // The notch tip (5,5) is the larger end of both its edges.
+    const Polygon notched({0, 0, 10, 0, 10, 10, 0, 10, 0, 6, 5, 5, 0, 4});
+    CHECK(notched.contains(Segment({5, 1}, {5, 9})));
+    CHECK_FALSE(notched.interiorContainsInterior(Segment({5, 1}, {5, 9})));
+    CHECK(notched.interiorContainsInterior(Segment({6, 1}, {6, 9})));
 }
 
 // Polygon::intersection clips the segment against the closed region and returns
