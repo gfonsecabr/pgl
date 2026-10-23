@@ -1,6 +1,6 @@
 #pragma once
 
-#include "implementation/optimalconvexpartition.hpp"
+#include "implementation/minimumweighttriangulation.hpp"
 
 /**
  * @file arrangement.hpp

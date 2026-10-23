@@ -146,6 +146,11 @@ struct ConvexCoverBuilder;
 // Polygon::optimalConvexPartition(). Defined in
 // implementation/optimalconvexpartition.hpp.
 struct OptimalConvexPartitionBuilder;
+
+// Narrow access point for the clear visibility used by
+// Polygon::minimumWeightTriangulation(). Defined in
+// implementation/minimumweighttriangulation.hpp.
+struct MinimumWeightTriangulationBuilder;
 }  // namespace detail
 
 /**
@@ -1613,6 +1618,7 @@ struct Triangulation {
   private:
     friend struct detail::ConvexCoverBuilder;
     friend struct detail::OptimalConvexPartitionBuilder;
+    friend struct detail::MinimumWeightTriangulationBuilder;
 
     // Full visibility of two mesh triangles needs only the new boundary edges
     // introduced by their convex hull. A hull edge whose endpoints both belong

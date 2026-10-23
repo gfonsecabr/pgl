@@ -85,6 +85,7 @@
 #include "algorithm/triangulation.hpp"
 #include "implementation/visibilitygraph.hpp"
 #include "implementation/optimalconvexpartition.hpp"
+#include "implementation/minimumweighttriangulation.hpp"
 #include "algorithm/arrangement.hpp"
 #include "algorithm/voronoi.hpp"
 #include "implementation/booleans.hpp"

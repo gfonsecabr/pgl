@@ -1197,6 +1197,56 @@ struct Polygon {
     [[nodiscard]] std::vector<Convex<PointType>> optimalConvexPartition() const;
 
     /**
+     * @brief Triangulates this polygon with the least total Euclidean length
+     *        of diagonals.
+     *
+     * Equivalent to `minimumWeightTriangulation(weight)` with `weight` the
+     * Euclidean distance computed in @p ApproximateNumber. The lengths are
+     * rounded, so of two triangulations whose weights nearly tie the heavier
+     * may come back.
+     *
+     * @tparam ApproximateNumber Floating-point type the lengths are summed in.
+     * @return A @ref Triangulation whose triangles tile the polygon.
+     */
+    template <class ApproximateNumber = double>
+    [[nodiscard]] auto minimumWeightTriangulation() const;
+
+    /**
+     * @brief Triangulates this polygon with the least total weight of
+     *        diagonals, for any weight function.
+     *
+     * The triangles' corners are exactly the polygon's vertices, and of every
+     * such triangulation the one returned minimizes the sum of
+     * `weight(p, q)` over its diagonals `pq`. The sides are in every
+     * triangulation, so their weights do not matter. `weight` must be
+     * symmetric, and its results must support `+` and `<` and be constructible
+     * from `0`; it need not be a metric, nor positive. With an exact result
+     * type the triangulation is exactly minimum, and of equal ones any may
+     * come back.
+     *
+     * No edge of the result is constrained, unlike in @ref triangulation, and
+     * the polygon is its whole domain. The polygon must be simple; one with
+     * fewer than three vertices or no area gives an empty triangulation.
+     *
+     * Computed by the dynamic program of Gilbert and Klincsek over the clear
+     * diagonals, found by triangular expansion. A strictly convex polygon, where
+     * every pair of non-adjacent vertices is one, skips the expansion and runs
+     * the program over a dense table.
+     *
+     * Complexity: that of @ref triangulation, plus `O(n^2 + Σ d(v)^2)` time and
+     * `O(n + m)` auxiliary space, for `n` vertices, `d(v)` the number of clear
+     * diagonals at `v` and `m` their total. That is `O(n^3)` for a convex
+     * polygon. `weight` is called once per clear diagonal.
+     *
+     * @tparam Weight Callable taking two vertices.
+     * @param weight The weight of a diagonal, given its two ends.
+     * @return A @ref Triangulation whose triangles tile the polygon.
+     */
+    template <class Weight>
+        requires std::invocable<const Weight&, const PointType_&, const PointType_&>
+    [[nodiscard]] auto minimumWeightTriangulation(const Weight& weight) const;
+
+    /**
      * @brief Covers this polygon with convex hulls derived from triangle cliques.
      *
      * The polygon is triangulated and the paper's dual-graph BFS builds a

@@ -1680,3 +1680,180 @@ TEST_CASE("Polygon optimalConvexPartition gives the same count with and without 
     CHECK(pieces.size() < spiked.convexPartition().size());
     checkConvexPartition(spiked, pieces);
 }
+
+// minimumWeightTriangulation
+
+namespace {
+
+// The least total weight of the diagonals over every triangulation of the
+// polygon: the textbook cubic program over all pairs of vertices, with each
+// diagonal tested directly against the polygon (interiorContainsInterior
+// rejects one through a vertex).
+template <class PolygonShape, class Weight>
+auto referenceMinimumWeight(const PolygonShape& polygon, const Weight& weight) {
+    using Number = std::remove_cvref_t<decltype(weight(polygon[0], polygon[0]))>;
+    const int n = static_cast<int>(polygon.size());
+    const auto at = [](int v) { return static_cast<std::size_t>(v); };
+    std::vector<std::vector<std::optional<Number>>> cost(
+        at(n), std::vector<std::optional<Number>>(at(n)));
+    for (int i = 0; i + 1 < n; ++i) {
+        cost[at(i)][at(i + 1)] = Number(0);
+    }
+    const auto withSelf = [&](int i, int j) -> std::optional<Number> {
+        const auto& c = cost[at(i)][at(j)];
+        if (!c || j - i == 1) {
+            return c;
+        }
+        return *c + weight(polygon[at(i)], polygon[at(j)]);
+    };
+    for (int span = 2; span < n; ++span) {
+        for (int i = 0; i + span < n; ++i) {
+            const int j = i + span;
+            if (span < n - 1 && !polygon.interiorContainsInterior(
+                                    pgl::Segment(polygon[at(i)], polygon[at(j)]))) {
+                continue;
+            }
+            for (int k = i + 1; k < j; ++k) {
+                const auto left = withSelf(i, k);
+                const auto right = withSelf(k, j);
+                if (left && right) {
+                    const Number total = *left + *right;
+                    auto& best = cost[at(i)][at(j)];
+                    if (!best || total < *best) {
+                        best = total;
+                    }
+                }
+            }
+        }
+    }
+    return cost[0][at(n - 1)];
+}
+
+// Checks that `tri` triangulates the polygon by its own vertices: n - 2
+// triangles with area, inside it, adding up to its area. Returns the total
+// weight of the diagonals.
+template <class PolygonShape, class Tri, class Weight>
+auto triangulationWeight(const PolygonShape& polygon, const Tri& tri, const Weight& weight) {
+    using Point = typename PolygonShape::PointType;
+    using Number = std::remove_cvref_t<decltype(weight(polygon[0], polygon[0]))>;
+    using SegmentShape = pgl::Segment<Point>;
+    const std::size_t n = polygon.size();
+    const auto triangles = tri.triangles();
+    REQUIRE(triangles.size() == n - 2);
+    const auto vertices = polygon.vertices();
+    const std::set<Point> corners(vertices.begin(), vertices.end());
+    std::set<SegmentShape> sides;
+    for (std::size_t i = 0; i < n; ++i) {
+        sides.emplace(polygon[i], polygon[(i + 1) % n]);
+    }
+    std::set<SegmentShape> diagonals;
+    typename Point::NumberType area(0);
+    for (const auto& t : triangles) {
+        CHECK_FALSE(t.isDegenerate());
+        CHECK(polygon.contains(t));
+        area += t.twiceArea();
+        for (int c = 0; c < 3; ++c) {
+            CHECK(corners.count(t[c]) == 1);
+            const SegmentShape edge(t[c], t[(c + 1) % 3]);
+            if (sides.count(edge) == 0) {
+                diagonals.insert(edge);
+            }
+        }
+    }
+    CHECK(area == polygon.template twiceArea<typename Point::NumberType>());
+    CHECK(diagonals.size() == n - 3);
+    Number total(0);
+    for (const auto& d : diagonals) {
+        total = total + weight(d[0], d[1]);
+    }
+    return total;
+}
+
+// A comb with `teeth` teeth: each vertex sees few others.
+IntPolygon comb(int teeth) {
+    std::vector<IntPoint> ring{IntPoint(0, 0)};
+    for (int i = 0; i < teeth; ++i) {
+        ring.emplace_back(4 * i + 1, 0);
+        ring.emplace_back(4 * i + 1, 3);
+        ring.emplace_back(4 * i + 3, 3);
+        ring.emplace_back(4 * i + 3, 0);
+    }
+    ring.emplace_back(4 * teeth, 0);
+    ring.emplace_back(4 * teeth, 6);
+    ring.emplace_back(0, 6);
+    return IntPolygon(ring);
+}
+
+std::vector<IntPolygon> triangulationPolygons() {
+    std::vector<IntPolygon> result{
+        IntPolygon({0, 0, 4, 0, 4, 4, 0, 4}),
+        IntPolygon({0, 0, 2, 0, 4, 0, 4, 4, 0, 4}),  // a straight angle
+        IntPolygon({-3, 9, -2, 4, -1, 1, 0, 0, 1, 1, 2, 4, 3, 9}),
+        IntPolygon({0, 0, 3, 0, 3, 1, 1, 1, 1, 3, 0, 3}),
+        IntPolygon({2, 3, 7, 1, 9, 2, 7, 5, 9, 8, 6, 7, 4, 5, 5, 4, 5, 2}),
+        comb(4),
+        spikedParabola(12),
+    };
+    // Strictly convex, which takes the dense table: on a parabola, and the
+    // lattice points of a circle, whose symmetry makes ties.
+    std::vector<IntPoint> parabola;
+    for (int x = -15; x <= 15; ++x) {
+        parabola.emplace_back(x, x * x);
+    }
+    result.emplace_back(parabola);
+    result.push_back(IntPolygon({5, 0, 4, 3, 3, 4, 0, 5, -3, 4, -4, 3, -5, 0, -4, -3, -3, -4, 0, -5,
+                                 3, -4, 4, -3}));
+    for (const auto& polyomino : pgl::polyominoesUpTo(4)) {
+        result.push_back(withLatticeVertices(polyomino));
+    }
+    for (const auto& polygon : gridPolygons(60)) {
+        result.push_back(polygon);
+    }
+    return result;
+}
+
+}  // namespace
+
+TEST_CASE_TEMPLATE("Polygon minimumWeightTriangulation has the least weight", Point,
+                   pgl::Point<int>, pgl::Point<double>, pgl::Point<pgl::Rational<int64_t>>) {
+    using PolygonShape = pgl::Polygon<Point>;
+    const auto squared = [](const Point& p, const Point& q) { return p.squaredDistance(q); };
+    const auto negated = [](const Point& p, const Point& q) { return -p.squaredDistance(q); };
+    const auto euclidean = [](const Point& p, const Point& q) {
+        return p.template distance<double>(q);
+    };
+    for (const auto& source : triangulationPolygons()) {
+        const PolygonShape polygon(source);
+        CAPTURE(polygon);
+        // An exact weight, a negative one (which maximizes), and the default.
+        const auto squaredBest = referenceMinimumWeight(polygon, squared);
+        REQUIRE(squaredBest.has_value());
+        CHECK(triangulationWeight(polygon, polygon.minimumWeightTriangulation(squared), squared) ==
+              *squaredBest);
+        const auto negatedBest = referenceMinimumWeight(polygon, negated);
+        REQUIRE(negatedBest.has_value());
+        CHECK(triangulationWeight(polygon, polygon.minimumWeightTriangulation(negated), negated) ==
+              *negatedBest);
+        const auto euclideanBest = referenceMinimumWeight(polygon, euclidean);
+        REQUIRE(euclideanBest.has_value());
+        CHECK(triangulationWeight(polygon, polygon.minimumWeightTriangulation(), euclidean) ==
+              doctest::Approx(*euclideanBest));
+    }
+}
+
+TEST_CASE("Polygon minimumWeightTriangulation of a polygon without area is empty") {
+    CHECK(IntPolygon({0, 0, 1, 1, 2, 2}).minimumWeightTriangulation().triangles().empty());
+    CHECK(IntPolygon({0, 0, 1, 1}).minimumWeightTriangulation().triangles().empty());
+    CHECK(IntPolygon().minimumWeightTriangulation().triangles().empty());
+}
+
+TEST_CASE("Polygon minimumWeightTriangulation picks the shorter diagonal") {
+    // A kite: the diagonal from (0,0) to (4,0) is shorter than the other one.
+    const IntPolygon kite({0, 0, 2, -3, 4, 0, 2, 3});
+    const auto triangles = kite.minimumWeightTriangulation().triangles();
+    REQUIRE(triangles.size() == 2);
+    for (const auto& t : triangles) {
+        CHECK(std::count(t.begin(), t.end(), IntPoint(0, 0)) == 1);
+        CHECK(std::count(t.begin(), t.end(), IntPoint(4, 0)) == 1);
+    }
+}
