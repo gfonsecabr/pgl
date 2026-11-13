@@ -119,6 +119,16 @@ Hence, it is safe to use coordinates of the following values.
 | `int64_t`     | $6.5 \cdot 10^{18} > 2^{62}$ |    $1.5 \cdot 10^9 > 2^{30}$ |
 | `int128`      |                        never | $6.5 \cdot 10^{18} > 2^{62}$ |
 
+Operations that compare squared distances between points — `closestPair`, `maximumSpacingClusters`, `proximityClusters`, `minimumDiameterBipartition` and `kMeansClustering` — add two squares, which needs a smaller bound:
+$$\mathrm{SAFE}_2(T) = \left\lfloor \sqrt{\frac{\mathrm{MAX}(T)}{8}} \right\rfloor$$
+
+| base type     |            promotion enabled |           promotion disabled |
+| ------------- | ---------------------------: | ---------------------------: |
+| `int16_t`     |              $16383 > 2^{13}$ |                 $63 > 2^{5}$ |
+| `int32_t`     |   $1.07 \cdot 10^9 > 2^{29}$ |             $16383 > 2^{13}$ |
+| `int64_t`     | $4.6 \cdot 10^{18} > 2^{61}$ |   $1.07 \cdot 10^9 > 2^{29}$ |
+| `int128`      |                        never | $4.6 \cdot 10^{18} > 2^{61}$ |
+
 For disks, the inCircle test promotes numbers twice to avoid overflows.
 
 When the exact arithmetic a predicate would need is an arbitrary precision one — `pgl::int128` and `pgl::BigInt` coordinates, any `pgl::Rational<pgl::BigInt>`, and the incircle test on `int64_t`, which promotes twice — the fundamental predicates (orientation test, incircle test...) first attempt a floating-point evaluation carrying an error bound, and compute the exact determinant only when that bound does not prove the sign. Coordinates whose determinant fits in a fixed-width type skip the attempt, their exact arithmetic being cheaper than the filter. Either way the answer is the same one.

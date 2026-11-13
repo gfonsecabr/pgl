@@ -121,6 +121,16 @@ Hence, it is safe to use coordinates of the following values.
 | `int64_t`     | $6.5 \cdot 10^{18} > 2^{62}$ |    $1.5 \cdot 10^9 > 2^{30}$ |
 | `int128`      |                        never | $6.5 \cdot 10^{18} > 2^{62}$ |
 
+Operations that compare squared distances between points — [`closestPair`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a9d03d057595b9229d8cc245045ce4df4 "Computes a closest pair of points by divide and conquer."), [`maximumSpacingClusters`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a6f53a8eee2f16fcacab20873be827ae0 "Partitions points into k clusters that are as far apart as possible."), [`proximityClusters`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a49e3e92cd33063c9269d7012eb7f00a6 "Partitions points into the clusters of points chained by short steps."), [`minimumDiameterBipartition`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a5379faa2af2c954eb70c643392c9c304 "Splits points into two clusters minimizing the larger diameter.") and [`kMeansClustering`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a6c1a67eeeb2f0f5b3f07d6d5382148ba "Partitions points into k clusters by Lloyd's k-means iteration.") — add two squares, which needs a smaller bound:
+$$\mathrm{SAFE}_2(T) = \left\lfloor \sqrt{\frac{\mathrm{MAX}(T)}{8}} \right\rfloor$$
+
+| base type     |            promotion enabled |           promotion disabled |
+| ------------- | ---------------------------: | ---------------------------: |
+| `int16_t`     |              $16383 > 2^{13}$ |                 $63 > 2^{5}$ |
+| `int32_t`     |   $1.07 \cdot 10^9 > 2^{29}$ |             $16383 > 2^{13}$ |
+| `int64_t`     | $4.6 \cdot 10^{18} > 2^{61}$ |   $1.07 \cdot 10^9 > 2^{29}$ |
+| `int128`      |                        never | $4.6 \cdot 10^{18} > 2^{61}$ |
+
 For disks, the inCircle test promotes numbers twice to avoid overflows.
 
 When the exact arithmetic a predicate would need is an arbitrary precision one — `pgl::int128` and [`pgl::BigInt`](https://gfonsecabr.github.io/pgl/classpgl_1_1BigInt.html "Arbitrary precision signed integer.") coordinates, any `pgl::Rational<pgl::BigInt>`, and the incircle test on `int64_t`, which promotes twice — the fundamental predicates (orientation test, incircle test...) first attempt a floating-point evaluation carrying an error bound, and compute the exact determinant only when that bound does not prove the sign. Coordinates whose determinant fits in a fixed-width type skip the attempt, their exact arithmetic being cheaper than the filter. Either way the answer is the same one.

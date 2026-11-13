@@ -19,6 +19,7 @@
 - [Smallest enclosing disk](#smallest-enclosing-disk) of a point set or a convex polygon.
 - [Closest pair of points](#closest-pair-of-points) of a point set.
 - [Voronoi and power diagrams](#voronoi-and-power-diagrams) of points or disks, including farthest-point and higher-order diagrams.
+- [Clustering](#clustering) partitions a point set by spacing, proximity, diameter or k-means.
 - [Sorting points](#sorting-points) lexicographically, around a center, or along a Hilbert curve.
 - [Empty polygons](#empty-polygons) enumerates the empty triangles and quadrilaterals of a point set, and finds its largest empty convex polygon.
 - [Polyominoes](#polyominoes) enumerates the free polyominoes of given sizes.
@@ -75,6 +76,18 @@ These functions use the same predicate conventions documented in
 - `voronoiDiagram(V, k)` and `powerDiagram(V, k)` return the order-$k$ diagram instead: each face is labeled with the $k$ sites nearest to it, ordered by their position in `V`. The order must be between 1 and the number of sites. Cells that are empty never appear, so there are far fewer faces than $k$-element subsets.
 
 - The labels are the elements of `V` themselves, so `diagram.label(diagram.locateFace(q))` lists the sites nearest to `q` — the one farthest from it, for `farthestVoronoiDiagram`. At a diagram edge or vertex the query ties, and `locateFace` picks one of the tied faces by its usual infinitesimal-perturbation rule; use `locateCell`, then inspect the incident faces, to recover every tied answer. The arrangement's edge labels are default-constructed and have no meaning.
+
+### Clustering
+
+Each function takes a container `V` of $n$ points and returns its clusters as a `std::vector<std::vector<Point>>`: a partition of `V`, every point copied with its label, the clusters largest first and the points of each in input order. Repeated points count separately, so a point appearing twice in `V` appears twice in the result. Squared distances are compared exactly for integer and rational coordinates, and ties between equally good partitions are broken arbitrarily.
+
+- `maximumSpacingClusters(V, k)` returns the `k` clusters that maximize the smallest distance between points in different clusters, the partition single-linkage clustering reaches at `k` clusters. `k` must be between 1 and $n$. Complexity: the construction time of the Delaunay triangulation of `V` plus $O(n \log n)$.
+
+- `proximityClusters(V, r2)` returns the connected components of the graph joining every two points at squared distance at most `r2`. Complexity: the construction time of the Delaunay triangulation of `V` plus $O(n \log n)$.
+
+- `minimumDiameterBipartition(V)` returns two clusters minimizing the larger of their diameters; one cluster for a single point, none for an empty `V`. Complexity $O(n^2)$ time and $O(n)$ space.
+
+- `kMeansClustering(V, k)` returns `k` non-empty clusters such that no point is strictly closer to another cluster's centroid than to its own: a fixed point of Lloyd's iteration from k-means++ seeding, which need not minimize the sum of squared distances to the centroids. `V` must hold at least `k` distinct points, and `k` must be at least 1. The seeding uses a fixed seed, so the same input always yields the same clusters; an overload takes a random-bit generator as its third argument. Floating-point coordinates are compared in their promoted floating-point type (`long double` for `double`), which rounds: the fixed point then holds only up to rounding, and the iteration also stops at the first round that fails to lower the computed sum of squared distances, keeping the partition before it. Complexity $O(nk)$ time per round; the number of rounds can be exponential in $n$.
 
 ### Sorting points
 

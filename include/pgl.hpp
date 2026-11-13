@@ -93,6 +93,7 @@
 #include "implementation/minkowskierosion.hpp"
 #include "algorithm/emptypolygons.hpp"
 #include "implementation/simplification.hpp"
+#include "algorithm/clustering.hpp"
 
 // -----------------------------------------------------------------------------
 // Exact convenience aliases
